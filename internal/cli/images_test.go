@@ -1170,7 +1170,7 @@ func TestLongContextCause(t *testing.T) {
 
 			merged, _ := setting.Merge(setting.Table(), []setting.Layer{
 				{Source: tc.from, Values: map[setting.Name]any{"long_context": true}},
-			})
+			}, setting.Choice{})
 
 			if got := text(longContextCause(refusal, runConfig{}.withMerged(merged))); got != tc.want {
 				t.Errorf("text = %q, want %q", got, tc.want)

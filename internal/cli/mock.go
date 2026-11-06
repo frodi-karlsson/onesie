@@ -14,7 +14,6 @@ import (
 )
 
 const (
-	envMock     = "ONESIE_MOCK"
 	flagMock    = "--mock"
 	mockKey     = "mock-key"
 	mockBaseURL = "https://mock.invalid"

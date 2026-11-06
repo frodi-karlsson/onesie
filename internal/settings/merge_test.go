@@ -14,6 +14,29 @@ import (
 func TestMerge(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should name the selector from the supplied rows", func(t *testing.T) {
+		rows := settings.Table()
+		for i := range rows {
+			if rows[i].Name == settings.Provider.Name() {
+				rows[i].Env = []settings.EnvSpec{{Name: "CUSTOM_PROVIDER"}}
+			}
+		}
+		src := reading{env: map[string]string{"CUSTOM_PROVIDER": "openrouter"}, defaultProfile: "work"}.sources(t)
+		chosen, err := settings.Choose(rows, src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		src.Choice = &chosen
+		layers, err := settings.Read(rows, src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		merged, notices := settings.Merge(rows, layers, chosen)
+		if merged.Origin(settings.Provider.Name()).Spelled != "CUSTOM_PROVIDER" || len(notices) != 1 || notices[0].Winner.Spelled != "CUSTOM_PROVIDER" {
+			t.Fatalf("origin %v notices %v, want CUSTOM_PROVIDER", merged.Origin(settings.Provider.Name()), notices)
+		}
+	})
+
 	account := strings.Repeat("a", 32)
 
 	tests := []struct {
@@ -536,8 +559,16 @@ func TestMerge(t *testing.T) {
 			t.Parallel()
 
 			layers := tc.layers
+			chosen := settings.Choice{}
 			if layers == nil {
-				read, err := settings.Read(settings.Table(), tc.reading.sources(t))
+				src := tc.reading.sources(t)
+				var err error
+				chosen, err = settings.Choose(settings.Table(), src)
+				if err != nil {
+					t.Fatal(err)
+				}
+				src.Choice = &chosen
+				read, err := settings.Read(settings.Table(), src)
 				if err != nil {
 					t.Fatalf("Read: %v", err)
 				}
@@ -545,7 +576,7 @@ func TestMerge(t *testing.T) {
 				layers = read
 			}
 
-			merged, notices := settings.Merge(settings.Table(), layers)
+			merged, notices := settings.Merge(settings.Table(), layers, chosen)
 
 			for name, want := range tc.want {
 				if got := merged.Value(name); !reflect.DeepEqual(got, want) {

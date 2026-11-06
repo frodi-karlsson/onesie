@@ -785,7 +785,7 @@ func runAdvised(t *testing.T, tc adviceCase) ([]string, string, string, int) {
 	}
 
 	lookup := func(name string) (string, bool) {
-		if name == envProvider && tc.provider != "" {
+		if name == "ONESIE_PROVIDER" && tc.provider != "" {
 			return tc.provider, true
 		}
 
@@ -920,7 +920,7 @@ func TestWithKeyHint(t *testing.T) {
 			name:     "should say the default profile's key stayed home when ONESIE_BASE_URL took the run",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`,
 			args:     []string{"is this urgent", "--state", "x", "-r"},
-			env:      map[string]string{envBaseURL: "{url}"},
+			env:      map[string]string{"ONESIE_BASE_URL": "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr: "onesie: 401 the key was refused. No key was sent, since the profile's key goes only with its " +

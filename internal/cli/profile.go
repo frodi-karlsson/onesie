@@ -66,12 +66,12 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func refuseMock(lookupEnv func(string) (string, bool)) error {
-	if value, found := lookupEnv(envMock); !found || value == "" {
+	if value, found := lookupEnv(settingEnv(setting.Mock.Name())); !found || value == "" {
 		return nil
 	}
 
 	return fmt.Errorf("profile reads and writes real configuration, so it does not run under %s. Unset it",
-		envMock)
+		settingEnv(setting.Mock.Name()))
 }
 
 func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -608,7 +608,7 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"environment. The model and base_url lines give the value a run would use and where it comes " +
 			"from. The model comes from profile, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
-			"profile's base_url, the profile's account_id, " + envBaseURL + ", a variable such as TYPESAFE_BASE_URL, " +
+			"profile's base_url, the profile's account_id, " + settingEnv(setting.APIEndpoint.Name()) + ", a variable such as TYPESAFE_BASE_URL, " +
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
 			"--allow-http, when base_url is plain http to another host. It never reads the keychain or " +
 			"prints a key.\n\n" +
@@ -782,7 +782,7 @@ func profileTest(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 
 func testedConnection(settings rootSettings, shown resolution) (resolution, error) {
 	run := loadedRun{}
-	choosing := map[string]string{}
+	chosen := setting.Choice{}
 
 	switch {
 	case shown.profile != "":
@@ -793,35 +793,33 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 
 		run.name, run.profile = shown.profile, opened.Profiles.Profiles[shown.profile]
 		if shown.chosenProfile() {
-			choosing[envProfile] = shown.profile
+			chosen.Profile, chosen.ProfileBy = shown.profile, setting.SourceEnv
 		} else {
-			run.fallback = shown.profile
+			chosen.Profile, chosen.ProfileBy = shown.profile, setting.SourceDefaultProfile
 		}
 	case shown.by != byNothing:
-		choosing[envProvider] = shown.provider.Name()
+		chosen.Provider, chosen.ProviderBy = shown.provider.Name(), setting.SourceEnv
 	}
 
 	layers, err := setting.Read(setting.Table(), setting.Sources{
-		LookupEnv:      connectionEnv(settings.lookupEnv, choosing),
-		Profile:        run.values(),
-		DefaultProfile: run.fallback,
-		Command:        setting.CommandRoot,
+		LookupEnv: connectionEnv(settings.lookupEnv),
+		Profile:   run.values(),
+		Choice:    &chosen,
+		Command:   setting.CommandRoot,
 	})
 	if err != nil {
 		return resolution{}, err
 	}
 
-	merged, _ := setting.Merge(setting.Table(), layers)
+	merged, _ := setting.Merge(setting.Table(), layers, chosen)
 
-	return shown.merged(merged), nil
+	tested := runResolution(merged, shown.provider)
+	tested.by = shown.by
+	return tested, nil
 }
 
-func connectionEnv(lookupEnv func(string) (string, bool), choosing map[string]string) func(string) (string, bool) {
+func connectionEnv(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		if value, chosen := choosing[name]; chosen {
-			return value, true
-		}
-
 		for _, key := range []setting.Name{setting.Model.Name(), setting.APIEndpoint.Name(), setting.APIKey.Name()} {
 			row, _ := setting.Lookup(key)
 			if slices.ContainsFunc(row.Env, func(variable setting.EnvSpec) bool { return variable.Name == name }) {

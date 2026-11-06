@@ -18,124 +18,6 @@ import (
 
 const testAccountID = "76a0a6ac260b32ec3c8703ba592e769f"
 
-func TestChoose(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		args    []string
-		env     map[string]string
-		want    choice
-		wantErr string
-	}{
-		{name: "should choose nothing when nothing is given", want: choice{}},
-		{
-			name: "should choose the profile --profile names",
-			args: []string{"--profile", "work"},
-			want: choice{profile: "work", by: "--profile"},
-		},
-		{
-			name: "should choose the provider --provider names",
-			args: []string{"--provider", "openrouter"},
-			want: choice{provider: "openrouter", by: "--provider"},
-		},
-		{
-			name: "should trim the name a flag gives",
-			args: []string{"--profile", " work "},
-			want: choice{profile: "work", by: "--profile"},
-		},
-		{
-			name: "should choose the profile ONESIE_PROFILE names",
-			env:  map[string]string{"ONESIE_PROFILE": "work"},
-			want: choice{profile: "work", by: "ONESIE_PROFILE"},
-		},
-		{
-			name: "should choose the provider ONESIE_PROVIDER names",
-			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
-			want: choice{provider: "berget", by: "ONESIE_PROVIDER"},
-		},
-		{
-			name: "should let --profile beat ONESIE_PROVIDER",
-			args: []string{"--profile", "work"},
-			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
-			want: choice{profile: "work", by: "--profile"},
-		},
-		{
-			name:    "should refuse --provider with ONESIE_PROFILE",
-			args:    []string{"--provider", "levanto"},
-			env:     map[string]string{"ONESIE_PROFILE": "work"},
-			wantErr: "--provider and ONESIE_PROFILE both choose what the run uses. Drop --provider or unset ONESIE_PROFILE",
-		},
-		{
-			name: "should let --profile beat ONESIE_PROFILE",
-			args: []string{"--profile", "home"},
-			env:  map[string]string{"ONESIE_PROFILE": "work"},
-			want: choice{profile: "home", by: "--profile"},
-		},
-		{
-			name: "should let --provider beat ONESIE_PROVIDER",
-			args: []string{"--provider", "typesafe"},
-			env:  map[string]string{"ONESIE_PROVIDER": "berget"},
-			want: choice{provider: "typesafe", by: "--provider"},
-		},
-		{
-			name: "should let --profile win over both variables",
-			args: []string{"--profile", "work"},
-			env:  map[string]string{"ONESIE_PROFILE": "home", "ONESIE_PROVIDER": "berget"},
-			want: choice{profile: "work", by: "--profile"},
-		},
-		{
-			name:    "should refuse --profile beside --provider",
-			args:    []string{"--profile", "work", "--provider", "typesafe"},
-			wantErr: "--profile and --provider both choose what the run uses. Pass one",
-		},
-		{
-			name: "should refuse ONESIE_PROFILE beside ONESIE_PROVIDER",
-			env:  map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "berget"},
-			wantErr: "ONESIE_PROFILE and ONESIE_PROVIDER are both set, and each chooses what the run uses. " +
-				"Unset one",
-		},
-		{
-			name: "should count an empty ONESIE_PROFILE as unset",
-			env:  map[string]string{"ONESIE_PROFILE": "", "ONESIE_PROVIDER": "berget"},
-			want: choice{provider: "berget", by: "ONESIE_PROVIDER"},
-		},
-		{
-			name: "should count a whitespace only ONESIE_PROVIDER as unset",
-			env:  map[string]string{"ONESIE_PROVIDER": "  "},
-			want: choice{},
-		},
-		{
-			name: "should leave an unknown provider for the resolution to refuse",
-			args: []string{"--provider", "nope"},
-			want: choice{provider: "nope", by: "--provider"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := choose(flagsFrom(t, tc.args...), lookupFrom(tc.env))
-			if tc.wantErr != "" {
-				if err == nil || err.Error() != tc.wantErr {
-					t.Errorf("error = %v, want %q", err, tc.wantErr)
-				}
-
-				return
-			}
-
-			if err != nil {
-				t.Fatalf("choose returned an error: %v", err)
-			}
-
-			if got != tc.want {
-				t.Errorf("choice = %+v, want %+v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestCheckChoice(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +54,10 @@ func TestCheckChoice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := checkChoice(flagsFrom(t, tc.args...), lookupFrom(tc.env))
+			chosen, err := setting.Choose(setting.Table(), setting.Sources{Given: flagsFrom(t, tc.args...).given, LookupEnv: lookupFrom(tc.env)})
+			if err == nil {
+				err = checkChoice(chosen)
+			}
 			if tc.wantErr == "" {
 				if err != nil {
 					t.Errorf("checkChoice returned an error: %v", err)
@@ -262,7 +147,7 @@ func TestProfileOf(t *testing.T) {
 
 	tests := []struct {
 		name         string
-		chosen       choice
+		chosen       setting.Choice
 		profiles     creds.Profiles
 		env          map[string]string
 		wantProfile  string
@@ -277,39 +162,39 @@ func TestProfileOf(t *testing.T) {
 		},
 		{
 			name: "should take the profile --profile names over the default", profiles: withDefault,
-			chosen:      choice{profile: "cf", by: "--profile"},
+			chosen:      setting.Choice{Profile: "cf", ProfileBy: setting.SourceFlag},
 			wantProfile: "cf", wantProvider: "cloudflare", wantBy: "--profile", wantKeyFrom: sourceFile,
 		},
 		{
 			name: "should take the profile ONESIE_PROFILE names over the default", profiles: withDefault,
-			chosen:      choice{profile: "cf", by: "ONESIE_PROFILE"},
+			chosen:      setting.Choice{Profile: "cf", ProfileBy: setting.SourceEnv},
 			wantProfile: "cf", wantProvider: "cloudflare", wantBy: "ONESIE_PROFILE", wantKeyFrom: sourceFile,
 		},
 		{
 			name: "should name the profiles there are for a missing one", profiles: withDefault,
-			chosen:  choice{profile: "nope", by: "ONESIE_PROFILE"},
+			chosen:  setting.Choice{Profile: "nope", ProfileBy: setting.SourceEnv},
 			wantErr: "ONESIE_PROFILE names profile 'nope', which does not exist. The profiles are 'cf', 'work'",
 		},
 		{
 			name: "should hint --provider for a --profile that names a provider", profiles: withDefault,
-			chosen: choice{profile: "levanto", by: "--profile"},
+			chosen: setting.Choice{Profile: "levanto", ProfileBy: setting.SourceFlag},
 			wantErr: "--profile names profile 'levanto', which does not exist. The profiles are 'cf', 'work'. " +
 				"'levanto' is a provider, so pass --provider levanto in place of --profile",
 		},
 		{
 			name: "should hint ONESIE_PROVIDER for an ONESIE_PROFILE that names a provider", profiles: withDefault,
-			chosen: choice{profile: "berget", by: "ONESIE_PROFILE"},
+			chosen: setting.Choice{Profile: "berget", ProfileBy: setting.SourceEnv},
 			wantErr: "ONESIE_PROFILE names profile 'berget', which does not exist. The profiles are 'cf', 'work'. " +
 				"'berget' is a provider, so set ONESIE_PROVIDER=berget in place of ONESIE_PROFILE",
 		},
 		{
 			name: "should give no provider hint for a name that differs from one only in case", profiles: withDefault,
-			chosen:  choice{profile: "Levanto", by: "--profile"},
+			chosen:  setting.Choice{Profile: "Levanto", ProfileBy: setting.SourceFlag},
 			wantErr: "--profile names profile 'Levanto', which does not exist. The profiles are 'cf', 'work'",
 		},
 		{
 			name: "should say there are no profiles for a missing one", profiles: empty,
-			chosen: choice{profile: "nope", by: "--profile"},
+			chosen: setting.Choice{Profile: "nope", ProfileBy: setting.SourceFlag},
 			wantErr: "--profile names profile 'nope', which does not exist. There are no profiles. " +
 				"Run onesie profile create NAME --provider PROVIDER to make one",
 		},
@@ -437,8 +322,20 @@ func TestProfileRun(t *testing.T) {
 	})
 }
 
-func TestResolution_merged(t *testing.T) {
+func TestRunResolution(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should build the connection only from merged values and the provider", func(t *testing.T) {
+		merged := &setting.Merged{}
+		merged.Set(setting.Profile.Name(), "work", setting.SourceFlag)
+		merged.Set(setting.APIKey.Name(), setting.HeldKey{Keychain: true, Account: "work@abc", KeyEnd: "3f9a"}, setting.SourceChosenProfile)
+		merged.Set(setting.Model.Name(), "merged-model", setting.SourceFile)
+		merged.Set(setting.APIEndpoint.Name(), setting.EndpointValue{BaseURL: "https://proxy.example"}, setting.SourceChosenProfile)
+		got := runResolution(merged, onesie.OpenRouter())
+		if got.profile != "work" || got.by != "--profile" || got.keyFrom != sourceKeychain || got.account != "work@abc" || got.keyEnd != "3f9a" || got.model != "merged-model" || got.baseURL != "https://proxy.example" {
+			t.Errorf("connection metadata or merged values were lost: profile %s by %s key source %s account %s model %s endpoint %s", got.profile, got.by, got.keyFrom, got.account, got.model, got.baseURL)
+		}
+	})
 
 	const otherAccount = "0123456789abcdef0123456789abcdef"
 
@@ -503,10 +400,10 @@ func TestResolution_merged(t *testing.T) {
 		{
 			name: "should pass ONESIE_BASE_URL ahead of TYPESAFE_BASE_URL on a run without a profile",
 			env: map[string]string{
-				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "https://local.example",
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", "ONESIE_BASE_URL": "https://local.example",
 				onesie.TypeSafe().EnvBaseURL(): "https://env.example",
 			},
-			wantURL: "https://local.example", wantFrom: envBaseURL, wantModel: onesie.TypeSafe().DefaultModel(),
+			wantURL: "https://local.example", wantFrom: "ONESIE_BASE_URL", wantModel: onesie.TypeSafe().DefaultModel(),
 			wantKey: "SECRET-ENV",
 		},
 		{
@@ -623,22 +520,27 @@ func mergedRun(
 
 	flags := flagsFrom(t, args...)
 
-	layers, err := setting.Read(setting.Table(), setting.Sources{
+	src := setting.Sources{
 		Given: flags.given, LookupEnv: lookupFrom(lookup), Profile: run.values(), DefaultProfile: run.fallback,
 		Command: setting.CommandRoot,
-	})
+	}
+	chosenSource, err := setting.Choose(setting.Table(), src)
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	merged, _ := setting.Merge(setting.Table(), layers)
+	src.Choice = &chosenSource
+	layers, err := setting.Read(setting.Table(), src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	merged, _ := setting.Merge(setting.Table(), layers, chosenSource)
 
 	resolved, err := resolveRun(run, lookupFrom(lookup), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	return resolved.merged(merged), merged
+	return runResolution(merged, resolved.provider), merged
 }
 
 func flagsFrom(t *testing.T, args ...string) *runFlags {

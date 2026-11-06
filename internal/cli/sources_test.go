@@ -229,7 +229,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("should print no base URL or key notice for a run that sends nothing", func(t *testing.T) {
 		t.Parallel()
 
-		env := map[string]string{envBaseURL: "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"}
+		env := map[string]string{"ONESIE_BASE_URL": "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"}
 
 		for _, args := range [][]string{
 			{"is it urgent", "--state", "x", "--mock", writeMock(t, `{"answer":0.9}`)},
@@ -254,7 +254,7 @@ func TestNewRootCmd(t *testing.T) {
 		defer srv.Close()
 
 		_, errOut, code := runInConfig(t, t.TempDir(), []string{"--list-models"}, "", map[string]string{
-			"ONESIE_MOCK": writeMock(t, `{"answer":0.9}`), envBaseURL: srv.URL, "TYPESAFE_API_KEY": "SECRET-ENV",
+			"ONESIE_MOCK": writeMock(t, `{"answer":0.9}`), "ONESIE_BASE_URL": srv.URL, "TYPESAFE_API_KEY": "SECRET-ENV",
 		})
 		if code != ExitOK || errOut != "" {
 			t.Errorf("exit code = %d, stderr = %q, want %d and none", code, errOut, ExitOK)
@@ -378,7 +378,6 @@ func TestConnectionEnv(t *testing.T) {
 	tests := []struct {
 		name     string
 		variable string
-		choosing map[string]string
 		want     string
 		found    bool
 	}{
@@ -388,18 +387,14 @@ func TestConnectionEnv(t *testing.T) {
 		{name: "should pass the account variable through", variable: "CLOUDFLARE_ACCOUNT_ID", want: "acct", found: true},
 		{name: "should hide ONESIE_PROFILE", variable: "ONESIE_PROFILE"},
 		{name: "should hide a variable no connection row reads", variable: "ONESIE_CACHE"},
-		{name: "should hide ONESIE_PROVIDER unless the test chooses it", variable: "ONESIE_PROVIDER"},
-		{
-			name: "should give the provider the test chooses", variable: "ONESIE_PROVIDER",
-			choosing: map[string]string{"ONESIE_PROVIDER": "openrouter"}, want: "openrouter", found: true,
-		},
+		{name: "should hide ONESIE_PROVIDER even when the test chooses it", variable: "ONESIE_PROVIDER"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, found := connectionEnv(env, tc.choosing)(tc.variable)
+			got, found := connectionEnv(env)(tc.variable)
 			if got != tc.want || found != tc.found {
 				t.Errorf("connectionEnv(%s) = %q, %t, want %q, %t", tc.variable, got, found, tc.want, tc.found)
 			}

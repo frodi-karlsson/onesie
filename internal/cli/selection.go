@@ -14,10 +14,6 @@ import (
 )
 
 const (
-	envProfile  = "ONESIE_PROFILE"
-	envProvider = "ONESIE_PROVIDER"
-	envBaseURL  = "ONESIE_BASE_URL"
-
 	flagProfile  = "profile"
 	flagProvider = "provider"
 
@@ -32,52 +28,19 @@ const (
 	profileAccountID = "the profile's account_id"
 )
 
-func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
-	chosen, err := choose(flags, lookupEnv)
-	if err != nil || chosen.provider == "" {
-		return err
+func checkChoice(chosen setting.Choice) error {
+	if chosen.Provider == "" {
+		return nil
 	}
-
-	_, err = onesie.ProviderNamed(chosen.provider)
-
+	_, err := onesie.ProviderNamed(chosen.Provider)
 	return err
 }
 
-func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
-	chosen, err := setting.Choose(setting.Table(), setting.Sources{
-		Given: flags.given, LookupEnv: lookupEnv, Command: setting.CommandRoot,
-	})
-
-	switch {
-	case err != nil:
-		return choice{}, err
-	case chosen.Profile != "":
-		return choice{profile: chosen.Profile, by: chooser(chosen.ProfileBy, flagProfile, envProfile)}, nil
-	case chosen.Provider != "":
-		return choice{provider: chosen.Provider, by: chooser(chosen.ProviderBy, flagProvider, envProvider)}, nil
-	default:
-		return choice{}, nil
-	}
-}
-
-func chooser(by setting.Source, flag, variable string) string {
-	if by == setting.SourceFlag {
-		return "--" + flag
-	}
-
-	return variable
-}
-
-type choice struct {
-	profile  string
-	provider string
-	by       string
-}
-
-func profileOf(chosen choice, profiles creds.Profiles) (loadedRun, error) {
-	name, by := chosen.profile, chosen.by
+func profileOf(chosen setting.Choice, profiles creds.Profiles) (loadedRun, error) {
+	name, by := chosen.Profile, choiceBy(chosen.ProfileBy, setting.Profile.Name())
 	if name == "" {
 		name, by = profiles.Default, byDefault
+		chosen.Profile, chosen.ProfileBy = name, setting.SourceDefaultProfile
 	}
 
 	if name == "" && len(profiles.Profiles) > 0 {
@@ -111,8 +74,8 @@ func providerNameHint(err error, name, by string) error {
 	switch by {
 	case "--" + flagProfile:
 		note = fmt.Sprintf("so pass --%s %s in place of --%s", flagProvider, name, flagProfile)
-	case envProfile:
-		note = fmt.Sprintf("so set %s=%s in place of %s", envProvider, name, envProfile)
+	case settingEnv(setting.Profile.Name()):
+		note = fmt.Sprintf("so set %s=%s in place of %s", settingEnv(setting.Provider.Name()), name, settingEnv(setting.Profile.Name()))
 	case "show", "test":
 		note = fmt.Sprintf("so run onesie profile %s --%s %s", by, flagProvider, name)
 	case "use":
@@ -127,16 +90,16 @@ func providerNameHint(err error, name, by string) error {
 	}
 }
 
-func providerIsProfileHint(err error, chosen choice, profiles creds.Profiles) error {
-	if _, isProfile := profiles.Profiles[chosen.provider]; !isProfile {
+func providerIsProfileHint(err error, chosen setting.Choice, profiles creds.Profiles) error {
+	if _, isProfile := profiles.Profiles[chosen.Provider]; !isProfile {
 		return err
 	}
 
 	note := fmt.Sprintf("%s is a profile, so pass --profile %s in place of --provider",
-		creds.QuotedName(chosen.provider), creds.QuotedName(chosen.provider))
-	if chosen.by == envProvider {
+		creds.QuotedName(chosen.Provider), creds.QuotedName(chosen.Provider))
+	if chosen.ProviderBy == setting.SourceEnv {
 		note = fmt.Sprintf("%s is a profile, so set %s=%s in place of %s",
-			creds.QuotedName(chosen.provider), envProfile, creds.QuotedName(chosen.provider), envProvider)
+			creds.QuotedName(chosen.Provider), settingEnv(setting.Profile.Name()), creds.QuotedName(chosen.Provider), settingEnv(setting.Provider.Name()))
 	}
 
 	return &advisedError{cause: err, message: text(err) + ". " + note}
@@ -195,6 +158,37 @@ func profileRun(name string, profile creds.Profile, by string) (resolution, erro
 	return kept, nil
 }
 
+func runResolution(m *setting.Merged, provider onesie.Provider) resolution {
+	r := resolution{provider: provider, profile: setting.Get(m, setting.Profile), keyFrom: sourceNone}
+	r.by = choiceBy(m.Source(setting.Provider.Name()), setting.Provider.Name())
+	if r.profile != "" {
+		r.by = choiceBy(m.Source(setting.Profile.Name()), setting.Profile.Name())
+	}
+
+	endpoint := setting.Get(m, setting.APIEndpoint)
+	r.baseURL, r.accountID = endpoint.BaseURL, endpoint.AccountID
+	r.endpointFrom = endpointName(m.Origin(setting.APIEndpoint.Name()), endpoint)
+	r.model = setting.Get(m, setting.Model)
+	r.modelFrom = modelSource(m.Origin(setting.Model.Name()))
+
+	switch held := m.Value(setting.APIKey.Name()).(type) {
+	case setting.HeldKey:
+		r.keyFrom, r.key, r.keyEnd = sourceFile, held.Key, creds.KeyEnd(strings.TrimSpace(held.Key))
+		if held.Keychain {
+			r.keyFrom, r.key, r.account, r.keyEnd = sourceKeychain, "", held.Account, held.KeyEnd
+		}
+	case string:
+		r.keyFrom, r.key, r.account, r.keyEnd = sourceEnv, setting.Get(m, setting.APIKey), "", ""
+	default:
+		aside, set := m.SetAside(setting.APIKey.Name())
+		r.keyAside = set && r.profile != "" &&
+			(aside.Source == setting.SourceChosenProfile || aside.Source == setting.SourceDefaultProfile)
+		r.keyFrom, r.key, r.account, r.keyEnd = sourceNone, "", "", ""
+	}
+
+	return r
+}
+
 type resolution struct {
 	provider     onesie.Provider
 	profile      string
@@ -224,27 +218,6 @@ func (r resolution) rankedProfile() string {
 
 func (r resolution) chosenProfile() bool {
 	return r.profile != "" && r.by != byDefault
-}
-
-func (r resolution) merged(m *setting.Merged) resolution {
-	endpoint := setting.Get(m, setting.APIEndpoint)
-	r.baseURL, r.accountID = endpoint.BaseURL, endpoint.AccountID
-	r.endpointFrom = endpointName(m.Origin(setting.APIEndpoint.Name()), endpoint)
-	r.model = setting.Get(m, setting.Model)
-	r.modelFrom = modelSource(m.Origin(setting.Model.Name()))
-
-	switch m.Value(setting.APIKey.Name()).(type) {
-	case setting.HeldKey:
-	case string:
-		r.keyFrom, r.key, r.account, r.keyEnd = sourceEnv, setting.Get(m, setting.APIKey), "", ""
-	default:
-		aside, set := m.SetAside(setting.APIKey.Name())
-		r.keyAside = set && r.profile != "" &&
-			(aside.Source == setting.SourceChosenProfile || aside.Source == setting.SourceDefaultProfile)
-		r.keyFrom, r.key, r.account, r.keyEnd = sourceNone, "", "", ""
-	}
-
-	return r
 }
 
 func modelSource(origin setting.Origin) string {
@@ -343,19 +316,19 @@ func missingKeyHint(err error, bare resolution, profiles creds.Profiles) error {
 
 func storeKeyHint(bare resolution, profiles creds.Profiles) string {
 	name := firstProfileOf(bare.provider.Name(), profiles)
-	if name == "" && bare.by == envProvider {
+	if name == "" && bare.by == settingEnv(setting.Provider.Name()) {
 		// A profile created now would still go unused while the variable chooses the run.
 		return fmt.Sprintf(". %s is set, so a stored profile is not used. To use one instead, unset %s "+
-			"and run onesie profile create NAME --provider %s", envProvider, envProvider, bare.provider.Name())
+			"and run onesie profile create NAME --provider %s", settingEnv(setting.Provider.Name()), settingEnv(setting.Provider.Name()), bare.provider.Name())
 	}
 
 	if name == "" {
 		return ", or store one with onesie profile create NAME --provider " + bare.provider.Name()
 	}
 
-	if bare.by == envProvider {
+	if bare.by == settingEnv(setting.Provider.Name()) {
 		return fmt.Sprintf(", or unset %s and run onesie profile use %s, or run with --profile %s",
-			envProvider, creds.QuotedName(name), creds.QuotedName(name))
+			settingEnv(setting.Provider.Name()), creds.QuotedName(name), creds.QuotedName(name))
 	}
 
 	return ", or drop --provider and pass --profile " + creds.QuotedName(name)
@@ -406,4 +379,23 @@ func setVariable(lookupEnv func(string) (string, bool), name string) string {
 	value, _ := lookupEnv(name)
 
 	return strings.TrimSpace(value)
+}
+
+func choiceBy(source setting.Source, name setting.Name) string {
+	row, _ := setting.Lookup(name)
+	switch source {
+	case setting.SourceFlag:
+		return "--" + row.Flag.Long
+	case setting.SourceEnv:
+		return row.Env[0].Name
+	case setting.SourceDefaultProfile:
+		return byDefault
+	default:
+		return byNothing
+	}
+}
+
+func settingEnv(name setting.Name) string {
+	row, _ := setting.Lookup(name)
+	return row.Env[0].Name
 }
