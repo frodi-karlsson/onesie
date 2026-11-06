@@ -108,10 +108,6 @@ func announced(notices []setting.Notice, sendsNothing bool) []setting.Notice {
 	var kept []setting.Notice
 
 	for _, notice := range notices {
-		if row, found := setting.Lookup(notice.Setting); found && row.Flag.Repeat {
-			continue
-		}
-
 		if sendsNothing && connects(notice.Setting) {
 			continue
 		}

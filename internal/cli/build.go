@@ -178,26 +178,19 @@ func withoutJudgment(loaded *qfile.File) {
 	}
 }
 
-func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {
-	exprs := make([]*assert.Expr, 0, len(sources)+1)
-
-	// The file leads and the command line follows. The file's expression is the more general one,
-	// and argv puts the flag after the -f that named the file. A file's key and its flag combine by
-	// and, for the abstain expression as for the assertion, and and is commutative, so the order is
-	// a matter of which one an error names first.
-	if fileSource != "" {
-		// Spelled the way the file spells it, which is the rule plan holds every other message to
-		// that names where a setting came from.
-		expr, err := gateExpr(fileSource, plan.Spelling(plan.OriginFile, flag), built)
-		if err != nil {
-			return nil, err
-		}
-
-		exprs = append(exprs, expr)
+func gateOf(flag, fileSource string, typed []string, built *plan.Plan) (*assert.Expr, error) {
+	// A typed flag replaces the file's key, and several typed ones combine by and. The file's key is
+	// spelled the way the file spells it, which is the rule plan holds every other message to that
+	// names where a setting came from.
+	sources, named := typed, flag
+	if len(typed) == 0 && fileSource != "" {
+		sources, named = []string{fileSource}, plan.Spelling(plan.OriginFile, flag)
 	}
 
+	exprs := make([]*assert.Expr, 0, len(sources))
+
 	for _, source := range sources {
-		expr, err := gateExpr(source, flag, built)
+		expr, err := gateExpr(source, named, built)
 		if err != nil {
 			return nil, err
 		}

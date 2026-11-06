@@ -174,18 +174,19 @@ func policyRows() []Row {
 			Help:     "value substituted on low confidence and on error",
 		},
 		{
-			Name: "assert", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "assert", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
 			FileKey:  "assert",
 			FileHelp: "A gate over every answer, as --assert takes it.",
 			Flag:     FlagSpec{Long: "assert", Repeat: true, Commands: onRoot()},
-			Help:     "boolean expression over the record, repeatable, combined with and",
+			Help:     "boolean expression over the record, repeatable, combined with and. Replaces the -f file's assert",
 		},
 		{
-			Name: "abstain_if", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "abstain_if", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
 			FileKey:  "abstain_if",
 			FileHelp: "An abstain expression, as --abstain-if takes it.",
 			Flag:     FlagSpec{Long: "abstain-if", Repeat: true, Commands: onRoot()},
-			Help:     "boolean expression that turns a no into an unsure, repeatable, needs --assert",
+			Help: "boolean expression that turns a no into an unsure, repeatable, combined with and, needs " +
+				"--assert. Replaces the -f file's abstain_if",
 		},
 	}
 }

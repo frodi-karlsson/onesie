@@ -295,10 +295,8 @@ func runUsesBlock(rows []settings.Row) (string, error) {
 }
 
 func ranked(row settings.Row) bool {
-	// A repeatable flag adds to the file's value rather than outranking it, and the provider and the
-	// profile choose the sources the other rows rank.
-	if row.Scope != settings.ScopeRun || row.Flag.Repeat ||
-		row.Name == settings.Provider.Name() || row.Name == settings.Profile.Name() {
+	// The provider and the profile choose the sources the other rows rank.
+	if row.Scope != settings.ScopeRun || row.Name == settings.Provider.Name() || row.Name == settings.Profile.Name() {
 		return false
 	}
 

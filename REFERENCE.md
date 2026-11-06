@@ -726,6 +726,8 @@ the Cloudflare account together. A request body's `long_context: false` counts a
 <!-- settings:run_uses begin -->
 | Setting | Flag | Chosen profile | Question file or body | Environment | Default profile |
 |---------|------|----------------|-----------------------|-------------|-----------------|
+| `assert` | `--assert` |  | the question file's `assert` |  |  |
+| `abstain_if` | `--abstain-if` |  | the question file's `abstain_if` |  |  |
 | `model` | `--model` | `model` | the request body's `model` | `TYPESAFE_DEFAULT_MODEL` on typesafe | `model` |
 | `endpoint` | `--base-url` | `base_url` or `account_id` |  | `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare | `base_url` or `account_id` |
 | `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |
