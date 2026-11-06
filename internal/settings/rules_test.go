@@ -417,6 +417,111 @@ func TestValidate(t *testing.T) {
 		})
 	}
 
+	t.Run("should note a run setting typed twice under rule setting-given-twice", func(t *testing.T) {
+		t.Parallel()
+
+		tests := []struct {
+			name    string
+			command settings.Command
+			args    []string
+			unread  bool
+			want    []string
+		}{
+			{
+				name: "should keep the last value of a run setting typed twice, with a notice",
+				args: []string{"q", "-m", "jev-1.13.0", "-m", "jev-preview"},
+				want: []string{"-m is given twice, 'jev-preview' overrides 'jev-1.13.0'"},
+			},
+			{name: "should name -m twice for -qm a -m b", args: []string{"q", "-qm", "a", "-m", "b"}, want: []string{"-m is given twice, 'b' overrides 'a'"}},
+			{
+				name: "should spell the flag as it was last typed",
+				args: []string{"q", "--model", "a", "-m", "b"}, want: []string{"-m is given twice, 'b' overrides 'a'"},
+			},
+			{
+				name: "should name every earlier value of a setting typed three times",
+				args: []string{"q", "-m", "a", "-m", "b", "-m", "c"},
+				want: []string{"-m is given 3 times, 'c' overrides 'a' and 'b'"},
+			},
+			{
+				name: "should note a switch turned off after it was turned on",
+				args: []string{"q", "--cache", "--cache=false"}, want: []string{"--cache is given twice, 'false' overrides 'true'"},
+			},
+			{
+				name: "should spell the flag by its long name when the command line cannot be read",
+				args: []string{"q", "-m", "a", "-m", "b"}, unread: true, want: []string{"--model is given twice, 'b' overrides 'a'"},
+			},
+			{
+				name:    "should note a persistent flag typed twice on calibrate",
+				command: settings.CommandCalibrate, args: []string{"--profile", "a", "--profile", "b"},
+				want: []string{"--profile is given twice, 'b' overrides 'a'"},
+			},
+			{name: "should accept --desc for different keys", args: []string{"--ask", "a=q", "--desc", "k=x", "--desc", "j=y"}},
+			{
+				name: "should accept repeated --assert, --pick and --ask",
+				args: []string{
+					"--ask", "a=q", "--pick", "x", "--pick", "y", "--ask", "b=r",
+					"--assert", "a.value > 0.5", "--assert", "b.value > 0.5",
+				},
+			},
+			{name: "should print nothing for the same value twice", args: []string{"q", "-m", "a", "-m", "a"}},
+			{name: "should print nothing for one switch value spelled two ways", args: []string{"q", "--cache=1", "--cache=true"}},
+			{name: "should print nothing for one number spelled two ways", args: []string{"q", "-i", "jsonl", "-j", "2", "-j", "02"}},
+			{
+				name: "should escape the newlines of a multi line --state",
+				args: []string{"--state", "line one\nline two\tend", "--state", "x", "q"},
+				want: []string{`--state is given twice, 'x' overrides 'line one\nline two\tend'`},
+			},
+			{
+				name: "should cut a long value to 40 characters",
+				args: []string{"q", "--state", strings.Repeat("a", 50), "--state", "it's short"},
+				want: []string{`--state is given twice, 'it\'s short' overrides '` + strings.Repeat("a", 40) + `…'`},
+			},
+			{
+				name: "should leave out an earlier value the last one repeats",
+				args: []string{"q", "-m", "a", "-m", "b", "-m", "a"}, want: []string{"-m is given 3 times, 'a' overrides 'b'"},
+			},
+		}
+
+		rule := ruleByID(t, "setting-given-twice")
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				root := register(settings.CommandRoot)
+				parsed, facts := root, settings.Facts{Command: settings.CommandRoot, Given: root.given, Args: tc.args}
+
+				if tc.command == settings.CommandCalibrate {
+					parsed = register(settings.CommandCalibrate)
+					parsed.persistent = root.persistent
+					parsed.given.Inherit(root.persistent)
+					parsed.given.Within(root.given)
+					facts.Command, facts.Given = settings.CommandCalibrate, parsed.given
+				}
+
+				parsed.parse(t, tc.args...)
+
+				if tc.unread {
+					facts.Args = nil
+				}
+
+				_, notices, err := settings.Validate(settings.NewView(&settings.Merged{}, nil, facts), []settings.Rule{rule})
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+
+				var got []string
+				for _, notice := range notices {
+					got = append(got, notice.String())
+				}
+
+				if !slices.Equal(got, tc.want) {
+					t.Errorf("notices = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("should check the settings alone when no plan is built", func(t *testing.T) {
 		t.Parallel()
 
@@ -1185,7 +1290,7 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
-	t.Run("should cover every rule in Rules", func(t *testing.T) {
+	t.Run("should cover every rule in Rules that refuses", func(t *testing.T) {
 		t.Parallel()
 
 		var covered []string
@@ -1194,7 +1299,8 @@ func TestValidate(t *testing.T) {
 		}
 
 		for _, rule := range settings.Rules() {
-			if !slices.Contains(covered, rule.ID) {
+			refuses := rule.Check != nil || rule.Inspect != nil
+			if refuses && !slices.Contains(covered, rule.ID) {
 				t.Errorf("rule %s has no refusing and passing case", rule.ID)
 			}
 		}
@@ -1238,7 +1344,7 @@ func TestRules(t *testing.T) {
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
 					"body-policy-needs-one-question", "group-flags-bind", "questions-valid", "quiet-needs-one-question",
-					"raw-needs-one-question", "one-state",
+					"raw-needs-one-question", "one-state", "setting-given-twice",
 				}
 
 				got := make([]string, 0, len(rules))

@@ -77,6 +77,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.F
 	given = setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
 		calibrateTargets(flags, calib))
 	given.Inherit(persistent)
+	given.Within(flags.given)
 
 	return cmd
 }
@@ -181,9 +182,9 @@ func runCalibrate(
 		return err
 	}
 
-	if warnErr := warnIgnoredBodyState(
-		cmd.ErrOrStderr(), flags, inv.loaded, "calibrate", inv.images, plan.WireAll(inv.plan.Questions)); warnErr != nil {
-		return warnErr
+	if noteErr := noteOverriddenBodyState(
+		cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(inv.plan.Questions)); noteErr != nil {
+		return noteErr
 	}
 
 	if !calib.offline {

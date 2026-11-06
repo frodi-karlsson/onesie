@@ -160,6 +160,14 @@ func TestNotice_String(t *testing.T) {
 			want: "-m is given twice, jev-preview overrides jev-1.13.0",
 		},
 		{
+			name: "should count a setting given more than twice",
+			notice: settings.Notice{
+				Setting: "model", Winner: flag("-m"), Verb: settings.VerbGivenTwice, Times: 3,
+				Values: [2]string{"c", "a and b"},
+			},
+			want: "-m is given 3 times, c overrides a and b",
+		},
+		{
 			name: "should name the question of a setting given twice",
 			notice: settings.Notice{
 				Setting: "fallback", Winner: flag("--fallback"), Loser: flag("--fallback"), Question: "tone",

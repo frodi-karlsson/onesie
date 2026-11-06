@@ -20,7 +20,9 @@ const AnnotationAsksNothing = "onesie-asks-nothing"
 func Register(
 	set, persistent *pflag.FlagSet, rows []Row, recorder *argv.Recorder, command Command, targets map[Name]any,
 ) *Given {
-	given := &Given{counts: map[Name]int{}, spellings: map[Name]BoundFlag{}, sets: []*pflag.FlagSet{set}}
+	given := &Given{
+		counts: map[Name]int{}, values: map[Name][]string{}, spellings: map[Name]BoundFlag{}, sets: []*pflag.FlagSet{set},
+	}
 	if persistent != nil {
 		given.sets = append(given.sets, persistent)
 	}
@@ -145,11 +147,14 @@ func RefuseEmpty(set *pflag.FlagSet, name string) {
 	flag.Value = nonEmpty{Value: flag.Value, rule: refuseBlank}
 }
 
-// Given counts how often each row's flag was set in one parse, and spells where it was typed.
+// Given counts how often each row's flag was set in one parse, keeps each value it was set to, and
+// spells where it was typed.
 type Given struct {
 	counts    map[Name]int
+	values    map[Name][]string
 	spellings map[Name]BoundFlag
 	sets      []*pflag.FlagSet
+	parent    *Given
 }
 
 // Inherit adds set, the persistent flags of a parent command, to the sets the flags are looked up in.
@@ -161,19 +166,46 @@ func (g *Given) Inherit(set *pflag.FlagSet) {
 	g.sets = append(g.sets, set)
 }
 
+// Within makes the flags parent counts, the persistent flags of a parent command among them, count
+// and spell here too, for each row this Given does not register itself.
+func (g *Given) Within(parent *Given) {
+	if g == nil {
+		return
+	}
+
+	g.parent = parent
+}
+
 // Count is how many times the flag of name was set. A repeatable flag counts nothing.
 func (g *Given) Count(name Name) int {
-	if g == nil {
+	owner := g.owning(name)
+	if owner == nil {
 		return 0
 	}
 
-	return g.counts[name]
+	return owner.counts[name]
+}
+
+// Values lists each value the flag of name was set to, in the order typed. A repeatable flag lists
+// nothing.
+func (g *Given) Values(name Name) []string {
+	owner := g.owning(name)
+	if owner == nil {
+		return nil
+	}
+
+	return slices.Clone(owner.values[name])
 }
 
 // Spelled returns each spelling of name's flag in args in order, reading args as pflag does, so
 // a cluster such as -qm holds several shorthands, a flag's value is no flag, and -- ends the flags.
 func (g *Given) Spelled(args []string, name Name) []string {
-	bound, known := g.spellings[name]
+	owner := g.owning(name)
+	if owner == nil {
+		return nil
+	}
+
+	bound, known := owner.spellings[name]
 	if !known {
 		return nil
 	}
@@ -206,6 +238,18 @@ func (g *Given) Spelled(args []string, name Name) []string {
 	}
 
 	return spelled
+}
+
+func (g *Given) owning(name Name) *Given {
+	if g == nil {
+		return nil
+	}
+
+	if _, own := g.spellings[name]; own || g.parent == nil {
+		return g
+	}
+
+	return g.parent.owning(name)
 }
 
 func (g *Given) spelledInCluster(shorthands, short string, spelled []string) ([]string, bool) {
@@ -264,6 +308,7 @@ func (c counted) Set(value string) error {
 	}
 
 	c.given.counts[c.name]++
+	c.given.values[c.name] = append(c.given.values[c.name], value)
 
 	return nil
 }

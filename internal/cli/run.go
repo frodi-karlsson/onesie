@@ -53,15 +53,17 @@ func validated(
 			return staged{}, mergeErr
 		}
 
-		if _, err = validateRun(merged.config, runFacts{}, nil); err != nil {
-			return staged{}, err
+		_, typedTwice, validateErr := validateRun(merged.config, runFacts{}, nil,
+			commandLine{given: parsed.given, args: settings.args})
+		if validateErr != nil {
+			return staged{}, validateErr
 		}
 
 		if merged.refusal != nil {
 			return staged{}, merged.refusal
 		}
 
-		return staged{config: merged.config}, announce(cmd.ErrOrStderr(), merged.notices)
+		return staged{config: merged.config}, announce(cmd.ErrOrStderr(), append(typedTwice, merged.notices...))
 	}
 
 	ready, err := assemble(settings, flags, parsed.given, setting.CommandRoot, false)
@@ -81,7 +83,7 @@ func validated(
 
 func announce(w io.Writer, notices []setting.Notice) error {
 	for _, notice := range notices {
-		if err := output.Notice(w, notice.String()); err != nil {
+		if err := output.Notice(w, output.Printable(notice.String())); err != nil {
 			return err
 		}
 	}
@@ -193,9 +195,9 @@ func runPlan(
 	}
 
 	if inputMode.Streaming() {
-		if warnErr := warnIgnoredBodyState(
-			cmd.ErrOrStderr(), flags, inv.loaded, "a stream", inv.images, plan.WireAll(built.Questions)); warnErr != nil {
-			return warnErr
+		if noteErr := noteOverriddenBodyState(
+			cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(built.Questions)); noteErr != nil {
+			return noteErr
 		}
 
 		if refuseErr := checkProviderNeeds(settings, flags, built, inv.images); refuseErr != nil {
@@ -316,9 +318,7 @@ func imagedState(sent any) (input.Resolved, error) {
 	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
 }
 
-func warnIgnoredBodyState(
-	w io.Writer, flags runConfig, loaded *qfile.File, sender string, images *imaging, questions onesie.Questions,
-) error {
+func noteOverriddenBodyState(w io.Writer, loaded *qfile.File, images *imaging, questions onesie.Questions) error {
 	if loaded == nil || !loaded.HasState {
 		return nil
 	}
@@ -330,11 +330,10 @@ func warnIgnoredBodyState(
 
 	note := ""
 	if dropped > 0 {
-		note = fmt.Sprintf(" and its %s", plural(dropped, "asset"))
+		note = " and its " + plural(dropped, "asset")
 	}
 
-	return output.Warning(w, fmt.Sprintf(
-		"ignoring the state in %s%s, since %s sends each record as its state", flags.file, note, sender))
+	return output.Notice(w, "the input records override the request body's state"+note)
 }
 
 func resolveState(

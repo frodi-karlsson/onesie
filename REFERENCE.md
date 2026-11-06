@@ -610,7 +610,7 @@ on the provider's key variable alone.
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `onesie: active: ONESIE_PROVIDER=openrouter, no profile` |
-| `profile show [NAME]` | prints what a run would use now, or what the named profile holds, never the key |
+| `profile show [NAME]` | prints what a run would use now, or what a run on the named profile would use, never the key |
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines. With no key on a custom base URL it lists them with none |
 
 - A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
@@ -641,9 +641,12 @@ on the provider's key variable alone.
   `none, not needed for a custom base URL`. A converted keychain key shows no ending until
   `onesie profile update NAME --key`. `chosen by:` is `--profile`, `ONESIE_PROFILE`, `the default`,
   `--provider`, `ONESIE_PROVIDER` or `nothing`, and `not active` for a named profile a run would not
-  use. `model:` and `base_url:` give the profile's own value ahead of any variable, then where it
-  comes from. A run on the default profile takes an exported variable over it instead, as in
-  [What a run uses](#what-a-run-uses). The model comes from `profile`, `env TYPESAFE_DEFAULT_MODEL` or `the
+  use. `profile:` names the profile's rank after it, as in `profile: work, the default profile` for
+  the default a run falls back to, or `profile: work, a chosen profile` for one `--profile` or
+  `ONESIE_PROFILE` names. `show NAME` ranks the profile as a run uses it now, and as `--profile NAME`
+  would when no run uses it. `key:`, `model:` and `base_url:` give the value a run would use, then
+  where it comes from, in the order of [What a run uses](#what-a-run-uses), so an exported variable
+  beats the default profile's value and loses to a chosen profile's. The model comes from `profile`, `env TYPESAFE_DEFAULT_MODEL` or `the
   provider's default`, as in `model: jev-latest, the provider's default`. The base URL comes from
   `the profile's base_url`, `the profile's account_id`, `ONESIE_BASE_URL`, `TYPESAFE_BASE_URL`,
   `CLOUDFLARE_ACCOUNT_ID` or `the provider's default`, the words a run's messages use. `base_url:` is `none` on cloudflare
@@ -713,11 +716,23 @@ Each setting takes the first source that gives it, in this order:
 5. the default profile, the one the file's `default` names
 6. the built in default
 
-| Value | Sources, highest first |
-|-------|------------------------|
-| key | the chosen profile's key, then the provider's key variable, then the default profile's key, each only with its own endpoint |
-| model | `-m`, then the chosen profile's `model`, then the `model` of a `-f` request body, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the default profile's `model`, then the provider's default |
-| base_url or account | `--base-url`, then the chosen profile's `base_url` or `account_id`, then `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare, then the default profile's `base_url` or `account_id`, then the provider's own |
+The table gives each setting that more than one source can give, its sources in that order from
+left to right. A cell names the flag, the profiles.json member, the `-f` key or the variable. A
+variable marked with a provider applies only on that provider, and where a cell lists several that
+apply, the first one set wins. A setting no source gives takes its built in default: the provider's
+own base URL and model, no key, no mock, and off for the switches. `endpoint` is the base URL and
+the Cloudflare account together. A request body's `long_context: false` counts as not given.
+
+<!-- settings:run_uses begin -->
+| Setting | Flag | Chosen profile | Question file or body | Environment | Default profile |
+|---------|------|----------------|-----------------------|-------------|-----------------|
+| `model` | `--model` | `model` | the request body's `model` | `TYPESAFE_DEFAULT_MODEL` on typesafe | `model` |
+| `endpoint` | `--base-url` | `base_url` or `account_id` |  | `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare | `base_url` or `account_id` |
+| `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |
+| `mock` | `--mock` |  |  | `ONESIE_MOCK` |  |
+| `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |
+| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter, or `BERGET_API_KEY` on berget, or `LEVANTO_API_KEY` on levanto, or `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |
+<!-- settings:run_uses end -->
 
 - A chosen profile keeps its key, model and base URL ahead of every variable. Its key goes only
   with its own endpoint, so a proxy in front of it belongs in the profile's `base_url` or in
@@ -728,9 +743,18 @@ Each setting takes the first source that gives it, in this order:
 - A higher source that replaces a different value prints one notice on stderr, as in
   `onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model` or
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
-  value. Equal values and built in defaults print nothing, and a refused run prints only its
-  refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
+  value. Equal values and built in defaults print nothing, and a run the flag and setting checks
+  refuse prints only its refusal. A run refused later, such as for a missing key, prints its notices
+  first. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
   notice.
+- A run setting typed twice keeps the last value, so an alias such as `alias ons='onesie -m a'`
+  still takes `ons -m b`. It prints a notice that spells the flag as it was typed and names both
+  values, since the user typed both, as in `onesie: -m is given twice, 'jev-preview' overrides 'jev-1.13.0'`.
+  Each value is quoted on one line, with a newline shown as `\n`, and cut to 40 characters with `…`.
+  The same value typed twice prints nothing, and so does one value spelled two ways, such as
+  `--cache=1 --cache=true` or `-j 2 -j 02`. A flag repeatable by design is no duplicate: `--assert`,
+  `--abstain-if`, `--image`, `--image-field` and `--ask` add to each other, and `--pick` and `--rate`
+  add options.
 - A key goes only with its own endpoint. When a run's base URL is custom, not the provider's own,
   the key comes from the source that gave the base URL: a profile's `base_url` takes that profile's
   key and no key variable, and `ONESIE_BASE_URL` or `TYPESAFE_BASE_URL` takes the provider's key
@@ -738,7 +762,8 @@ Each setting takes the first source that gives it, in this order:
   variable, never the default profile's. A key set aside this way prints a notice, as in
   `onesie: ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own endpoint`.
   With no key left, the custom base URL gets the request without one. On the provider's own base
-  URL, a Cloudflare account and a whole Cloudflare account URL included, the key ranks as above.
+  URL, a Cloudflare account and a whole Cloudflare account URL included, the key ranks in the order
+  above.
 - A profile that holds no key reads no key variable, so a key in the environment never reaches the
   server of a keyless profile. No provider falls back to another's key.
 - A request body that names no model, under `-f` or `-i request`, takes the model above.
@@ -1017,9 +1042,10 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   never reads stdin. `--state` or `--state-file` beside such a body exits 2, naming both.
   `-i request` refuses both flags the same way, since each body there holds its own state. A stream
   and `calibrate` read their records from stdin as usual and send each one as its state, so they use
-  the body only for its questions, and say on stderr that its state is ignored. A body's `assets`
-  are sent with it. When its state is ignored, an asset only that state named is dropped, and the
-  warning counts it.
+  the body only for its questions, with the notice
+  `onesie: the input records override the request body's state` on stderr. A body's `assets` are
+  sent with it. When the records override its state, an asset only that state named is dropped, and
+  the notice counts it, as in `and its 1 asset`.
 - `--print-schema` prints the JSON Schema for a question file. The first line `--print-questions`
   writes is `# yaml-language-server: $schema=URL`, which an editor running the YAML language server
   reads, such as VS Code with the Red Hat YAML extension, to check each key and value as you type.

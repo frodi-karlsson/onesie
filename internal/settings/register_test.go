@@ -389,6 +389,107 @@ func TestGiven_Inherit(t *testing.T) {
 	}
 }
 
+func TestGiven_Values(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+		row  settings.Name
+		want []string
+	}{
+		{name: "should list each value typed, in order", args: []string{"-m", "a", "--model=b"}, row: "model", want: []string{"a", "b"}},
+		{name: "should list the value a bare switch sets", args: []string{"--cache"}, row: "cache", want: []string{"true"}},
+		{name: "should list nothing for a repeatable flag", args: []string{"--assert", "x", "--assert", "y"}, row: "assert"},
+		{name: "should list nothing for a flag not typed", args: []string{"q"}, row: "model"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := register(settings.CommandRoot)
+			root.parse(t, tc.args...)
+
+			if got := root.given.Values(tc.row); !slices.Equal(got, tc.want) {
+				t.Errorf("Values(%s) = %v, want %v", tc.row, got, tc.want)
+			}
+		})
+	}
+
+	t.Run("should list nothing on a nil Given", func(t *testing.T) {
+		t.Parallel()
+
+		var given *settings.Given
+
+		if got := given.Values("model"); got != nil {
+			t.Errorf("Values = %v, want nil", got)
+		}
+	})
+}
+
+func TestGiven_Within(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		run  func(t *testing.T)
+	}{
+		{
+			name: "should count, list and spell a persistent flag of the parent",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				root := register(settings.CommandRoot)
+				calibrate := register(settings.CommandCalibrate)
+				calibrate.persistent = root.persistent
+				calibrate.given.Inherit(root.persistent)
+				calibrate.given.Within(root.given)
+
+				args := []string{"-i", "jsonl", "--profile", "a", "--profile=b"}
+				calibrate.parse(t, args...)
+
+				if got := calibrate.given.Count("profile"); got != 2 {
+					t.Errorf("Count = %d, want 2", got)
+				}
+
+				if got := calibrate.given.Values("profile"); !slices.Equal(got, []string{"a", "b"}) {
+					t.Errorf("Values = %v, want [a b]", got)
+				}
+
+				if got := calibrate.given.Spelled(args, "profile"); !slices.Equal(got, []string{"--profile", "--profile"}) {
+					t.Errorf("Spelled = %v, want --profile twice", got)
+				}
+
+				if got := calibrate.given.Values("input"); !slices.Equal(got, []string{"jsonl"}) {
+					t.Errorf("Values(input) = %v, want its own -i", got)
+				}
+			},
+		},
+		{
+			name: "should do nothing on a nil Given",
+			run: func(t *testing.T) {
+				t.Helper()
+
+				var given *settings.Given
+
+				given.Within(register(settings.CommandRoot).given)
+
+				if got := given.Count("profile"); got != 0 {
+					t.Errorf("Count = %d, want 0", got)
+				}
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			tc.run(t)
+		})
+	}
+}
+
 func register(command settings.Command) registered {
 	rows := settings.Table()
 	r := registered{

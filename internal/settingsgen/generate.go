@@ -138,6 +138,7 @@ func withBlocks(existing []byte) ([]byte, error) {
 	}{
 		{name: "environment", render: func() (string, error) { return environmentBlock(rows) }},
 		{name: "question_keys", render: func() (string, error) { return questionKeysBlock(rows) }},
+		{name: "run_uses", render: func() (string, error) { return runUsesBlock(rows) }},
 		{name: "profile_members", render: func() (string, error) { return profileMembersBlock(creds.FileMembers()) }},
 	}
 
@@ -271,6 +272,87 @@ func asCell(sentence string) string {
 	first, size := utf8.DecodeRuneInString(sentence)
 
 	return string(unicode.ToLower(first)) + sentence[size:]
+}
+
+func runUsesBlock(rows []settings.Row) (string, error) {
+	table := newTable("Setting", "Flag", "Chosen profile", "Question file or body", "Environment", "Default profile")
+
+	for _, row := range rows {
+		if !ranked(row) {
+			continue
+		}
+
+		var flag string
+		if row.Flag.Long != "" {
+			flag = codeSpan("--" + row.Flag.Long)
+		}
+
+		members := profileMembers(row)
+		table.row(codeSpan(string(row.Name)), flag, members, fileSource(row), variables(row), members)
+	}
+
+	return table.String()
+}
+
+func ranked(row settings.Row) bool {
+	// A repeatable flag adds to the file's value rather than outranking it, and the provider and the
+	// profile choose the sources the other rows rank.
+	if row.Scope != settings.ScopeRun || row.Flag.Repeat ||
+		row.Name == settings.Provider.Name() || row.Name == settings.Profile.Name() {
+		return false
+	}
+
+	var sources int
+
+	for _, gives := range []bool{row.Flag.Long != "", len(row.Profile) > 0, row.FileKey != "", len(row.Env) > 0} {
+		if gives {
+			sources++
+		}
+	}
+
+	return sources > 1
+}
+
+func profileMembers(row settings.Row) string {
+	keys := make([]string, 0, len(row.Profile))
+	for _, member := range row.Profile {
+		keys = append(keys, codeSpan(member.Key))
+	}
+
+	return strings.Join(keys, " or ")
+}
+
+func fileSource(row settings.Row) string {
+	switch {
+	case row.FileKey == "":
+		return ""
+	case row.InBody:
+		return "the request body's " + codeSpan(row.FileKey)
+	default:
+		return "the question file's " + codeSpan(row.FileKey)
+	}
+}
+
+func variables(row settings.Row) string {
+	names := make([]string, 0, len(row.Env))
+	providers := map[string]bool{}
+
+	for _, variable := range row.Env {
+		name := codeSpan(variable.Name)
+		if variable.Provider != "" {
+			name += " on " + variable.Provider
+			providers[variable.Provider] = true
+		}
+
+		names = append(names, name)
+	}
+
+	// Variables of different providers never meet in one run, so they are alternatives, not an order.
+	if len(providers) == len(row.Env) {
+		return strings.Join(names, ", or ")
+	}
+
+	return strings.Join(names, ", then ")
 }
 
 func profileMembersBlock(members []creds.Member) (string, error) {

@@ -3,6 +3,8 @@ package cli
 import (
 	"cmp"
 	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -797,11 +799,25 @@ func (w *failingWrites) Write([]byte) (int, error) {
 func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 	t.Helper()
 
+	return servingModels(t, httptest.NewServer)
+}
+
+func modelTLSServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
+	t.Helper()
+
+	return servingModels(t, httptest.NewTLSServer)
+}
+
+func servingModels(
+	t *testing.T, start func(http.Handler) *httptest.Server,
+) (*httptest.Server, func() []sentRequest) {
+	t.Helper()
+
 	var mu sync.Mutex
 
 	var sent []sentRequest
 
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	srv := start(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// Cloudflare carries the System One body under input.
 		var body struct {
 			Model     string                     `json:"model"`
@@ -821,7 +837,7 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 		}
 
 		mu.Lock()
-		sent = append(sent, sentRequest{auth: auth, model: body.Model})
+		sent = append(sent, sentRequest{auth: auth, model: body.Model, url: r.Host + r.URL.Path})
 		mu.Unlock()
 
 		questions := body.Questions
@@ -837,7 +853,7 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 		w.Header().Set("Content-Type", "application/json")
 
 		var response any = map[string]any{"model": body.Model, "answers": answers}
-		if strings.HasPrefix(r.URL.Path, "/run") {
+		if strings.HasPrefix(r.URL.Path, "/run") || strings.Contains(r.URL.Path, "/ai/run") {
 			response = map[string]any{"success": true, "result": response}
 		}
 
@@ -859,6 +875,7 @@ func modelServer(t *testing.T) (*httptest.Server, func() []sentRequest) {
 type sentRequest struct {
 	auth  string
 	model string
+	url   string
 }
 
 func withDialTo(addr string) RootOption {
@@ -869,6 +886,22 @@ func withDialTo(addr string) RootOption {
 			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
 				return (&net.Dialer{}).DialContext(ctx, network, addr)
 			},
+		}
+	}
+}
+
+func withTLSDialTo(srv *httptest.Server) RootOption {
+	// Every connection goes to srv, whatever host the request names, and its certificate is trusted for
+	// the name httptest gives it, so a provider's own https URL stays on this machine.
+	return func(s *rootSettings) {
+		trusted := x509.NewCertPool()
+		trusted.AddCert(srv.Certificate())
+
+		s.transport = &http.Transport{
+			DialContext: func(ctx context.Context, network, _ string) (net.Conn, error) {
+				return (&net.Dialer{}).DialContext(ctx, network, srv.Listener.Addr().String())
+			},
+			TLSClientConfig: &tls.Config{RootCAs: trusted, ServerName: "example.com", MinVersion: tls.VersionTLS12},
 		}
 	}
 }

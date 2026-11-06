@@ -22,7 +22,9 @@ warned='^onesie: warning: '
 switched='^onesie: ONESIE_[A-Z_]*='
 notices=$(printf '%s\n' "$status" | grep -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned" -e "$switched")
 report=$(printf '%s\n' "$status" | grep -v -e "$converted" -e "$unprofiled" -e "$unwritten" -e "$unlinked" -e "$warned" -e "$switched")
+# The profile line names the profile's rank after a comma, as in profile: work, the default profile.
 profile=$(printf '%s\n' "$report" | sed -n 's/^profile: //p')
+profile=${profile%%, *}
 provider=$(printf '%s\n' "$report" | sed -n 's/^provider: //p')
 chosen=$(printf '%s\n' "$report" | sed -n 's/^chosen by: //p')
 key=$(printf '%s\n' "$report" | sed -n 's/^key: //p')

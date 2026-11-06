@@ -739,7 +739,7 @@ func TestViewOf(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				_, err := validateRun(tc.config, runFacts{}, nil)
+				_, _, err := validateRun(tc.config, runFacts{}, nil, commandLine{})
 				if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr) {
 					t.Errorf("validateRun error = %v, want %q", err, tc.wantErr)
 				}
