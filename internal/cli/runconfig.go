@@ -4,23 +4,19 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/spf13/cobra"
-
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-func newRunConfig(cmd *cobra.Command, flags runFlags, events []argv.Event, positional string) (runConfig, error) {
+func newRunConfig(flags runFlags, events []argv.Event, positional string) (runConfig, error) {
 	inputMode, err := input.ParseMode(flags.input)
 	if err != nil {
 		return runConfig{}, err
 	}
 
-	changed := cmd.Flags().Changed
-
 	var delimiter input.Delimiter
-	if changed(flagDelimiter) {
+	if flags.typed(setting.Delimiter.Name()) {
 		delimiter, err = input.ParseDelimiter(flags.delimiter)
 		if err != nil {
 			return runConfig{}, fmt.Errorf("--%s %w", flagDelimiter, err)
@@ -28,23 +24,11 @@ func newRunConfig(cmd *cobra.Command, flags runFlags, events []argv.Event, posit
 	}
 
 	return runConfig{
-		runFlags:         flags,
-		inputMode:        inputMode,
-		events:           events,
-		positional:       positional,
-		hasState:         changed(flagState),
-		hasStateFile:     changed(flagStateFile),
-		hasMap:           changed(flagMap),
-		hasID:            changed(flagID),
-		hasModel:         changed(flagModel),
-		hasInput:         changed(flagInput),
-		jobsSet:          changed(flagJobs),
-		timeoutSet:       changed(flagTimeout),
-		retriesSet:       changed(flagRetries),
-		maxRetryAfterSet: changed(flagMaxRetryAfter),
-		longContextSet:   changed(flagLongContext),
-		hasDelimiter:     changed(flagDelimiter),
-		parsedDelimiter:  delimiter,
+		runFlags:        flags,
+		inputMode:       inputMode,
+		events:          events,
+		positional:      positional,
+		parsedDelimiter: delimiter,
 	}, nil
 }
 
@@ -59,23 +43,9 @@ type runConfig struct {
 	mockPath    string
 	mockSpelled string
 
-	hasState         bool
-	hasStateFile     bool
-	hasMap           bool
-	hasID            bool
-	hasModel         bool
-	hasInput         bool
-	jobsSet          bool
-	timeoutSet       bool
-	retriesSet       bool
-	maxRetryAfterSet bool
-	longContextSet   bool
-	hasDelimiter     bool
-	parsedDelimiter  input.Delimiter
+	parsedDelimiter input.Delimiter
 
 	calibrate *calibrateFlags
-	cutsSet   bool
-	reportSet bool
 	stdoutTTY bool
 }
 

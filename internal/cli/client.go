@@ -10,6 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const (
@@ -100,7 +101,7 @@ func runOptions(flags runConfig, stats *collector) []onesie.Option {
 	opts := observing(stats)
 
 	// Only when given, so onesie-go keeps its longer default for a request with images.
-	if flags.timeoutSet {
+	if flags.typed(setting.Timeout.Name()) {
 		opts = append(opts, onesie.WithAttemptTimeout(time.Duration(flags.timeout)*time.Second))
 	}
 

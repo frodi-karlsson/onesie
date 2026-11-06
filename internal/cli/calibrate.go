@@ -19,8 +19,6 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
-const flagCuts = "cuts"
-
 var refusedReasons = map[string]string{
 	"assert":          "calibrate reports every cut and judges none",
 	"abstain-if":      "calibrate reports every cut and judges none",
@@ -143,17 +141,15 @@ func runCalibrate(
 	}
 
 	own := *parsed
-	own.input = calib.input
+	own.input, own.given = calib.input, given
 
-	flags, err := newRunConfig(cmd, own, events, positional)
+	flags, err := newRunConfig(own, events, positional)
 	if err != nil {
 		return err
 	}
 
 	inputMode := flags.inputMode
 	flags.calibrate = &calib
-	flags.cutsSet = cmd.Flags().Changed(flagCuts)
-	flags.reportSet = cmd.Flags().Changed("output")
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.

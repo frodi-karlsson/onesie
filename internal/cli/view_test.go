@@ -580,7 +580,7 @@ func TestViewOf(t *testing.T) {
 	}{
 		{
 			name:       "should tag a typed flag as given on the command line",
-			config:     runConfig{hasState: true},
+			config:     runConfig{runFlags: parsedRun(t, "--state", "s")},
 			setting:    setting.State.Name(),
 			wantSource: setting.SourceFlag,
 		},

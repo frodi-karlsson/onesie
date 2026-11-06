@@ -23,7 +23,6 @@ import (
 const (
 	flagAccountID  = "account-id"
 	flagKey        = "key"
-	flagName       = "name"
 	flagToFile     = "file"
 	keyPlaceholder = "placeholder"
 	noProfile      = "none"
@@ -78,6 +77,8 @@ func refuseMock(lookupEnv func(string) (string, bool)) error {
 func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	fields := &profileFlags{}
 
+	var given *setting.Given
+
 	cmd := &cobra.Command{
 		Use:   "create NAME",
 		Short: "Store a new profile, reading its key from a prompt or stdin",
@@ -92,17 +93,18 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 			"  onesie profile create cf --provider cloudflare --account-id 0123456789abcdef0123456789abcdef",
 		Args: profileNames("create", 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return profileCreate(cmd, settings, flags, args[0], *fields)
+			return profileCreate(cmd, settings, flags, given, args[0], *fields)
 		},
 	}
 
-	setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileCreate, profileTargets(fields, flags))
+	given = setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileCreate,
+		profileTargets(fields, flags))
 
 	return cmd
 }
 
 func profileCreate(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, name string, fields profileFlags,
+	cmd *cobra.Command, settings rootSettings, flags *runFlags, given *setting.Given, name string, fields profileFlags,
 ) error {
 	if refused := refuseChosen(flags, "create", false); refused != nil {
 		return refused
@@ -127,10 +129,10 @@ func profileCreate(
 			"or delete it and create it again", creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	profile := applied(creds.Profile{}, profileTargets(&fields, flags), cmd.Flags().Changed, setting.CommandProfileCreate)
+	profile := applied(creds.Profile{}, profileTargets(&fields, flags), given, setting.CommandProfileCreate)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
-	if refused := checkGiven(profile, cmd.Flags().Changed, true); refused != nil {
+	if refused := checkGiven(profile, given, true); refused != nil {
 		return refused
 	}
 
@@ -158,6 +160,8 @@ func profileCreate(
 func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	fields := &profileFlags{}
 
+	var given *setting.Given
+
 	cmd := &cobra.Command{
 		Use:   "update NAME",
 		Short: "Change a profile's members, or its key with --key",
@@ -175,17 +179,18 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 			"  onesie profile update work --name personal",
 		Args: profileNames("update", 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return profileUpdate(cmd, settings, flags, args[0], *fields)
+			return profileUpdate(cmd, settings, flags, given, args[0], *fields)
 		},
 	}
 
-	setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileUpdate, profileTargets(fields, flags))
+	given = setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileUpdate,
+		profileTargets(fields, flags))
 
 	return cmd
 }
 
 func profileUpdate(
-	cmd *cobra.Command, settings rootSettings, flags *runFlags, name string, fields profileFlags,
+	cmd *cobra.Command, settings rootSettings, flags *runFlags, given *setting.Given, name string, fields profileFlags,
 ) error {
 	if refused := refuseChosen(flags, "update", false); refused != nil {
 		return refused
@@ -205,16 +210,14 @@ func profileUpdate(
 		return noProfileNamed(name, opened.Profiles)
 	}
 
-	changed := cmd.Flags().Changed
-
-	target, refused := renamedTo(opened.Profiles, name, fields.newName, changed(flagName))
+	target, refused := renamedTo(opened.Profiles, name, fields.newName, given.Count("name") > 0)
 	if refused != nil {
 		return refused
 	}
 
-	profile := applied(old, profileTargets(&fields, flags), changed, setting.CommandProfileUpdate)
+	profile := applied(old, profileTargets(&fields, flags), given, setting.CommandProfileUpdate)
 	if profile == old && target == name && !fields.key {
-		if already := alreadySet(name, old, changed); already != "" {
+		if already := alreadySet(name, old, given); already != "" {
 			return output.Notice(cmd.ErrOrStderr(),
 				fmt.Sprintf("profile %s is unchanged, since %s", creds.QuotedName(name), already))
 		}
@@ -225,15 +228,15 @@ func profileUpdate(
 	}
 
 	// Ahead of the read, so a broken rule costs the user nothing.
-	if refused := checkGiven(profile, changed, changed(flagProvider)); refused != nil {
+	if refused := checkGiven(profile, given, given.Count(setting.Provider.Name()) > 0); refused != nil {
 		return refused
 	}
 
-	if refused := checkUpdated(opened.Profiles.Renamed(name, target, old), target, old, profile, changed, fields.key); refused != nil {
+	if refused := checkUpdated(opened.Profiles.Renamed(name, target, old), target, old, profile, given, fields.key); refused != nil {
 		return refused
 	}
 
-	if changed(flagBaseURL) {
+	if given.Count(setting.APIEndpoint.Name()) > 0 {
 		if refused := refusePlainHTTP(flags, profile.BaseURL); refused != nil {
 			return refused
 		}
@@ -252,7 +255,7 @@ func profileUpdate(
 		return refused
 	}
 
-	return notify(cmd.ErrOrStderr(), keptOnProvider(target, old, profile, changed))
+	return notify(cmd.ErrOrStderr(), keptOnProvider(target, old, profile, given))
 }
 
 func unmovedKey(err error, renames bool) error {
@@ -302,13 +305,13 @@ func updatedKey(cmd *cobra.Command, settings rootSettings, name string, old, pro
 }
 
 func applied(
-	old creds.Profile, targets map[setting.Name]any, changed func(string) bool, command setting.Command,
+	old creds.Profile, targets map[setting.Name]any, given *setting.Given, command setting.Command,
 ) creds.Profile {
 	profile := old
 
 	for _, row := range setting.Table() {
 		bound, ok := row.FlagOn(command)
-		if !ok || bound.Member.Key == "" || !changed(bound.Long) {
+		if !ok || bound.Member.Key == "" || given.Count(row.Name) == 0 {
 			continue
 		}
 
@@ -321,7 +324,7 @@ func applied(
 }
 
 func checkUpdated(
-	profiles creds.Profiles, name string, old, profile creds.Profile, changed func(string) bool, readsKey bool,
+	profiles creds.Profiles, name string, old, profile creds.Profile, given *setting.Given, readsKey bool,
 ) error {
 	if profile.Provider != old.Provider && creds.HoldsKey(old) && !readsKey {
 		return errors.New("profile update: --provider needs --key, since a key belongs to one provider")
@@ -334,7 +337,7 @@ func checkUpdated(
 	}
 
 	baseURLSource := profileBaseURL
-	if changed(flagBaseURL) {
+	if given.Count(setting.APIEndpoint.Name()) > 0 {
 		baseURLSource = "--" + flagBaseURL
 	}
 
@@ -343,7 +346,7 @@ func checkUpdated(
 		return refused
 	}
 
-	return fmt.Errorf("%w. %s", refused, clearingHint(profile, changed))
+	return fmt.Errorf("%w. %s", refused, clearingHint(profile, given))
 }
 
 func accountClash(profile creds.Profile) bool {
@@ -352,9 +355,10 @@ func accountClash(profile creds.Profile) bool {
 	return profile.AccountID != "" && (profile.BaseURL != "" || err != nil || provider.EnvAccountID() == "")
 }
 
-func clearingHint(profile creds.Profile, changed func(string) bool) string {
-	baseURLFlag, accountFlag := memberFlag("base_url"), memberFlag("account_id")
-	baseURLTyped, accountTyped := changed(strings.TrimPrefix(baseURLFlag, "--")), changed(strings.TrimPrefix(accountFlag, "--"))
+func clearingHint(profile creds.Profile, given *setting.Given) string {
+	baseURLRow, baseURLFlag := memberRow("base_url")
+	accountRow, accountFlag := memberRow("account_id")
+	baseURLTyped, accountTyped := given.Count(baseURLRow) > 0, given.Count(accountRow) > 0
 
 	switch {
 	case profile.BaseURL != "" && baseURLTyped && accountTyped:
@@ -366,7 +370,7 @@ func clearingHint(profile creds.Profile, changed func(string) bool) string {
 	return fmt.Sprintf(`Clear it with %s "" in the same update`, accountFlag)
 }
 
-func keptOnProvider(name string, old, profile creds.Profile, changed func(string) bool) notice {
+func keptOnProvider(name string, old, profile creds.Profile, given *setting.Given) notice {
 	if profile.Provider == old.Provider {
 		return notice{}
 	}
@@ -374,7 +378,7 @@ func keptOnProvider(name string, old, profile creds.Profile, changed func(string
 	var kept []string
 
 	for _, key := range []string{"base_url", "account_id", "model"} {
-		if *profileMember(&profile, key) != "" && !changed(strings.TrimPrefix(memberFlag(key), "--")) {
+		if row, _ := memberRow(key); *profileMember(&profile, key) != "" && given.Count(row) == 0 {
 			kept = append(kept, key)
 		}
 	}
@@ -396,10 +400,10 @@ func joinAnd(items []string) string {
 	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
 
-func memberFlag(key string) string {
+func memberRow(key string) (setting.Name, string) {
 	for _, row := range setting.Table() {
 		if bound, ok := row.FlagOn(setting.CommandProfileUpdate); ok && bound.Member.Key == key {
-			return "--" + bound.Long
+			return row.Name, "--" + bound.Long
 		}
 	}
 
@@ -869,18 +873,21 @@ func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any 
 	}
 }
 
-func alreadySet(name string, profile creds.Profile, changed func(string) bool) string {
+func alreadySet(name string, profile creds.Profile, given *setting.Given) string {
 	var unset, held []string
 
-	for _, member := range []struct{ flag, name, value string }{
-		{flag: flagName, name: "name", value: name},
-		{flag: flagProvider, name: "provider", value: profile.Provider},
-		{flag: flagModel, name: "model", value: profile.Model},
-		{flag: flagBaseURL, name: "base_url", value: profile.BaseURL},
-		{flag: flagAccountID, name: "account_id", value: profile.AccountID},
+	for _, member := range []struct {
+		row         setting.Name
+		name, value string
+	}{
+		{row: "name", name: "name", value: name},
+		{row: setting.Provider.Name(), name: "provider", value: profile.Provider},
+		{row: setting.Model.Name(), name: "model", value: profile.Model},
+		{row: setting.APIEndpoint.Name(), name: "base_url", value: profile.BaseURL},
+		{row: "account_id", name: "account_id", value: profile.AccountID},
 	} {
 		switch {
-		case !changed(member.flag):
+		case given.Count(member.row) == 0:
 		case member.value == "":
 			unset = append(unset, "its "+member.name)
 		default:
@@ -956,14 +963,14 @@ func noProfileNamed(name string, profiles creds.Profiles) error {
 	return fmt.Errorf("there is no profile named %s. %s", creds.QuotedName(name), knownProfiles(profiles))
 }
 
-func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven bool) error {
+func checkGiven(profile creds.Profile, given *setting.Given, providerGiven bool) error {
 	provider, err := onesie.ProviderNamed(profile.Provider)
 	if providerGiven && (err != nil || provider.Name() != profile.Provider) {
 		return fmt.Errorf("--%s names %s, which is not %s",
 			flagProvider, creds.QuotedName(profile.Provider), providers.Names())
 	}
 
-	accountGiven := changed(flagAccountID) && profile.AccountID != ""
+	accountGiven := given.Count("account_id") > 0 && profile.AccountID != ""
 
 	switch {
 	case accountGiven && provider.EnvAccountID() == "":
