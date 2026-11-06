@@ -731,7 +731,7 @@ the Cloudflare account together. A request body's `long_context: false` counts a
 | `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |
 | `mock` | `--mock` |  |  | `ONESIE_MOCK` |  |
 | `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |
-| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, then `OPENROUTER_API_KEY` on openrouter, then `BERGET_API_KEY` on berget, then `LEVANTO_API_KEY` on levanto, then `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |
+| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter, or `BERGET_API_KEY` on berget, or `LEVANTO_API_KEY` on levanto, or `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |
 <!-- settings:run_uses end -->
 
 - A chosen profile keeps its key, model and base URL ahead of every variable. Its key goes only
@@ -743,8 +743,9 @@ the Cloudflare account together. A request body's `long_context: false` counts a
 - A higher source that replaces a different value prints one notice on stderr, as in
   `onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model` or
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
-  value. Equal values and built in defaults print nothing, and a refused run prints only its
-  refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
+  value. Equal values and built in defaults print nothing, and a run the flag and setting checks
+  refuse prints only its refusal. A run refused later, such as for a missing key, prints its notices
+  first. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
   notice.
 - A run setting typed twice keeps the last value, so an alias such as `alias ons='onesie -m a'`
   still takes `ons -m b`. It prints a notice that spells the flag as it was typed and names both

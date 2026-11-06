@@ -141,10 +141,10 @@ func TestGenerate(t *testing.T) {
 						"`model` |\n",
 					"| `endpoint` | `--base-url` | `base_url` or `account_id` |  | `ONESIE_BASE_URL`, then " +
 						"`TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare | `base_url` or `account_id` |\n",
-					"| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, then `OPENROUTER_API_KEY` on openrouter",
+					"| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter",
 					"| `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |\n",
 					"| `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |\n",
-					"`CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |\n<!-- settings:run_uses end -->",
+					"or `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |\n<!-- settings:run_uses end -->",
 				} {
 					if !strings.Contains(reference, want) {
 						t.Errorf("REFERENCE.md lacks %q:\n%s", want, reference)

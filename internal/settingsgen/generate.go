@@ -335,14 +335,21 @@ func fileSource(row settings.Row) string {
 
 func variables(row settings.Row) string {
 	names := make([]string, 0, len(row.Env))
+	providers := map[string]bool{}
 
 	for _, variable := range row.Env {
 		name := codeSpan(variable.Name)
 		if variable.Provider != "" {
 			name += " on " + variable.Provider
+			providers[variable.Provider] = true
 		}
 
 		names = append(names, name)
+	}
+
+	// Variables of different providers never meet in one run, so they are alternatives, not an order.
+	if len(providers) == len(row.Env) {
+		return strings.Join(names, ", or ")
 	}
 
 	return strings.Join(names, ", then ")
