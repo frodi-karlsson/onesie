@@ -12,9 +12,19 @@ type Plan struct {
 	// turn it on, and none turns it off.
 	LongContext bool
 
+	// Selections are the --for groups, in the order each ID was first selected.
+	Selections []Selection
+
 	// Orphans are shape or policy flags that had no --ask to bind to. They are kept off Question
 	// so nothing iterating Questions has to know to skip a pseudo entry.
 	Orphans []argv.Event
+}
+
+// Selection is a --for ID group: the question it selects from -f and the flags typed after it,
+// across every --for that names the same ID.
+type Selection struct {
+	ID     string
+	Events []argv.Event
 }
 
 // Question carries everything the API request body cannot: labels, policy and output position.

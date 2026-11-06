@@ -46,6 +46,7 @@ Flags:
       --desc string               KEY=TEXT, describing one option, level, yes or no
       --fallback string           value substituted on low confidence and on error
   -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
+      --for string                ID, repeatable, selects a question from -f, so the question flags after it apply to that question, each with a notice
   -h, --help                      help for onesie
       --id string                 streaming only, jq expression run on each record, whose string or number result names it on every output line. It runs one record at a time as the input is read, so keep it cheap, such as a field lookup, and -V lists the cap on its length
       --image stringArray         NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. For one record stdin is read beside it only through --state -, so text joins it from --state, --state-file or --state -. A stream reads its records from stdin and adds the image to each

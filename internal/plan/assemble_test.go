@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -565,6 +566,65 @@ func TestAssemble(t *testing.T) {
 						t.Errorf("replace must not add a question, got %d", len(p.Questions))
 					}
 				},
+			},
+			{
+				name: "should record a --for group as a selection",
+				src: plan.Source{
+					File: fileQuestions(),
+					Events: []argv.Event{
+						{Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.9"},
+					},
+					ReadFile: readFile,
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []plan.Selection{{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.9"}}}}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
+					}
+
+					if len(p.Orphans) != 0 || len(p.Questions) != 2 {
+						t.Errorf("orphans = %v, questions = %d, want none and the file's two", p.Orphans, len(p.Questions))
+					}
+				},
+			},
+			{
+				name: "should continue a repeated --for ID",
+				src: plan.Source{
+					File: fileQuestions(),
+					Events: []argv.Event{
+						{Name: "for", Value: "team"},
+						{Name: "fallback", Value: "human"},
+						{Name: "for", Value: "urgent"},
+						{Name: "threshold", Value: "0.6"},
+						{Name: "for", Value: "team"},
+						{Name: "desc", Value: "yes=a team"},
+					},
+					ReadFile: readFile,
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []plan.Selection{
+						{ID: "team", Events: []argv.Event{
+							{Name: "fallback", Value: "human"}, {Name: "desc", Value: "yes=a team"},
+						}},
+						{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
+					}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
+					}
+				},
+			},
+			{
+				name: "should keep refusing --ask without =TEXT",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "urgent"}, {Name: "ask", Value: "urgent"}},
+					ReadFile: readFile,
+				},
+				wantErr: "--ask takes NAME=QUESTION, got 'urgent'",
 			},
 			{
 				name: "should bind top level flags to a lone file question",

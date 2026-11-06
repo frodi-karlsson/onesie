@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -27,9 +28,9 @@ func Assemble(src Source) (*Plan, error) {
 		return nil, ErrNoNumbers
 	}
 
-	groups, orphans := split(src.Events, src.Positional, len(src.File) > 0)
+	groups, selections, orphans := split(src.Events, src.Positional, len(src.File) > 0)
 
-	built := &Plan{Questions: append([]Question(nil), src.File...)}
+	built := &Plan{Questions: append([]Question(nil), src.File...), Selections: selections}
 	fromFile := positions(src.File)
 
 	for _, g := range groups {
@@ -102,28 +103,39 @@ type Number interface {
 	FromFile(raw any) (any, error)
 }
 
-func split(events []argv.Event, positional string, hasFile bool) ([]group, []argv.Event) {
+func split(events []argv.Event, positional string, hasFile bool) ([]group, []Selection, []argv.Event) {
 	var (
-		groups  []group
-		leading []argv.Event
+		groups     []group
+		selections []Selection
+		leading    []argv.Event
 	)
 
+	joining := &leading
+
 	for _, event := range events {
-		if event.Name != "ask" {
-			if len(groups) == 0 {
-				leading = append(leading, event)
-			} else {
-				groups[len(groups)-1].events = append(groups[len(groups)-1].events, event)
+		switch event.Name {
+		case "ask":
+			groups = append(groups, group{ask: event.Value, asked: true})
+			joining = nil
+		case "for":
+			at := slices.IndexFunc(selections, func(s Selection) bool { return s.ID == event.Value })
+			if at < 0 {
+				selections = append(selections, Selection{ID: event.Value})
+				at = len(selections) - 1
 			}
 
-			continue
-		}
+			joining = &selections[at].Events
+		default:
+			if joining == nil {
+				joining = &groups[len(groups)-1].events
+			}
 
-		groups = append(groups, group{ask: event.Value, asked: true})
+			*joining = append(*joining, event)
+		}
 	}
 
 	if positional != "" {
-		return append([]group{{id: PositionalID, text: positional, events: leading}}, groups...), nil
+		return append([]group{{id: PositionalID, text: positional, events: leading}}, groups...), selections, nil
 	}
 
 	// A lone --ask absorbs the top level flags only when it is the only question. With a file
@@ -131,10 +143,10 @@ func split(events []argv.Event, positional string, hasFile bool) ([]group, []arg
 	if len(groups) == 1 && !hasFile {
 		groups[0].events = append(leading, groups[0].events...)
 
-		return groups, nil
+		return groups, selections, nil
 	}
 
-	return groups, leading
+	return groups, selections, leading
 }
 
 func build(g group, src Source) (Question, error) {

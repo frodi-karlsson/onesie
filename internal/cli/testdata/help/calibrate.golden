@@ -43,6 +43,7 @@ Flags:
       --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma
       --desc string               KEY=TEXT, describing one option, level, yes or no
   -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
+      --for string                ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep after it apply to that question
   -h, --help                      help for calibrate
       --id string                 jq expression run on each record, whose string or number result names it
       --image stringArray         NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side

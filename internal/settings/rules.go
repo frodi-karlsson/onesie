@@ -22,7 +22,7 @@ func Rules() []Rule {
 	return append(calibrateRules(),
 		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
-		replaceNeedsFileRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
+		replaceNeedsFileRule(), forSelectsRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
 		usageWritesAnswersRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnAssertNeedsAssertRule(), fallbackColumnsRule(), lineFieldRule(),
 		bodyPolicyRule(), orphansRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),

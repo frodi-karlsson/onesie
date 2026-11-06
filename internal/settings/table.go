@@ -97,6 +97,17 @@ func questionRows() []Row {
 			Help: "NAME=QUESTION, repeatable, opens a question group",
 		},
 		{
+			Name: "for", Kind: NonEmptyText(), Modes: shaping(),
+			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
+				CommandCalibrate: {
+					Help: "ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep " +
+						"after it apply to that question",
+				},
+			}},
+			Help: "ID, repeatable, selects a question from -f, so the question flags after it apply to that " +
+				"question, each with a notice",
+		},
+		{
 			Name: "pick", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []plan.Shape{plan.Pick},
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",

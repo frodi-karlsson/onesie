@@ -117,6 +117,33 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--state and --state-file are mutually exclusive",
 		},
 		{
+			name:    "should refuse --for without -f",
+			events:  []argv.Event{{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "0.9"}},
+			wantErr: "--for selects a question from -f, which was not given",
+		},
+		{
+			name:   "should refuse --for naming no file question, listing the file's",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "for", Value: "nope"}, {Name: "threshold", Value: "0.9"}},
+			wantExact: "--for nope names no question in two.yaml, which has: 'urgent', 'spam'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
+			name:   "should refuse --for beside --replace",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml", "replace": true},
+			events: []argv.Event{{Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.9"}},
+			wantExact: "--for never replaces a question, so --replace has nothing to do beside it. " +
+				"Redefine a question whole with --ask ID=QUESTION --replace, or drop --replace",
+		},
+		{
+			name:   "should accept --for naming a question of the file",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "for", Value: "spam"}, {Name: "threshold", Value: "0.9"}},
+		},
+		{
 			name:       "should reject replace with no file given",
 			positional: "is this urgent",
 			set:        values{"replace": true},
@@ -1339,6 +1366,7 @@ func TestRules(t *testing.T) {
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"for-selects-a-file-question",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
@@ -1603,6 +1631,19 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'line' is reserved under -i lines, which writes the input line number as line",
 		},
 		{
+			rule: "for-selects-a-file-question",
+			refused: run{
+				planned: true, file: fileNouls("urgent"), set: values{"file": "one.yaml"},
+				events: []argv.Event{{Name: "for", Value: "nope"}},
+			},
+			passed: run{
+				planned: true, file: fileNouls("urgent"), set: values{"file": "one.yaml"},
+				events: []argv.Event{{Name: "for", Value: "urgent"}},
+			},
+			wantErr: "--for nope names no question in one.yaml, which has: 'urgent'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
 			rule: "questions-valid",
 			refused: run{planned: true, events: []argv.Event{
 				{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "a=two"},
@@ -1763,6 +1804,15 @@ func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
 	if !strings.Contains(joined, want) {
 		t.Errorf("warnings = %q\nwant one containing %q", joined, want)
 	}
+}
+
+func fileNouls(ids ...string) []plan.Question {
+	questions := make([]plan.Question, 0, len(ids))
+	for _, id := range ids {
+		questions = append(questions, plan.Question{ID: id, Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile})
+	}
+
+	return questions
 }
 
 func filePick(options ...string) []plan.Question {

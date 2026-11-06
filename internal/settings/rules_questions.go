@@ -39,6 +39,71 @@ func replaceNeedsFileRule() Rule {
 	}
 }
 
+func forSelectsRule() Rule {
+	return Rule{
+		ID:    "for-selects-a-file-question",
+		Reads: []Name{"for", File.Name(), Replace.Name()},
+		Check: func(v View) error {
+			if v.Plan == nil || len(v.Plan.Selections) == 0 {
+				return nil
+			}
+
+			if Get(v.Merged, File) == "" {
+				return errors.New("--for selects a question from -f, which was not given")
+			}
+
+			if Get(v.Merged, Replace) {
+				return errors.New("--for never replaces a question, so --replace has nothing to do beside it. " +
+					"Redefine a question whole with --ask ID=QUESTION --replace, or drop --replace")
+			}
+
+			for _, selection := range v.Plan.Selections {
+				if _, found := fileQuestion(v.Plan, selection.ID); !found {
+					return fmt.Errorf("--for %s names no question in %s, which has: %s. "+
+						"Define a new question with --ask %s=QUESTION",
+						selection.ID, fileNamed(v), quotedIDs(fromFile(v.Plan)), selection.ID)
+				}
+			}
+
+			return nil
+		},
+	}
+}
+
+func fileQuestion(built *plan.Plan, id string) (int, bool) {
+	for i, question := range built.Questions {
+		if question.ID == id && fromFileOrBody(question) {
+			return i, true
+		}
+	}
+
+	return 0, false
+}
+
+func fromFileOrBody(question plan.Question) bool {
+	return question.Origin == plan.OriginFile || question.Origin == plan.OriginBody
+}
+
+func fileNamed(v View) string {
+	if name := Get(v.Merged, File); name != "" {
+		return name
+	}
+
+	return plan.UnnamedFile
+}
+
+func fromFile(built *plan.Plan) []plan.Question {
+	var questions []plan.Question
+
+	for _, question := range built.Questions {
+		if fromFileOrBody(question) {
+			questions = append(questions, question)
+		}
+	}
+
+	return questions
+}
+
 func bodyPolicyRule() Rule {
 	return Rule{
 		ID:    "body-policy-needs-one-question",
