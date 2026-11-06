@@ -165,12 +165,12 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 		return nil, err
 	}
 
-	mapper, err := exprOf(flags.hasMap, "--map", flags.mapSource)
+	mapper, err := exprOf(flags.typed(setting.Map.Name()), "--map", flags.mapSource)
 	if err != nil {
 		return nil, err
 	}
 
-	namer, err := exprOf(flags.hasID, "--id", flags.idSource)
+	namer, err := exprOf(flags.typed(setting.ID.Name()), "--id", flags.idSource)
 	if err != nil {
 		return nil, err
 	}

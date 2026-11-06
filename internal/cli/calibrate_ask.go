@@ -21,6 +21,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const maxCauses = 5
@@ -34,7 +35,7 @@ func calibrateRun(
 		return err
 	}
 
-	base, err := cutsOf(cmd, calib)
+	base, err := cutsOf(flags, calib)
 	if err != nil {
 		return err
 	}
@@ -246,8 +247,8 @@ func unansweredOffline(answers string, pending []labelledRecord) error {
 		"Rerun without --offline to ask them", answers, pending[0].name(), len(pending)-1)
 }
 
-func cutsOf(cmd *cobra.Command, calib calibrateFlags) ([]float64, error) {
-	if !cmd.Flags().Changed(flagCuts) {
+func cutsOf(flags runConfig, calib calibrateFlags) ([]float64, error) {
+	if !flags.typed(setting.Cuts.Name()) {
 		return calibrate.DefaultCuts(), nil
 	}
 

@@ -4,12 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"reflect"
 	"strings"
 	"testing"
-
-	"github.com/frodi-karlsson/onesie/internal/input"
-	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestValidateRun(t *testing.T) {
@@ -471,6 +467,37 @@ func TestValidateRun(t *testing.T) {
 		}
 	})
 
+	t.Run("should name an -o alias as it was typed when -q refuses it", func(t *testing.T) {
+		t.Parallel()
+
+		out, errOut, code := runOffline(t, []string{"is this urgent", "-q", "-o", "md"})
+		if code != ExitUsage {
+			t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitUsage, out, errOut)
+		}
+
+		if want := "onesie: -q suppresses output, which leaves -o md nothing to write"; strings.TrimSpace(errOut) != want {
+			t.Errorf("stderr = %q, want %q", strings.TrimSpace(errOut), want)
+		}
+	})
+
+	t.Run("should leave a file's lone abstain_if alone under --print-request, which ignores the file's gates", func(t *testing.T) {
+		t.Parallel()
+
+		path := filepath.Join(t.TempDir(), "abstain.yaml")
+		if err := os.WriteFile(path, []byte("abstain_if: urgent.value < 0.2\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+			t.Fatal(err)
+		}
+
+		out, errOut, code := runOfflineStdin(t, []string{"--print-request", "-f", path}, "hello\n")
+		if code != ExitOK {
+			t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, ExitOK, out, errOut)
+		}
+
+		if !strings.Contains(out, "is this urgent") {
+			t.Errorf("stdout should hold the request body, got:\n%s", out)
+		}
+	})
+
 	t.Run("should report in the order of the one stage", func(t *testing.T) {
 		t.Parallel()
 
@@ -566,159 +593,4 @@ func missingFileText(t *testing.T, path string) string {
 	}
 
 	return pathErr.Err.Error()
-}
-
-func TestViewOf(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name       string
-		config     runConfig
-		setting    setting.Name
-		wantSource setting.Source
-		wantCache  bool
-	}{
-		{
-			name:       "should tag a typed flag as given on the command line",
-			config:     runConfig{hasState: true},
-			setting:    setting.State.Name(),
-			wantSource: setting.SourceFlag,
-		},
-		{
-			name:       "should tag a flag left out as a default",
-			config:     runConfig{},
-			setting:    setting.State.Name(),
-			wantSource: setting.SourceDefault,
-		},
-		{
-			name:       "should tag --mock as given on the command line",
-			config:     runConfig{mockPath: "answers.jsonl", mockSpelled: flagMock},
-			setting:    setting.Mock.Name(),
-			wantSource: setting.SourceFlag,
-		},
-		{
-			name:       "should tag ONESIE_MOCK as the environment",
-			config:     runConfig{mockPath: "answers.jsonl", mockSpelled: envMock},
-			setting:    setting.Mock.Name(),
-			wantSource: setting.SourceEnv,
-		},
-		{
-			name:       "should take the cache from ONESIE_CACHE when --cache is not typed",
-			config:     runConfig{env: switches{cache: true, cacheFrom: setting.SourceEnv}},
-			setting:    setting.Cache.Name(),
-			wantSource: setting.SourceEnv,
-			wantCache:  true,
-		},
-		{
-			name:       "should take the cache from a typed --cache over ONESIE_CACHE",
-			config:     runConfig{env: switches{cache: false, cacheFrom: setting.SourceFlag}},
-			setting:    setting.Cache.Name(),
-			wantSource: setting.SourceFlag,
-		},
-		{
-			name:       "should leave the cache off by default",
-			config:     runConfig{},
-			setting:    setting.Cache.Name(),
-			wantSource: setting.SourceDefault,
-		},
-		{
-			name:       "should tag a repeated flag given once as given on the command line",
-			config:     runConfig{runFlags: runFlags{assert: []string{"answer.value > 0.5"}}},
-			setting:    "assert",
-			wantSource: setting.SourceFlag,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			view := viewOf(tc.config, runFacts{}, nil)
-
-			if got := view.Merged.Source(tc.setting); got != tc.wantSource {
-				t.Errorf("Source(%s) = %d, want %d", tc.setting, got, tc.wantSource)
-			}
-
-			if got := setting.Get(view.Merged, setting.Cache); got != tc.wantCache {
-				t.Errorf("Get(Cache) = %v, want %v", got, tc.wantCache)
-			}
-		})
-	}
-
-	t.Run("should set only names of real rows, each holding a value its row's kind yields", func(t *testing.T) {
-		t.Parallel()
-
-		keys := map[setting.Name]setting.Keyed{}
-		for _, key := range setting.Keys() {
-			keys[key.Name()] = key
-		}
-
-		config := runConfig{calibrate: &calibrateFlags{}}
-		merged := viewOf(config, runFacts{}, nil).Merged
-
-		for _, name := range merged.Names() {
-			row, found := setting.Lookup(name)
-			if !found {
-				t.Errorf("viewOf sets %s, which no row is", name)
-
-				continue
-			}
-
-			if key, keyed := keys[name]; keyed {
-				if !key.Fits(row.Kind) {
-					t.Errorf("the key of %s does not fit its row's kind", name)
-				}
-
-				if got, want := reflect.TypeOf(merged.Value(name)), reflect.TypeOf(row.Kind.Zero()); got != want {
-					t.Errorf("viewOf sets %s to a %v, want a %v", name, got, want)
-				}
-
-				continue
-			}
-
-			if _, isList := merged.Value(name).([]string); !isList || !row.Flag.Repeat {
-				t.Errorf("viewOf sets %s, which has no key, to a %T", name, merged.Value(name))
-			}
-		}
-	})
-
-	t.Run("should refuse the cache beside a mode only when --cache is typed", func(t *testing.T) {
-		t.Parallel()
-
-		tests := []struct {
-			name    string
-			config  runConfig
-			wantErr string
-		}{
-			{
-				name:   "should accept ONESIE_CACHE beside -i request",
-				config: runConfig{runFlags: runFlags{input: "request"}, inputMode: input.Request, env: switches{cache: true, cacheFrom: setting.SourceEnv}},
-			},
-			{
-				name:    "should refuse a typed --cache beside -i request",
-				config:  runConfig{runFlags: runFlags{input: "request"}, inputMode: input.Request, env: switches{cache: true, cacheFrom: setting.SourceFlag}},
-				wantErr: "--cache does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
-				name:   "should accept ONESIE_CACHE beside --list-models",
-				config: runConfig{runFlags: runFlags{listModels: true}, env: switches{cache: true, cacheFrom: setting.SourceEnv}},
-			},
-			{
-				name:    "should refuse a typed --cache beside --list-models",
-				config:  runConfig{runFlags: runFlags{listModels: true}, env: switches{cache: true, cacheFrom: setting.SourceFlag}},
-				wantErr: "--cache does not apply to --list-models, which only lists the models a provider serves",
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				_, _, err := validateRun(tc.config, runFacts{}, nil, commandLine{})
-				if tc.wantErr == "" && err != nil || tc.wantErr != "" && (err == nil || err.Error() != tc.wantErr) {
-					t.Errorf("validateRun error = %v, want %q", err, tc.wantErr)
-				}
-			})
-		}
-	})
 }

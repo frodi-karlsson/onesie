@@ -25,7 +25,6 @@ func calibrateRules() []Rule {
 			return errors.New("calibrate needs --map. Without it the whole record, label included, " +
 				"would be the state, and the report would flatter the question")
 		}),
-		// Output is the report on calibrate, which reaches the rule as Facts.Report.
 		calibrating("calibrate-report", []Name{Output.Name(), PrintRequest.Name()}, checkReport),
 		calibrating("cuts-parse", []Name{Cuts.Name()}, func(v View) error {
 			if !typed(v, Cuts.Name()) {
@@ -123,13 +122,13 @@ func checkOffline(v View) error {
 }
 
 func checkReport(v View) error {
-	switch v.Facts.Report {
+	switch report := Get(v.Merged, Output); report {
 	case "", "auto", "table", "json":
 	default:
-		return fmt.Errorf("calibrate -o takes table, json or auto, got %s", v.Facts.Report)
+		return fmt.Errorf("calibrate -o takes table, json or auto, got %s", report)
 	}
 
-	if Get(v.Merged, PrintRequest) && v.Facts.ReportSet {
+	if Get(v.Merged, PrintRequest) && typed(v, Output.Name()) {
 		name, reason := modeWording(ModePrintRequest)
 
 		return fmt.Errorf("-o does not apply to %s, which %s", name, reason)
@@ -140,7 +139,7 @@ func checkReport(v View) error {
 
 func checkCalibrateUsage(v View) error {
 	// A dry run is left to the dry run rule, whose message names --print-request as the reason.
-	if Get(v.Merged, Usage) && !Get(v.Merged, PrintRequest) && Get(v.Merged, Out) == "" && v.Facts.Report != "json" {
+	if Get(v.Merged, Usage) && !Get(v.Merged, PrintRequest) && Get(v.Merged, Out) == "" && Get(v.Merged, Output) != "json" {
 		return errors.New("--usage adds token counts to the answers file or the json report, " +
 			"and this run writes neither")
 	}

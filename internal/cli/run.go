@@ -38,7 +38,7 @@ func validated(
 		return staged{}, err
 	}
 
-	flags, err := newRunConfig(cmd, *parsed, events, positional)
+	flags, err := newRunConfig(*parsed, events, positional)
 	if err != nil {
 		return staged{}, err
 	}
@@ -178,7 +178,7 @@ func runPlan(
 		return err
 	}
 
-	outputMode, err := output.ParseMode(setting.Derived(viewOf(flags, runFacts{}, built), setting.Output))
+	outputMode, err := output.ParseMode(setting.Derived(setting.NewView(flags.merged, built, setting.Facts{StdoutTTY: flags.stdoutTTY}), setting.Output))
 	if err != nil {
 		return err
 	}
@@ -370,9 +370,9 @@ func resolveState(
 		Stdin:        settings.stdin,
 		StdinTTY:     stdinTTY,
 		State:        flags.state,
-		HasState:     flags.hasState,
+		HasState:     flags.typed(setting.State.Name()),
 		StateFile:    flags.stateFile,
-		HasStateFile: flags.hasStateFile,
+		HasStateFile: flags.typed(setting.StateFile.Name()),
 		ReadFile:     settings.readFile,
 		Hint:         hint,
 		Clock:        settings.stdinClock,
@@ -1150,9 +1150,13 @@ type runFlags struct {
 }
 
 func (f *runFlags) providerChosen() bool {
-	return f.given.Count(setting.Provider.Name()) > 0
+	return f.typed(setting.Provider.Name())
 }
 
 func (f *runFlags) profileChosen() bool {
-	return f.given.Count(setting.Profile.Name()) > 0
+	return f.typed(setting.Profile.Name())
+}
+
+func (f *runFlags) typed(name setting.Name) bool {
+	return f.given.Count(name) > 0
 }

@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		positional  string
 		set         values
 		typed       []settings.Name
+		fromFile    []settings.Name
 		facts       settings.Facts
 		wantErr     string
 		wantExact   string
@@ -599,8 +600,8 @@ func TestValidate(t *testing.T) {
 			t.Parallel()
 
 			given := run{
-				set: tc.set, typed: tc.typed, events: tc.events, positional: tc.positional, file: tc.file, planned: true,
-				facts: tc.facts,
+				set: tc.set, typed: tc.typed, fromFile: tc.fromFile, events: tc.events, positional: tc.positional,
+				file: tc.file, planned: true, facts: tc.facts,
 			}
 
 			warnings, _, err := settings.Validate(given.view(t), settings.Rules())
@@ -1122,14 +1123,14 @@ func TestValidate(t *testing.T) {
 				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name:  "should ignore a file's assertion with --print-request",
-				set:   values{"print_request": true, "file": "q.yaml", "input": "text"},
-				facts: settings.Facts{FileAssert: "answer.value > 0.5"},
+				name:     "should ignore a file's assertion with --print-request",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"assert"},
 			},
 			{
-				name:  "should ignore a file's two gates with --print-request",
-				set:   values{"print_request": true, "file": "q.yaml", "input": "text"},
-				facts: settings.Facts{FileAssert: "answer.value > 0.5", FileAbstainIf: "answer.value > 0.4"},
+				name:     "should ignore a file's two gates with --print-request",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"assert", "abstain_if"},
 			},
 			{
 				name:    "should reject --assert typed beside a file's assertion with --print-request",
@@ -1137,10 +1138,10 @@ func TestValidate(t *testing.T) {
 				wantErr: "--assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name:    "should reject --abstain-if typed beside a file's gates with --print-request",
-				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				facts:   settings.Facts{FileAssert: "answer.value > 0.5"},
-				wantErr: "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
+				name:     "should reject --abstain-if typed beside a file's gates with --print-request",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"assert"},
+				wantErr:  "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
 				name: "should accept --assert with --print-questions",
@@ -1351,7 +1352,7 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				name:    "should reject --merge-key with -o md",
-				set:     values{"merge_key": "verdict", "input": "jsonl", "output": "md", "jobs": 1},
+				set:     values{"merge_key": "verdict", "input": "jsonl", "output": "markdown", "jobs": 1},
 				wantErr: "--merge-key needs -o json, values, csv or tsv",
 			},
 			{
@@ -1366,7 +1367,8 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				name:    "should reject -q with -o md on a stream, naming the spelling given",
-				set:     values{"input": "jsonl", "output": "md", "quiet": true, "jobs": 1},
+				set:     values{"input": "jsonl", "output": "markdown", "quiet": true, "jobs": 1},
+				facts:   settings.Facts{Given: typedGiven(t, "-o", "md")},
 				wantErr: "-q suppresses output, which leaves -o md nothing to write",
 			},
 			{
@@ -1411,10 +1413,10 @@ func TestValidate(t *testing.T) {
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
-				name:    "should reject a resume by position with -o raw and a file's assert",
-				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
-				facts:   settings.Facts{FileAssert: "answer.value > 0.5"},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+				name:     "should reject a resume by position with -o raw and a file's assert",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
+				fromFile: []settings.Name{"assert"},
+				wantErr:  "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
 				name:    "should reject a resume by id with -o raw and --assert",
@@ -1500,15 +1502,15 @@ func TestValidate(t *testing.T) {
 				wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 			},
 			{
-				name:    "should name the file's key when only the file carried the abstain expression",
-				set:     values{"file": "q.yaml", "input": "text"},
-				facts:   settings.Facts{FileAbstainIf: "answer.value > 0.4"},
-				wantErr: "'abstain_if' needs --assert, since without one every record is a yes",
+				name:     "should name the file's key when only the file carried the abstain expression",
+				set:      values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"abstain_if"},
+				wantErr:  "'abstain_if' needs --assert, since without one every record is a yes",
 			},
 			{
-				name:  "should accept --abstain-if when the only assertion comes from the file",
-				set:   values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
-				facts: settings.Facts{FileAssert: "answer.value > 0.5"},
+				name:     "should accept --abstain-if when the only assertion comes from the file",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
+				fromFile: []settings.Name{"assert"},
 			},
 			{
 				name:    "should reject --stop-on-assert without an assertion",
@@ -1516,9 +1518,9 @@ func TestValidate(t *testing.T) {
 				wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
 			},
 			{
-				name:  "should accept --stop-on-assert when the only assertion comes from the file",
-				set:   values{"stop_on_assert": true, "file": "q.yaml", "input": "jsonl"},
-				facts: settings.Facts{FileAssert: "answer.value > 0.5"},
+				name:     "should accept --stop-on-assert when the only assertion comes from the file",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "file": "q.yaml", "input": "jsonl"},
+				fromFile: []settings.Name{"assert"},
 			},
 			{
 				name:    "should reject --resume with --print-request",
@@ -1642,13 +1644,24 @@ func TestValidate(t *testing.T) {
 		t.Parallel()
 
 		given := run{
-			facts: settings.Facts{Command: settings.CommandCalibrate, ReportSet: true},
+			facts: settings.Facts{Command: settings.CommandCalibrate},
 			set:   values{"print_request": true},
+			typed: []settings.Name{"output"},
 		}
 
 		_, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "calibrate-report")})
 		if want := "-o does not apply to --print-request, which writes the request bodies and sends none"; err == nil || err.Error() != want {
 			t.Errorf("error = %v, want %q", err, want)
+		}
+	})
+
+	t.Run("should accept calibrate's -o table, which is its report, on records", func(t *testing.T) {
+		t.Parallel()
+
+		given := run{facts: settings.Facts{Command: settings.CommandCalibrate}, set: values{"input": "jsonl", "output": "table"}}
+
+		if _, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "table-reads-one-record")}); err != nil {
+			t.Errorf("unexpected error: %v", err)
 		}
 	})
 
@@ -1807,8 +1820,8 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "calibrate-report",
-			refused: run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "csv"}},
-			passed:  run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "json"}},
+			refused: run{facts: calibrating, set: values{"output": "csv"}},
+			passed:  run{facts: calibrating, set: values{"output": "json"}},
 			wantErr: "calibrate -o takes table, json or auto, got csv",
 		},
 		{
@@ -1834,7 +1847,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "calibrate-usage",
 			refused: run{facts: calibrating, set: values{"usage": true}},
-			passed:  run{facts: settings.Facts{Command: settings.CommandCalibrate, Report: "json"}, set: values{"usage": true}},
+			passed:  run{facts: calibrating, set: values{"usage": true, "output": "json"}},
 			wantErr: "--usage adds token counts to the answers file or the json report, and this run writes neither",
 		},
 		{
@@ -1889,8 +1902,8 @@ func ruleCases() []ruleCase {
 			rule:    "abstain-needs-assert",
 			refused: run{set: values{"abstain_if": []string{"answer.value > 0.4"}}},
 			passed: run{
-				set:   values{"abstain_if": []string{"answer.value > 0.4"}},
-				facts: settings.Facts{FileAssert: "answer.value > 0.5"},
+				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}},
+				fromFile: []settings.Name{"assert"},
 			},
 			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 		},
@@ -1902,9 +1915,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "quiet-without-markdown",
-			refused: run{set: values{"quiet": true, "output": "md"}},
+			refused: run{set: values{"quiet": true, "output": "markdown"}},
 			passed:  run{set: values{"quiet": true}},
-			wantErr: "-q suppresses output, which leaves -o md nothing to write",
+			wantErr: "-q suppresses output, which leaves -o markdown nothing to write",
 		},
 		{
 			rule:    "state-and-state-file",
@@ -2147,6 +2160,15 @@ func (r run) sourceOf(name settings.Name) settings.Source {
 }
 
 type values = map[settings.Name]any
+
+func typedGiven(t *testing.T, args ...string) *settings.Given {
+	t.Helper()
+
+	root := register(settings.CommandRoot)
+	root.parse(t, args...)
+
+	return root.given
+}
 
 func bodyQuestions(n int) []plan.Question {
 	questions := make([]plan.Question, 0, n)

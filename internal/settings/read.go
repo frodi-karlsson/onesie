@@ -7,8 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie-go"
+	"github.com/spf13/pflag"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -27,13 +28,13 @@ const (
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
 // value whose row has no effect in the run's mode is left out, and a typed flag is kept.
 func Read(rows []Row, src Sources) ([]Layer, error) {
-	flags, err := readFlags(rows, src.Given, src.Facts.Command)
+	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return nil, err
 	}
 
-	defaults := readDefaults(rows, src.Facts.Command)
-	mode := runMode(src.Facts.Command, flags, defaults)
+	defaults := readDefaults(rows, src.Command)
+	mode := runMode(src.Command, flags, defaults)
 
 	choice, err := choose(rows, src, flags, mode)
 	if err != nil {
@@ -50,7 +51,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 		return nil, err
 	}
 
-	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Facts.Command,
+	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Command,
 		keyless(choice, src.Profile))
 	if err != nil {
 		return nil, err
@@ -70,12 +71,12 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 // Choose resolves the rows that pick a source rather than set a value: the question file, the
 // profile and the provider. The caller loads what it names before calling Read.
 func Choose(rows []Row, src Sources) (Choice, error) {
-	flags, err := readFlags(rows, src.Given, src.Facts.Command)
+	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return Choice{}, err
 	}
 
-	return choose(rows, src, flags, runMode(src.Facts.Command, flags, readDefaults(rows, src.Facts.Command)))
+	return choose(rows, src, flags, runMode(src.Command, flags, readDefaults(rows, src.Command)))
 }
 
 // Sources is everything Read reads, each filled by the caller. DefaultProfile is the default member
@@ -86,7 +87,7 @@ type Sources struct {
 	LookupEnv      func(string) (string, bool)
 	Profile        *ProfileValues
 	DefaultProfile string
-	Facts          Facts
+	Command        Command
 }
 
 // FileValues is what a question file or a request body gives, keyed as the file spells each key.
@@ -140,7 +141,7 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 
 	for _, row := range rows {
 		bound, registered := boundOn(row, command)
-		if !registered || !parsedPerRun(row, command) || offTheChoice(row, command) {
+		if !registered || !readPerRun(row) || offTheChoice(row, command) {
 			continue
 		}
 
@@ -149,7 +150,7 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 			continue
 		}
 
-		value, err := parseFlag(row, bound, flag)
+		value, err := flagValue(row, bound, flag, command)
 		if err != nil {
 			return Layer{}, err
 		}
@@ -162,6 +163,16 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	}
 
 	return layer, nil
+}
+
+func flagValue(row Row, bound BoundFlag, flag *pflag.Flag, command Command) (any, error) {
+	if parsedPerRun(row, command) {
+		return parseFlag(row, bound, flag)
+	}
+
+	// A command that gives a flag a kind of its own keeps the flag as typed, and its rules word the
+	// refusal.
+	return flag.Value.String(), nil
 }
 
 func boundOn(row Row, command Command) (BoundFlag, bool) {
@@ -213,7 +224,7 @@ func readDefaults(rows []Row, command Command) Layer {
 		}
 
 		if bound, registered := boundOn(row, command); registered {
-			if parsedPerRun(row, command) {
+			if readPerRun(row) {
 				layer.set(row.Name, untyped(row, bound), "")
 			}
 
@@ -226,6 +237,10 @@ func readDefaults(rows []Row, command Command) Layer {
 	}
 
 	return layer
+}
+
+func readPerRun(row Row) bool {
+	return row.Scope == ScopeRun && !row.Flag.Group
 }
 
 func runMode(command Command, flags, defaults Layer) Mode {
@@ -285,7 +300,7 @@ func highestFirst(layers []Layer) []Layer {
 
 func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
 	chosen := Choice{File: textIn(flags, fileName), DefaultProfile: src.DefaultProfile}
-	if profileCommand(src.Facts.Command) {
+	if profileCommand(src.Command) {
 		return chosen, nil
 	}
 

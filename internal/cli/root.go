@@ -36,25 +36,17 @@ import (
 
 var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 
-// pflag's Changed reports false for a name it does not know, with no error, so a name that has to
-// survive a rename is spelled once here. A flag nothing passes to Changed needs no constant.
+// A flag name the code spells in more than one place is held once here, so a rename reaches each one.
 const (
-	flagState         = "state"
-	flagStateFile     = "state-file"
-	flagImage         = "image"
-	flagImageField    = "image-field"
-	flagLongContext   = "long-context"
-	flagModel         = "model"
-	flagInput         = "input"
-	flagJobs          = "jobs"
-	flagTimeout       = "timeout"
-	flagRetries       = "retries"
-	flagMaxRetryAfter = "max-retry-after"
-	flagBaseURL       = "base-url"
-	flagAllowHTTP     = "allow-http"
-	flagMap           = "map"
-	flagID            = "id"
-	flagDelimiter     = "delimiter"
+	flagState       = "state"
+	flagStateFile   = "state-file"
+	flagLongContext = "long-context"
+	flagModel       = "model"
+	flagInput       = "input"
+	flagJobs        = "jobs"
+	flagBaseURL     = "base-url"
+	flagAllowHTTP   = "allow-http"
+	flagDelimiter   = "delimiter"
 )
 
 // NewRootCmd builds a fresh command tree that reads and writes no global state.

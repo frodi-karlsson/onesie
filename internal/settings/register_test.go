@@ -356,7 +356,7 @@ func TestGiven_Inherit(t *testing.T) {
 				calibrate.parse(t, "--profile", "work")
 
 				layers, err := settings.Read(settings.Table(), settings.Sources{
-					Given: calibrate.given, Facts: settings.Facts{Command: settings.CommandCalibrate},
+					Given: calibrate.given, Command: settings.CommandCalibrate,
 				})
 				if err != nil {
 					t.Fatalf("Read: %v", err)
