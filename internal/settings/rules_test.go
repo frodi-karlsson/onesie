@@ -416,6 +416,20 @@ func TestValidate(t *testing.T) {
 			wantErr: "--pick cannot make 'urgent' a choice question",
 		},
 		{
+			name:      "should spell a --threshold given after --for by its flag in its range error",
+			file:      fileNouls("urgent", "spam"),
+			set:       values{"file": "two.yaml"},
+			events:    []argv.Event{{Name: "for", Value: "spam"}, {Name: "threshold", Value: "2"}},
+			wantExact: "--threshold must be between 0 and 1, got 2",
+		},
+		{
+			name:   "should suggest no shape for --min-confidence on a yes or no file question",
+			file:   fileNouls("urgent"),
+			events: []argv.Event{{Name: "min-confidence", Value: "0.5"}},
+			wantExact: "--min-confidence needs a confidence value. 'urgent' is a yes or no question, " +
+				"use --threshold",
+		},
+		{
 			name:   "should accept --pick on a file pick question",
 			file:   filePick("billing", "technical"),
 			events: []argv.Event{{Name: "pick", Value: "sales,support"}},

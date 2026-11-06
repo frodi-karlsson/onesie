@@ -1730,7 +1730,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"-f", "team.yaml", "--pick", "sales", "--print-questions"},
 			files:    map[string]string{"team.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\n"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: 'pick' needs at least two options in question 'team', got 1: sales\n"},
+			contains: []string{"onesie: --pick needs at least two options in question 'team', got 1: sales\n"},
 			absent:   []string{"overrides"},
 		},
 		{

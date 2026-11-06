@@ -539,13 +539,13 @@ func TestValidate(t *testing.T) {
 				"use 'min_confidence' with 'fallback'",
 		},
 		{
-			name: "should name the file's keys when min_confidence lands on a yes/no question",
+			name: "should name the file's keys when min_confidence lands on a yes/no question, with no shape to add",
 			file: []plan.Question{{
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
 			}},
 			wantExact: "'min_confidence' needs a confidence value. 'urgent' is a yes or no " +
-				"question, use 'threshold', or add 'pick' or 'rate'",
+				"question, use 'threshold'",
 		},
 		{
 			name: "should reject a threshold of nan",

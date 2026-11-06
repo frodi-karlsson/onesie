@@ -51,6 +51,10 @@ type Question struct {
 	// refuses it beside options or levels.
 	Boxed bool
 
+	// Typed lists the flags, such as --threshold, that gave a question from a file a setting, so a
+	// message spells that setting the way it was given.
+	Typed []string
+
 	// DescOrder is the order --desc keys appeared, so validation can report them as written.
 	DescOrder []string
 

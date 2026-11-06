@@ -788,6 +788,7 @@ func TestRefine(t *testing.T) {
 			want: plan.Question{
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Threshold: pointerTo(0.9), Fallback: &plan.Fallback{Text: "yes", Boolean: true}},
+				Typed:  []string{"--threshold", "--fallback"},
 			},
 		},
 		{
@@ -796,7 +797,7 @@ func TestRefine(t *testing.T) {
 			events:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
 			want: plan.Question{
 				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
-				Options: []plan.Option{{Name: "sales"}, {Name: "support"}},
+				Options: []plan.Option{{Name: "sales"}, {Name: "support"}}, Typed: []string{"--pick"},
 			},
 		},
 		{
@@ -808,7 +809,7 @@ func TestRefine(t *testing.T) {
 			events: []argv.Event{{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;high"}},
 			want: plan.Question{
 				ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
-				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+				Levels: []plan.Level{{Label: "low"}, {Label: "high"}}, Typed: []string{"--rate"},
 			},
 		},
 		{
@@ -818,7 +819,7 @@ func TestRefine(t *testing.T) {
 			want: plan.Question{
 				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
 				Options:   []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical", Desc: "systems"}},
-				DescOrder: []string{"technical"},
+				DescOrder: []string{"technical"}, Typed: []string{"--desc"},
 			},
 		},
 		{
@@ -842,7 +843,7 @@ func TestRefine(t *testing.T) {
 			events:   []argv.Event{{Name: "desc", Value: "yes=x"}, {Name: "threshold", Value: "0.8"}},
 			want: plan.Question{
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
-				Policy: plan.Policy{Threshold: pointerTo(0.8)},
+				Policy: plan.Policy{Threshold: pointerTo(0.8)}, Typed: []string{"--threshold"},
 			},
 		},
 	}

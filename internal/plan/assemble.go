@@ -250,6 +250,12 @@ func Refine(question *Question, events []argv.Event, numbers Numbers) {
 		question.Levels = nil
 	}
 
+	for _, event := range kept {
+		if flag := "--" + event.Name; event.Name != "sep" && !slices.Contains(question.Typed, flag) {
+			question.Typed = append(question.Typed, flag)
+		}
+	}
+
 	apply(question, kept, numbers)
 }
 
