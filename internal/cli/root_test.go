@@ -1800,8 +1800,8 @@ func TestNewRootCmd(t *testing.T) {
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
-			contains: []string{"--pick applies to one question, and 2 were asked: 'a', 'b'. " +
-				"Put it after --for ID to set one, as in --for a --pick x,y"},
+			contains: []string{"--pick applies to one question, and 2 were asked: 'a', 'b'. No question from the " +
+				"file takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION --pick x,y"},
 		},
 		{
 			name:     "should reject a question file holding a second document",

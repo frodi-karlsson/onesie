@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -179,10 +180,41 @@ func policyBindingRule() Rule {
 				return fmt.Errorf("--%s given with no --ask to bind to and %d questions asked", orphan.Name, len(asked))
 			}
 
+			taker := slices.IndexFunc(filed, func(question plan.Question) bool { return takes(question, orphan.Name) })
+			if taker < 0 {
+				return fmt.Errorf("--%s applies to one question, and %d were asked: %s. No question from the file "+
+					"takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION %s",
+					orphan.Name, len(asked), quotedIDs(asked), typedFlag(orphan))
+			}
+
 			return fmt.Errorf("--%s applies to one question, and %d were asked: %s. "+
 				"Put it after --for ID to set one, as in --for %s %s",
-				orphan.Name, len(asked), quotedIDs(asked), filed[0].ID, typedFlag(orphan))
+				orphan.Name, len(asked), quotedIDs(asked), filed[taker].ID, typedFlag(orphan))
 		},
+	}
+}
+
+func takes(question plan.Question, flag string) bool {
+	choice := question.Shape == plan.Pick || question.Shape == plan.Rate
+	filed := question.Origin == plan.OriginFile
+
+	switch flag {
+	case "pick":
+		return filed && question.Shape == plan.Pick
+	case "rate":
+		return filed && question.Shape == plan.Rate
+	case "desc":
+		return filed && question.Shape != plan.Box
+	case "sep":
+		return filed && choice
+	case "threshold":
+		return question.Shape == plan.Noul
+	case "min-confidence":
+		return choice
+	case "fallback":
+		return question.Shape != plan.Box
+	default:
+		return false
 	}
 }
 

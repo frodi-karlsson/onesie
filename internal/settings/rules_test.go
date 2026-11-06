@@ -350,6 +350,27 @@ func TestValidate(t *testing.T) {
 				"Put it after --for ID to set one, as in --for urgent --threshold 0.9",
 		},
 		{
+			name:   "should suggest the first file question that takes the flag",
+			file:   append(filePick("billing", "technical"), fileNouls("urgent")...),
+			events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'team', 'urgent'. " +
+				"Put it after --for ID to set one, as in --for urgent --threshold 0.9",
+		},
+		{
+			name:   "should suggest a pick question from the file for a top level --pick",
+			file:   append(fileNouls("urgent"), filePick("billing", "technical")...),
+			events: []argv.Event{{Name: "pick", Value: "x,y"}},
+			wantExact: "--pick applies to one question, and 2 were asked: 'urgent', 'team'. " +
+				"Put it after --for ID to set one, as in --for team --pick x,y",
+		},
+		{
+			name:   "should suggest --ask when no file question takes the flag",
+			file:   fileNouls("urgent", "spam"),
+			events: []argv.Event{{Name: "box", Value: "true"}},
+			wantExact: "--box applies to one question, and 2 were asked: 'urgent', 'spam'. " +
+				"No question from the file takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION --box",
+		},
+		{
 			name:   "should refuse it beside a body of two questions",
 			file:   bodyQuestions(2),
 			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
