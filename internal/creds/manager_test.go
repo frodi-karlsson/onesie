@@ -292,7 +292,7 @@ func TestProfileManagerUpdate(t *testing.T) {
 		})
 	}
 
-	t.Run("should refuse an empty key that would delete the stored key", func(t *testing.T) {
+	t.Run("should refuse an empty key without DropKey on a profile that holds a key", func(t *testing.T) {
 		t.Parallel()
 
 		path, fill := profilesPath(t)
@@ -306,8 +306,7 @@ func TestProfileManagerUpdate(t *testing.T) {
 		})
 
 		checkChange(t, path, fill, nil, err, changeWant{
-			err: errors.New("profile 'work' holds a key, and an empty key would delete it. To run it with no key, " +
-				"create a new profile with no key"),
+			err:   errors.New("profile 'work' holds a key, and an empty key would delete it"),
 			items: map[string]string{"old": "SECRET-OLD"}, backend: backend,
 		})
 	})
@@ -331,6 +330,243 @@ func TestProfileManagerUpdate(t *testing.T) {
 			items:   map[string]string{}, backend: backend,
 		})
 	})
+
+	runRenamesAndDrops(t)
+}
+
+func runRenamesAndDrops(t *testing.T) {
+	t.Helper()
+
+	locked := errors.New("the keychain is locked")
+	key := "SECRET-0123456789"
+	local := "http://localhost:11435"
+	inKeychain := func(account string) creds.Profile {
+		return creds.Profile{Provider: "openrouter", Store: creds.StoreKeychain, Account: account, KeyEnd: "6789", BaseURL: local}
+	}
+	keyless := creds.Profile{Provider: "openrouter", BaseURL: local}
+
+	tests := []struct {
+		name        string
+		profiles    creds.Profiles
+		newName     string
+		readKey     *string
+		dropKey     bool
+		backend     *itemBackend
+		failWrite   bool
+		wantErr     error
+		wantNotices []creds.Notice
+		wantFile    *creds.Profiles
+		wantItems   map[string]string
+		wantNoCalls bool
+	}{
+		{
+			name:        "should move the keychain item on a rename",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:     "next",
+			backend:     newItemBackend(map[string]string{"work@{hash}": key}),
+			wantNotices: []creds.Notice{{Kind: creds.KeyMoved, Account: "next@{hash}"}},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"next": inKeychain("next@{hash}")}},
+			wantItems:   map[string]string{"next@{hash}": key},
+		},
+		{
+			name:      "should undo the moved item when the save fails",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			backend:   newItemBackend(map[string]string{"work@{hash}": key}),
+			failWrite: true,
+			wantErr:   errDiskFull,
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name: "should move the default with the rename",
+			profiles: creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
+				"work": {Provider: "typesafe", APIKey: "SECRET-HOME"},
+			}},
+			newName:     "next",
+			backend:     newItemBackend(nil),
+			wantNotices: []creds.Notice{},
+			wantFile: &creds.Profiles{Default: "next", Profiles: map[string]creds.Profile{
+				"next": {Provider: "typesafe", APIKey: "SECRET-HOME"},
+			}},
+			wantItems: map[string]string{},
+		},
+		{
+			name: "should refuse a rename onto a profile that exists",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"work": inKeychain("work@{hash}"), "home": {Provider: "typesafe", APIKey: "SECRET-HOME"},
+			}},
+			newName:     "home",
+			backend:     newItemBackend(map[string]string{"work@{hash}": key}),
+			wantErr:     errors.New("profile 'home' exists. Choose another name, or delete it first"),
+			wantItems:   map[string]string{"work@{hash}": key},
+			wantNoCalls: true,
+		},
+		{
+			name: "should keep a shared keychain item on a rename",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"work": inKeychain("shared"), "home": inKeychain("shared"),
+			}},
+			newName:     "next",
+			backend:     newItemBackend(map[string]string{"shared": key}),
+			wantNotices: []creds.Notice{},
+			wantFile: &creds.Profiles{Profiles: map[string]creds.Profile{
+				"next": inKeychain("shared"), "home": inKeychain("shared"),
+			}},
+			wantItems:   map[string]string{"shared": key},
+			wantNoCalls: true,
+		},
+		{
+			name:        "should keep an item of another name and make no keychain call on a rename",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("legacy")}},
+			newName:     "next",
+			backend:     newItemBackend(map[string]string{"legacy": key}),
+			wantNotices: []creds.Notice{},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"next": inKeychain("legacy")}},
+			wantItems:   map[string]string{"legacy": key},
+			wantNoCalls: true,
+		},
+		{
+			name:      "should refuse a rename when the keychain cannot read the old key",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			backend:   &itemBackend{items: map[string]string{"work@{hash}": key}, getErr: locked},
+			wantErr:   &creds.KeychainError{Op: "read the key from", Err: locked},
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name:      "should refuse a rename when the keychain cannot store the new item",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			backend:   &itemBackend{items: map[string]string{"work@{hash}": key}, setErrs: []error{locked}},
+			wantErr:   &creds.KeychainError{Op: "store the key in", Err: locked},
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name:      "should delete the new item when a rename with a new key fails to save",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			readKey:   new("SECRET-ABCDEFGHI"),
+			backend:   newItemBackend(map[string]string{"work@{hash}": key}),
+			failWrite: true,
+			wantErr:   errDiskFull,
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name:        "should rename a file held key with no keychain call",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "typesafe", APIKey: key}}},
+			newName:     "next",
+			backend:     newItemBackend(nil),
+			wantNotices: []creds.Notice{},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"next": {Provider: "typesafe", APIKey: key}}},
+			wantNoCalls: true,
+		},
+		{
+			name: "should refuse a rename whose keychain item name is taken",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"work": inKeychain("work@{hash}"), "home": inKeychain("next@{hash}"),
+			}},
+			newName:     "next",
+			backend:     newItemBackend(map[string]string{"work@{hash}": key, "next@{hash}": "SECRET-HOME"}),
+			wantErr:     errors.New("profile 'home' already uses the keychain item next@{hash}. Delete or update it first"),
+			wantItems:   map[string]string{"work@{hash}": key, "next@{hash}": "SECRET-HOME"},
+			wantNoCalls: true,
+		},
+		{
+			name:        "should store a new key under the new name and delete the old item",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:     "next",
+			readKey:     new("SECRET-ABCDEFGHI"),
+			backend:     newItemBackend(map[string]string{"work@{hash}": key}),
+			wantNotices: []creds.Notice{{Kind: creds.KeyInKeychain, Account: "next@{hash}"}},
+			wantFile: &creds.Profiles{Profiles: map[string]creds.Profile{"next": {
+				Provider: "openrouter", Store: creds.StoreKeychain, Account: "next@{hash}", KeyEnd: "FGHI", BaseURL: local,
+			}}},
+			wantItems: map[string]string{"next@{hash}": "SECRET-ABCDEFGHI"},
+		},
+		{
+			name:        "should delete the item when the key is dropped",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			readKey:     new(""),
+			dropKey:     true,
+			backend:     newItemBackend(map[string]string{"work@{hash}": key}),
+			wantNotices: []creds.Notice{{Kind: creds.KeyDropped}},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"work": keyless}},
+			wantItems:   map[string]string{},
+		},
+		{
+			name: "should keep a shared item when the key is dropped",
+			profiles: creds.Profiles{Profiles: map[string]creds.Profile{
+				"work": inKeychain("shared"), "home": inKeychain("shared"),
+			}},
+			readKey:     new(""),
+			dropKey:     true,
+			backend:     newItemBackend(map[string]string{"shared": key}),
+			wantNotices: []creds.Notice{{Kind: creds.KeyDropped}},
+			wantFile: &creds.Profiles{Profiles: map[string]creds.Profile{
+				"work": keyless, "home": inKeychain("shared"),
+			}},
+			wantItems: map[string]string{"shared": key},
+		},
+		{
+			name:        "should drop a file held key with no keychain call",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": {Provider: "openrouter", APIKey: key, BaseURL: local}}},
+			readKey:     new(""),
+			dropKey:     true,
+			backend:     newItemBackend(nil),
+			wantNotices: []creds.Notice{{Kind: creds.KeyDropped}},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"work": keyless}},
+			wantNoCalls: true,
+		},
+		{
+			name:      "should keep the item when the key is dropped and the save fails",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			readKey:   new(""),
+			dropKey:   true,
+			backend:   &itemBackend{items: map[string]string{"work@{hash}": key}, getErr: locked},
+			failWrite: true,
+			wantErr:   errDiskFull,
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			path, fill := profilesPath(t)
+			profiles := filledProfiles(tc.profiles, fill)
+
+			change := creds.Change{
+				Path: path, Profiles: profiles, Name: "work", NewName: tc.newName, DropKey: tc.dropKey,
+				Profile: profiles.Profiles["work"],
+			}
+
+			if tc.readKey != nil {
+				change.ReadKey = func() (string, error) { return *tc.readKey, nil }
+			}
+
+			if tc.dropKey {
+				change.Profile = keyless
+			}
+
+			tc.backend.fill(fill)
+
+			notices, err := newManager(tc.backend, tc.failWrite).Update(change)
+
+			want := changeWant{
+				err: tc.wantErr, notices: tc.wantNotices, file: tc.wantFile, items: tc.wantItems, backend: tc.backend,
+			}
+			checkChange(t, path, fill, notices, err, want)
+
+			if _, statErr := os.Stat(path); tc.wantErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("profiles.json was written beside error %v, stat error = %v", tc.wantErr, statErr)
+			}
+
+			if calls := tc.backend.callCount(); tc.wantNoCalls && calls != 0 {
+				t.Errorf("keychain calls = %d, want none", calls)
+			}
+		})
+	}
 }
 
 func TestProfileManagerDelete(t *testing.T) {
@@ -475,6 +711,41 @@ func TestProfilesWith(t *testing.T) {
 	})
 }
 
+func TestProfilesRenamed(t *testing.T) {
+	t.Parallel()
+
+	two := creds.Profiles{Default: "home", Profiles: map[string]creds.Profile{
+		"home": {Provider: "typesafe", APIKey: "SECRET-HOME"}, "work": {Provider: "berget", APIKey: "SECRET-WORK"},
+	}}
+
+	tests := []struct {
+		name        string
+		from, to    string
+		wantDefault string
+		wantNames   []string
+	}{
+		{name: "should move the default with the profile it names", from: "home", to: "next", wantDefault: "next", wantNames: []string{"next", "work"}},
+		{name: "should keep the default when another profile is renamed", from: "work", to: "next", wantDefault: "home", wantNames: []string{"home", "next"}},
+		{name: "should replace the profile in place when the name stays", from: "work", to: "work", wantDefault: "home", wantNames: []string{"home", "work"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			renamed := two.Renamed(tc.from, tc.to, creds.Profile{Provider: "levanto", APIKey: "SECRET-NEW"})
+
+			if names := slices.Sorted(maps.Keys(renamed.Profiles)); renamed.Default != tc.wantDefault || !slices.Equal(names, tc.wantNames) {
+				t.Errorf("Renamed gave default %q and %v, want %q and %v", renamed.Default, names, tc.wantDefault, tc.wantNames)
+			}
+
+			if renamed.Profiles[tc.to].Provider != "levanto" || len(two.Profiles) != 2 || two.Default != "home" {
+				t.Errorf("Renamed gave %v from %v, want a copy holding the new profile under %s", renamed, two, tc.to)
+			}
+		})
+	}
+}
+
 func homeOnly() creds.Profiles {
 	return creds.Profiles{Default: "home", Profiles: map[string]creds.Profile{
 		"home": {Provider: "typesafe", APIKey: "SECRET-HOME"},
@@ -616,6 +887,7 @@ type itemBackend struct {
 	getErr    error
 	setErrs   []error
 	sets      int
+	calls     int
 	deleteErr error
 }
 
@@ -629,6 +901,8 @@ func (b *itemBackend) fill(fill func(string) string) {
 func (b *itemBackend) Get(_, user string) (string, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+
+	b.calls++
 
 	if b.getErr != nil {
 		return "", b.getErr
@@ -647,6 +921,7 @@ func (b *itemBackend) Set(_, user, password string) error {
 	defer b.mu.Unlock()
 
 	b.sets++
+	b.calls++
 	if b.sets <= len(b.setErrs) && b.setErrs[b.sets-1] != nil {
 		return b.setErrs[b.sets-1]
 	}
@@ -660,6 +935,8 @@ func (b *itemBackend) Delete(_, user string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
+	b.calls++
+
 	if b.deleteErr != nil {
 		return b.deleteErr
 	}
@@ -667,6 +944,13 @@ func (b *itemBackend) Delete(_, user string) error {
 	delete(b.items, user)
 
 	return nil
+}
+
+func (b *itemBackend) callCount() int {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+
+	return b.calls
 }
 
 func (b *itemBackend) contents() map[string]string {

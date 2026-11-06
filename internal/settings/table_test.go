@@ -183,6 +183,47 @@ func TestTable(t *testing.T) {
 			},
 		},
 		{
+			name: "should map each profile writer flag that writes a member to one FileMembers holds",
+			check: func(rows []settings.Row) []string {
+				var problems []string
+
+				var members []string
+				for _, member := range creds.FileMembers() {
+					members = append(members, member.Keys...)
+				}
+
+				wants := map[string]string{"provider": "provider", "model": "model", "base-url": "base_url", "account-id": "account_id"}
+
+				for _, command := range []settings.Command{settings.CommandProfileCreate, settings.CommandProfileUpdate} {
+					for _, row := range rows {
+						flag, ok := row.FlagOn(command)
+						if !ok {
+							continue
+						}
+
+						if want := wants[flag.Long]; flag.Member.Key != want {
+							problems = append(problems, fmt.Sprintf("%s: --%s writes %q, want %q", command, flag.Long, flag.Member.Key, want))
+						}
+
+						if flag.Member.Key != "" && !slices.Contains(members, flag.Member.Key) {
+							problems = append(problems, fmt.Sprintf("%s: --%s writes %s, which FileMembers lacks",
+								command, flag.Long, flag.Member.Key))
+						}
+					}
+				}
+
+				for _, command := range []settings.Command{settings.CommandRoot, settings.CommandCalibrate} {
+					for _, row := range rows {
+						if flag, ok := row.FlagOn(command); ok && flag.Member.Key != "" {
+							problems = append(problems, fmt.Sprintf("%s: --%s writes a profile member", command, flag.Long))
+						}
+					}
+				}
+
+				return problems
+			},
+		},
+		{
 			name: "should give every provider's key variable to the api_key row",
 			check: func(rows []settings.Row) []string {
 				var problems []string

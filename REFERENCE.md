@@ -645,7 +645,7 @@ on the provider's key variable alone.
 | Command | What it does |
 |---------|--------------|
 | `profile create NAME --provider P [--model M] [--base-url U] [--account-id A] [--file]` | stores a new profile and reads its key. The first profile becomes the default |
-| `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. `--key` reads a new key. `--provider` needs `--key`, since a key belongs to one provider, and `--file` needs `--key` too |
+| `profile update NAME [--provider P] [--model M] [--base-url U] [--account-id A] [--name NEW] [--key] [--file]` | changes only the members named, and an empty value clears one, as in `--model ""`. The result is checked as a whole profile, so one update reaches any valid profile. `--name` renames it. `--key` reads a new key. `--provider` keeps `base_url`, `account_id` and `model`, and on a profile that holds a key it needs `--key`, since a key belongs to one provider. `--file` needs `--key` too |
 | `profile delete NAME` | removes the profile and its keychain item. Deleting the default leaves no default, and deleting the last profile removes `profiles.json` |
 | `profile use NAME` | makes the profile the default |
 | `profile list` | lists each profile's provider, key store and model, with `*` on the one a run would use now. When a run would use none, a stderr line says why, as in `onesie: active: ONESIE_PROVIDER=openrouter, no profile` |
@@ -653,7 +653,8 @@ on the provider's key variable alone.
 | `profile test [NAME]` | lists the provider's models with the key, which costs no tokens, and prints `profile`, `provider`, `key` and `models` lines. With no key on a custom base URL it lists them with none |
 
 - A name is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`, and is not
-  `none`. There is no rename, so delete a profile and create it again.
+  `none`. `update NAME --name NEW` renames a profile, and the default follows it. It exits 2 when
+  `NEW` exists or is not a name.
 - The key is read from a hidden prompt on a terminal, and otherwise from the first line of stdin,
   which must hold the key alone. A second line that is not blank exits 2, so pipe a password manager
   entry through `head -n 1`. The key is never a flag, since a flag lands in shell history.
@@ -666,12 +667,23 @@ on the provider's key variable alone.
 - An empty key at the prompt or on stdin stores a profile with no key when its `base_url` is not
   the provider's own. `create` and `update --key` then print
   `profile 'NAME' holds no key, since its base URL is custom` and write no keychain item, and
-  `profile list` shows `none` in the KEY column. Any other empty key exits 2, and so does an empty
-  key to `update --key` on a profile that holds a key, since it would delete that key. Clearing the base URL
-  of such a profile, or setting the provider's own, needs `--key` in the same update.
+  `profile list` shows `none` in the KEY column. An empty key typed at the prompt of `update --key`
+  on a profile that holds a key drops that key and its keychain item, and prints
+  `profile 'NAME' holds no key now`. On the provider's own base URL it exits 2 with
+  `holds no key, so its base URL must stay custom`. An empty key on stdin never drops a key, so a
+  failed `pass show` exits 2 and leaves the key alone. Any other empty key exits 2. Clearing the
+  base URL of a profile that holds no key, or setting the provider's own, needs `--key` in the same
+  update.
 - `create` and `update` check the rules below, the base URL and the account id before they read the
   key, so a typo costs nothing. A bad value from a flag is named by its flag, as in
   `--account-id must be 32 hexadecimal characters`.
+- `update` applies the flags given, then checks the result as a whole profile. `--provider` keeps
+  `base_url`, `account_id` and `model`, and names on stderr the ones it keeps, as in
+  `onesie: profile 'work' keeps its base_url and model on openrouter`. A profile that holds no key
+  changes provider with no `--key`. An `account_id` kept on a provider that takes none exits 2 with
+  `Clear it with --account-id "" in the same update`. A `base_url` beside an `account_id`, typed or
+  stored, exits 2 with `has both base_url and account_id. Keep one`, and names the flag that clears
+  the other.
 - `show` never reads the keychain or prints a key. `key:` names the key a run would send to the
   base URL `show` reports, so a profile's key off its own endpoint shows as the key variable or
   `none`. It is `keychain` or `file`, with
@@ -898,9 +910,17 @@ The format is stable, and the file may be written by hand. It lives in the confi
 - A key goes to the OS keychain under the service `onesie`: the macOS Keychain, the Secret Service
   on Linux, or the Windows Credential Manager. The item is named `PROFILE@HASH`, where the hash
   stands for the config dir, so two config dirs never share one item. The profile's `account`
-  holds the name. A converted profile keeps its item name until `onesie profile update NAME --key`.
-- `profile delete` and `profile update --key` delete the replaced item after the file is saved,
-  unless another profile names the same item. A failure warns and names the item left behind.
+  holds the name. A converted profile keeps its item name until `onesie profile update NAME --key`,
+  and a rename keeps it too.
+- `profile update --name` moves a key held in the item named after the old profile to an item under
+  the new name, printing `moved the key in the OS keychain to NEW@HASH`. It copies the key before the
+  file is saved, and deletes the new item again when the save fails. An item of any other name, such
+  as a converted profile's, keeps its name and is never touched. An item another profile already
+  names exits 2. A keychain that cannot read or store the key exits 3 and leaves the profile as it
+  was, naming `--key`, and `--file` to keep the key in `profiles.json`.
+- `profile delete`, `profile update --key` and `profile update --name` delete the replaced item after
+  the file is saved, unless another profile names the same item. A failure warns and names the item
+  left behind.
 
 ### Converting credentials.json
 

@@ -50,6 +50,11 @@ func readSecretLine(cmd *cobra.Command, settings rootSettings, command string) (
 		return "", printErr
 	}
 
+	// An interrupt does not end the hidden read, so the line it returns afterwards is no key.
+	if ctx := cmd.Context(); ctx != nil && ctx.Err() != nil {
+		return "", ctx.Err()
+	}
+
 	if err != nil {
 		return "", err
 	}

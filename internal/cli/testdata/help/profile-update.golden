@@ -1,6 +1,8 @@
-Change only the members named. An empty value clears one, as in --model "".
+Change only the members named. An empty value clears one, as in --model "". The result is checked as a whole profile, so one update reaches any valid profile.
 
---key reads a new key as create does, into the OS keychain, or into profiles.json with --file. --provider needs --key, since a key belongs to one provider, and drops account_id off cloudflare. There is no rename. Delete the profile and create it again.
+--key reads a new key as create does, into the OS keychain, or into profiles.json with --file. --provider keeps base_url, account_id and model, and names on stderr the ones it keeps. On a profile that holds a key it needs --key, since a key belongs to one provider. An account_id kept on a provider that takes none is refused, so clear it with --account-id "" in the same update.
+
+--name renames the profile and moves a keychain item named after it, and the default follows it. An empty key typed at the prompt drops the stored key and its keychain item, when the base URL is not the provider's own. An empty key on stdin never drops a key.
 
 Usage:
   onesie profile update NAME [flags]
@@ -8,6 +10,7 @@ Usage:
 Examples:
   onesie profile update work --model typesafe/jev-1.13
   pass show work | head -n 1 | onesie profile update work --key
+  onesie profile update work --name personal
 
 Flags:
       --account-id string   cloudflare only, the account id, 32 hexadecimal characters
@@ -17,7 +20,8 @@ Flags:
   -h, --help                help for update
       --key                 read a new key from a prompt or stdin
       --model string        the model a run uses when it names none
-      --provider string     a new provider for the profile, which needs --key
+      --name string         a new name for the profile. A keychain item named after it moves with it, and the default follows it
+      --provider string     a new provider for the profile. On a profile that holds a key it needs --key
 
 Global Flags:
       --profile string   the profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and otherwise the default profile runs, which onesie profile use sets

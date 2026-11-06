@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -582,6 +583,17 @@ func TestProfileCreate(t *testing.T) {
 			wantItems: map[string]string{"work@{hash}": key16},
 		},
 		{
+			name:        "should store nothing when the prompt is interrupted",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe"},
+			tty:         true,
+			secret:      key16,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"stored the key"},
+			wantNoFile:  true,
+			wantItems:   map[string]string{},
+		},
+		{
 			name:       "should keep exit 2 and name the item left behind when its removal also fails",
 			keychain:   keychainUndeletable,
 			store:      failingWrite,
@@ -744,7 +756,13 @@ func TestProfileUpdate(t *testing.T) {
 
 	workItems := map[string]string{"work@{hash}": key16}
 
-	const local = `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`
+	const (
+		local      = `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`
+		keyedLocal = `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 +
+			`","base_url":"http://localhost:11435"}}}`
+		cfModel = `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF",` +
+			`"account_id":"` + testAccountID + `","model":"clef-flash"}}}`
+	)
 
 	tests := []profileCase{
 		{
@@ -774,14 +792,133 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"https://openrouter.ai/api"}}}`,
 		},
 		{
-			name:     "should refuse an empty key that would delete the stored key",
-			file:     `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			name:     "should refuse an empty key from a pipe",
+			file:     keyedLocal,
 			args:     []string{"profile", "update", "local", "--key"},
 			stdin:    "\n",
 			wantCode: ExitUsage,
-			wantStderr: "onesie: profile 'local' holds a key, and an empty key would delete it. To run it with no key, " +
-				"create a new profile with no key\n",
-			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			wantStderr: "onesie: profile 'local' holds a key, and an empty key from stdin would delete it. To drop the " +
+				"key, run onesie profile update local --key at a terminal and enter an empty key\n",
+			wantFile: keyedLocal,
+		},
+		{
+			name:       "should drop the key for an empty key at a terminal",
+			file:       keyedLocal,
+			args:       []string{"profile", "update", "local", "--key"},
+			tty:        true,
+			wantStderr: "API key: \nonesie: profile 'local' holds no key now\n",
+			wantFile:   local,
+		},
+		{
+			name:        "should keep the key when the prompt is interrupted",
+			file:        keyedLocal,
+			args:        []string{"profile", "update", "local", "--key"},
+			tty:         true,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"holds no key"},
+			wantFile:    keyedLocal,
+		},
+		{
+			name:        "should keep the key when a key is typed after an interrupt",
+			file:        work,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--key"},
+			tty:         true,
+			secret:      newKey,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"stored the key"},
+			wantFile:    work,
+			wantItems:   workItems,
+		},
+		{
+			name:       "should drop a keychain key and its item for an empty key at a terminal",
+			file:       `{"default":"local","profiles":{"local":{"provider":"typesafe","store":"keychain","account":"local@{hash}","base_url":"http://localhost:11435"}}}`,
+			items:      map[string]string{"local@{hash}": key16},
+			args:       []string{"profile", "update", "local", "--key"},
+			tty:        true,
+			wantStderr: "API key: \nonesie: profile 'local' holds no key now\n",
+			wantFile:   local,
+			wantItems:  map[string]string{},
+		},
+		{
+			name:     "should refuse dropping the key on the provider's own base URL",
+			file:     work,
+			items:    workItems,
+			args:     []string{"profile", "update", "work", "--key"},
+			tty:      true,
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: profile 'work' holds no key, so its base URL must stay custom. " +
+				"Enter a key, or pass a --base-url of your own in the same update"},
+			wantFile:  work,
+			wantItems: workItems,
+		},
+		{
+			name:  "should rename with --name",
+			file:  work,
+			items: workItems,
+			args:  []string{"profile", "update", "work", "--name", "next"},
+			wantFile: `{"default":"next","profiles":{"next":{"provider":"openrouter","store":"keychain",` +
+				`"account":"next@{hash}","key_end":"5678","model":"typesafe/jev"}}}`,
+			wantStderr: "onesie: moved the key in the OS keychain to next@{hash}\n",
+			wantItems:  map[string]string{"next@{hash}": key16},
+		},
+		{
+			name:     "should name --key --file when the keychain cannot move the key on a rename",
+			file:     work,
+			items:    workItems,
+			keychain: keychainUnreadable,
+			args:     []string{"profile", "update", "work", "--name", "next"},
+			wantCode: ExitAuth,
+			wantStderr: "onesie: could not read the key from the OS keychain: the keychain is locked. Rename it with " +
+				"--key, and add --file to keep the key in profiles.json\n",
+			wantFile:  work,
+			wantItems: workItems,
+		},
+		{
+			name:  "should keep a converted profile's item name on a rename",
+			file:  converted,
+			items: map[string]string{"typesafe": key15},
+			args:  []string{"profile", "update", "typesafe", "--name", "ts"},
+			wantFile: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","store":"keychain",` +
+				`"account":"typesafe"}}}`,
+			wantItems: map[string]string{"typesafe": key15},
+		},
+		{
+			name:       "should rename and change members in one update",
+			file:       local,
+			args:       []string{"profile", "update", "local", "--name", "ollaya", "--provider", "openrouter", "--model", "winnow:e4b"},
+			wantStderr: "onesie: profile 'ollaya' keeps its base_url on openrouter\n",
+			wantFile: `{"default":"ollaya","profiles":{"ollaya":{"provider":"openrouter",` +
+				`"base_url":"http://localhost:11435","model":"winnow:e4b"}}}`,
+		},
+		{
+			name:        "should refuse --name onto an existing profile",
+			file:        shared,
+			items:       map[string]string{"shared": key16},
+			args:        []string{"profile", "update", "work", "--name", "home", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantStderr:  "onesie: profile 'home' exists. Choose another name, or delete it first\n",
+			wantFile:    shared,
+			wantItems:   map[string]string{"shared": key16},
+		},
+		{
+			name:        "should refuse --name that is not a profile name",
+			file:        work,
+			args:        []string{"profile", "update", "work", "--name", "Next", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: 'Next' is not a profile name"},
+			wantFile:    work,
+		},
+		{
+			name:     "should note a name typed as the one it has, and exit 0",
+			file:     work,
+			args:     []string{"profile", "update", "work", "--name", "work"},
+			wantErr:  []string{"onesie: profile 'work' is unchanged, since its name is already work"},
+			wantFile: work,
 		},
 		{
 			name:  "should store a key on a keyless profile with --key",
@@ -850,22 +987,31 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: levanto,
 		},
 		{
-			name:     "should name --base-url on a profile that holds an account id",
+			name:     "should refuse base_url beside a stored account_id in the new wording",
 			file:     cfx,
 			args:     []string{"profile", "update", "cfx", "--base-url", "https://proxy.example"},
 			wantCode: ExitUsage,
-			wantErr: []string{"onesie: --base-url cannot join the profile's account_id, since each names the " +
-				"account. Clear it with --account-id \"\" in the same update"},
+			wantStderr: "onesie: profile 'cfx' has both base_url and account_id. Keep one. " +
+				"Clear it with --account-id \"\" in the same update\n",
 			wantFile: cfx,
 		},
 		{
-			name:     "should name --account-id on a profile that holds a base url",
+			name:     "should refuse account_id beside a stored base_url in the new wording",
 			file:     cfBase,
 			args:     []string{"profile", "update", "cfb", "--account-id", testAccountID},
 			wantCode: ExitUsage,
-			wantErr: []string{"onesie: --account-id cannot join the profile's base_url, since each names the " +
-				"account. Clear it with --base-url \"\" in the same update"},
+			wantStderr: "onesie: profile 'cfb' has both base_url and account_id. Keep one. " +
+				"Clear it with --base-url \"\" in the same update\n",
 			wantFile: cfBase,
+		},
+		{
+			name:     "should refuse --base-url and --account-id typed together in the new wording",
+			file:     cfx,
+			args:     []string{"profile", "update", "cfx", "--base-url", "https://proxy.example", "--account-id", testAccountID},
+			wantCode: ExitUsage,
+			wantStderr: "onesie: profile 'cfx' has both base_url and account_id. Keep one. " +
+				"Pass only one of --base-url and --account-id\n",
+			wantFile: cfx,
 		},
 		{
 			name: "should swap a base url for an account id in one update",
@@ -1184,22 +1330,60 @@ func TestProfileUpdate(t *testing.T) {
 			wantItems: map[string]string{"work@{hash}": newKey},
 		},
 		{
-			name: "should change the provider with a new key and drop account_id",
-			file: `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF",` +
-				`"account_id":"` + testAccountID + `","model":"clef-flash"}}}`,
-			args:  []string{"profile", "update", "cf", "--provider", "openrouter", "--key", "--file"},
-			stdin: newKey + "\n",
+			name:        "should refuse a kept account_id on a provider that takes none, with the clearing hint",
+			file:        cfModel,
+			args:        []string{"profile", "update", "cf", "--provider", "openrouter", "--key", "--file"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantStderr: "onesie: profile 'cf' has account_id, which only cloudflare takes. " +
+				"Clear it with --account-id \"\" in the same update\n",
+			wantFile: cfModel,
+		},
+		{
+			name: "should change the provider and clear account_id in one update",
+			file: cfModel,
+			args: []string{
+				"profile", "update", "cf", "--provider", "openrouter", "--account-id", "", "--key", "--file",
+			},
+			stdin:      newKey + "\n",
+			wantStderr: "onesie: profile 'cf' keeps its model on openrouter\n",
 			wantFile: `{"default":"cf","profiles":{"cf":{"provider":"openrouter","api_key":"` + newKey +
 				`","model":"clef-flash"}}}`,
 		},
 		{
-			name: "should keep model and base_url when the provider changes",
+			name: "should keep base_url and model on a provider change, with a notice",
 			file: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","api_key":"SECRET-TS",` +
 				`"base_url":"https://proxy.example","model":"jev-1.13.0"}}}`,
-			args:  []string{"profile", "update", "ts", "--provider", "openrouter", "--key", "--file"},
-			stdin: newKey + "\n",
+			args:       []string{"profile", "update", "ts", "--provider", "openrouter", "--key", "--file"},
+			stdin:      newKey + "\n",
+			wantStderr: "onesie: profile 'ts' keeps its base_url and model on openrouter\n",
 			wantFile: `{"default":"ts","profiles":{"ts":{"provider":"openrouter","api_key":"` + newKey +
 				`","base_url":"https://proxy.example","model":"jev-1.13.0"}}}`,
+		},
+		{
+			name:       "should name only what it keeps on a provider change",
+			file:       work,
+			items:      workItems,
+			args:       []string{"profile", "update", "work", "--provider", "berget", "--model", "", "--key", "--file"},
+			stdin:      newKey + "\n",
+			wantStderr: "",
+			notErr:     []string{"keeps"},
+			wantFile:   `{"default":"work","profiles":{"work":{"provider":"berget","api_key":"` + newKey + `"}}}`,
+			wantItems:  map[string]string{},
+		},
+		{
+			name:       "should change a keyless profile's provider with no --key",
+			file:       local,
+			args:       []string{"profile", "update", "local", "--provider", "openrouter"},
+			wantStderr: "onesie: profile 'local' keeps its base_url on openrouter\n",
+			wantFile:   `{"default":"local","profiles":{"local":{"provider":"openrouter","base_url":"http://localhost:11435"}}}`,
+		},
+		{
+			name:     "should note a provider typed as the one it has, and exit 0",
+			file:     work,
+			args:     []string{"profile", "update", "work", "--provider", "openrouter"},
+			wantErr:  []string{"onesie: profile 'work' is unchanged, since its provider is already openrouter"},
+			wantFile: work,
 		},
 		{
 			name:        "should refuse a base url that holds a fragment before reading the key",
@@ -2415,6 +2599,7 @@ type profileCase struct {
 	stdinUnread     bool
 	tty             bool
 	secret          string
+	interrupted     bool
 	env             map[string]string
 	wantCode        int
 	wantOut         string
@@ -2447,11 +2632,20 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	writeConfig(t, dir, "profiles.json", fill(tc.file), tc.mode)
 	writeConfig(t, dir, "credentials.json", tc.old, 0)
 
+	ctx, interrupt := context.WithCancel(t.Context())
+	defer interrupt()
+
 	chain := workingKeychain(filled(tc.items, fill))
 	opts := []RootOption{
 		withKeychain(chain),
 		WithStdinTTY(tc.tty),
-		withSecretReader(func() (string, error) { return tc.secret, nil }),
+		withSecretReader(func() (string, error) {
+			if tc.interrupted {
+				interrupt()
+			}
+
+			return tc.secret, nil
+		}),
 	}
 
 	switch tc.keychain {
@@ -2477,7 +2671,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 		opts = append(opts, WithStdin(unreadStdin{t}))
 	}
 
-	out, errOut, code := runInConfig(t, dir, tc.args, tc.stdin, tc.env, opts...)
+	out, errOut, code := runInConfigContext(ctx, t, dir, tc.args, tc.stdin, tc.env, opts...)
 
 	// First, because every other assertion below would pass on output that had the key spliced
 	// into it.
@@ -2539,6 +2733,15 @@ func runInConfig(
 ) (string, string, int) {
 	t.Helper()
 
+	return runInConfigContext(t.Context(), t, dir, args, stdin, env, opts...)
+}
+
+func runInConfigContext(
+	ctx context.Context, t *testing.T, dir string, args []string, stdin string, env map[string]string,
+	opts ...RootOption,
+) (string, string, int) {
+	t.Helper()
+
 	lookup := map[string]string{"ONESIE_CONFIG_DIR": dir}
 	maps.Copy(lookup, env)
 
@@ -2557,7 +2760,7 @@ func runInConfig(
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs(args)
 
-	code := root.Execute(t.Context())
+	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
 }

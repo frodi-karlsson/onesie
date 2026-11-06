@@ -23,6 +23,7 @@ import (
 const (
 	flagAccountID  = "account-id"
 	flagKey        = "key"
+	flagName       = "name"
 	flagToFile     = "file"
 	keyPlaceholder = "placeholder"
 	noProfile      = "none"
@@ -126,14 +127,15 @@ func profileCreate(
 			"or delete it and create it again", creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	profile := creds.Profile{
-		Provider: provider, Model: strings.TrimSpace(fields.model), BaseURL: strings.TrimSpace(fields.baseURL),
-		AccountID: strings.TrimSpace(fields.accountID),
-	}
+	profile := applied(creds.Profile{}, profileTargets(&fields, flags), cmd.Flags().Changed, setting.CommandProfileCreate)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
 	if refused := checkGiven(profile, cmd.Flags().Changed, true); refused != nil {
 		return refused
+	}
+
+	if profile.AccountID != "" && profile.BaseURL != "" {
+		return fmt.Errorf("--%s and --%s both name the account. Pass one", flagBaseURL, flagAccountID)
 	}
 
 	if refused := checkProfile(opened.Profiles, name, profile, "--"+flagBaseURL, true); refused != nil {
@@ -159,12 +161,18 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 	cmd := &cobra.Command{
 		Use:   "update NAME",
 		Short: "Change a profile's members, or its key with --key",
-		Long: "Change only the members named. An empty value clears one, as in --model \"\".\n\n" +
+		Long: "Change only the members named. An empty value clears one, as in --model \"\". The result is " +
+			"checked as a whole profile, so one update reaches any valid profile.\n\n" +
 			"--key reads a new key as create does, into the OS keychain, or into profiles.json with --file. " +
-			"--provider needs --key, since a key belongs to one provider, and drops account_id off " +
-			"cloudflare. There is no rename. Delete the profile and create it again.",
+			"--provider keeps base_url, account_id and model, and names on stderr the ones it keeps. On a " +
+			"profile that holds a key it needs --key, since a key belongs to one provider. An account_id kept " +
+			"on a provider that takes none is refused, so clear it with --account-id \"\" in the same update.\n\n" +
+			"--name renames the profile and moves a keychain item named after it, and the default follows it. An empty key " +
+			"typed at the prompt drops the stored key and its keychain item, when the base URL is not the " +
+			"provider's own. An empty key on stdin never drops a key.",
 		Example: "  onesie profile update work --model typesafe/jev-1.13\n" +
-			"  pass show work | head -n 1 | onesie profile update work --key",
+			"  pass show work | head -n 1 | onesie profile update work --key\n" +
+			"  onesie profile update work --name personal",
 		Args: profileNames("update", 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileUpdate(cmd, settings, flags, args[0], *fields)
@@ -183,10 +191,8 @@ func profileUpdate(
 		return refused
 	}
 
-	changed := cmd.Flags().Changed
-
-	if refused := refuseUpdate(fields, changed); refused != nil {
-		return refused
+	if fields.toFile && !fields.key {
+		return errors.New("profile update: --file applies to a new key, so it needs --key")
 	}
 
 	path, opened, err := profilesToWrite(settings)
@@ -199,15 +205,22 @@ func profileUpdate(
 		return noProfileNamed(name, opened.Profiles)
 	}
 
-	profile := updated(old, fields, changed)
-	if profile == old && !fields.key {
-		if already := alreadySet(old, changed); already != "" {
+	changed := cmd.Flags().Changed
+
+	target, refused := renamedTo(opened.Profiles, name, fields.newName, changed(flagName))
+	if refused != nil {
+		return refused
+	}
+
+	profile := applied(old, profileTargets(&fields, flags), changed, setting.CommandProfileUpdate)
+	if profile == old && target == name && !fields.key {
+		if already := alreadySet(name, old, changed); already != "" {
 			return output.Notice(cmd.ErrOrStderr(),
 				fmt.Sprintf("profile %s is unchanged, since %s", creds.QuotedName(name), already))
 		}
 
 		return fmt.Errorf(
-			"profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
+			"profile update %s changes nothing. Pass --provider, --model, --base-url, --account-id, --name or --key",
 			creds.QuotedName(name))
 	}
 
@@ -216,18 +229,7 @@ func profileUpdate(
 		return refused
 	}
 
-	baseURLSource := profileBaseURL
-	if changed(flagBaseURL) {
-		baseURLSource = "--" + flagBaseURL
-	}
-
-	// Ahead of checkProfile, whose rules would refuse the profile without saying why.
-	if !fields.key && holdsNoKey(old) && !customProfile(profile) {
-		return fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Pass --%s to store one",
-			creds.QuotedName(name), flagKey)
-	}
-
-	if refused := checkProfile(opened.Profiles, name, profile, baseURLSource, fields.key); refused != nil {
+	if refused := checkUpdated(opened.Profiles.Renamed(name, target, old), target, old, profile, changed, fields.key); refused != nil {
 		return refused
 	}
 
@@ -237,51 +239,186 @@ func profileUpdate(
 		}
 	}
 
-	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
+	change := creds.Change{
+		Path: path, Profiles: opened.Profiles, Name: name, NewName: target, Profile: profile, ToFile: fields.toFile,
+	}
 	if fields.key {
-		change.ReadKey = func() (string, error) { return readKey(cmd, settings, "profile update", customProfile(profile)) }
+		change.ReadKey = func() (string, error) { return updatedKey(cmd, settings, name, old, profile) }
+		change.DropKey = settings.stdinTTY
 	}
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
-
-	return reported(cmd, settings.laterFailures, change, notices, err)
-}
-
-func refuseUpdate(fields profileFlags, changed func(string) bool) error {
-	switch {
-	case fields.toFile && !fields.key:
-		return errors.New("profile update: --file applies to a new key, so it needs --key")
-	case changed(flagProvider) && !fields.key:
-		return errors.New("profile update: --provider needs --key, since a key belongs to one provider")
+	if refused := reported(cmd, settings.laterFailures, change, notices, unmovedKey(err, target != name)); refused != nil {
+		return refused
 	}
 
-	return nil
+	return notify(cmd.ErrOrStderr(), keptOnProvider(target, old, profile, changed))
 }
 
-func updated(old creds.Profile, fields profileFlags, changed func(string) bool) creds.Profile {
+func unmovedKey(err error, renames bool) error {
+	var keychainErr *creds.KeychainError
+	if !renames || !errors.As(err, &keychainErr) || errors.Is(err, creds.ErrKeychainTimeout) {
+		return err
+	}
+
+	return fmt.Errorf("%w. Rename it with --%s, and add --%s to keep the key in profiles.json", err, flagKey, flagToFile)
+}
+
+func renamedTo(profiles creds.Profiles, name, newName string, given bool) (string, error) {
+	newName = strings.TrimSpace(newName)
+	if !given || newName == name {
+		return name, nil
+	}
+
+	if invalid := creds.ValidName(newName); invalid != nil {
+		return "", invalid
+	}
+
+	if _, taken := profiles.Profiles[newName]; taken {
+		return "", fmt.Errorf("profile %s exists. Choose another name, or delete it first", creds.QuotedName(newName))
+	}
+
+	return newName, nil
+}
+
+func updatedKey(cmd *cobra.Command, settings rootSettings, name string, old, profile creds.Profile) (string, error) {
+	key, err := readSecretLine(cmd, settings, "profile update")
+	if err != nil || key != "" {
+		return key, err
+	}
+
+	switch {
+	case !customProfile(profile) && !settings.stdinTTY:
+		return "", errors.New("profile update: the key is empty")
+	case !customProfile(profile):
+		return "", fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Enter a key, or pass a "+
+			"--%s of your own in the same update", creds.QuotedName(name), flagBaseURL)
+	case !settings.stdinTTY && creds.HoldsKey(old):
+		return "", fmt.Errorf("profile %s holds a key, and an empty key from stdin would delete it. To drop the key, "+
+			"run onesie profile update %s --%s at a terminal and enter an empty key", creds.QuotedName(name), name, flagKey)
+	}
+
+	return "", nil
+}
+
+func applied(
+	old creds.Profile, targets map[setting.Name]any, changed func(string) bool, command setting.Command,
+) creds.Profile {
 	profile := old
 
-	if changed(flagProvider) {
-		profile.Provider = strings.TrimSpace(fields.provider)
+	for _, row := range setting.Table() {
+		bound, ok := row.FlagOn(command)
+		if !ok || bound.Member.Key == "" || !changed(bound.Long) {
+			continue
+		}
 
-		if provider, err := onesie.ProviderNamed(profile.Provider); err == nil && provider.EnvAccountID() == "" {
-			profile.AccountID = ""
+		if value, isText := targets[row.Name].(*string); isText {
+			*profileMember(&profile, bound.Member.Key) = strings.TrimSpace(*value)
 		}
 	}
 
-	if changed(flagModel) {
-		profile.Model = strings.TrimSpace(fields.model)
-	}
-
-	if changed(flagBaseURL) {
-		profile.BaseURL = strings.TrimSpace(fields.baseURL)
-	}
-
-	if changed(flagAccountID) {
-		profile.AccountID = strings.TrimSpace(fields.accountID)
-	}
-
 	return profile
+}
+
+func checkUpdated(
+	profiles creds.Profiles, name string, old, profile creds.Profile, changed func(string) bool, readsKey bool,
+) error {
+	if profile.Provider != old.Provider && creds.HoldsKey(old) && !readsKey {
+		return errors.New("profile update: --provider needs --key, since a key belongs to one provider")
+	}
+
+	// Ahead of checkProfile, whose rules would refuse the profile without saying why.
+	if !readsKey && !creds.HoldsKey(old) && !customProfile(profile) {
+		return fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Pass --%s to store one",
+			creds.QuotedName(name), flagKey)
+	}
+
+	baseURLSource := profileBaseURL
+	if changed(flagBaseURL) {
+		baseURLSource = "--" + flagBaseURL
+	}
+
+	refused := checkProfile(profiles, name, profile, baseURLSource, readsKey)
+	if refused == nil || !accountClash(profile) {
+		return refused
+	}
+
+	return fmt.Errorf("%w. %s", refused, clearingHint(profile, changed))
+}
+
+func accountClash(profile creds.Profile) bool {
+	provider, err := onesie.ProviderNamed(profile.Provider)
+
+	return profile.AccountID != "" && (profile.BaseURL != "" || err != nil || provider.EnvAccountID() == "")
+}
+
+func clearingHint(profile creds.Profile, changed func(string) bool) string {
+	baseURLFlag, accountFlag := memberFlag("base_url"), memberFlag("account_id")
+	baseURLTyped, accountTyped := changed(strings.TrimPrefix(baseURLFlag, "--")), changed(strings.TrimPrefix(accountFlag, "--"))
+
+	switch {
+	case profile.BaseURL != "" && baseURLTyped && accountTyped:
+		return "Pass only one of " + baseURLFlag + " and " + accountFlag
+	case profile.BaseURL != "" && accountTyped:
+		return fmt.Sprintf(`Clear it with %s "" in the same update`, baseURLFlag)
+	}
+
+	return fmt.Sprintf(`Clear it with %s "" in the same update`, accountFlag)
+}
+
+func keptOnProvider(name string, old, profile creds.Profile, changed func(string) bool) notice {
+	if profile.Provider == old.Provider {
+		return notice{}
+	}
+
+	var kept []string
+
+	for _, key := range []string{"base_url", "account_id", "model"} {
+		if *profileMember(&profile, key) != "" && !changed(strings.TrimPrefix(memberFlag(key), "--")) {
+			kept = append(kept, key)
+		}
+	}
+
+	if len(kept) == 0 {
+		return notice{}
+	}
+
+	return notice{
+		text: fmt.Sprintf("profile %s keeps its %s on %s", creds.QuotedName(name), joinAnd(kept), profile.Provider),
+	}
+}
+
+func joinAnd(items []string) string {
+	if len(items) < 2 {
+		return strings.Join(items, "")
+	}
+
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+}
+
+func memberFlag(key string) string {
+	for _, row := range setting.Table() {
+		if bound, ok := row.FlagOn(setting.CommandProfileUpdate); ok && bound.Member.Key == key {
+			return "--" + bound.Long
+		}
+	}
+
+	panic("cli: no profile update flag writes " + key)
+}
+
+func profileMember(profile *creds.Profile, key string) *string {
+	switch key {
+	case "provider":
+		return &profile.Provider
+	case "model":
+		return &profile.Model
+	case "base_url":
+		return &profile.BaseURL
+	case "account_id":
+		return &profile.AccountID
+	}
+
+	panic("cli: no profile member " + key)
 }
 
 func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command {
@@ -404,7 +541,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 		switch {
 		case profile.Store == creds.StoreKeychain:
 			key = sourceKeychain
-		case holdsNoKey(profile):
+		case !creds.HoldsKey(profile):
 			key = sourceNone
 		}
 
@@ -728,14 +865,16 @@ func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any 
 	return map[setting.Name]any{
 		setting.Provider.Name(): &fields.provider, setting.Model.Name(): &fields.model,
 		setting.APIEndpoint.Name(): &fields.baseURL, setting.AllowHTTP.Name(): &flags.allowHTTP,
-		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile,
+		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile, "name": &fields.newName,
 	}
 }
 
-func alreadySet(profile creds.Profile, changed func(string) bool) string {
+func alreadySet(name string, profile creds.Profile, changed func(string) bool) string {
 	var unset, held []string
 
 	for _, member := range []struct{ flag, name, value string }{
+		{flag: flagName, name: "name", value: name},
+		{flag: flagProvider, name: "provider", value: profile.Provider},
 		{flag: flagModel, name: "model", value: profile.Model},
 		{flag: flagBaseURL, name: "base_url", value: profile.BaseURL},
 		{flag: flagAccountID, name: "account_id", value: profile.AccountID},
@@ -782,6 +921,7 @@ type profileFlags struct {
 	model     string
 	baseURL   string
 	accountID string
+	newName   string
 	key       bool
 	toFile    bool
 }
@@ -824,7 +964,6 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 	}
 
 	accountGiven := changed(flagAccountID) && profile.AccountID != ""
-	baseURLGiven := changed(flagBaseURL) && profile.BaseURL != ""
 
 	switch {
 	case accountGiven && provider.EnvAccountID() == "":
@@ -832,14 +971,6 @@ func checkGiven(profile creds.Profile, changed func(string) bool, providerGiven 
 			flagAccountID, providers.WithAccounts(), profile.Provider)
 	case accountGiven && !creds.ValidAccountID(profile.AccountID):
 		return fmt.Errorf("--%s must be 32 hexadecimal characters", flagAccountID)
-	case accountGiven && baseURLGiven:
-		return fmt.Errorf("--%s and --%s both name the account. Pass one", flagBaseURL, flagAccountID)
-	case accountGiven && profile.BaseURL != "":
-		return fmt.Errorf("--%s cannot join the profile's base_url, since each names the account. "+
-			`Clear it with --%s "" in the same update`, flagAccountID, flagBaseURL)
-	case baseURLGiven && profile.AccountID != "":
-		return fmt.Errorf("--%s cannot join the profile's account_id, since each names the account. "+
-			`Clear it with --%s "" in the same update`, flagBaseURL, flagAccountID)
 	}
 
 	return nil
@@ -870,7 +1001,7 @@ func checkProfile(
 	}
 
 	// The key is read only once the rest passes, so a stand in takes its place for the rules.
-	if readsKey && holdsNoKey(profile) {
+	if readsKey && !creds.HoldsKey(profile) {
 		profile.APIKey = keyPlaceholder
 	}
 
@@ -925,6 +1056,8 @@ func reported(
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {
+	saved := cmp.Or(change.NewName, change.Name)
+
 	switch each.Kind {
 	case creds.SaveWarning:
 		return warningLine(each.Err)
@@ -945,7 +1078,11 @@ func noticeLine(each creds.Notice, change creds.Change) notice {
 		return notice{text: "the keychain item " + each.Account + " now holds the new key, and its old key " +
 			"could not be read to put back", warning: true}
 	case creds.KeyNotStored:
-		return notice{text: "profile " + creds.QuotedName(change.Name) + " holds no key, since its base URL is custom"}
+		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key, since its base URL is custom"}
+	case creds.KeyMoved:
+		return notice{text: "moved the key in the OS keychain to " + each.Account}
+	case creds.KeyDropped:
+		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key now"}
 	case creds.OldKeyLost:
 		return notice{text: each.Err.Error() + ". The keychain item " + each.Account +
 			" now holds the new key, and its old key could not be put back", warning: true}

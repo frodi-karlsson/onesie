@@ -179,7 +179,7 @@ func TestRegister(t *testing.T) {
 					command: settings.CommandProfileCreate,
 					empty:   []string{"account-id", "base-url", "model"}, blank: []string{"account-id", "base-url", "model"},
 				},
-				{command: settings.CommandProfileUpdate, empty: []string{"provider"}, blank: []string{"provider"}},
+				{command: settings.CommandProfileUpdate, empty: []string{"name", "provider"}, blank: []string{"name", "provider"}},
 			} {
 				for value, want := range map[string][]string{"": pin.empty, " ": pin.blank} {
 					var got []string
