@@ -30,6 +30,8 @@ const (
 	OldKeyLost
 	// KeyNotStored means the key was empty and the base URL custom, so the profile holds no key.
 	KeyNotStored
+	// KeyDropped means an empty key under DropKey dropped the key the profile held, so it holds none.
+	KeyDropped
 )
 
 // NewProfileManager builds a ProfileManager that writes profiles through store and keeps their keys
@@ -83,14 +85,27 @@ func (m *ProfileManager) Create(change Change) ([]Notice, error) {
 	return append(warnings, notices...), nil
 }
 
-// Update writes the changed profile. With ReadKey it replaces the key too, and puts the old key back
-// when the file cannot be written.
+// Update writes the changed profile, under NewName when it renames. With ReadKey it replaces the
+// key and puts the old key back when the file cannot be written, and a rename moves a keychain item.
 func (m *ProfileManager) Update(change Change) ([]Notice, error) {
-	if change.ReadKey == nil {
-		return m.save(change.Path, change.Profiles.With(change.Name, change.Profile))
+	if _, taken := change.Profiles.Profiles[change.NewName]; change.renames() && taken {
+		return nil, fmt.Errorf("profile %s exists. Choose another name, or delete it first", QuotedName(change.NewName))
 	}
 
-	account := keychainAccount(change.Name, change.Path)
+	oldItem := keychainItem(change.Profiles.Profiles[change.Name])
+
+	switch {
+	case change.ReadKey != nil:
+		return m.replaceKey(change, oldItem)
+	case change.renames() && oldItem != "":
+		return m.moveItem(change, oldItem)
+	}
+
+	return m.save(change.Path, change.saved(change.Profile))
+}
+
+func (m *ProfileManager) replaceKey(change Change, oldItem string) ([]Notice, error) {
+	account := keychainAccount(change.target(), change.Path)
 
 	if refused := refuseTakenItem(change.Profiles, change.Name, account, change.ToFile); refused != nil {
 		return nil, refused
@@ -101,16 +116,16 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
-	if old := change.Profiles.Profiles[change.Name]; key == "" && (old.APIKey != "" || old.Store != "") {
-		return nil, fmt.Errorf("profile %s holds a key, and an empty key would delete it. To run it with no key, "+
-			"create a new profile with no key", QuotedName(change.Name))
+	dropped := key == "" && holdsKey(change.Profiles.Profiles[change.Name])
+	if dropped && !change.DropKey {
+		return nil, fmt.Errorf("profile %s holds a key, and an empty key would delete it", QuotedName(change.Name))
 	}
 
-	oldItem := keychainItem(change.Profiles.Profiles[change.Name])
-
-	kept, err := m.keepKey(oldItem, account, change.ToFile)
-	if err != nil {
-		return nil, err
+	var kept keptKey
+	if !dropped {
+		if kept, err = m.keepKey(oldItem, account, change.ToFile); err != nil {
+			return nil, err
+		}
 	}
 
 	stored, notices, err := m.storeKey(change.Profile, key, account, change.ToFile)
@@ -118,7 +133,11 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
-	warnings, err := m.save(change.Path, change.Profiles.With(change.Name, stored))
+	if dropped {
+		notices = []Notice{{Kind: KeyDropped}}
+	}
+
+	warnings, err := m.save(change.Path, change.saved(stored))
 	if err != nil {
 		if stored.Store == StoreKeychain {
 			return m.undo(kept, account), err
@@ -127,16 +146,56 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 		return nil, err
 	}
 
-	notices = append(warnings, notices...)
+	return m.deleteReplaced(change, oldItem, stored, append(warnings, notices...)), nil
+}
 
-	// Only once saved does the file stop naming the replaced item, so it can go.
-	if oldItem != "" && oldItem != stored.Account && !sharedItem(change.Profiles, change.Name, oldItem) {
-		if deleteErr := m.keychain.Delete(oldItem); deleteErr != nil {
-			notices = append(notices, Notice{Kind: ItemLeftBehind, Account: oldItem, Err: deleteErr})
-		}
+func (m *ProfileManager) moveItem(change Change, oldItem string) ([]Notice, error) {
+	account := keychainAccount(change.NewName, change.Path)
+	if account == oldItem {
+		return m.save(change.Path, change.saved(change.Profile))
 	}
 
-	return notices, nil
+	if refused := refuseTakenItem(change.Profiles, change.Name, account, false); refused != nil {
+		return nil, refused
+	}
+
+	key, err := m.keychain.Get(oldItem)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = m.keychain.Set(account, key); err != nil {
+		return nil, err
+	}
+
+	moved := change.Profile
+	moved.Account = account
+
+	warnings, err := m.save(change.Path, change.saved(moved))
+	if err != nil {
+		return m.undoneItem(account), err
+	}
+
+	notices := append(warnings, Notice{Kind: KeyInKeychain, Account: account})
+
+	return m.deleteReplaced(change, oldItem, moved, notices), nil
+}
+
+func (m *ProfileManager) deleteReplaced(change Change, oldItem string, stored Profile, notices []Notice) []Notice {
+	// Only once saved does the file stop naming the replaced item, so it can go.
+	if oldItem == "" || oldItem == keychainItem(stored) || sharedItem(change.Profiles, change.Name, oldItem) {
+		return notices
+	}
+
+	if err := m.keychain.Delete(oldItem); err != nil {
+		notices = append(notices, Notice{Kind: ItemLeftBehind, Account: oldItem, Err: err})
+	}
+
+	return notices
+}
+
+func holdsKey(profile Profile) bool {
+	return profile.APIKey != "" || profile.Store != ""
 }
 
 // Delete removes the named profile, then its keychain item unless another profile names it. Deleting
@@ -182,13 +241,41 @@ func (m *ProfileManager) Delete(change Change) ([]Notice, error) {
 
 // Change names one profile in the profiles file at Path, which holds Profiles now. ReadKey reads the
 // new key, Update keeps the key when ReadKey is nil, and Delete needs no Profile, ToFile or ReadKey.
+// NewName renames the profile on Update, and DropKey lets an empty key drop the key it holds.
 type Change struct {
 	Path     string
 	Profiles Profiles
 	Name     string
+	NewName  string
 	Profile  Profile
 	ToFile   bool
 	ReadKey  func() (string, error)
+	DropKey  bool
+}
+
+func (c Change) renames() bool {
+	return c.NewName != "" && c.NewName != c.Name
+}
+
+func (c Change) target() string {
+	if c.renames() {
+		return c.NewName
+	}
+
+	return c.Name
+}
+
+func (c Change) saved(profile Profile) Profiles {
+	if !c.renames() {
+		return c.Profiles.With(c.Name, profile)
+	}
+
+	profiles := c.Profiles.without(c.Name).With(c.NewName, profile)
+	if c.Profiles.Default == c.Name {
+		profiles.Default = c.NewName
+	}
+
+	return profiles
 }
 
 // Notice is one thing a profile change tells the user beside its outcome. Kind says what, and
