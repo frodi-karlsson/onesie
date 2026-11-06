@@ -91,7 +91,11 @@ at mode 600, and a directory it creates at mode 700. When there is an OS keychai
 there, under the service `onesie`, and the profile only names the item. `--file` keeps the key in
 the file itself. A `credentials.json` there is converted into profiles the first time onesie
 reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new
-key, and `onesie profile delete NAME` removes a profile and its keychain item.
+key, and `onesie profile delete NAME` removes a profile and its keychain item. `profile update`
+changes any member in place, so a profile never needs deleting to fix it. `--provider` keeps the
+base URL and model, and needs `--key` on a profile that holds a key. `--name NEW` renames it. An
+empty key typed at the `--key` prompt drops the key from a profile whose base URL is not the
+provider's own, and an empty key piped on stdin never drops one.
 
 [choosing]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#choosing-a-profile
 [file]: https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#profilesjson

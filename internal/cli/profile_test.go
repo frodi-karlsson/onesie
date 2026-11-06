@@ -745,7 +745,9 @@ func TestProfileUpdate(t *testing.T) {
 	workItems := map[string]string{"work@{hash}": key16}
 
 	const (
-		local   = `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`
+		local      = `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"http://localhost:11435"}}}`
+		keyedLocal = `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 +
+			`","base_url":"http://localhost:11435"}}}`
 		cfModel = `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF",` +
 			`"account_id":"` + testAccountID + `","model":"clef-flash"}}}`
 	)
@@ -778,13 +780,89 @@ func TestProfileUpdate(t *testing.T) {
 			wantFile: `{"default":"local","profiles":{"local":{"provider":"typesafe","base_url":"https://openrouter.ai/api"}}}`,
 		},
 		{
-			name:       "should refuse an empty key that would delete the stored key",
-			file:       `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			name:     "should refuse an empty key from a pipe",
+			file:     keyedLocal,
+			args:     []string{"profile", "update", "local", "--key"},
+			stdin:    "\n",
+			wantCode: ExitUsage,
+			wantStderr: "onesie: profile 'local' holds a key, and an empty key from stdin would delete it. To drop the " +
+				"key, run onesie profile update local --key at a terminal and enter an empty key\n",
+			wantFile: keyedLocal,
+		},
+		{
+			name:       "should drop the key for an empty key at a terminal",
+			file:       keyedLocal,
 			args:       []string{"profile", "update", "local", "--key"},
-			stdin:      "\n",
-			wantCode:   ExitUsage,
-			wantStderr: "onesie: profile 'local' holds a key, and an empty key would delete it\n",
-			wantFile:   `{"default":"local","profiles":{"local":{"provider":"typesafe","api_key":"` + key16 + `","base_url":"http://localhost:11435"}}}`,
+			tty:        true,
+			wantStderr: "API key: \nonesie: profile 'local' holds no key now\n",
+			wantFile:   local,
+		},
+		{
+			name:       "should drop a keychain key and its item for an empty key at a terminal",
+			file:       `{"default":"local","profiles":{"local":{"provider":"typesafe","store":"keychain","account":"local@{hash}","base_url":"http://localhost:11435"}}}`,
+			items:      map[string]string{"local@{hash}": key16},
+			args:       []string{"profile", "update", "local", "--key"},
+			tty:        true,
+			wantStderr: "API key: \nonesie: profile 'local' holds no key now\n",
+			wantFile:   local,
+			wantItems:  map[string]string{},
+		},
+		{
+			name:     "should refuse dropping the key on the provider's own base URL",
+			file:     work,
+			items:    workItems,
+			args:     []string{"profile", "update", "work", "--key"},
+			tty:      true,
+			wantCode: ExitUsage,
+			wantErr: []string{"onesie: profile 'work' holds no key, so its base URL must stay custom. " +
+				"Enter a key, or pass a --base-url of your own in the same update"},
+			wantFile:  work,
+			wantItems: workItems,
+		},
+		{
+			name:  "should rename with --name",
+			file:  work,
+			items: workItems,
+			args:  []string{"profile", "update", "work", "--name", "next"},
+			wantFile: `{"default":"next","profiles":{"next":{"provider":"openrouter","store":"keychain",` +
+				`"account":"next@{hash}","key_end":"5678","model":"typesafe/jev"}}}`,
+			wantStderr: "onesie: stored the key in the OS keychain as next@{hash}\n",
+			wantItems:  map[string]string{"next@{hash}": key16},
+		},
+		{
+			name:       "should rename and change members in one update",
+			file:       local,
+			args:       []string{"profile", "update", "local", "--name", "ollaya", "--provider", "openrouter", "--model", "winnow:e4b"},
+			wantStderr: "onesie: profile 'ollaya' keeps its base_url on openrouter\n",
+			wantFile: `{"default":"ollaya","profiles":{"ollaya":{"provider":"openrouter",` +
+				`"base_url":"http://localhost:11435","model":"winnow:e4b"}}}`,
+		},
+		{
+			name:        "should refuse --name onto an existing profile",
+			file:        shared,
+			items:       map[string]string{"shared": key16},
+			args:        []string{"profile", "update", "work", "--name", "home", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantStderr:  "onesie: profile 'home' exists. Choose another name, or delete it first\n",
+			wantFile:    shared,
+			wantItems:   map[string]string{"shared": key16},
+		},
+		{
+			name:        "should refuse --name that is not a profile name",
+			file:        work,
+			args:        []string{"profile", "update", "work", "--name", "Next", "--key"},
+			stdinUnread: true,
+			wantCode:    ExitUsage,
+			wantErr:     []string{"onesie: 'Next' is not a profile name"},
+			wantFile:    work,
+		},
+		{
+			name:     "should note a name typed as the one it has, and exit 0",
+			file:     work,
+			args:     []string{"profile", "update", "work", "--name", "work"},
+			wantErr:  []string{"onesie: profile 'work' is unchanged, since its name is already work"},
+			wantFile: work,
 		},
 		{
 			name:  "should store a key on a keyless profile with --key",

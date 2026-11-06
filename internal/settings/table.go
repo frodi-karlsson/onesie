@@ -665,6 +665,11 @@ func profileRows() []Row {
 			Help: providers.WithAccounts() + " only, the account id, 32 hexadecimal characters",
 		},
 		{
+			Name: "name", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
+			Flag: FlagSpec{Long: "name", Commands: []Command{CommandProfileUpdate}},
+			Help: "a new name for the profile. Its keychain item moves with it, and the default follows it",
+		},
+		{
 			Name: "key", Kind: Bool(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "key", Commands: []Command{CommandProfileUpdate}},
 			Help: "read a new key from a prompt or stdin",

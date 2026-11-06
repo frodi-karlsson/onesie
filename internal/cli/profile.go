@@ -23,6 +23,7 @@ import (
 const (
 	flagAccountID  = "account-id"
 	flagKey        = "key"
+	flagName       = "name"
 	flagToFile     = "file"
 	keyPlaceholder = "placeholder"
 	noProfile      = "none"
@@ -161,14 +162,17 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		Use:   "update NAME",
 		Short: "Change a profile's members, or its key with --key",
 		Long: "Change only the members named. An empty value clears one, as in --model \"\". The result is " +
-			"checked as a whole profile.\n\n" +
+			"checked as a whole profile, so one update reaches any valid profile.\n\n" +
 			"--key reads a new key as create does, into the OS keychain, or into profiles.json with --file. " +
 			"--provider keeps base_url, account_id and model, and names on stderr the ones it keeps. On a " +
 			"profile that holds a key it needs --key, since a key belongs to one provider. An account_id kept " +
-			"on a provider that takes none is refused, so clear it with --account-id \"\" in the same update. " +
-			"There is no rename. Delete the profile and create it again.",
+			"on a provider that takes none is refused, so clear it with --account-id \"\" in the same update.\n\n" +
+			"--name renames the profile and moves its keychain item, and the default follows it. An empty key " +
+			"typed at the prompt drops the stored key and its keychain item, when the base URL is not the " +
+			"provider's own. An empty key on stdin never drops a key.",
 		Example: "  onesie profile update work --model typesafe/jev-1.13\n" +
-			"  pass show work | head -n 1 | onesie profile update work --key",
+			"  pass show work | head -n 1 | onesie profile update work --key\n" +
+			"  onesie profile update work --name personal",
 		Args: profileNames("update", 1, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileUpdate(cmd, settings, flags, args[0], *fields)
@@ -203,15 +207,20 @@ func profileUpdate(
 
 	changed := cmd.Flags().Changed
 
+	target, refused := renamedTo(opened.Profiles, name, fields.newName, changed(flagName))
+	if refused != nil {
+		return refused
+	}
+
 	profile := applied(old, profileTargets(&fields, flags), changed, setting.CommandProfileUpdate)
-	if profile == old && !fields.key {
-		if already := alreadySet(old, changed); already != "" {
+	if profile == old && target == name && !fields.key {
+		if already := alreadySet(name, old, changed); already != "" {
 			return output.Notice(cmd.ErrOrStderr(),
 				fmt.Sprintf("profile %s is unchanged, since %s", creds.QuotedName(name), already))
 		}
 
 		return fmt.Errorf(
-			"profile update %s changes nothing. Pass --model, --base-url, --account-id or --key",
+			"profile update %s changes nothing. Pass --provider, --model, --base-url, --account-id, --name or --key",
 			creds.QuotedName(name))
 	}
 
@@ -220,7 +229,7 @@ func profileUpdate(
 		return refused
 	}
 
-	if refused := checkUpdated(opened.Profiles, name, old, profile, changed, fields.key); refused != nil {
+	if refused := checkUpdated(opened.Profiles, target, old, profile, changed, fields.key); refused != nil {
 		return refused
 	}
 
@@ -230,9 +239,12 @@ func profileUpdate(
 		}
 	}
 
-	change := creds.Change{Path: path, Profiles: opened.Profiles, Name: name, Profile: profile, ToFile: fields.toFile}
+	change := creds.Change{
+		Path: path, Profiles: opened.Profiles, Name: name, NewName: target, Profile: profile, ToFile: fields.toFile,
+	}
 	if fields.key {
-		change.ReadKey = func() (string, error) { return readKey(cmd, settings, "profile update", customProfile(profile)) }
+		change.ReadKey = func() (string, error) { return updatedKey(cmd, settings, name, old, profile) }
+		change.DropKey = settings.stdinTTY
 	}
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
@@ -240,7 +252,44 @@ func profileUpdate(
 		return refused
 	}
 
-	return notify(cmd.ErrOrStderr(), keptOnProvider(name, old, profile, changed))
+	return notify(cmd.ErrOrStderr(), keptOnProvider(target, old, profile, changed))
+}
+
+func renamedTo(profiles creds.Profiles, name, newName string, given bool) (string, error) {
+	newName = strings.TrimSpace(newName)
+	if !given || newName == name {
+		return name, nil
+	}
+
+	if invalid := creds.ValidName(newName); invalid != nil {
+		return "", invalid
+	}
+
+	if _, taken := profiles.Profiles[newName]; taken {
+		return "", fmt.Errorf("profile %s exists. Choose another name, or delete it first", creds.QuotedName(newName))
+	}
+
+	return newName, nil
+}
+
+func updatedKey(cmd *cobra.Command, settings rootSettings, name string, old, profile creds.Profile) (string, error) {
+	key, err := readSecretLine(cmd, settings, "profile update")
+	if err != nil || key != "" {
+		return key, err
+	}
+
+	switch {
+	case !customProfile(profile) && !settings.stdinTTY:
+		return "", errors.New("profile update: the key is empty")
+	case !customProfile(profile):
+		return "", fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Enter a key, or pass a "+
+			"--%s of your own in the same update", creds.QuotedName(name), flagBaseURL)
+	case !settings.stdinTTY && !holdsNoKey(old):
+		return "", fmt.Errorf("profile %s holds a key, and an empty key from stdin would delete it. To drop the key, "+
+			"run onesie profile update %s --%s at a terminal and enter an empty key", creds.QuotedName(name), name, flagKey)
+	}
+
+	return "", nil
 }
 
 func applied(
@@ -807,14 +856,15 @@ func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any 
 	return map[setting.Name]any{
 		setting.Provider.Name(): &fields.provider, setting.Model.Name(): &fields.model,
 		setting.APIEndpoint.Name(): &fields.baseURL, setting.AllowHTTP.Name(): &flags.allowHTTP,
-		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile,
+		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile, "name": &fields.newName,
 	}
 }
 
-func alreadySet(profile creds.Profile, changed func(string) bool) string {
+func alreadySet(name string, profile creds.Profile, changed func(string) bool) string {
 	var unset, held []string
 
 	for _, member := range []struct{ flag, name, value string }{
+		{flag: flagName, name: "name", value: name},
 		{flag: flagProvider, name: "provider", value: profile.Provider},
 		{flag: flagModel, name: "model", value: profile.Model},
 		{flag: flagBaseURL, name: "base_url", value: profile.BaseURL},
@@ -862,6 +912,7 @@ type profileFlags struct {
 	model     string
 	baseURL   string
 	accountID string
+	newName   string
 	key       bool
 	toFile    bool
 }
@@ -996,6 +1047,8 @@ func reported(
 }
 
 func noticeLine(each creds.Notice, change creds.Change) notice {
+	saved := cmp.Or(change.NewName, change.Name)
+
 	switch each.Kind {
 	case creds.SaveWarning:
 		return warningLine(each.Err)
@@ -1016,7 +1069,9 @@ func noticeLine(each creds.Notice, change creds.Change) notice {
 		return notice{text: "the keychain item " + each.Account + " now holds the new key, and its old key " +
 			"could not be read to put back", warning: true}
 	case creds.KeyNotStored:
-		return notice{text: "profile " + creds.QuotedName(change.Name) + " holds no key, since its base URL is custom"}
+		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key, since its base URL is custom"}
+	case creds.KeyDropped:
+		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key now"}
 	case creds.OldKeyLost:
 		return notice{text: each.Err.Error() + ". The keychain item " + each.Account +
 			" now holds the new key, and its old key could not be put back", warning: true}
