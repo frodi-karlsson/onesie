@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -582,6 +583,17 @@ func TestProfileCreate(t *testing.T) {
 			wantItems: map[string]string{"work@{hash}": key16},
 		},
 		{
+			name:        "should store nothing when the prompt is interrupted",
+			args:        []string{"profile", "create", "work", "--provider", "typesafe"},
+			tty:         true,
+			secret:      key16,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"stored the key"},
+			wantNoFile:  true,
+			wantItems:   map[string]string{},
+		},
+		{
 			name:       "should keep exit 2 and name the item left behind when its removal also fails",
 			keychain:   keychainUndeletable,
 			store:      failingWrite,
@@ -796,6 +808,29 @@ func TestProfileUpdate(t *testing.T) {
 			tty:        true,
 			wantStderr: "API key: \nonesie: profile 'local' holds no key now\n",
 			wantFile:   local,
+		},
+		{
+			name:        "should keep the key when the prompt is interrupted",
+			file:        keyedLocal,
+			args:        []string{"profile", "update", "local", "--key"},
+			tty:         true,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"holds no key"},
+			wantFile:    keyedLocal,
+		},
+		{
+			name:        "should keep the key when a key is typed after an interrupt",
+			file:        work,
+			items:       workItems,
+			args:        []string{"profile", "update", "work", "--key"},
+			tty:         true,
+			secret:      newKey,
+			interrupted: true,
+			wantCode:    ExitInterrupt,
+			notErr:      []string{"stored the key"},
+			wantFile:    work,
+			wantItems:   workItems,
 		},
 		{
 			name:       "should drop a keychain key and its item for an empty key at a terminal",
@@ -2543,6 +2578,7 @@ type profileCase struct {
 	stdinUnread     bool
 	tty             bool
 	secret          string
+	interrupted     bool
 	env             map[string]string
 	wantCode        int
 	wantOut         string
@@ -2575,11 +2611,20 @@ func runProfileCase(t *testing.T, tc profileCase) {
 	writeConfig(t, dir, "profiles.json", fill(tc.file), tc.mode)
 	writeConfig(t, dir, "credentials.json", tc.old, 0)
 
+	ctx, interrupt := context.WithCancel(t.Context())
+	defer interrupt()
+
 	chain := workingKeychain(filled(tc.items, fill))
 	opts := []RootOption{
 		withKeychain(chain),
 		WithStdinTTY(tc.tty),
-		withSecretReader(func() (string, error) { return tc.secret, nil }),
+		withSecretReader(func() (string, error) {
+			if tc.interrupted {
+				interrupt()
+			}
+
+			return tc.secret, nil
+		}),
 	}
 
 	switch tc.keychain {
@@ -2605,7 +2650,7 @@ func runProfileCase(t *testing.T, tc profileCase) {
 		opts = append(opts, WithStdin(unreadStdin{t}))
 	}
 
-	out, errOut, code := runInConfig(t, dir, tc.args, tc.stdin, tc.env, opts...)
+	out, errOut, code := runInConfigContext(ctx, t, dir, tc.args, tc.stdin, tc.env, opts...)
 
 	// First, because every other assertion below would pass on output that had the key spliced
 	// into it.
@@ -2667,6 +2712,15 @@ func runInConfig(
 ) (string, string, int) {
 	t.Helper()
 
+	return runInConfigContext(t.Context(), t, dir, args, stdin, env, opts...)
+}
+
+func runInConfigContext(
+	ctx context.Context, t *testing.T, dir string, args []string, stdin string, env map[string]string,
+	opts ...RootOption,
+) (string, string, int) {
+	t.Helper()
+
 	lookup := map[string]string{"ONESIE_CONFIG_DIR": dir}
 	maps.Copy(lookup, env)
 
@@ -2685,7 +2739,7 @@ func runInConfig(
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs(args)
 
-	code := root.Execute(t.Context())
+	code := root.Execute(ctx)
 
 	return out.String(), errOut.String(), code
 }
