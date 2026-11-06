@@ -1,25 +1,19 @@
 package settings
 
-import "fmt"
+import "errors"
 
 func cacheBesideMockRule() Rule {
 	return Rule{
 		ID:    "cache-beside-mock",
 		Reads: []Name{Cache.Name(), Mock.Name()},
 		Check: func(v View) error {
-			if !typed(v, Cache.Name()) || !Get(v.Merged, Cache) {
-				return nil
+			// An ambient ONESIE_MOCK answers and leaves the cache untouched, so only a typed --mock makes
+			// a typed --cache pointless.
+			if typed(v, Cache.Name()) && Get(v.Merged, Cache) && typed(v, Mock.Name()) {
+				return errors.New("--cache stores answers from the API, which --mock replaces. Drop one")
 			}
 
-			switch mockSpelled(v) {
-			case "--mock":
-				return fmt.Errorf("--cache stores answers from the API, which --mock replaces. Drop one")
-			case "ONESIE_MOCK":
-				return fmt.Errorf("--cache stores answers from the API, which ONESIE_MOCK replaces. " +
-					"Drop --cache or unset ONESIE_MOCK")
-			default:
-				return nil
-			}
+			return nil
 		},
 	}
 }

@@ -1224,11 +1224,10 @@ func TestValidate(t *testing.T) {
 				wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
 			},
 			{
-				name:    "should refuse --cache beside ONESIE_MOCK",
+				name:    "should skip a typed --cache beside an ambient ONESIE_MOCK",
 				set:     values{"input": "text", "cache": true, "mock": "m.json"},
 				typed:   []settings.Name{"cache"},
 				fromEnv: []settings.Name{"mock"},
-				wantErr: "--cache stores answers from the API, which ONESIE_MOCK replaces. Drop --cache or unset ONESIE_MOCK",
 			},
 			{
 				name:    "should skip ONESIE_CACHE beside --mock",

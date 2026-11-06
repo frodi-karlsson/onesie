@@ -796,6 +796,7 @@ func TestAsk(t *testing.T) {
 	}{
 		{name: "should answer from --mock under ONESIE_CACHE=1 and leave the cache dir absent", args: []string{"--mock", "MOCK"}, env: map[string]string{envCache: "1"}},
 		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{envCache: "1", envMock: "MOCK"}},
+		{name: "should answer from ONESIE_MOCK under a typed --cache and leave the cache dir absent", args: []string{"--cache"}, env: map[string]string{envMock: "MOCK"}},
 		{name: "should leave the cache dir absent under --print-request with ONESIE_CACHE=1", args: []string{"--print-request"}, env: map[string]string{envCache: "1"}},
 	}
 
@@ -808,10 +809,6 @@ func TestAsk(t *testing.T) {
 		{
 			name: "should refuse --cache beside --mock", args: []string{"--cache", "--mock", "MOCK"},
 			want: "onesie: --cache stores answers from the API, which --mock replaces. Drop one\n",
-		},
-		{
-			name: "should refuse --cache beside ONESIE_MOCK", args: []string{"--cache"}, env: map[string]string{envMock: "MOCK"},
-			want: "onesie: --cache stores answers from the API, which ONESIE_MOCK replaces. Drop --cache or unset ONESIE_MOCK\n",
 		},
 		{
 			name: "should refuse --cache beside --print-request", args: []string{"--cache", "--print-request"},

@@ -573,7 +573,8 @@ again.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
 - `--mock` answers from its file and `--print-request` sends nothing, so neither reads or fills the
-  cache, and `--cache` beside `--mock`, `ONESIE_MOCK` or `--print-request` exits 2.
+  cache, and `--cache` beside `--mock` or `--print-request` exits 2. Beside `ONESIE_MOCK` the mock
+  answers and `--cache` is skipped silently, since the variable is ambient.
   `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks nothing,
   so neither opens the cache. `-i request` and `--list-models` never go through it, so `--cache`
   beside either exits 2. `--cache=false` beside any of them is fine, and `ONESIE_CACHE=1` is
