@@ -135,7 +135,11 @@ func TestPrintQuestions(t *testing.T) {
 				"-f", bodyFile, "--min-confidence", "0.7", "--fallback", "human",
 				"--print-questions",
 			},
-			stdout:   []string{"frustration:", "rate:", `"0": calm`, `"2": furious`},
+			stdout: []string{"frustration:", "rate:", `"0": calm`, `"2": furious`, "min_confidence: 0.7"},
+			stderr: []string{
+				"onesie: --min-confidence sets the request body's min_confidence for 'frustration'\n" +
+					"onesie: --fallback sets the request body's fallback for 'frustration'\n",
+			},
 			wantCode: ExitOK,
 		},
 		{

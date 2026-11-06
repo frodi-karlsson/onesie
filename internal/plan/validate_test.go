@@ -607,6 +607,8 @@ func TestValidate(t *testing.T) {
 				t.Fatalf("assembling: %v", err)
 			}
 
+			settings.MergeQuestions(nil, built)
+
 			warnings, err := plan.Validate(built, settings.PolicyNumbers())
 			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 

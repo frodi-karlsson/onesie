@@ -6,6 +6,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -41,7 +42,113 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 		}
 	}
 
-	return merged, notices
+	return merged, append(notices, MergeQuestions(merged, built)...)
+}
+
+// MergeQuestions applies to each question from -f the flags its --for groups typed, and the top level
+// flags when it is the one question asked, and records its settings in merged. It returns a sets or
+// overrides notice for each setting a flag gave.
+func MergeQuestions(merged *Merged, built *plan.Plan) []Notice {
+	if built == nil {
+		return nil
+	}
+
+	var notices []Notice
+
+	for i := range built.Questions {
+		question := &built.Questions[i]
+
+		events := typedFor(built, question.ID)
+		if !question.Origin.FromFile() || len(events) == 0 {
+			continue
+		}
+
+		before := detached(*question)
+		plan.Refine(question, events, PolicyNumbers())
+
+		for _, row := range Table() {
+			if row.Scope != ScopeQuestion || !slices.ContainsFunc(events, typedAs(row)) {
+				continue
+			}
+
+			was, now := questionSetting(before, row.Name), questionSetting(*question, row.Name)
+			if now != nil && merged != nil {
+				merged.setFor(question.ID, row.Name, now)
+			}
+
+			if notice, changed := refinedNotice(row, *question, was, now); changed {
+				notices = append(notices, notice)
+			}
+		}
+	}
+
+	return notices
+}
+
+func typedFor(built *plan.Plan, id string) []argv.Event {
+	var events []argv.Event
+
+	if len(built.Questions) == 1 {
+		events = append(events, built.Orphans...)
+	}
+
+	for _, selection := range built.Selections {
+		if selection.ID == id {
+			events = append(events, selection.Events...)
+		}
+	}
+
+	return events
+}
+
+func detached(question plan.Question) plan.Question {
+	question.Options = slices.Clone(question.Options)
+	question.Levels = slices.Clone(question.Levels)
+
+	if question.Criteria != nil {
+		criteria := *question.Criteria
+		question.Criteria = &criteria
+	}
+
+	return question
+}
+
+func typedAs(row Row) func(argv.Event) bool {
+	return func(event argv.Event) bool { return event.Name == row.Flag.Long }
+}
+
+func questionSetting(question plan.Question, name Name) any {
+	policy := question.Policy
+
+	switch {
+	case name == Threshold.Name() && policy.Threshold != nil:
+		return *policy.Threshold
+	case name == MinConfidence.Name() && policy.MinConfidence != nil:
+		return *policy.MinConfidence
+	case name == FallbackAnswer.Name() && policy.Fallback != nil:
+		return policy.Fallback.Text
+	default:
+		return nil
+	}
+}
+
+func refinedNotice(row Row, question plan.Question, was, now any) (Notice, bool) {
+	if now == nil || reflect.DeepEqual(was, now) {
+		return Notice{}, false
+	}
+
+	notice := Notice{
+		Setting:  row.Name,
+		Winner:   Origin{Source: SourceFlag, Spelled: "--" + row.Flag.Long},
+		Loser:    Origin{Source: SourceFile, Spelled: row.FileKey, Body: question.Origin == plan.OriginBody},
+		Question: question.ID,
+	}
+
+	if was == nil {
+		notice.Verb = VerbSets
+	}
+
+	return notice, true
 }
 
 func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {

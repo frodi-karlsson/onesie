@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
@@ -62,6 +63,7 @@ func assemble(
 
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
+	refined := setting.MergeQuestions(flags.merged, built)
 
 	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
@@ -69,7 +71,8 @@ func assemble(
 	}
 
 	return assembled{
-		config: flags, plan: built, file: file, warnings: warnings, notices: append(typedTwice, merged.notices...),
+		config: flags, plan: built, file: file, warnings: warnings,
+		notices: slices.Concat(typedTwice, merged.notices, refined),
 	}, err
 }
 

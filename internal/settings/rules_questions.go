@@ -3,8 +3,8 @@ package settings
 import (
 	"errors"
 	"fmt"
-	"slices"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -72,16 +72,12 @@ func forSelectsRule() Rule {
 
 func fileQuestion(built *plan.Plan, id string) (int, bool) {
 	for i, question := range built.Questions {
-		if question.ID == id && fromFileOrBody(question) {
+		if question.ID == id && question.Origin.FromFile() {
 			return i, true
 		}
 	}
 
 	return 0, false
-}
-
-func fromFileOrBody(question plan.Question) bool {
-	return question.Origin == plan.OriginFile || question.Origin == plan.OriginBody
 }
 
 func fileNamed(v View) string {
@@ -96,7 +92,7 @@ func fromFile(built *plan.Plan) []plan.Question {
 	var questions []plan.Question
 
 	for _, question := range built.Questions {
-		if fromFileOrBody(question) {
+		if question.Origin.FromFile() {
 			questions = append(questions, question)
 		}
 	}
@@ -104,40 +100,25 @@ func fromFile(built *plan.Plan) []plan.Question {
 	return questions
 }
 
-func bodyPolicyRule() Rule {
+func fileQuestionShapeRule() Rule {
 	return Rule{
-		ID:    "body-policy-needs-one-question",
-		Reads: []Name{"threshold", "min_confidence", "fallback", File.Name()},
+		ID:    "file-question-shape",
+		Reads: []Name{"for", "pick", "rate", "box", "desc", "sep", File.Name()},
 		Check: func(v View) error {
 			if v.Plan == nil {
 				return nil
 			}
 
-			body := 0
-
 			for _, question := range v.Plan.Questions {
-				if question.Origin == plan.OriginBody {
-					body++
+				if question.Origin != plan.OriginBody {
+					continue
 				}
-			}
 
-			if body <= 1 {
-				return nil
-			}
-
-			// A policy flag that found no question to bind to is still a policy flag aimed at the
-			// body, since Assemble binds top level flags only when exactly one question was asked.
-			for _, event := range v.Plan.Orphans {
-				if plan.PolicyFlag(event.Name) {
-					return bodyPolicyError(Get(v.Merged, File), body)
-				}
-			}
-
-			for _, question := range v.Plan.Questions {
-				policy := question.Policy
-				if question.Origin == plan.OriginBody &&
-					(policy.Threshold != nil || policy.MinConfidence != nil || policy.Fallback != nil) {
-					return bodyPolicyError(Get(v.Merged, File), body)
+				for _, event := range typedFor(v.Plan, question.ID) {
+					if !plan.PolicyFlag(event.Name) {
+						return fmt.Errorf("--%s cannot reshape a request body's question. "+
+							"A body carries its own type and criteria", event.Name)
+					}
 				}
 			}
 
@@ -146,52 +127,35 @@ func bodyPolicyRule() Rule {
 	}
 }
 
-func bodyPolicyError(name string, questions int) error {
-	if name == "" {
-		name = plan.UnnamedFile
-	}
-
-	return fmt.Errorf(
-		"policy flags apply to a request body only when it has one question. "+
-			"%s has %d, freeze with --print-questions first", name, questions)
-}
-
-func orphansRule() Rule {
+func policyBindingRule() Rule {
 	return Rule{
-		ID:    "group-flags-bind",
+		ID:    "policy-binding",
 		Reads: []Name{"ask", "pick", "rate", "box", "desc", "sep", "threshold", "min_confidence", "fallback"},
 		Check: func(v View) error {
-			if v.Plan == nil || len(v.Plan.Orphans) == 0 {
+			if v.Plan == nil || len(v.Plan.Orphans) == 0 || len(v.Plan.Questions) == 1 {
 				return nil
 			}
 
-			orphan := v.Plan.Orphans[0].Name
-			err := fmt.Errorf("--%s given with no --ask to bind to and %d questions asked",
-				orphan, len(v.Plan.Questions))
+			orphan, asked := v.Plan.Orphans[0], v.Plan.Questions
 
-			keys := fileKeysFor(orphan)
-			if keys == "" || !slices.ContainsFunc(v.Plan.Questions, func(q plan.Question) bool {
-				return q.Origin == plan.OriginFile
-			}) {
-				return err
+			filed := fromFile(v.Plan)
+			if len(filed) == 0 {
+				return fmt.Errorf("--%s given with no --ask to bind to and %d questions asked", orphan.Name, len(asked))
 			}
 
-			return fmt.Errorf("%w. Set %s on a question in the -f file instead", err, keys)
+			return fmt.Errorf("--%s applies to one question, and %d were asked: %s. "+
+				"Put it after --for ID to set one, as in --for %s %s",
+				orphan.Name, len(asked), quotedIDs(asked), filed[0].ID, typedFlag(orphan))
 		},
 	}
 }
 
-func fileKeysFor(flag string) string {
-	switch flag {
-	case "threshold":
-		return "threshold"
-	case "min-confidence":
-		return "min_confidence and fallback"
-	case "fallback":
-		return "fallback"
-	default:
-		return ""
+func typedFlag(event argv.Event) string {
+	if event.Name == "box" {
+		return "--box"
 	}
+
+	return "--" + event.Name + " " + event.Value
 }
 
 func questionsValidRule() Rule {

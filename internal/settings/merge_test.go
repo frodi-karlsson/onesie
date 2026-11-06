@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -24,6 +25,7 @@ func TestMerge(t *testing.T) {
 		wantSources map[settings.Name]settings.Source
 		wantNotices []string
 		check       func(t *testing.T, merged *settings.Merged)
+		checkPlan   func(t *testing.T, built *plan.Plan)
 	}{
 		{
 			name: "should let a flag beat the request body, spelling the flag by its long name",
@@ -390,6 +392,157 @@ func TestMerge(t *testing.T) {
 			check: wantThreshold("urgent", 0.9),
 		},
 		{
+			name: "should set a lone file question's threshold with a sets notice",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			wantNotices: []string{"--threshold sets the question file's threshold for 'urgent'"},
+			check:       wantThreshold("urgent", 0.9),
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should override it with an overrides notice",
+			built: &plan.Plan{
+				Questions: withThreshold(fileQuestions("urgent"), 0, 0.7),
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
+			check:       wantThreshold("urgent", 0.9),
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should note nothing for a flag that gives the file's own value",
+			built: &plan.Plan{
+				Questions: withThreshold(fileQuestions("urgent"), 0, 0.9),
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			checkPlan: wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should leave top level flags beside two questions to validation",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent", "spam"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				for _, question := range built.Questions {
+					if question.Policy.Threshold != nil {
+						t.Errorf("threshold of %s = %v, want none", question.ID, *question.Policy.Threshold)
+					}
+				}
+			},
+		},
+		{
+			name: "should apply each --for group to its question only",
+			built: &plan.Plan{
+				Questions: fileQuestions("tone", "spam"),
+				Selections: []plan.Selection{
+					{ID: "tone", Events: []argv.Event{{Name: "fallback", Value: "no"}}},
+					{ID: "spam", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
+				},
+			},
+			wantNotices: []string{
+				"--fallback sets the question file's fallback for 'tone'",
+				"--threshold sets the question file's threshold for 'spam'",
+			},
+			check: wantThreshold("spam", 0.6),
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				tone, spam := built.Questions[0], built.Questions[1]
+				if tone.Policy.Threshold != nil || tone.Policy.Fallback == nil || tone.Policy.Fallback.Text != "no" {
+					t.Errorf("tone policy = %+v, want only the fallback no", tone.Policy)
+				}
+
+				if spam.Policy.Fallback != nil || spam.Policy.Threshold == nil {
+					t.Errorf("spam policy = %+v, want only the threshold", spam.Policy)
+				}
+			},
+		},
+		{
+			name: "should let a --for group beat a top level flag on the lone question",
+			built: &plan.Plan{
+				Questions:  withThreshold(fileQuestions("urgent"), 0, 0.7),
+				Orphans:    []argv.Event{{Name: "threshold", Value: "0.8"}},
+				Selections: []plan.Selection{{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.9"}}}},
+			},
+			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should set a policy on a request body question through --for",
+			built: &plan.Plan{
+				Questions: []plan.Question{
+					{ID: "b0", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
+					{ID: "b1", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
+				},
+				Selections: []plan.Selection{{ID: "b1", Events: []argv.Event{{Name: "threshold", Value: "0.8"}}}},
+			},
+			wantNotices: []string{"--threshold sets the request body's threshold for 'b1'"},
+			checkPlan:   wantPlanThreshold(1, 0.8),
+		},
+		{
+			name: "should merge a top level desc into the file's yes/no criteria",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+			},
+			checkPlan: wantCriteria("CLI YES", "FILE NO"),
+		},
+		{
+			name: "should keep the file's yes half when only no is named",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
+			},
+			checkPlan: wantCriteria("FILE YES", "CLI NO"),
+		},
+		{
+			name: "should build criteria for a file question that had none",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+			},
+			checkPlan: wantCriteria("CLI YES", nil),
+		},
+		{
+			name: "should leave a body's score question unlabelled when policy flags are applied",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "frustration", Shape: plan.Rate, Origin: plan.OriginBody, Levels: []plan.Level{{}, {}, {}},
+				}},
+				Orphans: []argv.Event{{Name: "min-confidence", Value: "0.7"}, {Name: "fallback", Value: "human"}},
+			},
+			wantNotices: []string{
+				"--min-confidence sets the request body's min_confidence for 'frustration'",
+				"--fallback sets the request body's fallback for 'frustration'",
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				if built.Questions[0].Labelled {
+					t.Error("a body's score question must stay unlabelled, its criteria are by index")
+				}
+
+				if built.Questions[0].Policy.Fallback == nil {
+					t.Error("the fallback flag must still bind")
+				}
+			},
+		},
+		{
+			name: "should note no setting on a question the flags define",
+			built: &plan.Plan{
+				Questions: []plan.Question{{ID: "a", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFlag}},
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+		},
+		{
 			name: "should merge a profile's key as HeldKey with its rank",
 			reading: reading{
 				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
@@ -655,7 +808,36 @@ func TestMerge(t *testing.T) {
 			if tc.check != nil {
 				tc.check(t, merged)
 			}
+
+			if tc.checkPlan != nil {
+				tc.checkPlan(t, tc.built)
+			}
 		})
+	}
+}
+
+func fileQuestions(ids ...string) []plan.Question {
+	questions := make([]plan.Question, 0, len(ids))
+	for _, id := range ids {
+		questions = append(questions, plan.Question{ID: id, Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile})
+	}
+
+	return questions
+}
+
+func withThreshold(questions []plan.Question, at int, threshold float64) []plan.Question {
+	questions[at].Policy.Threshold = &threshold
+
+	return questions
+}
+
+func wantPlanThreshold(at int, want float64) func(t *testing.T, built *plan.Plan) {
+	return func(t *testing.T, built *plan.Plan) {
+		t.Helper()
+
+		if got := built.Questions[at].Policy.Threshold; got == nil || *got != want {
+			t.Errorf("threshold of %s = %v, want %v", built.Questions[at].ID, got, want)
+		}
 	}
 }
 
@@ -665,6 +847,17 @@ func wantThreshold(id string, want float64) func(t *testing.T, merged *settings.
 
 		if got, found := settings.GetFor(merged, id, settings.Threshold); !found || got != want {
 			t.Errorf("threshold for %s = %v, %t, want %v", id, got, found, want)
+		}
+	}
+}
+
+func wantCriteria(yes, no any) func(t *testing.T, built *plan.Plan) {
+	return func(t *testing.T, built *plan.Plan) {
+		t.Helper()
+
+		criteria := built.Questions[0].Criteria
+		if criteria == nil || criteria.Yes != yes || criteria.No != no {
+			t.Errorf("criteria = %+v, want yes %v and no %v", criteria, yes, no)
 		}
 	}
 }

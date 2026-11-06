@@ -342,35 +342,54 @@ func TestValidate(t *testing.T) {
 			file: bodyQuestions(1),
 		},
 		{
-			name:   "should reject a policy flag aimed at a two question body",
-			file:   bodyQuestions(2),
-			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
-			wantErr: "policy flags apply to a request body only when it has one question. " +
-				"the question file has 2, freeze with --print-questions first",
+			name:   "should refuse a top level --threshold beside two questions, naming --for",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'urgent', 'spam'. " +
+				"Put it after --for ID to set one, as in --for urgent --threshold 0.9",
 		},
 		{
-			name: "should count only the body's own questions in the policy error",
+			name:   "should refuse it beside a body of two questions",
+			file:   bodyQuestions(2),
+			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'b0', 'b1'. " +
+				"Put it after --for ID to set one, as in --for b0 --threshold 0.8",
+		},
+		{
+			name: "should list every question asked beside a top level flag",
 			file: bodyQuestions(2),
 			events: []argv.Event{
 				{Name: "threshold", Value: "0.8"},
 				{Name: "ask", Value: "extra=second"},
 			},
-			wantErr: "the question file has 2",
+			wantErr: "and 3 were asked: 'b0', 'b1', 'extra'. Put it after --for ID to set one, as in --for b0",
 		},
 		{
-			name: "should reject policy carried by a body question itself",
-			file: append(bodyQuestions(1), plan.Question{
-				ID: "b2", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
-				Policy: plan.Policy{Threshold: pointerTo(0.8)},
-			}),
-			wantErr: "the question file has 2",
+			name: "should keep the old wording for a top level flag beside several --ask with no file",
+			events: []argv.Event{
+				{Name: "fallback", Value: "no"}, {Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"},
+			},
+			wantExact: "--fallback given with no --ask to bind to and 2 questions asked",
 		},
 		{
-			name:    "should name the body's file in the policy error",
+			name:   "should accept a policy --for gives a body question",
+			file:   bodyQuestions(2),
+			set:    values{"file": "body.json"},
+			events: []argv.Event{{Name: "for", Value: "b1"}, {Name: "threshold", Value: "0.8"}},
+		},
+		{
+			name:    "should refuse --pick after --for on a body question",
 			file:    bodyQuestions(2),
-			events:  []argv.Event{{Name: "threshold", Value: "0.8"}},
-			set:     values{"file": "triage.json"},
-			wantErr: "triage.json has 2",
+			set:     values{"file": "body.json"},
+			events:  []argv.Event{{Name: "for", Value: "b1"}, {Name: "pick", Value: "x,y"}},
+			wantErr: "--pick cannot reshape a request body's question. A body carries its own type and criteria",
+		},
+		{
+			name:    "should refuse a top level --desc on a lone body question",
+			file:    bodyQuestions(1),
+			events:  []argv.Event{{Name: "desc", Value: "yes=nope"}},
+			wantErr: "--desc cannot reshape a request body's question",
 		},
 		{
 			name:       "should report a streaming -q before -o table",
@@ -1366,12 +1385,12 @@ func TestRules(t *testing.T) {
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
-					"for-selects-a-file-question",
+					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
-					"body-policy-needs-one-question", "group-flags-bind", "questions-valid", "quiet-needs-one-question",
+					"policy-binding", "questions-valid", "quiet-needs-one-question",
 					"raw-needs-one-question", "one-state", "setting-given-twice",
 				}
 
@@ -1631,6 +1650,16 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'line' is reserved under -i lines, which writes the input line number as line",
 		},
 		{
+			rule: "file-question-shape",
+			refused: run{
+				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "pick", Value: "x,y"}},
+			},
+			passed: run{
+				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "fallback", Value: "no"}},
+			},
+			wantErr: "--pick cannot reshape a request body's question. A body carries its own type and criteria",
+		},
+		{
 			rule: "for-selects-a-file-question",
 			refused: run{
 				planned: true, file: fileNouls("urgent"), set: values{"file": "one.yaml"},
@@ -1652,21 +1681,15 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'a' is given twice",
 		},
 		{
-			rule: "body-policy-needs-one-question",
+			rule: "policy-binding",
 			refused: run{
 				planned: true, file: bodyQuestions(2), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			},
 			passed: run{
 				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			},
-			wantErr: "policy flags apply to a request body only when it has one question. " +
-				"the question file has 2, freeze with --print-questions first",
-		},
-		{
-			rule:    "group-flags-bind",
-			refused: run{planned: true, events: append([]argv.Event{{Name: "pick", Value: "x,y"}}, two...)},
-			passed:  run{planned: true, events: two},
-			wantErr: "--pick given with no --ask to bind to and 2 questions asked",
+			wantErr: "--threshold applies to one question, and 2 were asked: 'b0', 'b1'. " +
+				"Put it after --for ID to set one, as in --for b0 --threshold 0.8",
 		},
 		{
 			rule:    "quiet-needs-one-question",
@@ -1754,6 +1777,8 @@ func (r run) view(t *testing.T) settings.View {
 		t.Fatalf("assembling: %v", err)
 	}
 
+	settings.MergeQuestions(merged, built)
+
 	return settings.NewView(merged, built, facts)
 }
 
@@ -1781,10 +1806,6 @@ func bodyQuestions(n int) []plan.Question {
 	}
 
 	return questions
-}
-
-func pointerTo[T any](value T) *T {
-	return &value
 }
 
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {

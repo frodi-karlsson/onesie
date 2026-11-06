@@ -15,8 +15,9 @@ type Plan struct {
 	// Selections are the --for groups, in the order each ID was first selected.
 	Selections []Selection
 
-	// Orphans are shape or policy flags that had no --ask to bind to. They are kept off Question
-	// so nothing iterating Questions has to know to skip a pseudo entry.
+	// Orphans are the top level shape or policy flags no --ask or positional question took. With a
+	// lone question from a file they are its flags, and with any other count validation refuses them.
+	// They are kept off Question so nothing iterating Questions has to know to skip a pseudo entry.
 	Orphans []argv.Event
 }
 
@@ -104,6 +105,11 @@ const (
 
 func (o Origin) chosen() bool {
 	return o != OriginPositional
+}
+
+// FromFile reports whether the question came from a question file or a request body.
+func (o Origin) FromFile() bool {
+	return o == OriginFile || o == OriginBody
 }
 
 // Option is one choice, with the description sent as criteria. A nil Desc sends null, which the
