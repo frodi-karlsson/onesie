@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		positional  string
 		set         values
 		typed       []settings.Name
+		facts       settings.Facts
 		wantErr     string
 		wantExact   string
 		wantWarning string
@@ -127,6 +128,15 @@ func TestValidate(t *testing.T) {
 			set:    values{"file": "two.yaml"},
 			events: []argv.Event{{Name: "for", Value: "nope"}, {Name: "threshold", Value: "0.9"}},
 			wantExact: "--for nope names no question in two.yaml, which has: 'urgent', 'spam'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
+			name:   "should name a built in set the way the file is named elsewhere",
+			file:   fileNouls("hostile", "spam"),
+			set:    values{"file": "moderation"},
+			facts:  settings.Facts{FileName: "built in moderation"},
+			events: []argv.Event{{Name: "for", Value: "nope"}},
+			wantExact: "--for nope names no question in built in moderation, which has: 'hostile', 'spam'. " +
 				"Define a new question with --ask nope=QUESTION",
 		},
 		{
@@ -519,6 +529,7 @@ func TestValidate(t *testing.T) {
 
 			given := run{
 				set: tc.set, typed: tc.typed, events: tc.events, positional: tc.positional, file: tc.file, planned: true,
+				facts: tc.facts,
 			}
 
 			warnings, _, err := settings.Validate(given.view(t), settings.Rules())

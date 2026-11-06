@@ -82,6 +82,10 @@ func fileQuestion(built *plan.Plan, id string) (int, bool) {
 }
 
 func fileNamed(v View) string {
+	if v.Facts.FileName != "" {
+		return v.Facts.FileName
+	}
+
 	if name := Get(v.Merged, File); name != "" {
 		return name
 	}

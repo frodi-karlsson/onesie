@@ -137,7 +137,9 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 		withoutJudgment(file.loaded)
 	}
 
-	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState}
+	file.facts = runFacts{
+		name: path, assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState,
+	}
 
 	return file, nil
 }

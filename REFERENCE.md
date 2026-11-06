@@ -76,8 +76,8 @@ prints the built in limits.
 - A flag that gives a question from `-f` a setting prints a notice on stderr, `sets` when the file
   had none and `overrides` when it had another, as in
   `onesie: --threshold overrides the question file's threshold for 'spam'`. The same value prints
-  nothing. A flag never changes a file question's shape: `--rate` on a pick question, `--pick` or
-  `--rate` on a yes or no question and `--box` on any file question exit 2. A `--pick` that leaves
+  nothing. A flag never changes a file question's shape: `--pick` on a rate question, `--rate` on a
+  pick question, `--pick` or `--rate` on a yes or no question and `--box` on any file question exit 2. A `--pick` that leaves
   a pick question one option exits 2, as it would on `--ask`.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,

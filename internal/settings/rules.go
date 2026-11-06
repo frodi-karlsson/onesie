@@ -85,11 +85,12 @@ type View struct {
 }
 
 // Facts are what a rule or a derived default reads about a run that no setting holds: the command,
-// the question file's gates and state, the group flags in the order typed, the positional question,
+// the question file's name as messages give it, its gates and state, the group flags in the order typed, the positional question,
 // calibrate's -o and whether it was typed, whether stdout is a terminal, and the flags as parsed
 // from Args, the command line.
 type Facts struct {
 	Command                   Command
+	FileName                  string
 	FileAssert, FileAbstainIf string
 	BodyState                 bool
 	Events                    []argv.Event
