@@ -236,14 +236,48 @@ func applyEvents(question *Question, events []argv.Event, src Source) error {
 }
 
 // Refine applies the flags typed for a question from a file or a request body, as Assemble prepared
-// them in Selections and Orphans. A body question takes only the policy flags, and validation refuses
-// the rest.
+// them in Selections and Orphans. --pick and --rate replace the options or levels of a question of
+// their shape, and --desc merges by key. A flag that would change the question's shape, and any but a
+// policy flag on a body question, is left for validation to refuse.
 func Refine(question *Question, events []argv.Event, numbers Numbers) {
-	if question.Origin == OriginBody {
-		events = slices.DeleteFunc(slices.Clone(events), func(event argv.Event) bool { return !PolicyFlag(event.Name) })
+	kept := slices.DeleteFunc(slices.Clone(events), func(event argv.Event) bool {
+		return !refines(*question, event.Name)
+	})
+
+	if slices.ContainsFunc(kept, named("pick")) {
+		question.Options = nil
 	}
 
-	apply(question, events, numbers)
+	if slices.ContainsFunc(kept, named("rate")) {
+		question.Levels = nil
+	}
+
+	apply(question, kept, numbers)
+}
+
+func refines(question Question, flag string) bool {
+	if PolicyFlag(flag) {
+		return true
+	}
+
+	if question.Origin != OriginFile {
+		return false
+	}
+
+	switch flag {
+	case "pick":
+		return question.Shape == Pick
+	case "rate":
+		return question.Shape == Rate
+	case "desc", "sep":
+		return true
+	default:
+		return false
+	}
+}
+
+func named(flag string) func(argv.Event) bool {
+	return func(event argv.Event) bool { return event.Name == flag }
 }
 
 func prepare(events []argv.Event, src Source) ([]argv.Event, error) {

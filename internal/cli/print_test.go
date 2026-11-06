@@ -71,6 +71,11 @@ func TestPrintQuestions(t *testing.T) {
 		t.Fatalf("writing the body: %v", err)
 	}
 
+	pickFile := filepath.Join(t.TempDir(), "team.yaml")
+	if err := os.WriteFile(pickFile, []byte("team:\n  ask: who owns this\n  pick:\n    billing: money\n    technical: systems\n"), 0o600); err != nil {
+		t.Fatalf("writing the question file: %v", err)
+	}
+
 	tests := []struct {
 		name     string
 		args     []string
@@ -202,6 +207,26 @@ func TestPrintQuestions(t *testing.T) {
 			wantCode: ExitUsage,
 			stderr: []string{
 				"onesie: -m names a model to ask, which --print-questions does not do",
+			},
+		},
+		{
+			name:     "should print a file pick question's options replaced by --pick, with a notice",
+			args:     []string{"-f", pickFile, "--pick", "sales,support", "--desc", "sales=money", "--print-questions"},
+			wantCode: ExitOK,
+			stdout:   []string{"team:\n  ask: who owns this\n  pick:\n    sales: money\n    support: null\n"},
+			absent:   []string{"billing", "technical"},
+			stderr: []string{
+				"onesie: --pick overrides the question file's pick for 'team'\n" +
+					"onesie: --desc sets the question file's pick for 'team'\n",
+			},
+		},
+		{
+			name:     "should refuse --box on a file question",
+			args:     []string{"-f", pickFile, "--box", "--print-questions"},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"onesie: --box cannot make 'team' a box question, since a flag never changes the shape of a " +
+					"question from " + pickFile + ". Redefine it whole with --ask team=QUESTION --replace\n",
 			},
 		},
 		{
@@ -515,7 +540,6 @@ func validationDocs() []schemaFixture {
 		{doc: "urgent: q\nabstain_if: 'urgent.value < 0.8'\n", flags: []string{"--assert", "urgent.value < 0.5"}},
 		{doc: "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 0.5\n", flags: []string{"--fallback", "a"}},
 		{doc: "urgent:\n  ask: q\n  fallback: maybe\n", flags: []string{"--fallback", "yes"}},
-		{doc: "urgent:\n  ask: q\n  min_confidence: 0.5\n  fallback: yes\n", flags: []string{"--pick", "yes,no"}},
 		{doc: "severity:\n  ask: q\n  rate:\n    low: calm\n    high:\n", flags: []string{"--desc", "high=loud"}},
 		{doc: "severity:\n  ask: q\n  rate:\n    - low\n    - high: loud\n", flags: []string{"--desc", "low=calm"}},
 	}

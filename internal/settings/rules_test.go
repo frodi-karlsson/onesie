@@ -386,6 +386,38 @@ func TestValidate(t *testing.T) {
 			wantErr: "--pick cannot reshape a request body's question. A body carries its own type and criteria",
 		},
 		{
+			name:   "should refuse --rate on a file pick question",
+			file:   filePick("billing", "technical"),
+			set:    values{"file": "team.yaml"},
+			events: []argv.Event{{Name: "for", Value: "team"}, {Name: "rate", Value: "low,high"}},
+			wantExact: "--rate cannot make 'team' a score question, since a flag never changes the shape of a " +
+				"question from team.yaml. Redefine it whole with --ask team=QUESTION --replace",
+		},
+		{
+			name:   "should refuse --box on a file question",
+			file:   filePick("billing", "technical"),
+			events: []argv.Event{{Name: "box", Value: "true"}},
+			wantExact: "--box cannot make 'team' a box question, since a flag never changes the shape of a " +
+				"question from the question file. Redefine it whole with --ask team=QUESTION --replace",
+		},
+		{
+			name:    "should refuse --pick on a yes or no file question",
+			file:    fileNouls("urgent"),
+			events:  []argv.Event{{Name: "pick", Value: "a,b"}},
+			wantErr: "--pick cannot make 'urgent' a choice question",
+		},
+		{
+			name:   "should accept --pick on a file pick question",
+			file:   filePick("billing", "technical"),
+			events: []argv.Event{{Name: "pick", Value: "sales,support"}},
+		},
+		{
+			name:    "should refuse --pick that leaves a file pick question one option",
+			file:    filePick("billing", "technical"),
+			events:  []argv.Event{{Name: "pick", Value: "sales"}},
+			wantErr: "needs at least two options in question 'team', got 1: sales",
+		},
+		{
 			name:    "should refuse a top level --desc on a lone body question",
 			file:    bodyQuestions(1),
 			events:  []argv.Event{{Name: "desc", Value: "yes=nope"}},

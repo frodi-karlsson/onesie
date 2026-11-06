@@ -491,7 +491,8 @@ func TestMerge(t *testing.T) {
 				}},
 				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
 			},
-			checkPlan: wantCriteria("CLI YES", "FILE NO"),
+			wantNotices: []string{"--desc overrides the question file's yes_means for 'urgent'"},
+			checkPlan:   wantCriteria("CLI YES", "FILE NO"),
 		},
 		{
 			name: "should keep the file's yes half when only no is named",
@@ -502,14 +503,16 @@ func TestMerge(t *testing.T) {
 				}},
 				Orphans: []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
 			},
-			checkPlan: wantCriteria("FILE YES", "CLI NO"),
+			wantNotices: []string{"--desc overrides the question file's no_means for 'urgent'"},
+			checkPlan:   wantCriteria("FILE YES", "CLI NO"),
 		},
 		{
 			name: "should build criteria for a file question that had none",
 			built: &plan.Plan{
 				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
 			},
-			checkPlan: wantCriteria("CLI YES", nil),
+			wantNotices: []string{"--desc sets the question file's yes_means for 'urgent'"},
+			checkPlan:   wantCriteria("CLI YES", nil),
 		},
 		{
 			name: "should leave a body's score question unlabelled when policy flags are applied",
@@ -532,6 +535,88 @@ func TestMerge(t *testing.T) {
 
 				if built.Questions[0].Policy.Fallback == nil {
 					t.Error("the fallback flag must still bind")
+				}
+			},
+		},
+		{
+			name: "should replace a pick question's options with --pick",
+			built: &plan.Plan{
+				Questions: []plan.Question{filePickQuestion()},
+				Orphans:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
+			},
+			wantNotices: []string{"--pick overrides the question file's pick for 'team'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Option{{Name: "sales"}, {Name: "support"}}
+				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
+					t.Errorf("options = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should replace a rate question's levels with --rate after --sep",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+					Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
+				}},
+				Selections: []plan.Selection{{ID: "mood", Events: []argv.Event{
+					{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;mid;high"},
+				}}},
+			},
+			wantNotices: []string{"--rate overrides the question file's rate for 'mood'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Level{{Label: "low"}, {Label: "mid"}, {Label: "high"}}
+				if got := built.Questions[0].Levels; !reflect.DeepEqual(got, want) {
+					t.Errorf("levels = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should merge --desc by key",
+			built: &plan.Plan{
+				Questions: []plan.Question{filePickQuestion()},
+				Orphans:   []argv.Event{{Name: "desc", Value: "technical=it is broken"}},
+			},
+			wantNotices: []string{"--desc sets the question file's pick for 'team'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Option{{Name: "billing", Desc: "about money"}, {Name: "technical", Desc: "it is broken"}}
+				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
+					t.Errorf("options = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should note --desc over a file's yes_means",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}, {Name: "desc", Value: "no=CLI NO"}},
+			},
+			wantNotices: []string{
+				"--desc overrides the question file's yes_means for 'urgent'",
+				"--desc sets the question file's no_means for 'urgent'",
+			},
+			checkPlan: wantCriteria("CLI YES", "CLI NO"),
+		},
+		{
+			name: "should leave a shape flag that changes a file question's shape to validation",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"),
+				Orphans:   []argv.Event{{Name: "pick", Value: "a,b"}, {Name: "box", Value: "true"}},
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				if question := built.Questions[0]; question.Shape != plan.Noul || len(question.Options) != 0 {
+					t.Errorf("question = %+v, want the file's yes or no question", question)
 				}
 			},
 		},
@@ -859,5 +944,12 @@ func wantCriteria(yes, no any) func(t *testing.T, built *plan.Plan) {
 		if criteria == nil || criteria.Yes != yes || criteria.No != no {
 			t.Errorf("criteria = %+v, want yes %v and no %v", criteria, yes, no)
 		}
+	}
+}
+
+func filePickQuestion() plan.Question {
+	return plan.Question{
+		ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+		Options: []plan.Option{{Name: "billing", Desc: "about money"}, {Name: "technical"}},
 	}
 }

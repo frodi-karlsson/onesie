@@ -41,7 +41,7 @@ Flags:
       --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
       --cuts string               comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05
       --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma
-      --desc string               KEY=TEXT, describing one option, level, yes or no
+      --desc string               KEY=TEXT, describing one option, level, yes or no. On a question from -f it replaces that key's description alone
   -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
       --for string                ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep after it apply to that question
   -h, --help                      help for calibrate
@@ -59,10 +59,10 @@ Flags:
       --offline                   with --out and --resume, read every answer from the file and ask nothing, needing no key
       --out string                write the answers to this file as -o json lines
   -o, --output string             the report, table, json or auto, which means table
-      --pick string               comma separated options, making this a choice question. A repeated --pick adds to the options
+      --pick string               comma separated options, making this a choice question. A repeated --pick adds to the options, and together they replace the options of a choice question from -f
       --print-request             write api shaped request bodies to stdout and exit
       --prune                     with --resume, drop the answered ids the input no longer has
-      --rate string               comma separated levels in ascending order, making this a score question. A repeated --rate adds levels after the earlier ones. Its score is the level index averaged over p, from 0, and norm is score over the top index, from 0 to 1
+      --rate string               comma separated levels in ascending order, making this a score question. A repeated --rate adds levels after the earlier ones, and together they replace the levels of a score question from -f. Its score is the level index averaged over p, from 0, and norm is score over the top index, from 0 to 1
       --replace                   --ask overrides an id from -f
       --require stringArray       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate exits 1. Repeatable
       --resume                    with --out and --id, skip the ids the file already answers

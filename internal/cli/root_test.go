@@ -1706,6 +1706,31 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --pick cannot reshape a request body's question. A body carries its own type and criteria\n"},
 		},
 		{
+			name:     "should refuse --pick sales on a one option result",
+			args:     []string{"-f", "team.yaml", "--pick", "sales", "--print-questions"},
+			files:    map[string]string{"team.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: 'pick' needs at least two options in question 'team', got 1: sales\n"},
+			absent:   []string{"overrides"},
+		},
+		{
+			name:     "should refuse --pick on a yes or no file question",
+			args:     []string{"-f", "yesno.yaml", "--pick", "a,b", "--print-questions"},
+			files:    map[string]string{"yesno.yaml": "urgent: is this urgent\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --pick cannot make 'urgent' a choice question, since a flag never changes the shape of a " +
+					"question from yesno.yaml. Redefine it whole with --ask urgent=QUESTION --replace\n",
+			},
+		},
+		{
+			name:     "should refuse --rate after --for on a file pick question",
+			args:     []string{"-f", "two.yaml", "--for", "team", "--rate", "low,high", "--print-questions"},
+			files:    map[string]string{"two.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\nb: is it b\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --rate cannot make 'team' a score question"},
+		},
+		{
 			name: "should allow policy on an ask added beside a one question body",
 			args: []string{
 				"-f", "body.json", "--ask", "extra=is this urgent",

@@ -112,7 +112,8 @@ func questionRows() []Row {
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",
 			Flag:     FlagSpec{Long: "pick", Group: true, Commands: onRuns()},
-			Help:     "comma separated options, making this a choice question. A repeated --pick adds to the options",
+			Help: "comma separated options, making this a choice question. A repeated --pick adds to the options, " +
+				"and together they replace the options of a choice question from -f",
 		},
 		{
 			Name: "rate", Scope: ScopeQuestion, Kind: Levels(), Modes: shaping(), Shapes: []plan.Shape{plan.Rate},
@@ -121,14 +122,15 @@ func questionRows() []Row {
 				"a mapping of name to description.",
 			Flag: FlagSpec{Long: "rate", Group: true, Commands: onRuns()},
 			Help: "comma separated levels in ascending order, making this a score question. A repeated --rate " +
-				"adds levels after the earlier ones. Its score is the level index averaged over p, from 0, and " +
+				"adds levels after the earlier ones, and together they replace the levels of a score question from " +
+				"-f. Its score is the level index averaged over p, from 0, and " +
 				"norm is score over the top index, from 0 to 1",
 		},
 		{
 			Name: "desc", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(),
 			Shapes: []plan.Shape{plan.Noul, plan.Pick, plan.Rate},
 			Flag:   FlagSpec{Long: "desc", Group: true, Commands: onRuns()},
-			Help:   "KEY=TEXT, describing one option, level, yes or no",
+			Help:   "KEY=TEXT, describing one option, level, yes or no. On a question from -f it replaces that key's description alone",
 		},
 		{
 			Name: "sep", Scope: ScopeQuestion, Kind: Separator(), Modes: shaping(),

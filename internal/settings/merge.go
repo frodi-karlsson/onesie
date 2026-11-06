@@ -3,6 +3,7 @@ package settings
 import (
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
@@ -71,8 +72,14 @@ func MergeQuestions(merged *Merged, built *plan.Plan) []Notice {
 				continue
 			}
 
+			if row.Name == descName {
+				notices = append(notices, describedNotices(row, before, *question, events)...)
+
+				continue
+			}
+
 			was, now := questionSetting(before, row.Name), questionSetting(*question, row.Name)
-			if now != nil && merged != nil {
+			if now != nil && merged != nil && plan.PolicyFlag(row.Flag.Long) {
 				merged.setFor(question.ID, row.Name, now)
 			}
 
@@ -127,8 +134,76 @@ func questionSetting(question plan.Question, name Name) any {
 		return *policy.MinConfidence
 	case name == FallbackAnswer.Name() && policy.Fallback != nil:
 		return policy.Fallback.Text
+	case name == pickName && question.Shape == plan.Pick:
+		return question.Options
+	case name == rateName && question.Shape == plan.Rate:
+		return question.Levels
 	default:
 		return nil
+	}
+}
+
+func describedNotices(row Row, before, after plan.Question, events []argv.Event) []Notice {
+	was, now := descriptions(before), descriptions(after)
+
+	var notices []Notice
+
+	for _, event := range events {
+		key, _, _ := strings.Cut(event.Value, "=")
+		key = strings.TrimSpace(key)
+
+		described, known := now[key]
+		if event.Name != row.Flag.Long || !known || reflect.DeepEqual(was[key], described) {
+			continue
+		}
+
+		notice, _ := refinedNotice(row, after, was[key], described)
+		notice.Loser.Spelled = describedKey(after, key)
+
+		// Several keys under one file key print one notice, which overrides when any key did.
+		at := slices.IndexFunc(notices, func(n Notice) bool { return n.Loser.Spelled == notice.Loser.Spelled })
+		switch {
+		case at < 0:
+			notices = append(notices, notice)
+		case notice.Verb == VerbOverrides:
+			notices[at].Verb = VerbOverrides
+		}
+	}
+
+	return notices
+}
+
+func descriptions(question plan.Question) map[string]any {
+	described := map[string]any{}
+
+	switch question.Shape {
+	case plan.Pick:
+		for _, option := range question.Options {
+			described[option.Name] = option.Desc
+		}
+	case plan.Rate:
+		for _, level := range question.Levels {
+			described[level.Label] = level.Desc
+		}
+	case plan.Noul:
+		described["yes"], described["no"] = nil, nil
+		if question.Criteria != nil {
+			described["yes"], described["no"] = question.Criteria.Yes, question.Criteria.No
+		}
+	case plan.Box:
+	}
+
+	return described
+}
+
+func describedKey(question plan.Question, key string) string {
+	switch question.Shape {
+	case plan.Pick:
+		return string(pickName)
+	case plan.Rate:
+		return string(rateName)
+	default:
+		return key + "_means"
 	}
 }
 

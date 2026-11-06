@@ -110,20 +110,51 @@ func fileQuestionShapeRule() Rule {
 			}
 
 			for _, question := range v.Plan.Questions {
-				if question.Origin != plan.OriginBody {
+				if !question.Origin.FromFile() {
 					continue
 				}
 
 				for _, event := range typedFor(v.Plan, question.ID) {
-					if !plan.PolicyFlag(event.Name) {
-						return fmt.Errorf("--%s cannot reshape a request body's question. "+
-							"A body carries its own type and criteria", event.Name)
+					if err := keepsShape(v, question, event.Name); err != nil {
+						return err
 					}
 				}
 			}
 
 			return nil
 		},
+	}
+}
+
+func keepsShape(v View, question plan.Question, flag string) error {
+	if plan.PolicyFlag(flag) {
+		return nil
+	}
+
+	if question.Origin == plan.OriginBody {
+		return fmt.Errorf("--%s cannot reshape a request body's question. A body carries its own type and criteria", flag)
+	}
+
+	shapes := map[string]plan.Shape{"pick": plan.Pick, "rate": plan.Rate, "box": plan.Box}
+
+	shape, shaping := shapes[flag]
+	if !shaping || shape == question.Shape {
+		return nil
+	}
+
+	return fmt.Errorf("--%s cannot make '%s' a %s question, since a flag never changes the shape of a question "+
+		"from %s. Redefine it whole with --ask %s=QUESTION --replace",
+		flag, question.ID, shapeNoun(shape), fileNamed(v), question.ID)
+}
+
+func shapeNoun(shape plan.Shape) string {
+	switch shape {
+	case plan.Pick:
+		return "choice"
+	case plan.Rate:
+		return "score"
+	default:
+		return shape.String()
 	}
 }
 
