@@ -522,7 +522,7 @@ func answerSourceRows() []Row {
 		{
 			Name: "mock", Kind: NonEmptyText(), Modes: answering(),
 			Env: []EnvSpec{{Name: "ONESIE_MOCK", Order: 9, Help: "a file to answer from, as `--mock`. Skipped beside " +
-				"`--list-models`, `-i request` and `--print-request`"}},
+				"`--list-models`, `-i request`, `--print-request` and `--print-questions`"}},
 			Flag: FlagSpec{Long: "mock", Commands: onRuns()},
 			Help: "answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by " +
 				`question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json ` +

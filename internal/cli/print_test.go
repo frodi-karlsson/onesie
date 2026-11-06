@@ -154,7 +154,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --state does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: --state does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --state-file does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: --state-file does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{
@@ -175,7 +175,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -i does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: -i does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{
@@ -185,7 +185,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --usage does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{
@@ -195,7 +195,23 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -j does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: -j does not apply to --print-questions, which reads no input and writes the questions as a question file",
+			},
+		},
+		{
+			name:     "should reject --cache with --print-questions",
+			args:     []string{"--ask", "urgent=is this urgent", "--cache", "--print-questions"},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file",
+			},
+		},
+		{
+			name:     "should reject --mock with --print-questions",
+			args:     []string{"--ask", "urgent=is this urgent", "--mock", "m.json", "--print-questions"},
+			wantCode: ExitUsage,
+			stderr: []string{
+				"onesie: --mock does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{
@@ -205,7 +221,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -m does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				"onesie: -m does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		},
 		{

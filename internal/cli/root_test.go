@@ -141,7 +141,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should report a --print-questions refusal before a bad provider",
 			args:     []string{"is this urgent", "--print-questions", "--provider", "bogus", "-j", "2"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -j does not apply to --print-questions, which writes the questions as a question file and sends nothing\n"},
+			contains: []string{"onesie: -j does not apply to --print-questions, which reads no input and writes the questions as a question file\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
@@ -155,7 +155,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should report a -i request refusal before a bad provider",
 			args:     []string{"-i", "request", "--provider", "bogus", "-m", "x"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m does not apply to -i request, which sends each body as written\n"},
+			contains: []string{"onesie: -m does not apply to -i request, which sends each body as written and prints each raw response\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
@@ -3108,7 +3108,7 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{
 				name: "should refuse --cache beside -i request", args: []string{"--cache", "-i", "request"},
-				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written",
+				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name: "should refuse --cache beside --list-models", args: []string{"--cache", "--list-models"},

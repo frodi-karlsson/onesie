@@ -513,7 +513,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should refuse -i request",
 			args:     []string{"-i", "request"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: --mock does not apply to -i request, which sends each body as written"},
+			stderr:   []string{"onesie: --mock does not apply to -i request, which sends each body as written and prints each raw response"},
 			absent:   []string{"unknown provider"},
 			wantCode: ExitUsage,
 		},
@@ -530,7 +530,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"-i", "request"},
 			env:      map[string]string{"ONESIE_PROVIDER": "bogus"},
 			mock:     mockAll,
-			stderr:   []string{"onesie: --mock does not apply to -i request, which sends each body as written"},
+			stderr:   []string{"onesie: --mock does not apply to -i request, which sends each body as written and prints each raw response"},
 			wantCode: ExitUsage,
 		},
 		{
@@ -595,11 +595,11 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should allow --print-questions",
+			name:     "should refuse --print-questions",
 			args:     with("--print-questions"),
 			mock:     mockAll,
-			contains: []string{"u:", "billing"},
-			wantCode: ExitOK,
+			stderr:   []string{"onesie: --mock does not apply to --print-questions, which reads no input and writes the questions as a question file"},
+			wantCode: ExitUsage,
 		},
 	}
 

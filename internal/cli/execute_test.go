@@ -389,7 +389,7 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse --assert beside -i request before reading a body",
 			args:     []string{"-i", "request", "--assert", "a"},
 			wantCode: ExitUsage,
-			want:     "onesie: --assert does not apply to -i request, which sends each body as written\n",
+			want:     "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response\n",
 		},
 		{
 			name:  "should skip ONESIE_MOCK silently beside -i request",

@@ -213,8 +213,8 @@ ONESIE_MOCK=answers.json ./gate.sh
 - `calibrate --mock` works, so a calibration can be tested too. Its `-o json` report carries
   `"mocked":true`. An entry may also answer the questions `calibrate` skips, so one mock file for a
   whole question file serves any set of labels. `--mock` is refused beside `--print-request`,
-  `-i request` and `--list-models`, and `ONESIE_MOCK` is skipped silently beside them, since none of
-  them asks a question. `calibrate --print-request` refuses both, and every `profile` subcommand
+  `--print-questions`, `-i request` and `--list-models`, and `ONESIE_MOCK` is skipped silently
+  beside them, since none of them asks a question. `calibrate --print-request` refuses both, and every `profile` subcommand
   refuses `ONESIE_MOCK`. The flag wins over the variable, with a notice when they differ, and an
   empty or blank `ONESIE_MOCK` is ignored.
 
@@ -573,8 +573,8 @@ again.
   parallel runs can share one cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
-- `--mock` answers from its file and `--print-request` sends nothing, so neither reads or fills the
-  cache, and `--cache` beside `--mock` or `--print-request` exits 2. Beside `ONESIE_MOCK` the mock
+- `--mock` answers from its file, and `--print-request` and `--print-questions` send nothing, so
+  none of them reads or fills the cache, and `--cache` beside any of them exits 2. Beside `ONESIE_MOCK` the mock
   answers and `--cache` is skipped silently, since the variable is ambient.
   `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks nothing,
   so neither opens the cache. `-i request` and `--list-models` never go through it, so `--cache`
@@ -998,7 +998,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
 | `ONESIE_PROFILE` | the profile a run uses when `--profile` is not given. Beside `--provider`, it exits 2 |
 | `ONESIE_PROVIDER` | runs without a profile on this provider when neither `--profile` nor `--provider` is given. Set beside `ONESIE_PROFILE`, it exits 2 |
 | `ONESIE_CONFIG_DIR` | where `profiles.json` and the saved question files live |
-| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request` and `--print-request` |
+| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request`, `--print-request` and `--print-questions` |
 | `ONESIE_CACHE` | `1` turns the response cache on, as `--cache` |
 | `ONESIE_CACHE_DIR` | where the response cache lives |
 | `ONESIE_CACHE_TTL` | how long a cached answer for a model alias lives, `24h` unless set |

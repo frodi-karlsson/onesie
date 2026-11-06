@@ -26,122 +26,122 @@ func TestValidateRun(t *testing.T) {
 			{
 				name:    "should reject a positional question with -i request",
 				args:    []string{"-i", "request", "is this urgent"},
-				wantErr: "onesie: the question argument does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: the question argument does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --ask with -i request",
 				args:    []string{"-i", "request", "--ask", "urgent=is this urgent"},
-				wantErr: "onesie: --ask does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --ask does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -f with -i request before it is read",
 				args:    []string{"-i", "request", "-f", "nowhere.yaml"},
-				wantErr: "onesie: -f does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: -f does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --replace with -i request",
 				args:    []string{"-i", "request", "--replace"},
-				wantErr: "onesie: --replace does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --pick with -i request",
 				args:    []string{"-i", "request", "--pick", "a,b"},
-				wantErr: "onesie: --pick does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --pick does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --rate with -i request",
 				args:    []string{"-i", "request", "--rate", "low,high"},
-				wantErr: "onesie: --rate does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --rate does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --desc with -i request",
 				args:    []string{"-i", "request", "--desc", "a=first"},
-				wantErr: "onesie: --desc does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --desc does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --sep with -i request",
 				args:    []string{"-i", "request", "--sep", ";"},
-				wantErr: "onesie: --sep does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --sep does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --threshold with -i request",
 				args:    []string{"-i", "request", "--threshold", "0.5"},
-				wantErr: "onesie: --threshold does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --threshold does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --min-confidence with -i request",
 				args:    []string{"-i", "request", "--min-confidence", "0.5"},
-				wantErr: "onesie: --min-confidence does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --min-confidence does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --fallback with -i request",
 				args:    []string{"-i", "request", "--fallback", "maybe"},
-				wantErr: "onesie: --fallback does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --fallback does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --state with -i request",
 				args:    []string{"-i", "request", "--state", "x"},
-				wantErr: "onesie: --state does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --state-file with -i request",
 				args:    []string{"-i", "request", "--state-file", "x"},
-				wantErr: "onesie: --state-file does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --state-file does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -o with -i request",
 				args:    []string{"-i", "request", "-o", "json"},
-				wantErr: "onesie: -o does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: -o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -r with -i request",
 				args:    []string{"-i", "request", "-r"},
-				wantErr: "onesie: -r does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: -r does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -q with -i request",
 				args:    []string{"-i", "request", "-q"},
-				wantErr: "onesie: -q does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: -q does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --assert with -i request",
 				args:    []string{"-i", "request", "--assert", "answer.value > 0.5"},
-				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject an unparseable --assert with -i request",
 				args:    []string{"-i", "request", "--assert", "nonsense syntax here !!"},
-				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --usage with -i request",
 				args:    []string{"-i", "request", "--usage"},
-				wantErr: "onesie: --usage does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --merge with -i request",
 				args:    []string{"-i", "request", "--merge"},
-				wantErr: "onesie: --merge does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should name --merge-key when that is the flag given",
 				args:    []string{"-i", "request", "--merge-key", "verdict"},
-				wantErr: "onesie: --merge-key does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --merge-key does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject -m with -i request",
 				args:    []string{"-i", "request", "-m", "onesie-1.13.0"},
-				wantErr: "onesie: -m does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: -m does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --stop-on-assert with -i request",
 				args:    []string{"-i", "request", "--stop-on-assert"},
-				wantErr: "onesie: --stop-on-assert does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --print-questions with -i request",
 				args:    []string{"-i", "request", "--print-questions"},
-				wantErr: "onesie: --print-questions does not apply to -i request, which sends each body as written",
+				wantErr: "onesie: --print-questions does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 		}
 
@@ -408,7 +408,7 @@ func TestValidateRun(t *testing.T) {
 			{
 				name: "should reject stats with print-questions",
 				args: []string{"--ask", "urgent=is this urgent", "--print-questions", "--stats"},
-				want: "onesie: --stats does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				want: "onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				// The path that returns before a plan is built, so the rule has to sit above it.
@@ -428,7 +428,7 @@ func TestValidateRun(t *testing.T) {
 				args: []string{
 					"--ask", "urgent=is this urgent", "--print-questions", "-o", "json",
 				},
-				want: "onesie: -o does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				want: "onesie: -o does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name: "should reject an output mode with print-request",
@@ -443,7 +443,7 @@ func TestValidateRun(t *testing.T) {
 			{
 				name: "should reject quiet with print-questions",
 				args: []string{"--ask", "urgent=is this urgent", "--print-questions", "-q"},
-				want: "onesie: -q does not apply to --print-questions, which writes the questions as a question file and sends nothing",
+				want: "onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 		}
 
@@ -697,7 +697,7 @@ func TestViewOf(t *testing.T) {
 			{
 				name:    "should refuse a typed --cache beside -i request",
 				config:  runConfig{runFlags: runFlags{input: "request"}, inputMode: input.Request, env: switches{cache: true, cacheFrom: setting.SourceFlag}},
-				wantErr: "--cache does not apply to -i request, which sends each body as written",
+				wantErr: "--cache does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:   "should accept ONESIE_CACHE beside --list-models",

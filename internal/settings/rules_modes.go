@@ -88,11 +88,11 @@ func modeWording(mode Mode) (name, reason string) {
 	case ModeListModels:
 		return "--list-models", "only lists the models a provider serves"
 	case ModeRequest:
-		return "-i request", "sends each body as written"
+		return "-i request", "sends each body as written and prints each raw response"
 	case ModePrintRequest:
 		return "--print-request", "writes the request bodies and sends none"
 	case ModePrintQuestions:
-		return "--print-questions", "writes the questions as a question file and sends nothing"
+		return "--print-questions", "reads no input and writes the questions as a question file"
 	default:
 		return "", ""
 	}
@@ -259,6 +259,8 @@ func printQuestionsRefusals() []refusal {
 		{Jobs.Name(), typedRow(Jobs.Name()), spelled("-j")},
 		{Model.Name(), typedRow(Model.Name()), spelled("-m")},
 		{Stats.Name(), on(Stats), spelled("--stats")},
+		{Mock.Name(), mocked, mockSpelled},
+		{Cache.Name(), typedOn(Cache), spelled("--cache")},
 	}
 }
 
