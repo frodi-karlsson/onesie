@@ -153,14 +153,6 @@ func hasAbstainIf(v View) bool {
 	return len(listOf(v, abstainIfName)) > 0
 }
 
-func assertFlag(v View) string {
-	if v.Merged.Source(assertName) == SourceFile {
-		return plan.Spelling(plan.OriginFile, "--assert")
-	}
-
-	return "--assert"
-}
-
 func abstainFlag(v View) string {
 	if v.Merged.Source(abstainIfName) == SourceFile {
 		return plan.Spelling(plan.OriginFile, "--abstain-if")

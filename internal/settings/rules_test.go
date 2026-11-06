@@ -1587,7 +1587,7 @@ func TestValidate(t *testing.T) {
 			{name: "should refuse --delimiter beside -i text", input: "text", wantErr: elsewhere + "-i text has no delimiter"},
 			{
 				name: "should refuse --delimiter beside -i request", input: "request",
-				wantErr: elsewhere + "-i request has no delimiter",
+				wantErr: "--delimiter does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name: "should refuse --delimiter auto without -i csv", input: "jsonl", output: "csv", delimiter: "auto",

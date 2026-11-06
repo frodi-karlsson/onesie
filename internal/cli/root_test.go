@@ -35,6 +35,65 @@ import (
 func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should refuse every changed mode command before writing", func(t *testing.T) {
+		t.Parallel()
+
+		data, err := os.Open("testdata/mode_refusals.jsonl")
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer data.Close()
+
+		decoder := json.NewDecoder(data)
+		for i := 0; decoder.More(); i++ {
+			var tc struct {
+				Args  []string
+				Error string
+			}
+			if err := decoder.Decode(&tc); err != nil {
+				t.Fatal(err)
+			}
+			t.Run(fmt.Sprintf("should refuse command %d", i), func(t *testing.T) {
+				t.Parallel()
+
+				dir := t.TempDir()
+				outFile := filepath.Join(dir, "out")
+				args := make([]string, len(tc.Args))
+				for i, arg := range tc.Args {
+					switch arg {
+					case "OUT":
+						args[i] = outFile
+					case "MISSING":
+						args[i] = filepath.Join(dir, "missing")
+					case "ENDPOINT":
+						args[i] = "http://127.0.0.1:1"
+					default:
+						args[i] = arg
+					}
+				}
+				env := map[string]string{
+					"ONESIE_CONFIG_DIR": filepath.Join(dir, "config"),
+					"ONESIE_CACHE_DIR":  filepath.Join(dir, "cache"),
+					"ONESIE_BASE_URL":   "http://127.0.0.1:1",
+					"TYPESAFE_API_KEY":  "fake-mode-refusal-key",
+				}
+				root := cli.NewRootCmd(cli.BuildInfo{}, cli.WithKeychain(offKeychain()),
+					cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false), cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(name string) (string, bool) { value, ok := env[name]; return value, ok }))
+				var out, errOut bytes.Buffer
+				root.Command.SetOut(&out)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs(args)
+				if code := root.Execute(t.Context()); code != cli.ExitUsage || out.Len() != 0 || errOut.String() != tc.Error {
+					t.Errorf("exit %d, stdout %q, stderr %q, want exit 2 and %q", code, out.String(), errOut.String(), tc.Error)
+				}
+				if _, err := os.Stat(outFile); !errors.Is(err, os.ErrNotExist) {
+					t.Errorf("output file exists: %v", err)
+				}
+			})
+		}
+	})
+
 	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
@@ -3114,8 +3173,8 @@ func TestNewRootCmd(t *testing.T) {
 				name: "should refuse --cache beside --list-models", args: []string{"--cache", "--list-models"},
 				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to --list-models, which only lists the models a provider serves",
 			},
-			{name: "should run -i request under --cache=false", args: []string{"--cache=false", "-i", "request"}},
-			{name: "should run --list-models under --cache=false", args: []string{"--cache=false", "--list-models"}},
+			{name: "should refuse -i request under --cache=false", args: []string{"--cache=false", "-i", "request"}, wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response"},
+			{name: "should refuse --list-models under --cache=false", args: []string{"--cache=false", "--list-models"}, wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to --list-models, which only lists the models a provider serves"},
 			{name: "should ignore ONESIE_CACHE=1 beside -i request", args: []string{"-i", "request"}, env: map[string]string{"ONESIE_CACHE": "1"}},
 			{name: "should ignore ONESIE_CACHE=1 beside --list-models", args: []string{"--list-models"}, env: map[string]string{"ONESIE_CACHE": "1"}},
 		}
