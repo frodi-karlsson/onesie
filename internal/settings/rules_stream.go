@@ -36,11 +36,15 @@ func singleRecordRefusal(v View) error {
 		{"--no-dedup", Get(v.Merged, NoDedup)},
 		{"--id", typed(v, ID.Name())},
 		{"--image-field", len(listOf(v, imageFieldName)) > 0},
-		{"-j", typed(v, Jobs.Name()) && Get(v.Merged, Jobs) > 1},
 	} {
 		if flag.set {
 			return fmt.Errorf("%s applies to streaming input. -i %s reads one record", flag.name, inputName(v))
 		}
+	}
+
+	if typed(v, Jobs.Name()) && Get(v.Merged, Jobs) > 1 {
+		return fmt.Errorf("-j applies to streaming input. -i %s reads one record. "+
+			"Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j", inputName(v))
 	}
 
 	if typed(v, Input.Name()) && len(listOf(v, imageName)) > 0 && !typed(v, State.Name()) && !typed(v, StateFile.Name()) {

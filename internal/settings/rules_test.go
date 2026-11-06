@@ -318,7 +318,7 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			set:        values{"jobs": 4, "input": "text"},
 			typed:      []settings.Name{"jobs"},
-			wantExact:  "-j applies to streaming input. -i text reads one record",
+			wantExact:  "-j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j",
 		},
 		{
 			name:       "should accept -j 1 on one record",

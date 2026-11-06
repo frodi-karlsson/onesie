@@ -483,7 +483,7 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse -j on one record",
 			args:     []string{"-j", "4", "--print-request", "--state", "s", "is it urgent"},
 			wantCode: ExitUsage,
-			want:     "onesie: -j applies to streaming input. -i text reads one record\n",
+			want:     "onesie: -j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j\n",
 		},
 		{
 			name: "should refuse --offline beside --mock in calibrate",

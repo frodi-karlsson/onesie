@@ -162,7 +162,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should refuse -j on one record before a bad provider",
 			args:     []string{"is this urgent", "--state", "s", "-j", "4", "--provider", "bogus"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -j applies to streaming input. -i text reads one record\n"},
+			contains: []string{"onesie: -j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j\n"},
 			absent:   []string{"unknown provider"},
 		},
 		{
