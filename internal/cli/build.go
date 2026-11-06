@@ -63,7 +63,7 @@ func assemble(
 
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
-	refined := setting.MergeQuestions(flags.merged, built)
+	refined := setting.MergeQuestions(flags.merged, built, flags.events)
 
 	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
@@ -72,8 +72,38 @@ func assemble(
 
 	return assembled{
 		config: flags, plan: built, file: file, warnings: warnings,
-		notices: slices.Concat(typedTwice, merged.notices, refined),
+		notices: inOrder(typedTwice, merged.notices, refined),
 	}, err
+}
+
+func inOrder(typedTwice, merged, refined []setting.Notice) []setting.Notice {
+	var run, questions []setting.Notice
+
+	for _, notice := range typedTwice {
+		if row, found := setting.Lookup(notice.Setting); found && row.Scope == setting.ScopeQuestion {
+			questions = append(questions, notice)
+		} else {
+			run = append(run, notice)
+		}
+	}
+
+	ordered := slices.Concat(run, merged)
+
+	// A question setting typed twice follows the notice of what that setting did to the file.
+	for _, notice := range refined {
+		ordered = append(ordered, notice)
+
+		for i, twice := range questions {
+			if twice.Setting == notice.Setting && twice.Question == notice.Question {
+				ordered = append(ordered, twice)
+				questions = slices.Delete(questions, i, i+1)
+
+				break
+			}
+		}
+	}
+
+	return append(ordered, questions...)
 }
 
 type assembled struct {

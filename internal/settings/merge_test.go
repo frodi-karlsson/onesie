@@ -691,10 +691,34 @@ func TestMergeQuestions(t *testing.T) {
 	tests := []struct {
 		name        string
 		built       *plan.Plan
+		typed       []argv.Event
 		wantNotices []string
 		check       func(t *testing.T, merged *settings.Merged)
 		checkPlan   func(t *testing.T, built *plan.Plan)
 	}{
+		{
+			name: "should note the settings in the order they were typed",
+			built: &plan.Plan{
+				Questions: fileQuestions("spam", "tone"),
+				Selections: []plan.Selection{
+					{ID: "tone", Events: []argv.Event{{Name: "fallback", Value: "no"}, {Name: "desc", Value: "yes=y"}}},
+					{ID: "spam", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
+				},
+			},
+			typed: []argv.Event{
+				{Name: "for", Value: "tone"},
+				{Name: "fallback", Value: "no"},
+				{Name: "for", Value: "spam"},
+				{Name: "threshold", Value: "0.6"},
+				{Name: "for", Value: "tone"},
+				{Name: "desc", Value: "yes=y"},
+			},
+			wantNotices: []string{
+				"--fallback sets the question file's fallback for 'tone'",
+				"--threshold sets the question file's threshold for 'spam'",
+				"--desc sets the question file's yes_means for 'tone'",
+			},
+		},
 		{
 			name: "should set a lone file question's threshold with a sets notice",
 			built: &plan.Plan{
@@ -938,7 +962,7 @@ func TestMergeQuestions(t *testing.T) {
 			t.Parallel()
 
 			merged := &settings.Merged{}
-			notices := settings.MergeQuestions(merged, tc.built)
+			notices := settings.MergeQuestions(merged, tc.built, tc.typed)
 
 			got := make([]string, 0, len(notices))
 			for _, notice := range notices {
@@ -962,7 +986,7 @@ func TestMergeQuestions(t *testing.T) {
 	t.Run("should merge nothing without a plan", func(t *testing.T) {
 		t.Parallel()
 
-		if notices := settings.MergeQuestions(&settings.Merged{}, nil); len(notices) != 0 {
+		if notices := settings.MergeQuestions(&settings.Merged{}, nil, nil); len(notices) != 0 {
 			t.Errorf("notices = %v, want none", notices)
 		}
 	})

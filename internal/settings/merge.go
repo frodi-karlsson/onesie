@@ -1,6 +1,8 @@
 package settings
 
 import (
+	"cmp"
+	"math"
 	"reflect"
 	"slices"
 	"strings"
@@ -47,12 +49,41 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 }
 
 // MergeQuestions applies to each question from -f its --for flags, and the top level flags when it is
-// the one question asked, and returns a sets or overrides notice for each setting a flag gave.
-func MergeQuestions(merged *Merged, built *plan.Plan) []Notice {
+// the one question asked. It returns a notice for each setting a flag gave, in the order typed.
+func MergeQuestions(merged *Merged, built *plan.Plan, typed []argv.Event) []Notice {
 	if built == nil {
 		return nil
 	}
 
+	notices := refinedNotices(merged, built)
+	groups := typedGroups(typed, "", built)
+
+	slices.SortStableFunc(notices, func(a, b Notice) int {
+		return cmp.Compare(firstTyped(groups, a), firstTyped(groups, b))
+	})
+
+	return notices
+}
+
+func firstTyped(groups []typedGroup, notice Notice) int {
+	row, _ := Lookup(notice.Setting)
+
+	for _, group := range groups {
+		if group.id != notice.Question {
+			continue
+		}
+
+		if at := slices.IndexFunc(group.events, typedAs(row)); at >= 0 {
+			return group.positions[at]
+		}
+	}
+
+	// A notice whose flag the command line does not show, as when a caller gives no events, keeps its
+	// place after those it does.
+	return math.MaxInt
+}
+
+func refinedNotices(merged *Merged, built *plan.Plan) []Notice {
 	var notices []Notice
 
 	for i := range built.Questions {

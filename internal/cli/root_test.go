@@ -1645,6 +1645,21 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
+			name: "should print the --for notices in the order typed",
+			args: []string{
+				"-f", "mod.yaml", "--for", "tone", "--fallback", "human", "--for", "spam", "--threshold", "0.6",
+				"--print-questions",
+			},
+			files: map[string]string{
+				"mod.yaml": "spam: is this spam\ntone:\n  ask: what tone\n  pick: [calm, angry]\n",
+			},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --fallback sets the question file's fallback for 'tone'\n" +
+					"onesie: --threshold sets the question file's threshold for 'spam'\n",
+			},
+		},
+		{
 			name:     "should replace a lone file question's threshold, with a notice",
 			args:     []string{"-f", "one.yaml", "--threshold", "0.9", "--print-questions"},
 			files:    map[string]string{"one.yaml": "urgent:\n  ask: is this urgent\n  threshold: 0.7\n"},
@@ -1720,8 +1735,8 @@ func TestNewRootCmd(t *testing.T) {
 			files:    map[string]string{"mod.yaml": "tone:\n  ask: what tone\n  pick: [calm, angry]\nspam: is this spam\n"},
 			wantCode: cli.ExitOK,
 			contains: []string{
-				"onesie: --fallback is given twice for 'tone', 'x' overrides 'human'\n" +
-					"onesie: --fallback sets the question file's fallback for 'tone'\n",
+				"onesie: --fallback sets the question file's fallback for 'tone'\n" +
+					"onesie: --fallback is given twice for 'tone', 'x' overrides 'human'\n",
 				"  fallback: x\n",
 			},
 		},

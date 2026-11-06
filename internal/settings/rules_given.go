@@ -40,7 +40,7 @@ func givenTwice(v View) []Notice {
 func givenTwiceFor(v View) []Notice {
 	var notices []Notice
 
-	for _, group := range typedGroups(v) {
+	for _, group := range typedGroups(v.Facts.Events, v.Facts.Positional, v.Plan) {
 		for _, row := range Table() {
 			if row.Scope != ScopeQuestion || !row.Flag.Group || !overridesWhenRepeated(row.Name) {
 				continue
@@ -107,8 +107,8 @@ func typedValues(row Row, events []argv.Event) [][]string {
 	return typed
 }
 
-func typedGroups(v View) []typedGroup {
-	if v.Plan == nil {
+func typedGroups(events []argv.Event, positional string, built *plan.Plan) []typedGroup {
+	if built == nil {
 		return nil
 	}
 
@@ -117,10 +117,10 @@ func typedGroups(v View) []typedGroup {
 	var leading string
 
 	switch {
-	case v.Facts.Positional != "":
+	case positional != "":
 		leading = plan.PositionalID
-	case len(v.Plan.Questions) == 1:
-		leading = v.Plan.Questions[0].ID
+	case len(built.Questions) == 1:
+		leading = built.Questions[0].ID
 	}
 
 	var groups []typedGroup
@@ -129,7 +129,7 @@ func typedGroups(v View) []typedGroup {
 		at := slices.IndexFunc(groups, func(g typedGroup) bool { return g.id == id })
 		if at < 0 {
 			question := id
-			if id == plan.PositionalID && v.Facts.Positional != "" {
+			if id == plan.PositionalID && positional != "" {
 				question = ""
 			}
 
@@ -142,7 +142,7 @@ func typedGroups(v View) []typedGroup {
 
 	current := -1
 
-	for _, event := range v.Facts.Events {
+	for typedAt, event := range events {
 		switch event.Name {
 		case "ask":
 			id, _, _ := strings.Cut(event.Value, "=")
@@ -157,6 +157,7 @@ func typedGroups(v View) []typedGroup {
 
 			if at >= 0 {
 				groups[at].events = append(groups[at].events, event)
+				groups[at].positions = append(groups[at].positions, typedAt)
 			}
 		}
 	}
@@ -165,9 +166,10 @@ func typedGroups(v View) []typedGroup {
 }
 
 type typedGroup struct {
-	id       string
-	question string
-	events   []argv.Event
+	id        string
+	question  string
+	events    []argv.Event
+	positions []int
 }
 
 func typedTwice(row Row, kind Kind, typed []string) (Notice, bool) {
