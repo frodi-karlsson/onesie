@@ -107,7 +107,7 @@ func (r loadedRun) values() *setting.ProfileValues {
 			"provider": r.profile.Provider, "model": r.profile.Model,
 			"base_url": r.profile.BaseURL, "account_id": r.profile.AccountID,
 		},
-		KeyHeld: !holdsNoKey(r.profile),
+		KeyHeld: creds.HoldsKey(r.profile),
 	}
 }
 

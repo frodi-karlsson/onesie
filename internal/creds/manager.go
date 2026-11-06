@@ -32,6 +32,8 @@ const (
 	KeyNotStored
 	// KeyDropped means an empty key under DropKey dropped the key the profile held, so it holds none.
 	KeyDropped
+	// KeyMoved means a rename moved the key to the keychain item Account.
+	KeyMoved
 )
 
 // NewProfileManager builds a ProfileManager that writes profiles through store and keeps their keys
@@ -97,7 +99,7 @@ func (m *ProfileManager) Update(change Change) ([]Notice, error) {
 	switch {
 	case change.ReadKey != nil:
 		return m.replaceKey(change, oldItem)
-	case change.renames() && oldItem != "":
+	case change.renames() && oldItem == keychainAccount(change.Name, change.Path):
 		return m.moveItem(change, oldItem)
 	}
 
@@ -116,7 +118,7 @@ func (m *ProfileManager) replaceKey(change Change, oldItem string) ([]Notice, er
 		return nil, err
 	}
 
-	dropped := key == "" && holdsKey(change.Profiles.Profiles[change.Name])
+	dropped := key == "" && HoldsKey(change.Profiles.Profiles[change.Name])
 	if dropped && !change.DropKey {
 		return nil, fmt.Errorf("profile %s holds a key, and an empty key would delete it", QuotedName(change.Name))
 	}
@@ -151,9 +153,6 @@ func (m *ProfileManager) replaceKey(change Change, oldItem string) ([]Notice, er
 
 func (m *ProfileManager) moveItem(change Change, oldItem string) ([]Notice, error) {
 	account := keychainAccount(change.NewName, change.Path)
-	if account == oldItem {
-		return m.save(change.Path, change.saved(change.Profile))
-	}
 
 	if refused := refuseTakenItem(change.Profiles, change.Name, account, false); refused != nil {
 		return nil, refused
@@ -176,7 +175,7 @@ func (m *ProfileManager) moveItem(change Change, oldItem string) ([]Notice, erro
 		return m.undoneItem(account), err
 	}
 
-	notices := append(warnings, Notice{Kind: KeyInKeychain, Account: account})
+	notices := append(warnings, Notice{Kind: KeyMoved, Account: account})
 
 	return m.deleteReplaced(change, oldItem, moved, notices), nil
 }
@@ -194,7 +193,8 @@ func (m *ProfileManager) deleteReplaced(change Change, oldItem string, stored Pr
 	return notices
 }
 
-func holdsKey(profile Profile) bool {
+// HoldsKey reports whether the profile holds a key, in the file or in the keychain.
+func HoldsKey(profile Profile) bool {
 	return profile.APIKey != "" || profile.Store != ""
 }
 
@@ -266,16 +266,7 @@ func (c Change) target() string {
 }
 
 func (c Change) saved(profile Profile) Profiles {
-	if !c.renames() {
-		return c.Profiles.With(c.Name, profile)
-	}
-
-	profiles := c.Profiles.without(c.Name).With(c.NewName, profile)
-	if c.Profiles.Default == c.Name {
-		profiles.Default = c.NewName
-	}
-
-	return profiles
+	return c.Profiles.Renamed(c.Name, c.target(), profile)
 }
 
 // Notice is one thing a profile change tells the user beside its outcome. Kind says what, and
@@ -431,6 +422,21 @@ func (p Profiles) With(name string, profile Profile) Profiles {
 	changed.Profiles[name] = profile
 
 	return changed
+}
+
+// Renamed returns a copy of the profiles that holds profile under newName in place of name, with
+// the default following the rename.
+func (p Profiles) Renamed(name, newName string, profile Profile) Profiles {
+	if newName == name {
+		return p.With(name, profile)
+	}
+
+	renamed := p.without(name).With(newName, profile)
+	if p.Default == name {
+		renamed.Default = newName
+	}
+
+	return renamed
 }
 
 func (p Profiles) without(name string) Profiles {

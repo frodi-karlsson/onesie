@@ -93,7 +93,7 @@ the file itself. A `credentials.json` there is converted into profiles the first
 reads it. `onesie profile list` lists the profiles, `onesie profile update NAME --key` stores a new
 key, and `onesie profile delete NAME` removes a profile and its keychain item. `profile update`
 changes any member in place, so a profile never needs deleting to fix it. `--provider` keeps the
-base URL and model, and needs `--key` on a profile that holds a key. `--name NEW` renames it. An
+base URL, account id and model, and needs `--key` on a profile that holds a key. `--name NEW` renames it. An
 empty key typed at the `--key` prompt drops the key from a profile whose base URL is not the
 provider's own, and an empty key piped on stdin never drops one.
 

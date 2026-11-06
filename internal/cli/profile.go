@@ -167,7 +167,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 			"--provider keeps base_url, account_id and model, and names on stderr the ones it keeps. On a " +
 			"profile that holds a key it needs --key, since a key belongs to one provider. An account_id kept " +
 			"on a provider that takes none is refused, so clear it with --account-id \"\" in the same update.\n\n" +
-			"--name renames the profile and moves its keychain item, and the default follows it. An empty key " +
+			"--name renames the profile and moves a keychain item named after it, and the default follows it. An empty key " +
 			"typed at the prompt drops the stored key and its keychain item, when the base URL is not the " +
 			"provider's own. An empty key on stdin never drops a key.",
 		Example: "  onesie profile update work --model typesafe/jev-1.13\n" +
@@ -229,7 +229,7 @@ func profileUpdate(
 		return refused
 	}
 
-	if refused := checkUpdated(opened.Profiles, target, old, profile, changed, fields.key); refused != nil {
+	if refused := checkUpdated(opened.Profiles.Renamed(name, target, old), target, old, profile, changed, fields.key); refused != nil {
 		return refused
 	}
 
@@ -248,11 +248,20 @@ func profileUpdate(
 	}
 
 	notices, err := creds.NewProfileManager(settings.credStore, settings.keychain).Update(change)
-	if refused := reported(cmd, settings.laterFailures, change, notices, err); refused != nil {
+	if refused := reported(cmd, settings.laterFailures, change, notices, unmovedKey(err, target != name)); refused != nil {
 		return refused
 	}
 
 	return notify(cmd.ErrOrStderr(), keptOnProvider(target, old, profile, changed))
+}
+
+func unmovedKey(err error, renames bool) error {
+	var keychainErr *creds.KeychainError
+	if !renames || !errors.As(err, &keychainErr) || errors.Is(err, creds.ErrKeychainTimeout) {
+		return err
+	}
+
+	return fmt.Errorf("%w. Rename it with --%s, and add --%s to keep the key in profiles.json", err, flagKey, flagToFile)
 }
 
 func renamedTo(profiles creds.Profiles, name, newName string, given bool) (string, error) {
@@ -284,7 +293,7 @@ func updatedKey(cmd *cobra.Command, settings rootSettings, name string, old, pro
 	case !customProfile(profile):
 		return "", fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Enter a key, or pass a "+
 			"--%s of your own in the same update", creds.QuotedName(name), flagBaseURL)
-	case !settings.stdinTTY && !holdsNoKey(old):
+	case !settings.stdinTTY && creds.HoldsKey(old):
 		return "", fmt.Errorf("profile %s holds a key, and an empty key from stdin would delete it. To drop the key, "+
 			"run onesie profile update %s --%s at a terminal and enter an empty key", creds.QuotedName(name), name, flagKey)
 	}
@@ -314,12 +323,12 @@ func applied(
 func checkUpdated(
 	profiles creds.Profiles, name string, old, profile creds.Profile, changed func(string) bool, readsKey bool,
 ) error {
-	if profile.Provider != old.Provider && !holdsNoKey(old) && !readsKey {
+	if profile.Provider != old.Provider && creds.HoldsKey(old) && !readsKey {
 		return errors.New("profile update: --provider needs --key, since a key belongs to one provider")
 	}
 
 	// Ahead of checkProfile, whose rules would refuse the profile without saying why.
-	if !readsKey && holdsNoKey(old) && !customProfile(profile) {
+	if !readsKey && !creds.HoldsKey(old) && !customProfile(profile) {
 		return fmt.Errorf("profile %s holds no key, so its base URL must stay custom. Pass --%s to store one",
 			creds.QuotedName(name), flagKey)
 	}
@@ -532,7 +541,7 @@ func writeProfiles(w io.Writer, profiles creds.Profiles, active string) error {
 		switch {
 		case profile.Store == creds.StoreKeychain:
 			key = sourceKeychain
-		case holdsNoKey(profile):
+		case !creds.HoldsKey(profile):
 			key = sourceNone
 		}
 
@@ -992,7 +1001,7 @@ func checkProfile(
 	}
 
 	// The key is read only once the rest passes, so a stand in takes its place for the rules.
-	if readsKey && holdsNoKey(profile) {
+	if readsKey && !creds.HoldsKey(profile) {
 		profile.APIKey = keyPlaceholder
 	}
 
@@ -1070,6 +1079,8 @@ func noticeLine(each creds.Notice, change creds.Change) notice {
 			"could not be read to put back", warning: true}
 	case creds.KeyNotStored:
 		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key, since its base URL is custom"}
+	case creds.KeyMoved:
+		return notice{text: "moved the key in the OS keychain to " + each.Account}
 	case creds.KeyDropped:
 		return notice{text: "profile " + creds.QuotedName(saved) + " holds no key now"}
 	case creds.OldKeyLost:

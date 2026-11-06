@@ -910,10 +910,14 @@ The format is stable, and the file may be written by hand. It lives in the confi
 - A key goes to the OS keychain under the service `onesie`: the macOS Keychain, the Secret Service
   on Linux, or the Windows Credential Manager. The item is named `PROFILE@HASH`, where the hash
   stands for the config dir, so two config dirs never share one item. The profile's `account`
-  holds the name. A converted profile keeps its item name until `onesie profile update NAME --key`
-  or a rename.
-- `profile update --name` copies the key to an item under the new name before the file is saved,
-  and deletes the new item again when the save fails. An item another profile already names exits 2.
+  holds the name. A converted profile keeps its item name until `onesie profile update NAME --key`,
+  and a rename keeps it too.
+- `profile update --name` moves a key held in the item named after the old profile to an item under
+  the new name, printing `moved the key in the OS keychain to NEW@HASH`. It copies the key before the
+  file is saved, and deletes the new item again when the save fails. An item of any other name, such
+  as a converted profile's, keeps its name and is never touched. An item another profile already
+  names exits 2. A keychain that cannot read or store the key exits 3 and leaves the profile as it
+  was, naming `--key`, and `--file` to keep the key in `profiles.json`.
 - `profile delete`, `profile update --key` and `profile update --name` delete the replaced item after
   the file is saved, unless another profile names the same item. A failure warns and names the item
   left behind.

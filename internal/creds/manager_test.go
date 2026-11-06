@@ -364,7 +364,7 @@ func runRenamesAndDrops(t *testing.T) {
 			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
 			newName:     "next",
 			backend:     newItemBackend(map[string]string{"work@{hash}": key}),
-			wantNotices: []creds.Notice{{Kind: creds.KeyInKeychain, Account: "next@{hash}"}},
+			wantNotices: []creds.Notice{{Kind: creds.KeyMoved, Account: "next@{hash}"}},
 			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"next": inKeychain("next@{hash}")}},
 			wantItems:   map[string]string{"next@{hash}": key},
 		},
@@ -408,11 +408,48 @@ func runRenamesAndDrops(t *testing.T) {
 			}},
 			newName:     "next",
 			backend:     newItemBackend(map[string]string{"shared": key}),
-			wantNotices: []creds.Notice{{Kind: creds.KeyInKeychain, Account: "next@{hash}"}},
+			wantNotices: []creds.Notice{},
 			wantFile: &creds.Profiles{Profiles: map[string]creds.Profile{
-				"next": inKeychain("next@{hash}"), "home": inKeychain("shared"),
+				"next": inKeychain("shared"), "home": inKeychain("shared"),
 			}},
-			wantItems: map[string]string{"shared": key, "next@{hash}": key},
+			wantItems:   map[string]string{"shared": key},
+			wantNoCalls: true,
+		},
+		{
+			name:        "should keep an item of another name and make no keychain call on a rename",
+			profiles:    creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("legacy")}},
+			newName:     "next",
+			backend:     newItemBackend(map[string]string{"legacy": key}),
+			wantNotices: []creds.Notice{},
+			wantFile:    &creds.Profiles{Profiles: map[string]creds.Profile{"next": inKeychain("legacy")}},
+			wantItems:   map[string]string{"legacy": key},
+			wantNoCalls: true,
+		},
+		{
+			name:      "should refuse a rename when the keychain cannot read the old key",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			backend:   &itemBackend{items: map[string]string{"work@{hash}": key}, getErr: locked},
+			wantErr:   &creds.KeychainError{Op: "read the key from", Err: locked},
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name:      "should refuse a rename when the keychain cannot store the new item",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			backend:   &itemBackend{items: map[string]string{"work@{hash}": key}, setErrs: []error{locked}},
+			wantErr:   &creds.KeychainError{Op: "store the key in", Err: locked},
+			wantItems: map[string]string{"work@{hash}": key},
+		},
+		{
+			name:      "should delete the new item when a rename with a new key fails to save",
+			profiles:  creds.Profiles{Profiles: map[string]creds.Profile{"work": inKeychain("work@{hash}")}},
+			newName:   "next",
+			readKey:   new("SECRET-ABCDEFGHI"),
+			backend:   newItemBackend(map[string]string{"work@{hash}": key}),
+			failWrite: true,
+			wantErr:   errDiskFull,
+			wantItems: map[string]string{"work@{hash}": key},
 		},
 		{
 			name:        "should rename a file held key with no keychain call",
@@ -520,6 +557,10 @@ func runRenamesAndDrops(t *testing.T) {
 				err: tc.wantErr, notices: tc.wantNotices, file: tc.wantFile, items: tc.wantItems, backend: tc.backend,
 			}
 			checkChange(t, path, fill, notices, err, want)
+
+			if _, statErr := os.Stat(path); tc.wantErr != nil && !errors.Is(statErr, os.ErrNotExist) {
+				t.Errorf("profiles.json was written beside error %v, stat error = %v", tc.wantErr, statErr)
+			}
 
 			if calls := tc.backend.callCount(); tc.wantNoCalls && calls != 0 {
 				t.Errorf("keychain calls = %d, want none", calls)
@@ -668,6 +709,41 @@ func TestProfilesWith(t *testing.T) {
 			t.Errorf("With gave %v, want the work profile", changed)
 		}
 	})
+}
+
+func TestProfilesRenamed(t *testing.T) {
+	t.Parallel()
+
+	two := creds.Profiles{Default: "home", Profiles: map[string]creds.Profile{
+		"home": {Provider: "typesafe", APIKey: "SECRET-HOME"}, "work": {Provider: "berget", APIKey: "SECRET-WORK"},
+	}}
+
+	tests := []struct {
+		name        string
+		from, to    string
+		wantDefault string
+		wantNames   []string
+	}{
+		{name: "should move the default with the profile it names", from: "home", to: "next", wantDefault: "next", wantNames: []string{"next", "work"}},
+		{name: "should keep the default when another profile is renamed", from: "work", to: "next", wantDefault: "home", wantNames: []string{"home", "next"}},
+		{name: "should replace the profile in place when the name stays", from: "work", to: "work", wantDefault: "home", wantNames: []string{"home", "work"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			renamed := two.Renamed(tc.from, tc.to, creds.Profile{Provider: "levanto", APIKey: "SECRET-NEW"})
+
+			if names := slices.Sorted(maps.Keys(renamed.Profiles)); renamed.Default != tc.wantDefault || !slices.Equal(names, tc.wantNames) {
+				t.Errorf("Renamed gave default %q and %v, want %q and %v", renamed.Default, names, tc.wantDefault, tc.wantNames)
+			}
+
+			if renamed.Profiles[tc.to].Provider != "levanto" || len(two.Profiles) != 2 || two.Default != "home" {
+				t.Errorf("Renamed gave %v from %v, want a copy holding the new profile under %s", renamed, two, tc.to)
+			}
+		})
+	}
 }
 
 func homeOnly() creds.Profiles {

@@ -861,8 +861,29 @@ func TestProfileUpdate(t *testing.T) {
 			args:  []string{"profile", "update", "work", "--name", "next"},
 			wantFile: `{"default":"next","profiles":{"next":{"provider":"openrouter","store":"keychain",` +
 				`"account":"next@{hash}","key_end":"5678","model":"typesafe/jev"}}}`,
-			wantStderr: "onesie: stored the key in the OS keychain as next@{hash}\n",
+			wantStderr: "onesie: moved the key in the OS keychain to next@{hash}\n",
 			wantItems:  map[string]string{"next@{hash}": key16},
+		},
+		{
+			name:     "should name --key --file when the keychain cannot move the key on a rename",
+			file:     work,
+			items:    workItems,
+			keychain: keychainUnreadable,
+			args:     []string{"profile", "update", "work", "--name", "next"},
+			wantCode: ExitAuth,
+			wantStderr: "onesie: could not read the key from the OS keychain: the keychain is locked. Rename it with " +
+				"--key, and add --file to keep the key in profiles.json\n",
+			wantFile:  work,
+			wantItems: workItems,
+		},
+		{
+			name:  "should keep a converted profile's item name on a rename",
+			file:  converted,
+			items: map[string]string{"typesafe": key15},
+			args:  []string{"profile", "update", "typesafe", "--name", "ts"},
+			wantFile: `{"default":"ts","profiles":{"ts":{"provider":"typesafe","store":"keychain",` +
+				`"account":"typesafe"}}}`,
+			wantItems: map[string]string{"typesafe": key15},
 		},
 		{
 			name:       "should rename and change members in one update",

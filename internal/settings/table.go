@@ -667,7 +667,7 @@ func profileRows() []Row {
 		{
 			Name: "name", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "name", Commands: []Command{CommandProfileUpdate}},
-			Help: "a new name for the profile. Its keychain item moves with it, and the default follows it",
+			Help: "a new name for the profile. A keychain item named after it moves with it, and the default follows it",
 		},
 		{
 			Name: "key", Kind: Bool(), Modes: Modes(ModeProfile),
