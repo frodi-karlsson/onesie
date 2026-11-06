@@ -21,7 +21,7 @@ func Rules() []Rule {
 	// streaming -q reports the streaming message. A second state and the output -q drops are refused
 	// last, so a command line refused for another reason keeps that reason.
 	return append(calibrateRules(),
-		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), delimiterRule(),
+		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), cacheBesideMockRule(), delimiterRule(),
 		abstainNeedsAssertRule(), rawAndOutputRule(), quietWithMarkdownRule(), stateAndStateFileRule(),
 		replaceNeedsFileRule(), forSelectsRule(), fileQuestionShapeRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
 		usageWritesAnswersRule(), singleRecordRule(), streamStateRule(), quietOnStreamRule(),

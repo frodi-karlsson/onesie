@@ -37,7 +37,7 @@ onesie --ask group='which team owns this' --pick billing,shipping,support -r --s
 
 ### To choose among many candidates, stream a yes or no over each one, then --pick among the survivors.
 
-A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.answer.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .answer.decision == true) | .id'`, since a failed record reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.
+A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.fits.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .fits.decision == true) | .id'`, since a failed record reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.
 
 **Bad:**
 
@@ -48,7 +48,7 @@ onesie --ask best='which candidate fits the role best' --pick ana,ben,chen,dara,
 **Good:**
 
 ```sh
-onesie 'does this candidate meet every hard requirement of the role' --threshold 0.7 -i jsonl --map '.summary' --id '.name' -j 8 -o json
+onesie --ask fits='does this candidate meet every hard requirement of the role' --threshold 0.7 -i jsonl --map '.summary' --id '.name' -j 8 -o json
 ```
 
 ### Route an unsure pick or rate to a person with --min-confidence and --fallback, and an unsure yes or no with --abstain-if.
@@ -58,7 +58,7 @@ onesie 'does this candidate meet every hard requirement of the role' --threshold
 **Bad:**
 
 ```sh
-onesie 'is this refund request legitimate' --min-confidence 0.8 --fallback no --state 'I was charged twice for one order'
+onesie --ask legit='is this refund request legitimate' --min-confidence 0.8 --fallback no --state 'I was charged twice for one order'
 ```
 
 **Good:**

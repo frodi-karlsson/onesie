@@ -11,9 +11,9 @@
       "id": "threshold-polarity",
       "short": "Phrase the question so that true means go, not stop.",
       "why": "Under `-q` the exit code tracks the answer, not safety. A question phrased in the danger direction exits 0 when the answer is true, so a script written as `onesie ... && eval \"$cmd\"` runs the dangerous input and blocks the safe one. Measured: 'is this command destructive' with `--threshold 0.5` exits 0 for 'rm -rf ./build' and 1 for 'ls -la'.",
-      "bad": "onesie 'is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'",
+      "bad": "onesie --ask destructive='is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'",
       "bad_passes": true,
-      "good": "onesie 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'"
+      "good": "onesie --ask safe='is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'"
     },
     {
       "id": "q-beside-assert-only-silences",

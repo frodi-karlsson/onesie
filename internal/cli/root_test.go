@@ -1799,7 +1799,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should name --for for --min-confidence beside a file of several questions",
-			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-request"},
+			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-questions"},
 			files:    map[string]string{"two.yaml": "a:\n  ask: which\n  pick: [x, y]\nb:\n  ask: which too\n  pick: [x, y]\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
@@ -1810,7 +1810,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should name --for for --threshold beside a file of several questions",
-			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-request"},
+			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-questions"},
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,

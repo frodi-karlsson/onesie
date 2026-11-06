@@ -129,8 +129,9 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
 - `min`, `max`, `sum` and `avg` take numbers and nest. `==` rarely matches a `sum` or `avg`, so use
   `>=` or `<=`. There are no arithmetic operators, so weighting answers is a job for `jq`.
 - A question file carries the same expressions as `assert` and `abstain_if`. `--print-request`
-  checks a file's gate and then ignores it, so a gated file can be dry run. `--assert` or
-  `--abstain-if` typed beside `--print-request` exits 2.
+  checks a file's gate and policy and then ignores them, so a gated file can be dry run. `--assert`,
+  `--abstain-if`, `--threshold`, `--min-confidence` or `--fallback` typed beside `--print-request`
+  exits 2, since the requests it prints carry none of them. `--print-questions` shows them.
 
 ## Testing a gate
 
@@ -567,10 +568,11 @@ again.
   parallel runs can share one cache.
 - The cache holds about `max-cache-bytes`, 100 MB, which `onesie -V` lists beside `cache-ttl`. Past
   that it evicts the least recently used answers first, and a hit counts as a use.
-- `--mock` answers from its file and never reads or fills the cache. `--print-request` sends
-  nothing, `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks
-  nothing, so none of them opens the cache. `-i request` and `--list-models` never go through it, so
-  `--cache` beside either exits 2. `--cache=false` beside them is fine, and `ONESIE_CACHE=1` is
+- `--mock` answers from its file and `--print-request` sends nothing, so neither reads or fills the
+  cache, and `--cache` beside `--mock`, `ONESIE_MOCK` or `--print-request` exits 2.
+  `calibrate --offline` asks nothing, and a run that `--resume` finds fully answered asks nothing,
+  so neither opens the cache. `-i request` and `--list-models` never go through it, so `--cache`
+  beside either exits 2. `--cache=false` beside any of them is fine, and `ONESIE_CACHE=1` is
   ignored there.
 - A cached run still needs a key, unless the base URL is custom, even though a hit sends nothing.
   Under `--cache`, the no key message says so. An answer from a custom base URL is never pinned, so

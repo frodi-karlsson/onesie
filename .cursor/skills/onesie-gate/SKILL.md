@@ -36,13 +36,13 @@ Under `-q` the exit code tracks the answer, not safety. A question phrased in th
 **Bad:**
 
 ```sh
-onesie 'is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'
+onesie --ask destructive='is this command destructive' -q --threshold 0.5 --state 'rm -rf ./build'
 ```
 
 **Good:**
 
 ```sh
-onesie 'is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'
+onesie --ask safe='is this command safe to run' -q --threshold 0.5 --state 'rm -rf ./build'
 ```
 
 ### Beside --assert, -q only silences the output. The assertion alone sets the exit code.

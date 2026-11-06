@@ -236,6 +236,12 @@ func printRequestRefusals() []refusal {
 		{abstainIfName, listed(abstainIfName), func(v View) string {
 			return abstainFlag(v) + " judges an answer, which --print-request does not produce"
 		}},
+		// The same holds for a policy: a file's is left alone, and a typed one would have no effect.
+		{"threshold", event("threshold"), says("--threshold sets a policy for an answer, which " + mode + " does not produce")},
+		{"min_confidence", event("min-confidence"), says(
+			"--min-confidence sets a policy for an answer, which " + mode + " does not produce")},
+		{"fallback", event("fallback"), says("--fallback sets a policy for an answer, which " + mode + " does not produce")},
+		{Cache.Name(), typedOn(Cache), says("--cache stores answers, which " + mode + " does not produce")},
 		{Usage.Name(), on(Usage), says("--usage reports the tokens a question cost, which " + mode + " does not ask")},
 		{MergeInput.Name(), merging, func(v View) string {
 			return mergeName(v) + " needs answers to fold in, which " + mode + " does not produce"

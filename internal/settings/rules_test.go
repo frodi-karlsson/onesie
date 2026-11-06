@@ -840,6 +840,7 @@ func TestValidate(t *testing.T) {
 			name       string
 			set        values
 			typed      []settings.Name
+			fromEnv    []settings.Name
 			fromFile   []settings.Name
 			events     []argv.Event
 			positional string
@@ -1184,6 +1185,68 @@ func TestValidate(t *testing.T) {
 				set:  values{"print_request": true, "stop_on_error": true, "input": "lines"},
 			},
 			{
+				name:    "should refuse --threshold beside --print-request",
+				set:     values{"print_request": true, "input": "text"},
+				events:  []argv.Event{{Name: "threshold", Value: "0.9"}},
+				wantErr: "--threshold sets a policy for an answer, which --print-request does not produce",
+			},
+			{
+				name:    "should refuse --min-confidence beside --print-request",
+				set:     values{"print_request": true, "input": "text"},
+				events:  []argv.Event{{Name: "ask", Value: "team=which"}, {Name: "min-confidence", Value: "0.6"}},
+				wantErr: "--min-confidence sets a policy for an answer, which --print-request does not produce",
+			},
+			{
+				name:    "should refuse --fallback typed in a --for group beside --print-request",
+				set:     values{"print_request": true, "input": "text", "file": "q.yaml"},
+				events:  []argv.Event{{Name: "for", Value: "tone"}, {Name: "fallback", Value: "human"}},
+				wantErr: "--fallback sets a policy for an answer, which --print-request does not produce",
+			},
+			{
+				name: "should accept a file's policy with --print-request",
+				set:  values{"print_request": true, "input": "text", "file": "q.yaml", "threshold": 0.9},
+			},
+			{
+				name:   "should accept --threshold with --print-questions",
+				set:    values{"print_questions": true, "input": "text"},
+				events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			{
+				name:    "should refuse --cache beside --print-request",
+				set:     values{"print_request": true, "input": "text", "cache": true},
+				typed:   []settings.Name{"cache"},
+				wantErr: "--cache stores answers, which --print-request does not produce",
+			},
+			{
+				name:    "should skip ONESIE_CACHE beside --print-request",
+				set:     values{"print_request": true, "input": "text", "cache": true},
+				fromEnv: []settings.Name{"cache"},
+			},
+			{
+				name:    "should refuse --cache beside --mock",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"cache", "mock"},
+				wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
+			},
+			{
+				name:    "should refuse --cache beside ONESIE_MOCK",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"cache"},
+				fromEnv: []settings.Name{"mock"},
+				wantErr: "--cache stores answers from the API, which ONESIE_MOCK replaces. Drop --cache or unset ONESIE_MOCK",
+			},
+			{
+				name:    "should skip ONESIE_CACHE beside --mock",
+				set:     values{"input": "text", "cache": true, "mock": "m.json"},
+				typed:   []settings.Name{"mock"},
+				fromEnv: []settings.Name{"cache"},
+			},
+			{
+				name:  "should accept --cache=false beside --mock",
+				set:   values{"input": "text", "cache": false, "mock": "m.json"},
+				typed: []settings.Name{"cache", "mock"},
+			},
+			{
 				name:    "should refuse --image-field on one record",
 				set:     values{"input": "text", "image_field": []string{"photo"}, "jobs": 1},
 				wantErr: "--image-field applies to streaming input. -i text reads one record",
@@ -1459,8 +1522,8 @@ func TestValidate(t *testing.T) {
 				t.Parallel()
 
 				given := run{
-					set: tc.set, typed: tc.typed, fromFile: tc.fromFile, events: tc.events, positional: tc.positional,
-					facts: tc.facts,
+					set: tc.set, typed: tc.typed, fromEnv: tc.fromEnv, fromFile: tc.fromFile, events: tc.events,
+					positional: tc.positional, facts: tc.facts,
 				}
 
 				warnings, _, err := settings.Validate(given.view(t), settings.Rules())
@@ -1648,7 +1711,7 @@ func TestRules(t *testing.T) {
 					"calibrate-reads-records", "offline-reads-out", "calibrate-needs-map", "calibrate-report",
 					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
-					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
+					"prune-needs-resume-and-id", "dry-run-and-request", "cache-beside-mock", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
 					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
@@ -1798,6 +1861,12 @@ func ruleCases() []ruleCase {
 			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, fromEnv: []settings.Name{"mock"}},
 			passed:  run{set: values{"print_request": true, "input": "request", "stop_on_error": true}},
 			wantErr: "ONESIE_MOCK answers requests, and --print-request sends none. Unset it or drop --print-request",
+		},
+		{
+			rule:    "cache-beside-mock",
+			refused: run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"cache", "mock"}},
+			passed:  run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"mock"}, fromEnv: []settings.Name{"cache"}},
+			wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
 		},
 		{
 			rule:    "delimiter-needs-csv",

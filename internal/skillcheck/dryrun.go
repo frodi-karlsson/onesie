@@ -12,6 +12,7 @@ import (
 var (
 	printFlags      = []string{"print-request", "print-questions"}
 	answerFileFlags = []string{"out", "resume", "offline", "prune"}
+	judgingFlags    = []string{"assert", "abstain-if", "threshold", "min-confidence", "fallback"}
 )
 
 // NewCatalog reads each flag in the command tree under root, its spellings and whether it takes a
@@ -77,7 +78,7 @@ func (c *Catalog) named(names []string) ([]flagSpec, error) {
 }
 
 // DryRunArgs turns a tokenized onesie command into the argv of its dry run. It strips the flags a
-// dry run rejects and adds --print-request, or --print-questions for a command with a typed gate.
+// dry run rejects and adds --print-request, or --print-questions for a command with a typed gate or policy.
 func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err error) {
 	if len(tokens) == 0 || tokens[0] != "onesie" {
 		return nil, "is not a onesie invocation", nil
@@ -86,7 +87,7 @@ func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err
 	raw := tokens[1:]
 
 	mode := "--print-request"
-	if c.hasFlag(raw, "assert") || c.hasFlag(raw, "abstain-if") {
+	if slices.ContainsFunc(judgingFlags, func(long string) bool { return c.hasFlag(raw, long) }) {
 		mode = "--print-questions"
 	}
 

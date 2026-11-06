@@ -122,6 +122,33 @@ func TestDryRunArgs(t *testing.T) {
 			},
 		},
 		{
+			name:   "should dry run a typed --threshold under --print-questions",
+			tokens: []string{"onesie", "--ask", "a=x", "--threshold", "0.9", "--state", "s"},
+			want:   []string{"--print-questions", "--ask", "a=x", "--threshold", "0.9"},
+		},
+		{
+			name:   "should dry run a typed --min-confidence and --fallback under --print-questions",
+			tokens: []string{"onesie", "--ask", "a=x", "--pick", "b,c", "--min-confidence", "0.6", "--fallback", "b"},
+			want:   []string{"--print-questions", "--ask", "a=x", "--pick", "b,c", "--min-confidence", "0.6", "--fallback", "b"},
+		},
+		{
+			name: "should strip --map and --id from a --threshold command",
+			tokens: []string{
+				"onesie", "--ask", "a=x", "--threshold", "0.9", "-i", "jsonl", "--map", ".text", "--id", ".id",
+			},
+			want: []string{"--print-questions", "--ask", "a=x", "--threshold", "0.9"},
+		},
+		{
+			name:   "should leave --map and --id alone for --print-request",
+			tokens: []string{"onesie", "--ask", "a=x", "-i", "jsonl", "--map", ".text", "--id", ".id"},
+			want:   []string{"--print-request", "--ask", "a=x", "-i", "jsonl", "--map", ".text", "--id", ".id"},
+		},
+		{
+			name:   "should strip --cache",
+			tokens: []string{"onesie", "--ask", "a=x", "--cache", "--state", "s"},
+			want:   []string{"--print-request", "--ask", "a=x", "--state", "s"},
+		},
+		{
 			name:   "should strip a flag and its value when the value is separate",
 			tokens: []string{"onesie", "--ask", "a=x", "-o", "json"},
 			want:   []string{"--print-request", "--ask", "a=x"},
@@ -178,7 +205,7 @@ func TestDryRunArgs(t *testing.T) {
 				"is this urgent",
 			},
 			want: []string{
-				"--print-request",
+				"--print-questions",
 				"--ask", "a=x", "--pick", "yes,no", "--rate", "1,2,3", "--desc", "yes=ok",
 				"--sep", ";", "--threshold", "0.5", "--min-confidence", "0.5", "--fallback", "no",
 				"is this urgent",
@@ -297,12 +324,12 @@ func TestDryRunArgs(t *testing.T) {
 				t.Fatalf("DryRunArgs(%v) reason = %q, err = %v, want a clean parse", tokens, reason, err)
 			}
 
-			want := []string{"--print-request", "--ask", "a=x", "--fallback", "--merge"}
+			want := []string{"--print-questions", "--ask", "a=x", "--fallback", "--merge"}
 			if !reflect.DeepEqual(got, want) {
 				t.Fatalf("DryRunArgs(%v) = %#v, want %#v", tokens, got, want)
 			}
 
-			if got[0] != "--print-request" {
+			if got[0] != "--print-questions" {
 				t.Errorf("DryRunArgs(%v)[0] = %q, want the mode flag at the very front", tokens, got[0])
 			}
 
@@ -434,7 +461,7 @@ func testCatalog(t *testing.T) *Catalog {
 
 	for _, name := range []string{
 		"box", "usage", "merge", "stats", "stop-on-assert", "resume", "prune", "unordered", "stop-on-error",
-		"skip-blank", "print-request", "print-questions",
+		"skip-blank", "print-request", "print-questions", "cache",
 	} {
 		root.Flags().Bool(name, false, "")
 	}
@@ -463,6 +490,8 @@ func testCatalog(t *testing.T) *Catalog {
 }
 
 func testRejected() (always, questionsOnly []string) {
-	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock"},
-		[]string{"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank"}
+	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock", "cache"},
+		[]string{
+			"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank", "map", "id",
+		}
 }

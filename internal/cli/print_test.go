@@ -743,6 +743,8 @@ func TestPrintRequest(t *testing.T) {
 	longBody := filepath.Join(dir, "long.json")
 	writeTestFile(t, longBody,
 		`{"long_context":true,"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`)
+	policyFile := filepath.Join(dir, "policy.yaml")
+	writeTestFile(t, policyFile, "urgent:\n  ask: is this urgent\n  threshold: 0.7\n  fallback: no\n")
 
 	tests := []struct {
 		name     string
@@ -766,6 +768,41 @@ func TestPrintRequest(t *testing.T) {
 			stdout:   []string{`"questions":{"urgent":`},
 			stderr:   []string{"onesie: --long-context overrides the request body's long_context\n"},
 			absent:   []string{`"long_context"`},
+		},
+		{
+			name:     "should refuse a typed --threshold",
+			args:     []string{"is this urgent", "--threshold", "0.9", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --threshold sets a policy for an answer, which --print-request does not produce\n"},
+		},
+		{
+			name:     "should refuse a typed --min-confidence and --fallback",
+			args:     []string{"--ask", "team=which team", "--pick", "a,b", "--min-confidence", "0.6", "--fallback", "a", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --min-confidence sets a policy for an answer, which --print-request does not produce\n"},
+		},
+		{
+			name:     "should refuse a typed --fallback",
+			args:     []string{"is this urgent", "--fallback", "yes", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --fallback sets a policy for an answer, which --print-request does not produce\n"},
+		},
+		{
+			name:     "should leave a file's policy alone",
+			args:     []string{"-f", policyFile, "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitOK,
+			stdout:   []string{`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}`},
+		},
+		{
+			name:     "should refuse a typed --cache",
+			args:     []string{"is this urgent", "--cache", "--print-request"},
+			stdin:    "the server is down",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --cache stores answers, which --print-request does not produce\n"},
 		},
 		{
 			name:     "should print one request body and exit without a request",

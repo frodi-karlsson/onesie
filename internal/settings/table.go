@@ -745,7 +745,7 @@ func shaping() ModeSet {
 }
 
 func policing() ModeSet {
-	return Modes(ModeAsk, ModeStream, ModePrintRequest, ModePrintQuestions)
+	return Modes(ModeAsk, ModeStream, ModePrintQuestions)
 }
 
 func answering() ModeSet {
