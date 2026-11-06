@@ -96,7 +96,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 
 func checkedCacheDir(settings rootSettings) (string, error) {
 	// Checked as a run checks it, so a bad value never reads as if the default applied.
-	if err := checkAliasTTL(settings.lookupEnv); err != nil {
+	if err := checkEnvSettings(settings.lookupEnv, "cache_ttl"); err != nil {
 		return "", err
 	}
 

@@ -1391,13 +1391,6 @@ func TestPrintRequest(t *testing.T) {
 			t.Fatalf("writing the question file: %v", err)
 		}
 
-		badPath := filepath.Join(dir, "bad.yaml")
-
-		if err := os.WriteFile(badPath,
-			[]byte("assert: sevrity.value > 0.5\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
-			t.Fatalf("writing the question file: %v", err)
-		}
-
 		tests := []struct {
 			name  string
 			args  []string
@@ -1431,11 +1424,6 @@ func TestPrintRequest(t *testing.T) {
 					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
 				},
 				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
-			},
-			{
-				name: "should still check a file's assertion against the plan",
-				args: []string{"-f", badPath, "--print-request", "--state", "x"},
-				want: "onesie: 'assert': unknown question 'sevrity'. Questions: urgent",
 			},
 			{
 				name:  "should reject --stop-on-assert with --print-request in a stream",
@@ -1506,6 +1494,28 @@ func TestPrintRequest(t *testing.T) {
 			}
 		}
 	})
+
+	for _, tc := range []struct {
+		name string
+		gate string
+	}{
+		{name: "should ignore an unknown question in a file assertion during a dry run", gate: "assert: sevrity.value > 0.5"},
+		{name: "should ignore invalid file assertion syntax during a dry run", gate: "assert: urgent.value >"},
+		{name: "should ignore invalid file abstain syntax during a dry run", gate: "abstain_if: urgent.value >"},
+		{name: "should dry run a file with abstain_if and no assert", gate: "abstain_if: urgent.value < 0.5"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			path := filepath.Join(t.TempDir(), "q.yaml")
+			if err := os.WriteFile(path, []byte(tc.gate+"\nurgent:\n  ask: is this urgent\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			out, errOut, code := runOfflineStdin(t, []string{"-f", path, "--print-request", "--state", "x"}, "")
+			if code != ExitOK || errOut != "" || !strings.Contains(out, `"instructions":"is this urgent"`) {
+				t.Fatalf("exit = %d, stdout = %s, stderr = %s", code, out, errOut)
+			}
+		})
+	}
 
 	providers := []struct {
 		name     string

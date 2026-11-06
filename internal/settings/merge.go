@@ -13,9 +13,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Merge takes each row's value, and each value of every question built asks, from the highest layer
-// that gives one, with a notice for each value a higher source replaced. Derived works out the rest.
-func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
+// Merge takes each run setting from the highest layer, with notices for replaced values.
+func Merge(rows []Row, layers []Layer) (*Merged, []Notice) {
 	ranked := highestFirst(layers)
 	merged := &Merged{}
 
@@ -33,29 +32,17 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 
 	notices = pairKey(merged, ranked, notices)
 
-	if built == nil {
-		return merged, notices
-	}
-
-	for _, question := range built.Questions {
-		for _, row := range rows {
-			if row.Scope == ScopeQuestion {
-				notices = append(notices, mergeQuestion(merged, row, question.ID, ranked)...)
-			}
-		}
-	}
-
 	return merged, notices
 }
 
 // MergeQuestions applies to each question from -f its --for flags, and the top level flags when it is
 // the one question asked. It returns a notice for each setting a flag gave, in the order typed.
-func MergeQuestions(merged *Merged, built *plan.Plan, typed []argv.Event) []Notice {
+func MergeQuestions(built *plan.Plan, typed []argv.Event) []Notice {
 	if built == nil {
 		return nil
 	}
 
-	notices := refinedNotices(merged, built)
+	notices := refinedNotices(built)
 	groups := typedGroups(typed, "", built)
 
 	slices.SortStableFunc(notices, func(a, b Notice) int {
@@ -83,7 +70,7 @@ func firstTyped(groups []typedGroup, notice Notice) int {
 	return math.MaxInt
 }
 
-func refinedNotices(merged *Merged, built *plan.Plan) []Notice {
+func refinedNotices(built *plan.Plan) []Notice {
 	var notices []Notice
 
 	for i := range built.Questions {
@@ -109,9 +96,6 @@ func refinedNotices(merged *Merged, built *plan.Plan) []Notice {
 			}
 
 			was, now := questionSetting(before, row.Name), questionSetting(*question, row.Name)
-			if now != nil && merged != nil && plan.PolicyFlag(row.Flag.Long) {
-				merged.setFor(question.ID, row.Name, now)
-			}
 
 			if notice, changed := refinedNotice(row, *question, was, now); changed {
 				notices = append(notices, notice)
@@ -507,62 +491,12 @@ func fallBack(merged *Merged, ranked []Layer, name Name) {
 	}
 }
 
-func mergeQuestion(merged *Merged, row Row, id string, ranked []Layer) []Notice {
-	var (
-		candidates []candidate
-		file       *Layer
-	)
-
-	for i, layer := range ranked {
-		values, asks := layer.Questions[id]
-		if layer.Source == SourceFile && asks {
-			file = &ranked[i]
-		}
-
-		if value, found := values[row.Name]; found {
-			candidates = append(candidates, candidate{layer: layer, value: value})
-		}
-	}
-
-	if len(candidates) == 0 {
-		return nil
-	}
-
-	winner := candidates[0]
-	merged.setFor(id, row.Name, winner.value)
-
-	var notices []Notice
-
-	for _, lower := range candidates[1:] {
-		if lower.layer.Source != SourceDefault && !reflect.DeepEqual(lower.value, winner.value) {
-			notices = append(notices, Notice{
-				Setting: row.Name, Winner: originOf(winner.layer, row), Loser: originOf(lower.layer, row), Question: id,
-			})
-		}
-	}
-
-	if file != nil && winner.layer.Source > SourceFile && !slices.ContainsFunc(candidates, readFromFile) {
-		notices = append(notices, Notice{
-			Setting: row.Name, Winner: originOf(winner.layer, row), Loser: originOf(*file, row), Question: id,
-			Verb: VerbSets,
-		})
-	}
-
-	return notices
-}
-
-func readFromFile(c candidate) bool {
-	return c.layer.Source == SourceFile
-}
-
-// Merged holds the value each setting takes for a run and the source that gave it, and the values
-// each question takes.
+// Merged holds each run setting and the source that gave it.
 type Merged struct {
 	values    map[Name]any
 	sources   map[Name]Source
 	spellings map[Name]string
 	setAside  map[Name]Origin
-	questions map[string]map[Name]any
 }
 
 // Set records the value name takes for the run and the source that gave it.
@@ -584,34 +518,6 @@ func (m *Merged) spelled(name Name, spelling string) {
 	}
 
 	m.spellings[name] = spelling
-}
-
-func (m *Merged) setFor(questionID string, name Name, value any) {
-	if m.questions == nil {
-		m.questions = map[string]map[Name]any{}
-	}
-
-	if m.questions[questionID] == nil {
-		m.questions[questionID] = map[Name]any{}
-	}
-
-	m.questions[questionID][name] = value
-}
-
-// Names lists every setting the merge holds a value for.
-func (m *Merged) Names() []Name {
-	if m == nil {
-		return nil
-	}
-
-	names := make([]Name, 0, len(m.values))
-	for name := range m.values {
-		names = append(names, name)
-	}
-
-	slices.Sort(names)
-
-	return names
 }
 
 // Value is name's value as stored, for a caller with no Key, such as a check that every value fits

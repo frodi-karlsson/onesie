@@ -631,7 +631,7 @@ func mergedRun(
 		t.Fatal(err)
 	}
 
-	merged, _ := setting.Merge(setting.Table(), layers, nil)
+	merged, _ := setting.Merge(setting.Table(), layers)
 
 	resolved, err := resolveRun(run, lookupFrom(lookup), nil)
 	if err != nil {

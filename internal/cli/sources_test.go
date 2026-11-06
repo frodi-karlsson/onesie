@@ -23,6 +23,8 @@ import (
 func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should match the gate merge compatibility cases", checkMergedGateCases)
+
 	const (
 		profiles = `{"default":"home","profiles":{` +
 			`"home":{"provider":"typesafe","api_key":"SECRET-HOME","model":"home-model"},` +

@@ -1084,7 +1084,7 @@ func TestBaseURLFrom(t *testing.T) {
 				})
 			}
 
-			merged, _ := setting.Merge(setting.Table(), layers, nil)
+			merged, _ := setting.Merge(setting.Table(), layers)
 
 			if got := baseURLFrom(tc.source, tc.run.merged(merged)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)

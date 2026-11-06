@@ -26,7 +26,7 @@ func mergeRun(
 			return readSettings{}, err
 		}
 
-		merged, _ := setting.Merge(rows, layers, nil)
+		merged, _ := setting.Merge(rows, layers)
 
 		return readSettings{config: flags.withMerged(merged), refusal: refusal}, nil
 	}
@@ -43,7 +43,7 @@ func mergeRun(
 		return readSettings{}, err
 	}
 
-	merged, notices := setting.Merge(rows, layers, nil)
+	merged, notices := setting.Merge(rows, layers)
 	config := flags.withMerged(merged)
 
 	return readSettings{config: config, notices: announced(notices, config.printRequest || config.mockPath != "")}, nil
@@ -90,11 +90,15 @@ func fileValues(loaded *qfile.File) *setting.FileValues {
 	values := &setting.FileValues{Body: loaded.IsBody, TopLevel: map[string]any{}}
 
 	for key, value := range map[string]string{
-		"assert": loaded.Assert, "abstain_if": loaded.AbstainIf, "model": loaded.Model,
+		"assert": loaded.Assert, "abstain_if": loaded.AbstainIf,
 	} {
-		if strings.TrimSpace(value) != "" {
+		if value != "" {
 			values.TopLevel[key] = value
 		}
+	}
+
+	if strings.TrimSpace(loaded.Model) != "" {
+		values.TopLevel["model"] = loaded.Model
 	}
 
 	if loaded.LongContext {

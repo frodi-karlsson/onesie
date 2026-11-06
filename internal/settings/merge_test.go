@@ -20,7 +20,6 @@ func TestMerge(t *testing.T) {
 		name        string
 		reading     reading
 		layers      []settings.Layer
-		built       *plan.Plan
 		want        values
 		wantSources map[settings.Name]settings.Source
 		wantNotices []string
@@ -235,30 +234,6 @@ func TestMerge(t *testing.T) {
 			wantSources: map[settings.Name]settings.Source{"cache": settings.SourceDefault, "mock": settings.SourceDefault},
 		},
 		{
-			name: "should drop a calibrate file's assert, abstain_if and policy by Modes",
-			reading: reading{
-				command: settings.CommandCalibrate,
-				file: &settings.FileValues{
-					TopLevel: map[string]any{"assert": "answer.value > 0.5"},
-					Questions: []settings.QuestionValues{{ID: "u", Values: map[string]any{
-						"threshold": 0.7, "fallback": "no",
-					}}},
-				},
-			},
-			built: &plan.Plan{Questions: []plan.Question{{ID: "u"}}},
-			check: func(t *testing.T, merged *settings.Merged) {
-				t.Helper()
-
-				if got := merged.Value("assert"); got != nil {
-					t.Errorf("assert = %#v, want none", got)
-				}
-
-				if got, found := settings.GetFor(merged, "u", settings.Threshold); found {
-					t.Errorf("threshold for u = %v, want none", got)
-				}
-			},
-		},
-		{
 			name: "should take the file's assert as a list",
 			reading: reading{
 				file: &settings.FileValues{TopLevel: map[string]any{"assert": "answer.value > 0.5"}},
@@ -329,66 +304,6 @@ func TestMerge(t *testing.T) {
 			wantSources: map[settings.Name]settings.Source{
 				"profile": settings.SourceDefaultProfile, "provider": settings.SourceDefaultProfile,
 			},
-		},
-		{
-			name: "should resolve a file question's settings per question",
-			reading: reading{file: &settings.FileValues{Questions: []settings.QuestionValues{
-				{ID: "urgent", Values: map[string]any{"threshold": 0.7}},
-				{ID: "spam", Values: map[string]any{"threshold": 0.4}},
-			}}},
-			built: &plan.Plan{Questions: []plan.Question{{ID: "urgent"}, {ID: "spam"}}},
-			check: func(t *testing.T, merged *settings.Merged) {
-				t.Helper()
-
-				for id, want := range map[string]float64{"urgent": 0.7, "spam": 0.4} {
-					if got, found := settings.GetFor(merged, id, settings.Threshold); !found || got != want {
-						t.Errorf("threshold for %s = %v, %t, want %v", id, got, found, want)
-					}
-				}
-			},
-		},
-		{
-			name: "should merge no question setting without a plan",
-			reading: reading{file: &settings.FileValues{Questions: []settings.QuestionValues{
-				{ID: "urgent", Values: map[string]any{"threshold": 0.7}},
-			}}},
-			check: func(t *testing.T, merged *settings.Merged) {
-				t.Helper()
-
-				if got, found := settings.GetFor(merged, "urgent", settings.Threshold); found {
-					t.Errorf("threshold for urgent = %v, want none", got)
-				}
-			},
-		},
-		{
-			name: "should note a flag that sets a setting a file question lacks",
-			layers: []settings.Layer{
-				{Source: settings.SourceFlag, Questions: map[string]map[settings.Name]any{"urgent": {"threshold": 0.9}}},
-				{Source: settings.SourceFile, Questions: map[string]map[settings.Name]any{"urgent": {}}},
-			},
-			built:       &plan.Plan{Questions: []plan.Question{{ID: "urgent"}}},
-			wantNotices: []string{"--threshold sets the question file's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
-		},
-		{
-			name: "should note a flag that overrides a file question's setting",
-			layers: []settings.Layer{
-				{Source: settings.SourceFlag, Questions: map[string]map[settings.Name]any{"urgent": {"threshold": 0.9}}},
-				{Source: settings.SourceFile, Body: true, Questions: map[string]map[settings.Name]any{
-					"urgent": {"threshold": 0.7},
-				}},
-			},
-			built:       &plan.Plan{Questions: []plan.Question{{ID: "urgent"}}},
-			wantNotices: []string{"--threshold overrides the request body's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
-		},
-		{
-			name: "should note nothing for a flag on a question no file holds",
-			layers: []settings.Layer{
-				{Source: settings.SourceFlag, Questions: map[string]map[settings.Name]any{"urgent": {"threshold": 0.9}}},
-			},
-			built: &plan.Plan{Questions: []plan.Question{{ID: "urgent"}}},
-			check: wantThreshold("urgent", 0.9),
 		},
 		{
 			name: "should merge a profile's key as HeldKey with its rank",
@@ -630,7 +545,7 @@ func TestMerge(t *testing.T) {
 				layers = read
 			}
 
-			merged, notices := settings.Merge(settings.Table(), layers, tc.built)
+			merged, notices := settings.Merge(settings.Table(), layers)
 
 			for name, want := range tc.want {
 				if got := merged.Value(name); !reflect.DeepEqual(got, want) {
@@ -693,7 +608,6 @@ func TestMergeQuestions(t *testing.T) {
 		built       *plan.Plan
 		typed       []argv.Event
 		wantNotices []string
-		check       func(t *testing.T, merged *settings.Merged)
 		checkPlan   func(t *testing.T, built *plan.Plan)
 	}{
 		{
@@ -725,7 +639,6 @@ func TestMergeQuestions(t *testing.T) {
 				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
 			},
 			wantNotices: []string{"--threshold sets the question file's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
 			checkPlan:   wantPlanThreshold(0, 0.9),
 		},
 		{
@@ -735,7 +648,6 @@ func TestMergeQuestions(t *testing.T) {
 				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
 			},
 			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
 			checkPlan:   wantPlanThreshold(0, 0.9),
 		},
 		{
@@ -774,7 +686,6 @@ func TestMergeQuestions(t *testing.T) {
 				"--fallback sets the question file's fallback for 'tone'",
 				"--threshold sets the question file's threshold for 'spam'",
 			},
-			check: wantThreshold("spam", 0.6),
 			checkPlan: func(t *testing.T, built *plan.Plan) {
 				t.Helper()
 
@@ -961,8 +872,7 @@ func TestMergeQuestions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			merged := &settings.Merged{}
-			notices := settings.MergeQuestions(merged, tc.built, tc.typed)
+			notices := settings.MergeQuestions(tc.built, tc.typed)
 
 			got := make([]string, 0, len(notices))
 			for _, notice := range notices {
@@ -971,10 +881,6 @@ func TestMergeQuestions(t *testing.T) {
 
 			if !slices.Equal(got, tc.wantNotices) && len(got)+len(tc.wantNotices) > 0 {
 				t.Errorf("notices = %q, want %q", got, tc.wantNotices)
-			}
-
-			if tc.check != nil {
-				tc.check(t, merged)
 			}
 
 			if tc.checkPlan != nil {
@@ -986,20 +892,10 @@ func TestMergeQuestions(t *testing.T) {
 	t.Run("should merge nothing without a plan", func(t *testing.T) {
 		t.Parallel()
 
-		if notices := settings.MergeQuestions(&settings.Merged{}, nil, nil); len(notices) != 0 {
+		if notices := settings.MergeQuestions(nil, nil); len(notices) != 0 {
 			t.Errorf("notices = %v, want none", notices)
 		}
 	})
-}
-
-func wantThreshold(id string, want float64) func(t *testing.T, merged *settings.Merged) {
-	return func(t *testing.T, merged *settings.Merged) {
-		t.Helper()
-
-		if got, found := settings.GetFor(merged, id, settings.Threshold); !found || got != want {
-			t.Errorf("threshold for %s = %v, %t, want %v", id, got, found, want)
-		}
-	}
 }
 
 func wantCriteria(yes, no any) func(t *testing.T, built *plan.Plan) {

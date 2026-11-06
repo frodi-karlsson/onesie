@@ -72,7 +72,5 @@ type switches struct {
 
 type runFacts struct {
 	name      string
-	assert    string
-	abstainIf string
 	bodyState bool
 }

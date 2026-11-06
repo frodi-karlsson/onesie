@@ -227,7 +227,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			merged, _ := setting.Merge(setting.Table(), tc.layers, nil)
+			merged, _ := setting.Merge(setting.Table(), tc.layers)
 			tc.check(t, runConfig{}.withMerged(merged))
 		})
 	}

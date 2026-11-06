@@ -698,7 +698,7 @@ func showRefusals(
 	}
 
 	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
-	if switchErr := checkEnvSwitches(settings.lookupEnv); switchErr != nil {
+	if switchErr := checkEnvSettings(settings.lookupEnv, "cache", "long_context", "cache_ttl"); switchErr != nil {
 		refusals = append(refusals, switchErr)
 	}
 
@@ -811,7 +811,7 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 		return resolution{}, err
 	}
 
-	merged, _ := setting.Merge(setting.Table(), layers, nil)
+	merged, _ := setting.Merge(setting.Table(), layers)
 
 	return shown.merged(merged), nil
 }
