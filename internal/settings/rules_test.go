@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/settings"
@@ -21,8 +23,8 @@ func TestValidate(t *testing.T) {
 		file        []plan.Question
 		positional  string
 		set         values
-		typed       []settings.Name
-		fromFile    []settings.Name
+		typed       []settingrow.Name
+		fromFile    []settingrow.Name
 		facts       settings.Facts
 		wantErr     string
 		wantExact   string
@@ -115,7 +117,7 @@ func TestValidate(t *testing.T) {
 		{
 			name:       "should reject both state flags together",
 			positional: "is this urgent",
-			typed:      []settings.Name{"state", "state_file"},
+			typed:      []settingrow.Name{"state", "state_file"},
 			wantErr:    "--state and --state-file are mutually exclusive",
 		},
 		{
@@ -191,14 +193,14 @@ func TestValidate(t *testing.T) {
 			name:       "should reject -i beside --image with no state flag",
 			positional: "is this urgent",
 			set:        values{"image": []string{"photo=photo.png"}, "input": "json"},
-			typed:      []settings.Name{"input"},
+			typed:      []settingrow.Name{"input"},
 			wantErr:    "-i json holds one record, which beside --image reads stdin only through --state -. Pass --state - to read the state from stdin",
 		},
 		{
 			name:       "should accept -i beside --image under --state",
 			positional: "is this urgent",
 			set:        values{"image": []string{"photo=photo.png"}, "input": "json"},
-			typed:      []settings.Name{"input", "state"},
+			typed:      []settingrow.Name{"input", "state"},
 		},
 		{
 			name:       "should reject stop on error outside a stream",
@@ -243,14 +245,14 @@ func TestValidate(t *testing.T) {
 			name:       "should reject state with a streaming mode",
 			positional: "is this urgent",
 			set:        values{"input": "jsonl"},
-			typed:      []settings.Name{"state"},
+			typed:      []settingrow.Name{"state"},
 			wantErr:    "--state cannot be combined with -i jsonl",
 		},
 		{
 			name:       "should reject state-file with a streaming mode naming the flag used",
 			positional: "is this urgent",
 			set:        values{"input": "lines"},
-			typed:      []settings.Name{"state_file"},
+			typed:      []settingrow.Name{"state_file"},
 			wantErr:    "--state-file cannot be combined with -i lines",
 		},
 		{
@@ -318,20 +320,20 @@ func TestValidate(t *testing.T) {
 			name:       "should refuse -j 4 on one record",
 			positional: "is this urgent",
 			set:        values{"jobs": 4, "input": "text"},
-			typed:      []settings.Name{"jobs"},
+			typed:      []settingrow.Name{"jobs"},
 			wantExact:  "-j applies to streaming input. -i text reads one record. Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j",
 		},
 		{
 			name:       "should accept -j 1 on one record",
 			positional: "is this urgent",
 			set:        values{"jobs": 1, "input": "text"},
-			typed:      []settings.Name{"jobs"},
+			typed:      []settingrow.Name{"jobs"},
 		},
 		{
 			name:       "should accept -j 4 on a stream",
 			positional: "is this urgent",
 			set:        values{"jobs": 4, "input": "jsonl"},
-			typed:      []settings.Name{"jobs"},
+			typed:      []settingrow.Name{"jobs"},
 		},
 		{
 			name: "should report the warnings alongside a fatal error",
@@ -515,14 +517,14 @@ func TestValidate(t *testing.T) {
 			name:       "should report the dry run before --delimiter",
 			positional: "is this urgent",
 			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "raw": true},
-			typed:      []settings.Name{"input", "delimiter"},
+			typed:      []settingrow.Name{"input", "delimiter"},
 			wantExact:  "-r does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			name:       "should report --delimiter before --abstain-if without an assertion",
 			positional: "is this urgent",
 			set:        values{"abstain_if": []string{"answer.value > 0.4"}, "input": "jsonl", "delimiter": ";"},
-			typed:      []settings.Name{"input", "delimiter"},
+			typed:      []settingrow.Name{"input", "delimiter"},
 			wantExact:  "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
 		},
 		{
@@ -547,14 +549,14 @@ func TestValidate(t *testing.T) {
 			name:       "should refuse -q with -o json",
 			positional: "is this urgent",
 			set:        values{"quiet": true, "output": "json"},
-			typed:      []settings.Name{"output"},
+			typed:      []settingrow.Name{"output"},
 			wantExact:  "-q suppresses output, which leaves -o json nothing to write",
 		},
 		{
 			name:       "should refuse -q with -o auto",
 			positional: "is this urgent",
 			set:        values{"quiet": true, "output": "auto"},
-			typed:      []settings.Name{"output"},
+			typed:      []settingrow.Name{"output"},
 			wantExact:  "-q suppresses output, which leaves -o auto nothing to write",
 		},
 		{
@@ -573,7 +575,7 @@ func TestValidate(t *testing.T) {
 			name:       "should refuse -q with --out and leave no file",
 			positional: "is this urgent",
 			set:        values{"quiet": true, "out": "answers.jsonl"},
-			typed:      []settings.Name{"out"},
+			typed:      []settingrow.Name{"out"},
 			wantExact:  "-q suppresses output, which leaves --out nothing to write",
 		},
 		{
@@ -627,7 +629,7 @@ func TestValidate(t *testing.T) {
 
 		tests := []struct {
 			name    string
-			command settings.Command
+			command settingrow.Command
 			args    []string
 			unread  bool
 			want    []string
@@ -657,7 +659,7 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				name:    "should note a persistent flag typed twice on calibrate",
-				command: settings.CommandCalibrate, args: []string{"--profile", "a", "--profile", "b"},
+				command: settingrow.CommandCalibrate, args: []string{"--profile", "a", "--profile", "b"},
 				want: []string{"--profile is given twice, 'b' overrides 'a'"},
 			},
 			{name: "should accept --desc for different keys", args: []string{"--ask", "a=q", "--desc", "k=x", "--desc", "j=y"}},
@@ -693,15 +695,15 @@ func TestValidate(t *testing.T) {
 			t.Run(tc.name, func(t *testing.T) {
 				t.Parallel()
 
-				root := register(settings.CommandRoot)
-				parsed, facts := root, settings.Facts{Command: settings.CommandRoot, Given: root.given, Args: tc.args}
+				root := register(settingrow.CommandRoot)
+				parsed, facts := root, settings.Facts{Command: settingrow.CommandRoot, Given: root.given, Args: tc.args}
 
-				if tc.command == settings.CommandCalibrate {
-					parsed = register(settings.CommandCalibrate)
+				if tc.command == settingrow.CommandCalibrate {
+					parsed = register(settingrow.CommandCalibrate)
 					parsed.persistent = root.persistent
 					parsed.given.Inherit(root.persistent)
 					parsed.given.Within(root.given)
-					facts.Command, facts.Given = settings.CommandCalibrate, parsed.given
+					facts.Command, facts.Given = settingrow.CommandCalibrate, parsed.given
 				}
 
 				parsed.parse(t, tc.args...)
@@ -828,7 +830,7 @@ func TestValidate(t *testing.T) {
 
 				given := run{
 					planned: true, events: tc.events, positional: tc.positional, file: tc.file,
-					set: values{"file": "q.yaml"}, facts: settings.Facts{Command: settings.CommandRoot},
+					set: values{"file": "q.yaml"}, facts: settings.Facts{Command: settingrow.CommandRoot},
 				}
 
 				_, notices, err := settings.Validate(given.view(t), []settings.Rule{rule})
@@ -854,9 +856,9 @@ func TestValidate(t *testing.T) {
 		tests := []struct {
 			name       string
 			set        values
-			typed      []settings.Name
-			fromEnv    []settings.Name
-			fromFile   []settings.Name
+			typed      []settingrow.Name
+			fromEnv    []settingrow.Name
+			fromFile   []settingrow.Name
 			events     []argv.Event
 			positional string
 			facts      settings.Facts
@@ -865,12 +867,12 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should ignore an assertion the merge took from the file with --print-request",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 			},
 			{
 				name:     "should name the file's key when the merge took the abstain expression from the file",
 				set:      values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"abstain_if"},
+				fromFile: []settingrow.Name{"abstain_if"},
 				wantErr:  "'abstain_if' needs --assert, since without one every record is a yes",
 			},
 			{
@@ -956,60 +958,60 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject --state with -i request",
 				set:     values{"input": "request", "jobs": 1},
-				typed:   []settings.Name{"state"},
+				typed:   []settingrow.Name{"state"},
 				wantErr: "--state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --state-file with -i request",
 				set:     values{"input": "request", "jobs": 1},
-				typed:   []settings.Name{"state_file"},
+				typed:   []settingrow.Name{"state_file"},
 				wantErr: "--state-file does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --map with -i request",
 				set:     values{"input": "request", "jobs": 1},
-				typed:   []settings.Name{"map"},
+				typed:   []settingrow.Name{"map"},
 				wantErr: "--map does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --map with --list-models",
 				set:     values{"list_models": true, "input": "text"},
-				typed:   []settings.Name{"map"},
+				typed:   []settingrow.Name{"map"},
 				wantErr: "--map does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --map with --print-questions",
 				set:     values{"print_questions": true, "input": "text"},
-				typed:   []settings.Name{"map"},
+				typed:   []settingrow.Name{"map"},
 				wantErr: "--map does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:  "should accept --map with --print-request",
 				set:   values{"print_request": true, "input": "jsonl", "jobs": 1},
-				typed: []settings.Name{"map"},
+				typed: []settingrow.Name{"map"},
 			},
 			{
 				name:    "should reject --id with -i request",
 				set:     values{"input": "request", "jobs": 1},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--id does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --id with --list-models",
 				set:     values{"list_models": true, "input": "text"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--id does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --id with --print-questions",
 				set:     values{"print_questions": true, "input": "text"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--id does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:  "should accept --id with --print-request",
 				set:   values{"print_request": true, "input": "csv", "jobs": 1},
-				typed: []settings.Name{"id"},
+				typed: []settingrow.Name{"id"},
 			},
 			{
 				name:    "should reject -o with -i request",
@@ -1039,7 +1041,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject -m with -i request",
 				set:     values{"input": "request", "jobs": 1},
-				typed:   []settings.Name{"model"},
+				typed:   []settingrow.Name{"model"},
 				wantErr: "-m does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
@@ -1050,7 +1052,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:  "should accept the streaming flags with -i request",
 				set:   values{"input": "request", "jobs": 4, "unordered": true, "stop_on_error": true, "skip_blank": true},
-				typed: []settings.Name{"jobs"},
+				typed: []settingrow.Name{"jobs"},
 			},
 			{
 				name:    "should reject both print flags at once",
@@ -1125,12 +1127,12 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should ignore a file's assertion with --print-request",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 			},
 			{
 				name:     "should ignore a file's two gates with --print-request",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"assert", "abstain_if"},
+				fromFile: []settingrow.Name{"assert", "abstain_if"},
 			},
 			{
 				name:    "should reject --assert typed beside a file's assertion with --print-request",
@@ -1140,7 +1142,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should reject --abstain-if typed beside a file's gates with --print-request",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_request": true, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 				wantErr:  "--abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
@@ -1210,53 +1212,53 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should refuse --cache beside --print-questions",
 				set:     values{"print_questions": true, "input": "text", "cache": true},
-				typed:   []settings.Name{"cache"},
+				typed:   []settingrow.Name{"cache"},
 				wantErr: "--cache does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:    "should refuse --mock beside --print-questions",
 				set:     values{"print_questions": true, "input": "text", "mock": "m.json"},
-				typed:   []settings.Name{"mock"},
+				typed:   []settingrow.Name{"mock"},
 				wantErr: "--mock does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				name:    "should skip ONESIE_CACHE beside --print-questions",
 				set:     values{"print_questions": true, "input": "text", "cache": true},
-				fromEnv: []settings.Name{"cache"},
+				fromEnv: []settingrow.Name{"cache"},
 			},
 			{
 				name:    "should refuse --cache beside --print-request",
 				set:     values{"print_request": true, "input": "text", "cache": true},
-				typed:   []settings.Name{"cache"},
+				typed:   []settingrow.Name{"cache"},
 				wantErr: "--cache does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should skip ONESIE_CACHE beside --print-request",
 				set:     values{"print_request": true, "input": "text", "cache": true},
-				fromEnv: []settings.Name{"cache"},
+				fromEnv: []settingrow.Name{"cache"},
 			},
 			{
 				name:    "should refuse --cache beside --mock",
 				set:     values{"input": "text", "cache": true, "mock": "m.json"},
-				typed:   []settings.Name{"cache", "mock"},
+				typed:   []settingrow.Name{"cache", "mock"},
 				wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
 			},
 			{
 				name:    "should skip a typed --cache beside an ambient ONESIE_MOCK",
 				set:     values{"input": "text", "cache": true, "mock": "m.json"},
-				typed:   []settings.Name{"cache"},
-				fromEnv: []settings.Name{"mock"},
+				typed:   []settingrow.Name{"cache"},
+				fromEnv: []settingrow.Name{"mock"},
 			},
 			{
 				name:    "should skip ONESIE_CACHE beside --mock",
 				set:     values{"input": "text", "cache": true, "mock": "m.json"},
-				typed:   []settings.Name{"mock"},
-				fromEnv: []settings.Name{"cache"},
+				typed:   []settingrow.Name{"mock"},
+				fromEnv: []settingrow.Name{"cache"},
 			},
 			{
 				name:  "should accept --cache=false beside --mock",
 				set:   values{"input": "text", "cache": false, "mock": "m.json"},
-				typed: []settings.Name{"cache", "mock"},
+				typed: []settingrow.Name{"cache", "mock"},
 			},
 			{
 				name:    "should refuse --image-field on one record",
@@ -1393,18 +1395,18 @@ func TestValidate(t *testing.T) {
 			{
 				name:  "should accept --resume with --unordered when --id names the records",
 				set:   values{"input": "jsonl", "resume": true, "out": "a.jsonl", "unordered": true, "jobs": 1},
-				typed: []settings.Name{"id"},
+				typed: []settingrow.Name{"id"},
 			},
 			{
 				name:    "should reject --resume with --id and -r, which writes no id",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "raw": true},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
 				name:    "should reject --resume with --id and -o raw, which writes no id",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
@@ -1415,13 +1417,13 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should reject a resume by position with -o raw and a file's assert",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 				wantErr:  "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
 				name:    "should reject a resume by id with -o raw and --assert",
 				set:     values{"assert": []string{"answer.value > 0.5"}, "input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
@@ -1441,12 +1443,12 @@ func TestValidate(t *testing.T) {
 			{
 				name:  "should accept a csv resume by id under --stop-on-error",
 				set:   values{"input": "jsonl", "resume": true, "out": "a.csv", "output": "csv", "stop_on_error": true, "jobs": 1},
-				typed: []settings.Name{"id"},
+				typed: []settingrow.Name{"id"},
 			},
 			{
 				name:    "should reject --prune without --resume",
 				set:     values{"input": "jsonl", "out": "a.jsonl", "prune": true, "jobs": 1},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--prune applies to --resume, which was not given",
 			},
 			{
@@ -1457,7 +1459,7 @@ func TestValidate(t *testing.T) {
 			{
 				name:  "should accept --prune with --resume and --id",
 				set:   values{"input": "jsonl", "resume": true, "out": "a.jsonl", "prune": true, "jobs": 1},
-				typed: []settings.Name{"id"},
+				typed: []settingrow.Name{"id"},
 			},
 			{
 				name:    "should reject --resume with --list-models",
@@ -1472,19 +1474,19 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject --id with -i text",
 				set:     values{"input": "text"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--id applies to streaming input. -i text reads one record",
 			},
 			{
 				name:    "should reject --id with -i json",
 				set:     values{"input": "json"},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--id applies to streaming input. -i json reads one record",
 			},
 			{
 				name:  "should accept --id with streaming input",
 				set:   values{"input": "jsonl", "jobs": 1},
-				typed: []settings.Name{"id"},
+				typed: []settingrow.Name{"id"},
 			},
 			{
 				name:    "should reject -q with -i request",
@@ -1504,13 +1506,13 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should name the file's key when only the file carried the abstain expression",
 				set:      values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"abstain_if"},
+				fromFile: []settingrow.Name{"abstain_if"},
 				wantErr:  "'abstain_if' needs --assert, since without one every record is a yes",
 			},
 			{
 				name:     "should accept --abstain-if when the only assertion comes from the file",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 			},
 			{
 				name:    "should reject --stop-on-assert without an assertion",
@@ -1520,12 +1522,12 @@ func TestValidate(t *testing.T) {
 			{
 				name:     "should accept --stop-on-assert when the only assertion comes from the file",
 				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "file": "q.yaml", "input": "jsonl"},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 			},
 			{
 				name:    "should reject --resume with --print-request",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.jsonl", "print_request": true, "jobs": 1},
-				typed:   []settings.Name{"id"},
+				typed:   []settingrow.Name{"id"},
 				wantErr: "--print-request writes request bodies, not answers, so --resume has nothing to pick up. Drop --resume",
 			},
 		}
@@ -1606,7 +1608,7 @@ func TestValidate(t *testing.T) {
 
 				given := run{
 					set:   values{"input": tc.input, "output": tc.output, "delimiter": cmp.Or(tc.delimiter, ";")},
-					typed: []settings.Name{"input", "delimiter"},
+					typed: []settingrow.Name{"input", "delimiter"},
 				}
 
 				_, _, err := settings.Validate(given.view(t), settings.Rules())
@@ -1644,9 +1646,9 @@ func TestValidate(t *testing.T) {
 		t.Parallel()
 
 		given := run{
-			facts: settings.Facts{Command: settings.CommandCalibrate},
+			facts: settings.Facts{Command: settingrow.CommandCalibrate},
 			set:   values{"print_request": true},
-			typed: []settings.Name{"output"},
+			typed: []settingrow.Name{"output"},
 		}
 
 		_, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "calibrate-report")})
@@ -1658,7 +1660,7 @@ func TestValidate(t *testing.T) {
 	t.Run("should accept calibrate's -o table, which is its report, on records", func(t *testing.T) {
 		t.Parallel()
 
-		given := run{facts: settings.Facts{Command: settings.CommandCalibrate}, set: values{"input": "jsonl", "output": "table"}}
+		given := run{facts: settings.Facts{Command: settingrow.CommandCalibrate}, set: values{"input": "jsonl", "output": "table"}}
 
 		if _, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "table-reads-one-record")}); err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -1668,7 +1670,7 @@ func TestValidate(t *testing.T) {
 	t.Run("should leave calibrate's rules to calibrate", func(t *testing.T) {
 		t.Parallel()
 
-		given := run{facts: settings.Facts{Command: settings.CommandRoot}, positional: "is this urgent", planned: true}
+		given := run{facts: settings.Facts{Command: settingrow.CommandRoot}, positional: "is this urgent", planned: true}
 
 		if _, _, err := settings.Validate(given.view(t), settings.Rules()); err != nil {
 			t.Errorf("unexpected error: %v", err)
@@ -1679,8 +1681,8 @@ func TestValidate(t *testing.T) {
 		t.Parallel()
 
 		given := run{
-			facts: settings.Facts{Command: settings.CommandCalibrate, BodyState: true},
-			set:   values{"file": "body.json"}, typed: []settings.Name{"state"},
+			facts: settings.Facts{Command: settingrow.CommandCalibrate, BodyState: true},
+			set:   values{"file": "body.json"}, typed: []settingrow.Name{"state"},
 		}
 
 		if _, _, err := settings.Validate(given.view(t), []settings.Rule{ruleByID(t, "one-state")}); err != nil {
@@ -1719,7 +1721,7 @@ func TestRules(t *testing.T) {
 
 				for _, rule := range rules {
 					for _, name := range rule.Reads {
-						if _, found := settings.Lookup(name); !found {
+						if _, found := settingrow.Lookup(name); !found {
 							t.Errorf("rule %s reads %s, which no row is", rule.ID, name)
 						}
 					}
@@ -1796,13 +1798,13 @@ func TestRules(t *testing.T) {
 
 func ruleCases() []ruleCase {
 	two := []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}}
-	calibrating := settings.Facts{Command: settings.CommandCalibrate}
+	calibrating := settings.Facts{Command: settingrow.CommandCalibrate}
 
 	return []ruleCase{
 		{
 			rule:    "calibrate-reads-records",
 			refused: run{facts: calibrating},
-			passed:  run{facts: calibrating, set: values{"input": "jsonl"}, typed: []settings.Name{"input"}},
+			passed:  run{facts: calibrating, set: values{"input": "jsonl"}, typed: []settingrow.Name{"input"}},
 			wantErr: "calibrate needs -i jsonl, csv or tsv, since only a record has fields to label",
 		},
 		{
@@ -1814,7 +1816,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "calibrate-needs-map",
 			refused: run{facts: calibrating},
-			passed:  run{facts: calibrating, typed: []settings.Name{"map"}},
+			passed:  run{facts: calibrating, typed: []settingrow.Name{"map"}},
 			wantErr: "calibrate needs --map. Without it the whole record, label included, " +
 				"would be the state, and the report would flatter the question",
 		},
@@ -1826,14 +1828,14 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "cuts-parse",
-			refused: run{facts: calibrating, set: values{"cuts": " "}, typed: []settings.Name{"cuts"}},
-			passed:  run{facts: calibrating, set: values{"cuts": "0.5"}, typed: []settings.Name{"cuts"}},
+			refused: run{facts: calibrating, set: values{"cuts": " "}, typed: []settingrow.Name{"cuts"}},
+			passed:  run{facts: calibrating, set: values{"cuts": "0.5"}, typed: []settingrow.Name{"cuts"}},
 			wantErr: "--cuts takes a comma separated list of numbers between 0 and 1, got nothing",
 		},
 		{
 			rule:    "calibrate-resumes-by-id",
 			refused: run{facts: calibrating, set: values{"resume": true}},
-			passed:  run{facts: calibrating, set: values{"resume": true}, typed: []settings.Name{"id"}},
+			passed:  run{facts: calibrating, set: values{"resume": true}, typed: []settingrow.Name{"id"}},
 			wantErr: "calibrate resumes by id, since which records are asked follows the labels. Pass --id",
 		},
 		{
@@ -1864,7 +1866,7 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "list-models-alone",
-			refused: run{set: values{"list_models": true}, typed: []settings.Name{"model"}},
+			refused: run{set: values{"list_models": true}, typed: []settingrow.Name{"model"}},
 			passed:  run{set: values{"list_models": true, "stats": true}},
 			wantErr: "-m does not apply to --list-models, which only lists the models a provider serves",
 		},
@@ -1877,25 +1879,25 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "prune-needs-resume-and-id",
 			refused: run{set: values{"prune": true}},
-			passed:  run{set: values{"prune": true, "resume": true}, typed: []settings.Name{"id"}},
+			passed:  run{set: values{"prune": true, "resume": true}, typed: []settingrow.Name{"id"}},
 			wantErr: "--prune applies to --resume, which was not given",
 		},
 		{
 			rule:    "dry-run-and-request",
-			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, typed: []settings.Name{"mock"}},
+			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, typed: []settingrow.Name{"mock"}},
 			passed:  run{set: values{"print_request": true, "input": "request", "stop_on_error": true}},
 			wantErr: "--mock does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			rule:    "cache-beside-mock",
-			refused: run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"cache", "mock"}},
-			passed:  run{set: values{"cache": true, "mock": "m.json"}, typed: []settings.Name{"mock"}, fromEnv: []settings.Name{"cache"}},
+			refused: run{set: values{"cache": true, "mock": "m.json"}, typed: []settingrow.Name{"cache", "mock"}},
+			passed:  run{set: values{"cache": true, "mock": "m.json"}, typed: []settingrow.Name{"mock"}, fromEnv: []settingrow.Name{"cache"}},
 			wantErr: "--cache stores answers from the API, which --mock replaces. Drop one",
 		},
 		{
 			rule:    "delimiter-needs-csv",
-			refused: run{set: values{"delimiter": ";", "input": "jsonl"}, typed: []settings.Name{"delimiter"}},
-			passed:  run{set: values{"delimiter": ";", "input": "csv"}, typed: []settings.Name{"delimiter"}},
+			refused: run{set: values{"delimiter": ";", "input": "jsonl"}, typed: []settingrow.Name{"delimiter"}},
+			passed:  run{set: values{"delimiter": ";", "input": "csv"}, typed: []settingrow.Name{"delimiter"}},
 			wantErr: "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
 		},
 		{
@@ -1903,7 +1905,7 @@ func ruleCases() []ruleCase {
 			refused: run{set: values{"abstain_if": []string{"answer.value > 0.4"}}},
 			passed: run{
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}},
-				fromFile: []settings.Name{"assert"},
+				fromFile: []settingrow.Name{"assert"},
 			},
 			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 		},
@@ -1921,8 +1923,8 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "state-and-state-file",
-			refused: run{typed: []settings.Name{"state", "state_file"}},
-			passed:  run{typed: []settings.Name{"state"}},
+			refused: run{typed: []settingrow.Name{"state", "state_file"}},
+			passed:  run{typed: []settingrow.Name{"state"}},
 			wantErr: "--state and --state-file are mutually exclusive",
 		},
 		{
@@ -1969,7 +1971,7 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "stream-reads-its-own-state",
-			refused: run{set: values{"input": "jsonl"}, typed: []settings.Name{"state"}},
+			refused: run{set: values{"input": "jsonl"}, typed: []settingrow.Name{"state"}},
 			passed:  run{set: values{"input": "jsonl"}},
 			wantErr: "--state cannot be combined with -i jsonl",
 		},
@@ -2064,7 +2066,7 @@ func ruleCases() []ruleCase {
 		{
 			rule: "one-state",
 			refused: run{
-				facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}, typed: []settings.Name{"state"},
+				facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}, typed: []settingrow.Name{"state"},
 			},
 			passed:  run{facts: settings.Facts{BodyState: true}, set: values{"file": "body.json"}},
 			wantErr: "--state and the state in body.json both give a state. Drop one",
@@ -2101,9 +2103,9 @@ func ruleByID(t *testing.T, id string) settings.Rule {
 
 type run struct {
 	set        values
-	typed      []settings.Name
-	fromEnv    []settings.Name
-	fromFile   []settings.Name
+	typed      []settingrow.Name
+	fromEnv    []settingrow.Name
+	fromFile   []settingrow.Name
 	events     []argv.Event
 	positional string
 	file       []plan.Question
@@ -2135,18 +2137,16 @@ func (r run) view(t *testing.T) settings.View {
 
 	built, err := plan.Assemble(plan.Source{
 		Events: r.events, File: r.file, Positional: r.positional,
-		ReadFile: func(string) ([]byte, error) { return nil, nil }, Numbers: settings.PolicyNumbers(),
+		ReadFile: func(string) ([]byte, error) { return nil, nil },
 	})
 	if err != nil {
 		t.Fatalf("assembling: %v", err)
 	}
 
-	settings.MergeQuestions(built, r.events)
-
 	return settings.NewView(merged, built, facts)
 }
 
-func (r run) sourceOf(name settings.Name) settings.Source {
+func (r run) sourceOf(name settingrow.Name) settings.Source {
 	switch {
 	case slices.Contains(r.typed, name):
 		return settings.SourceFlag
@@ -2159,12 +2159,12 @@ func (r run) sourceOf(name settings.Name) settings.Source {
 	}
 }
 
-type values = map[settings.Name]any
+type values = map[settingrow.Name]any
 
 func typedGiven(t *testing.T, args ...string) *settings.Given {
 	t.Helper()
 
-	root := register(settings.CommandRoot)
+	root := register(settingrow.CommandRoot)
 	root.parse(t, args...)
 
 	return root.given

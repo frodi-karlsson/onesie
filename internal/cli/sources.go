@@ -3,14 +3,16 @@ package cli
 import (
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func mergeRun(
-	settings rootSettings, flags runConfig, given *setting.Given, command setting.Command, loaded *qfile.File,
+	settings rootSettings, flags runConfig, given *setting.Given, command settingrow.Command, loaded *qfile.File,
 ) (readSettings, error) {
-	rows := setting.Table()
+	rows := settingrow.Table()
 	src := setting.Sources{
 		Given:     given,
 		File:      fileValues(loaded),
@@ -59,8 +61,8 @@ type readSettings struct {
 	refusal error
 }
 
-func withoutChoice(rows []setting.Row) []setting.Row {
-	var kept []setting.Row
+func withoutChoice(rows []settingrow.Row) []settingrow.Row {
+	var kept []settingrow.Row
 
 	for _, row := range rows {
 		if !choosesRun(row.Name) {
@@ -126,10 +128,10 @@ func announced(notices []setting.Notice, sendsNothing bool) []setting.Notice {
 	return kept
 }
 
-func connects(name setting.Name) bool {
+func connects(name settingrow.Name) bool {
 	return name == setting.APIEndpoint.Name() || name == setting.APIKey.Name()
 }
 
-func choosesRun(name setting.Name) bool {
+func choosesRun(name settingrow.Name) bool {
 	return name == setting.Provider.Name() || name == setting.Profile.Name()
 }

@@ -1,32 +1,10 @@
-// Package settings holds every run setting as one row: its flag, its environment variables, its
+// Package settingrow holds every run setting as one row: its flag, its environment variables, its
 // question file key, its profile members, its kind and its help.
-package settings
+package settingrow
 
 import (
 	"slices"
-
-	"github.com/frodi-karlsson/onesie/internal/plan"
 )
-
-// Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
-// not a question file.
-type Row struct {
-	Name     Name
-	Scope    Scope
-	Flag     FlagSpec
-	Env      []EnvSpec
-	FileKey  string
-	FileHelp string
-	InBody   bool
-	Profile  []ProfileMember
-	Kind     Kind
-	Default  any
-	Derive   func(View) (any, bool)
-	Shapes   []plan.Shape
-	Modes    ModeSet
-	Help     string
-	Check    func(any) error
-}
 
 // FlagOn returns the row's flag as command registers it, with the command's overrides applied, and
 // whether command registers it at all.
@@ -58,6 +36,25 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 	bound.Member = override.Member
 
 	return bound, true
+}
+
+// Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
+// not a question file.
+type Row struct {
+	Name     Name
+	Scope    Scope
+	Flag     FlagSpec
+	Env      []EnvSpec
+	FileKey  string
+	FileHelp string
+	InBody   bool
+	Profile  []ProfileMember
+	Kind     Kind
+	Default  any
+	Shapes   []Shape
+	Modes    ModeSet
+	Help     string
+	Check    func(any) error
 }
 
 // BoundFlag is a row's flag on one command. Member is the profile member it writes, on a command

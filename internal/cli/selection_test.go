@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -54,7 +56,7 @@ func TestCheckChoice(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			chosen, err := setting.Choose(setting.Table(), setting.Sources{Given: flagsFrom(t, tc.args...).given, LookupEnv: lookupFrom(tc.env)})
+			chosen, err := setting.Choose(settingrow.Table(), setting.Sources{Given: flagsFrom(t, tc.args...).given, LookupEnv: lookupFrom(tc.env)})
 			if err == nil {
 				err = checkChoice(chosen)
 			}
@@ -330,7 +332,7 @@ func TestRunResolution(t *testing.T) {
 		merged.Set(setting.Profile.Name(), "work", setting.SourceFlag)
 		merged.Set(setting.APIKey.Name(), setting.HeldKey{Keychain: true, Account: "work@abc", KeyEnd: "3f9a"}, setting.SourceChosenProfile)
 		merged.Set(setting.Model.Name(), "merged-model", setting.SourceFile)
-		merged.Set(setting.APIEndpoint.Name(), setting.EndpointValue{BaseURL: "https://proxy.example"}, setting.SourceChosenProfile)
+		merged.Set(setting.APIEndpoint.Name(), settingrow.EndpointValue{BaseURL: "https://proxy.example"}, setting.SourceChosenProfile)
 		got := runResolution(merged, onesie.OpenRouter())
 		if got.profile != "work" || got.by != "--profile" || got.keyFrom != sourceKeychain || got.account != "work@abc" || got.keyEnd != "3f9a" || got.model != "merged-model" || got.baseURL != "https://proxy.example" {
 			t.Errorf("connection metadata or merged values were lost: profile %s by %s key source %s account %s model %s endpoint %s", got.profile, got.by, got.keyFrom, got.account, got.model, got.baseURL)
@@ -522,18 +524,18 @@ func mergedRun(
 
 	src := setting.Sources{
 		Given: flags.given, LookupEnv: lookupFrom(lookup), Profile: run.values(), DefaultProfile: run.fallback,
-		Command: setting.CommandRoot,
+		Command: settingrow.CommandRoot,
 	}
-	chosenSource, err := setting.Choose(setting.Table(), src)
+	chosenSource, err := setting.Choose(settingrow.Table(), src)
 	if err != nil {
 		t.Fatal(err)
 	}
 	src.Choice = &chosenSource
-	layers, err := setting.Read(setting.Table(), src)
+	layers, err := setting.Read(settingrow.Table(), src)
 	if err != nil {
 		t.Fatal(err)
 	}
-	merged, _ := setting.Merge(setting.Table(), layers, chosenSource)
+	merged, _ := setting.Merge(settingrow.Table(), layers, chosenSource)
 
 	resolved, err := resolveRun(run, lookupFrom(lookup), nil)
 	if err != nil {
@@ -548,8 +550,8 @@ func flagsFrom(t *testing.T, args ...string) *runFlags {
 
 	flags := &runFlags{}
 	cmd := &cobra.Command{Use: "onesie"}
-	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
-		setting.CommandRoot, runTargets(flags))
+	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+		settingrow.CommandRoot, runTargets(flags))
 	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 	if err := cmd.Flags().Parse(args); err != nil {

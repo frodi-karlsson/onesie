@@ -1,6 +1,10 @@
 package settings
 
-import "time"
+import (
+	"time"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+)
 
 // The keys of the settings that take one value, by row. A row given repeatedly, such as --assert,
 // has no key.
@@ -26,7 +30,7 @@ var (
 	Map            = Key[string]{name: "map"}
 	ID             = Key[string]{name: "id"}
 	Model          = Key[string]{name: "model"}
-	APIEndpoint    = Key[EndpointValue]{name: "endpoint"}
+	APIEndpoint    = Key[settingrow.EndpointValue]{name: "endpoint"}
 	APIKey         = Key[string]{name: "api_key"}
 	AllowHTTP      = Key[bool]{name: "allow_http"}
 	LongContext    = Key[bool]{name: "long_context"}
@@ -71,8 +75,8 @@ func Keys() []Keyed {
 
 // Keyed is a key of any value type.
 type Keyed interface {
-	Name() Name
-	Fits(kind Kind) bool
+	Name() settingrow.Name
+	Fits(kind settingrow.Kind) bool
 }
 
 // Get returns the value k's setting takes for the run, or the zero value of its kind when nothing
@@ -91,11 +95,18 @@ func Get[T any](m *Merged, k Key[T]) T {
 	return value
 }
 
-// Derived returns k's value for the run as its row's Derive works it out from v, or the merged
-// value when the row derives none, such as -o auto resolved against the terminal.
+// Derived returns the run default of k, or its merged value when no default applies.
 func Derived[T any](v View, k Key[T]) T {
-	if row, found := Lookup(k.name); found && row.Derive != nil {
-		if value, derives := row.Derive(v); derives {
+	var derive func(View) (any, bool)
+
+	switch k.name {
+	case Output.Name():
+		derive = autoOutput
+	case CacheTTL.Name():
+		derive = aliasLifetime
+	}
+	if derive != nil {
+		if value, derives := derive(v); derives {
 			if typed, fits := value.(T); fits {
 				return typed
 			}
@@ -107,16 +118,16 @@ func Derived[T any](v View, k Key[T]) T {
 
 // Key gives typed access to a merged value, so a consumer never type asserts.
 type Key[T any] struct {
-	name Name
+	name settingrow.Name
 }
 
 // Name is the row the key reads.
-func (k Key[T]) Name() Name {
+func (k Key[T]) Name() settingrow.Name {
 	return k.name
 }
 
 // Fits reports whether kind yields the key's value type.
-func (k Key[T]) Fits(kind Kind) bool {
+func (k Key[T]) Fits(kind settingrow.Kind) bool {
 	_, ok := kind.Zero().(T)
 
 	return ok

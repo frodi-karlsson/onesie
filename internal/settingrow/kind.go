@@ -1,4 +1,4 @@
-package settings
+package settingrow
 
 import (
 	"encoding/json"
@@ -19,17 +19,6 @@ var (
 
 	accountIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
 )
-
-// Kind is the type of a setting's value: how it parses, how a question file gives it, its zero
-// value, the schema fragment that describes it and the name help shows for it. A number kind's Parse
-// returns the number it read beside a range refusal, so a caller can word that refusal itself.
-type Kind interface {
-	Parse(raw string) (any, error)
-	FromFile(raw any) (any, error)
-	Zero() any
-	Schema() jsonschema.Node
-	ValueName() string
-}
 
 // Bool is a setting that is on or off.
 func Bool() Kind {
@@ -102,6 +91,17 @@ func Levels() Kind {
 // TrueOnly is a switch that a flag turns on or off, and that a question file can only set to true.
 func TrueOnly() Kind {
 	return trueOnlyKind{}
+}
+
+// Kind is the type of a setting's value: how it parses, how a question file gives it, its zero
+// value, the schema fragment that describes it and the name help shows for it. A number kind's Parse
+// returns the number it read beside a range refusal, so a caller can word that refusal itself.
+type Kind interface {
+	Parse(raw string) (any, error)
+	FromFile(raw any) (any, error)
+	Zero() any
+	Schema() jsonschema.Node
+	ValueName() string
 }
 
 type boolKind struct{}

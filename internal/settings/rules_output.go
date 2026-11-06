@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -16,7 +18,7 @@ const WrapKey = "state"
 func delimiterRule() Rule {
 	return Rule{
 		ID:    "delimiter-needs-csv",
-		Reads: []Name{Delimiter.Name(), Input.Name(), Output.Name()},
+		Reads: []settingrow.Name{Delimiter.Name(), Input.Name(), Output.Name()},
 		Check: func(v View) error {
 			if !typed(v, Delimiter.Name()) {
 				return nil
@@ -49,7 +51,7 @@ func delimiterlessReason(mode input.Mode) string {
 func rawAndOutputRule() Rule {
 	return Rule{
 		ID:    "raw-and-output",
-		Reads: []Name{Raw.Name(), Output.Name()},
+		Reads: []settingrow.Name{Raw.Name(), Output.Name()},
 		Check: func(v View) error {
 			if Get(v.Merged, Raw) && Get(v.Merged, Output) != "" {
 				return errors.New("-r and -o are mutually exclusive")
@@ -63,7 +65,7 @@ func rawAndOutputRule() Rule {
 func mergeOutputRule() Rule {
 	return Rule{
 		ID:    "merge-needs-mergeable-output",
-		Reads: []Name{MergeInput.Name(), MergeKey.Name(), Raw.Name(), Output.Name()},
+		Reads: []settingrow.Name{MergeInput.Name(), MergeKey.Name(), Raw.Name(), Output.Name()},
 		Check: func(v View) error {
 			if merging(v) && !mergeable(v) {
 				return fmt.Errorf("%s needs -o json, values, csv or tsv", mergeName(v))
@@ -92,7 +94,7 @@ func mergeable(v View) bool {
 func mergeKeyWrapsRule() Rule {
 	return Rule{
 		ID:    "merge-key-not-wrapped",
-		Reads: []Name{MergeKey.Name(), Input.Name()},
+		Reads: []settingrow.Name{MergeKey.Name(), Input.Name()},
 		Check: func(v View) error {
 			name := Get(v.Merged, Input)
 			if Get(v.Merged, MergeKey) != WrapKey || (name != "text" && name != "lines") {
@@ -108,7 +110,7 @@ func mergeKeyWrapsRule() Rule {
 func delimitedOutputRule() Rule {
 	return Rule{
 		ID:    "delimited-output",
-		Reads: []Name{Output.Name(), MergeKey.Name(), MergeInput.Name(), Input.Name(), Usage.Name()},
+		Reads: []settingrow.Name{Output.Name(), MergeKey.Name(), MergeInput.Name(), Input.Name(), Usage.Name()},
 		Check: func(v View) error {
 			output, name := Get(v.Merged, Output), Get(v.Merged, Input)
 			if output != "csv" && output != "tsv" {
@@ -133,7 +135,7 @@ func delimitedOutputRule() Rule {
 func usageWritesAnswersRule() Rule {
 	return Rule{
 		ID:    "usage-needs-a-usage-column",
-		Reads: []Name{Usage.Name(), Raw.Name(), Output.Name()},
+		Reads: []settingrow.Name{Usage.Name(), Raw.Name(), Output.Name()},
 		Check: func(v View) error {
 			var mode string
 
@@ -156,7 +158,7 @@ func usageWritesAnswersRule() Rule {
 func fallbackColumnsRule() Rule {
 	return Rule{
 		ID:    "columns-unique",
-		Reads: []Name{Output.Name(), "box", "fallback"},
+		Reads: []settingrow.Name{Output.Name(), "box", "fallback"},
 		Check: func(v View) error {
 			output := Get(v.Merged, Output)
 			if v.Plan == nil || (output != "csv" && output != "tsv") {
@@ -206,7 +208,7 @@ func questionIDs(questions []plan.Question) []string {
 func rawNeedsOneQuestionRule() Rule {
 	return Rule{
 		ID:    "raw-needs-one-question",
-		Reads: []Name{Raw.Name(), Output.Name()},
+		Reads: []settingrow.Name{Raw.Name(), Output.Name()},
 		Check: func(v View) error {
 			// Both spellings of the raw mode take a single question. Only the -r spelling is exclusive
 			// with -o, so the two stay separate settings.

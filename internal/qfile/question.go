@@ -8,6 +8,7 @@ import (
 	"github.com/goccy/go-yaml"
 
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func loadQuestions(top yaml.MapSlice) (*File, error) {
@@ -416,8 +417,12 @@ func readFallback(id string, value any) (string, error) {
 func checkKeys(id string, fields yaml.MapSlice) error {
 	known := map[string]struct{}{
 		"ask": {}, "yes_means": {}, "no_means": {}, "true": {}, "false": {},
-		"pick": {}, "rate": {}, "box": {},
-		"threshold": {}, "min_confidence": {}, "fallback": {},
+	}
+
+	for _, row := range settingrow.Table() {
+		if row.Scope == settingrow.ScopeQuestion && row.FileKey != "" && !row.InBody {
+			known[row.FileKey] = struct{}{}
+		}
 	}
 
 	for _, item := range fields {

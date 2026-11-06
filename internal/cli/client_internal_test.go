@@ -19,6 +19,8 @@ import (
 	"testing"
 	"testing/synctest"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
@@ -1022,8 +1024,8 @@ func TestBaseURLFrom(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	baseURL := setting.EndpointValue{BaseURL: "https://local.example"}
-	account := setting.EndpointValue{AccountID: testAccountID}
+	baseURL := settingrow.EndpointValue{BaseURL: "https://local.example"}
+	account := settingrow.EndpointValue{AccountID: testAccountID}
 
 	tests := []struct {
 		name     string
@@ -1031,7 +1033,7 @@ func TestBaseURLFrom(t *testing.T) {
 		run      resolution
 		from     setting.Source
 		spelled  string
-		endpoint setting.EndpointValue
+		endpoint settingrow.EndpointValue
 		want     string
 	}{
 		{
@@ -1079,12 +1081,12 @@ func TestBaseURLFrom(t *testing.T) {
 			var layers []setting.Layer
 			if tc.spelled != "" {
 				layers = append(layers, setting.Layer{
-					Source: tc.from, Values: map[setting.Name]any{"endpoint": tc.endpoint},
-					Spelled: map[setting.Name]string{"endpoint": tc.spelled},
+					Source: tc.from, Values: map[settingrow.Name]any{"endpoint": tc.endpoint},
+					Spelled: map[settingrow.Name]string{"endpoint": tc.spelled},
 				})
 			}
 
-			merged, _ := setting.Merge(setting.Table(), layers, setting.Choice{})
+			merged, _ := setting.Merge(settingrow.Table(), layers, setting.Choice{})
 
 			if got := baseURLFrom(tc.source, runResolution(merged, tc.run.provider)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)

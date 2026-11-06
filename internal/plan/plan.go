@@ -1,7 +1,27 @@
 // Package plan turns a recorded command line into a validated invocation, ready to run.
 package plan
 
-import "github.com/frodi-karlsson/onesie/internal/argv"
+import (
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+)
+
+// EventsFor returns the prepared flags that target id, with lone question defaults first.
+func (built *Plan) EventsFor(id string) []argv.Event {
+	var events []argv.Event
+
+	if len(built.Questions) == 1 {
+		events = append(events, built.Orphans...)
+	}
+
+	for _, selection := range built.Selections {
+		if selection.ID == id {
+			events = append(events, selection.Events...)
+		}
+	}
+
+	return events
+}
 
 // Plan is a validated invocation. Questions are in the order they were defined, which is the order
 // the normalized output requires.
@@ -64,32 +84,18 @@ type Question struct {
 }
 
 // Shape is the question type, which the shape flags determine.
-type Shape int
+type Shape = settingrow.Shape
 
 const (
 	// Noul is a yes or no question, answered with a probability.
-	Noul Shape = iota
+	Noul = settingrow.Noul
 	// Pick is a choice between named options.
-	Pick
+	Pick = settingrow.Pick
 	// Rate is a score against an ordered rubric.
-	Rate
+	Rate = settingrow.Rate
 	// Box finds where something is in an image.
-	Box
+	Box = settingrow.Box
 )
-
-// String names the shape as the API's type field spells it.
-func (s Shape) String() string {
-	switch s {
-	case Pick:
-		return "pick"
-	case Rate:
-		return "rate"
-	case Box:
-		return "box"
-	default:
-		return "noul"
-	}
-}
 
 // Origin is where a question came from, which decides how a message spells the thing that is
 // wrong. A file says pick where the command line says --pick.

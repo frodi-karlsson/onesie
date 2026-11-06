@@ -3,12 +3,14 @@ package settings
 import (
 	"fmt"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/pflag"
 )
 
 // ParseRun parses the flag of every run scope row command registers through the row's kind and
 // check, in table order, and returns the typed values beside each untyped row's default.
-func ParseRun(rows []Row, given *Given, command Command) (*Merged, error) {
+func ParseRun(rows []settingrow.Row, given *Given, command settingrow.Command) (*Merged, error) {
 	merged := &Merged{}
 
 	for _, row := range rows {
@@ -39,7 +41,7 @@ func ParseRun(rows []Row, given *Given, command Command) (*Merged, error) {
 	return merged, nil
 }
 
-func untyped(row Row, bound BoundFlag) any {
+func untyped(row settingrow.Row, bound settingrow.BoundFlag) any {
 	if row.Flag.Repeat {
 		return []string(nil)
 	}
@@ -47,14 +49,14 @@ func untyped(row Row, bound BoundFlag) any {
 	return defaultOf[any](bound, bound.Kind.Zero())
 }
 
-func parsedPerRun(row Row, command Command) bool {
+func parsedPerRun(row settingrow.Row, command settingrow.Command) bool {
 	// A group row binds to a question and parses in plan.Assemble. A command that gives a flag a kind
 	// of its own, as calibrate does for its report and its input, words that flag's refusals in its
 	// own rules.
-	return row.Scope == ScopeRun && !row.Flag.Group && row.Flag.PerCommand[command].Kind == nil
+	return row.Scope == settingrow.ScopeRun && !row.Flag.Group && row.Flag.PerCommand[command].Kind == nil
 }
 
-func parseFlag(row Row, bound BoundFlag, flag *pflag.Flag) (any, error) {
+func parseFlag(row settingrow.Row, bound settingrow.BoundFlag, flag *pflag.Flag) (any, error) {
 	if row.Flag.Repeat {
 		list := sliceOf(flag)
 		for _, raw := range list {
@@ -91,7 +93,7 @@ func sliceOf(flag *pflag.Flag) []string {
 	return []string{flag.Value.String()}
 }
 
-func spelling(bound BoundFlag) string {
+func spelling(bound settingrow.BoundFlag) string {
 	if bound.Short != "" {
 		return "-" + bound.Short
 	}

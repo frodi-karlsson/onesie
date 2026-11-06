@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -97,7 +99,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileCreate,
+	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), nil, settingrow.CommandProfileCreate,
 		profileTargets(fields, flags))
 
 	return cmd
@@ -129,7 +131,7 @@ func profileCreate(
 			"or delete it and create it again", creds.QuotedName(name), creds.QuotedName(name))
 	}
 
-	profile := applied(creds.Profile{}, profileTargets(&fields, flags), given, setting.CommandProfileCreate)
+	profile := applied(creds.Profile{}, profileTargets(&fields, flags), given, settingrow.CommandProfileCreate)
 
 	// Ahead of the read, so a typo costs the user nothing and leaves no file behind.
 	if refused := checkGiven(profile, given, true); refused != nil {
@@ -183,7 +185,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, setting.Table(), nil, setting.CommandProfileUpdate,
+	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), nil, settingrow.CommandProfileUpdate,
 		profileTargets(fields, flags))
 
 	return cmd
@@ -215,7 +217,7 @@ func profileUpdate(
 		return refused
 	}
 
-	profile := applied(old, profileTargets(&fields, flags), given, setting.CommandProfileUpdate)
+	profile := applied(old, profileTargets(&fields, flags), given, settingrow.CommandProfileUpdate)
 	if profile == old && target == name && !fields.key {
 		if already := alreadySet(name, old, given); already != "" {
 			return output.Notice(cmd.ErrOrStderr(),
@@ -305,11 +307,11 @@ func updatedKey(cmd *cobra.Command, settings rootSettings, name string, old, pro
 }
 
 func applied(
-	old creds.Profile, targets map[setting.Name]any, given *setting.Given, command setting.Command,
+	old creds.Profile, targets map[settingrow.Name]any, given *setting.Given, command settingrow.Command,
 ) creds.Profile {
 	profile := old
 
-	for _, row := range setting.Table() {
+	for _, row := range settingrow.Table() {
 		bound, ok := row.FlagOn(command)
 		if !ok || bound.Member.Key == "" || given.Count(row.Name) == 0 {
 			continue
@@ -400,9 +402,9 @@ func joinAnd(items []string) string {
 	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
 
-func memberRow(key string) (setting.Name, string) {
-	for _, row := range setting.Table() {
-		if bound, ok := row.FlagOn(setting.CommandProfileUpdate); ok && bound.Member.Key == key {
+func memberRow(key string) (settingrow.Name, string) {
+	for _, row := range settingrow.Table() {
+		if bound, ok := row.FlagOn(settingrow.CommandProfileUpdate); ok && bound.Member.Key == key {
 			return row.Name, "--" + bound.Long
 		}
 	}
@@ -747,7 +749,7 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		},
 	}
 
-	allowHTTP, _ := setting.Lookup(setting.AllowHTTP.Name())
+	allowHTTP, _ := settingrow.Lookup(setting.AllowHTTP.Name())
 	cmd.Flags().BoolVar(&flags.allowHTTP, flagAllowHTTP, false, allowHTTP.Help)
 
 	return cmd
@@ -801,17 +803,17 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 		chosen.Provider, chosen.ProviderBy = shown.provider.Name(), setting.SourceEnv
 	}
 
-	layers, err := setting.Read(setting.Table(), setting.Sources{
+	layers, err := setting.Read(settingrow.Table(), setting.Sources{
 		LookupEnv: connectionEnv(settings.lookupEnv),
 		Profile:   run.values(),
 		Choice:    &chosen,
-		Command:   setting.CommandRoot,
+		Command:   settingrow.CommandRoot,
 	})
 	if err != nil {
 		return resolution{}, err
 	}
 
-	merged, _ := setting.Merge(setting.Table(), layers, chosen)
+	merged, _ := setting.Merge(settingrow.Table(), layers, chosen)
 
 	tested := runResolution(merged, shown.provider)
 	tested.by = shown.by
@@ -820,9 +822,9 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 
 func connectionEnv(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
 	return func(name string) (string, bool) {
-		for _, key := range []setting.Name{setting.Model.Name(), setting.APIEndpoint.Name(), setting.APIKey.Name()} {
-			row, _ := setting.Lookup(key)
-			if slices.ContainsFunc(row.Env, func(variable setting.EnvSpec) bool { return variable.Name == name }) {
+		for _, key := range []settingrow.Name{setting.Model.Name(), setting.APIEndpoint.Name(), setting.APIKey.Name()} {
+			row, _ := settingrow.Lookup(key)
+			if slices.ContainsFunc(row.Env, func(variable settingrow.EnvSpec) bool { return variable.Name == name }) {
 				return lookupEnv(name)
 			}
 		}
@@ -863,8 +865,8 @@ func shownResolution(settings rootSettings, flags *runFlags, args []string, comm
 	return profileRun(name, profile, by)
 }
 
-func profileTargets(fields *profileFlags, flags *runFlags) map[setting.Name]any {
-	return map[setting.Name]any{
+func profileTargets(fields *profileFlags, flags *runFlags) map[settingrow.Name]any {
+	return map[settingrow.Name]any{
 		setting.Provider.Name(): &fields.provider, setting.Model.Name(): &fields.model,
 		setting.APIEndpoint.Name(): &fields.baseURL, setting.AllowHTTP.Name(): &flags.allowHTTP,
 		"account_id": &fields.accountID, "key": &fields.key, "to_file": &fields.toFile, "name": &fields.newName,
@@ -875,7 +877,7 @@ func alreadySet(name string, profile creds.Profile, given *setting.Given) string
 	var unset, held []string
 
 	for _, member := range []struct {
-		row         setting.Name
+		row         settingrow.Name
 		name, value string
 	}{
 		{row: "name", name: "name", value: name},

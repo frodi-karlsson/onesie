@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -337,8 +339,8 @@ func TestMergeRun(t *testing.T) {
 
 			flags := &runFlags{}
 			cmd := &cobra.Command{Use: "onesie"}
-			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
-				setting.CommandRoot, runTargets(flags))
+			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+				settingrow.CommandRoot, runTargets(flags))
 			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 			if err := cmd.Flags().Parse(tc.args); err != nil {
@@ -349,7 +351,7 @@ func TestMergeRun(t *testing.T) {
 			settings.lookupEnv = lookupFrom(tc.env)
 			settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
 
-			merged, err := mergeRun(settings, runConfig{runFlags: *flags}, flags.given, setting.CommandRoot, nil)
+			merged, err := mergeRun(settings, runConfig{runFlags: *flags}, flags.given, settingrow.CommandRoot, nil)
 			got := merged.config
 
 			if tc.wantErr != "" {

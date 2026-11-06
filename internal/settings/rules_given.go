@@ -7,6 +7,8 @@ import (
 	"strings"
 	"unicode"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -20,7 +22,7 @@ func givenTwiceRule() Rule {
 func givenTwice(v View) []Notice {
 	var notices []Notice
 
-	for _, row := range Table() {
+	for _, row := range settingrow.Table() {
 		bound, registered := boundOn(row, v.Facts.Command)
 		if !registered || row.Flag.Repeat || row.Flag.Group {
 			continue
@@ -41,8 +43,8 @@ func givenTwiceFor(v View) []Notice {
 	var notices []Notice
 
 	for _, group := range typedGroups(v.Facts.Events, v.Facts.Positional, v.Plan) {
-		for _, row := range Table() {
-			if row.Scope != ScopeQuestion || !row.Flag.Group || !overridesWhenRepeated(row.Name) {
+		for _, row := range settingrow.Table() {
+			if row.Scope != settingrow.ScopeQuestion || !row.Flag.Group || !overridesWhenRepeated(row.Name) {
 				continue
 			}
 
@@ -61,14 +63,14 @@ func givenTwiceFor(v View) []Notice {
 	return notices
 }
 
-func overridesWhenRepeated(name Name) bool {
+func overridesWhenRepeated(name settingrow.Name) bool {
 	// A repeated --pick or --rate adds options, --sep applies to the flags after it, and --box takes no
 	// value to override.
 	return name == Threshold.Name() || name == MinConfidence.Name() || name == FallbackAnswer.Name() ||
 		name == descName
 }
 
-func typedValues(row Row, events []argv.Event) [][]string {
+func typedValues(row settingrow.Row, events []argv.Event) [][]string {
 	if row.Name != descName {
 		var typed []string
 
@@ -172,7 +174,7 @@ type typedGroup struct {
 	positions []int
 }
 
-func typedTwice(row Row, kind Kind, typed []string) (Notice, bool) {
+func typedTwice(row settingrow.Row, kind settingrow.Kind, typed []string) (Notice, bool) {
 	if len(typed) < 2 {
 		return Notice{}, false
 	}
@@ -206,7 +208,7 @@ func typedTwice(row Row, kind Kind, typed []string) (Notice, bool) {
 	}, true
 }
 
-func sameValue(kind Kind, a, b string) bool {
+func sameValue(kind settingrow.Kind, a, b string) bool {
 	parsedA, errA := kind.Parse(a)
 	parsedB, errB := kind.Parse(b)
 
@@ -217,7 +219,7 @@ func sameValue(kind Kind, a, b string) bool {
 	return reflect.DeepEqual(parsedA, parsedB)
 }
 
-func lastSpelling(v View, name Name, bound BoundFlag, times int) string {
+func lastSpelling(v View, name settingrow.Name, bound settingrow.BoundFlag, times int) string {
 	// Without the command line, as when a caller parsed a flag set of its own, the long name stands in.
 	spelled := v.Facts.Given.Spelled(v.Facts.Args, name)
 	if len(spelled) != times {

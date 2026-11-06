@@ -1,13 +1,14 @@
 package plan
 
 import (
-	"errors"
 	"fmt"
+	"maps"
 	"slices"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/patherr"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 // PositionalID is the reserved id a bare QUESTION argument is keyed under.
@@ -18,16 +19,8 @@ const defaultSeparator = ","
 // UnnamedFile names a question file in a message when no -f value names it.
 const UnnamedFile = "the question file"
 
-// ErrNoNumbers is the refusal of a Source or a Validate call whose Numbers the caller left unset.
-var ErrNoNumbers = errors.New("plan: Numbers is unset. Pass what settings.PolicyNumbers returns")
-
-// Assemble folds a recorded command line and any file questions into a Plan. src.Numbers is
-// required.
+// Assemble folds a recorded command line and file questions into a plan.
 func Assemble(src Source) (*Plan, error) {
-	if !src.Numbers.complete() {
-		return nil, ErrNoNumbers
-	}
-
 	groups, selections, orphans := split(src.Events, src.Positional, len(src.File) > 0)
 
 	built := &Plan{Questions: append([]Question(nil), src.File...), Selections: selections}
@@ -49,8 +42,6 @@ func Assemble(src Source) (*Plan, error) {
 	switch {
 	case len(orphans) == 0 || len(built.Questions) != 1:
 	case !built.Questions[0].Origin.FromFile():
-		// A question --ask defines takes the top level flags as its own, as a lone --ask with no file
-		// does in split. A file question takes them in settings.MergeQuestions, with a notice.
 		if err := applyEvents(&built.Questions[0], orphans, src); err != nil {
 			return nil, err
 		}
@@ -79,6 +70,17 @@ func Assemble(src Source) (*Plan, error) {
 		built.Selections[i].Events = prepared
 	}
 
+	for i := range built.Questions {
+		question := &built.Questions[i]
+		if !question.Origin.FromFile() {
+			continue
+		}
+		*question = detached(*question)
+		events := built.EventsFor(question.ID)
+		if len(events) > 0 {
+			Refine(question, events)
+		}
+	}
 	return built, nil
 }
 
@@ -94,25 +96,6 @@ type Source struct {
 	Replace  bool
 	// ReadFile resolves @FILE references, injected so tests need nothing on disk.
 	ReadFile func(string) ([]byte, error)
-	// Numbers parse the policy numbers, and are required. settings.PolicyNumbers fills them.
-	Numbers Numbers
-}
-
-// Numbers parse and bound a question's policy numbers. The settings rows' kinds fill it, and the
-// zero value is refused, since plan cannot import settings to supply them.
-type Numbers struct {
-	Threshold, MinConfidence Number
-}
-
-func (n Numbers) complete() bool {
-	return n.Threshold != nil && n.MinConfidence != nil
-}
-
-// Number reads a policy number from flag text, and bounds one a question file gave. Parse returns
-// the number it read beside a range refusal.
-type Number interface {
-	Parse(raw string) (any, error)
-	FromFile(raw any) (any, error)
 }
 
 func split(events []argv.Event, positional string, hasFile bool) ([]group, []Selection, []argv.Event) {
@@ -235,14 +218,14 @@ func applyEvents(question *Question, events []argv.Event, src Source) error {
 		return err
 	}
 
-	apply(question, prepared, src.Numbers)
+	apply(question, prepared)
 
 	return nil
 }
 
 // Refine applies the flags Assemble prepared for a question from a file or a body. It replaces options
 // or levels within the question's shape, and leaves a flag it cannot apply to validation.
-func Refine(question *Question, events []argv.Event, numbers Numbers) {
+func Refine(question *Question, events []argv.Event) {
 	kept := slices.DeleteFunc(slices.Clone(events), func(event argv.Event) bool {
 		return !refines(*question, event.Name)
 	})
@@ -261,7 +244,7 @@ func Refine(question *Question, events []argv.Event, numbers Numbers) {
 		}
 	}
 
-	apply(question, kept, numbers)
+	apply(question, kept)
 }
 
 func refines(question Question, flag string) bool {
@@ -311,9 +294,9 @@ func prepare(events []argv.Event, src Source) ([]argv.Event, error) {
 
 			event.Value = key + "=" + resolved
 		case "threshold", "min-confidence":
-			number := src.Numbers.Threshold
+			number := policyKind("threshold")
 			if event.Name == "min-confidence" {
-				number = src.Numbers.MinConfidence
+				number = policyKind("min_confidence")
 			}
 
 			if _, isNumber := policyNumber(number, event.Value); !isNumber {
@@ -327,7 +310,7 @@ func prepare(events []argv.Event, src Source) ([]argv.Event, error) {
 	return prepared, nil
 }
 
-func apply(question *Question, events []argv.Event, numbers Numbers) {
+func apply(question *Question, events []argv.Event) {
 	separator := defaultSeparator
 	descriptions := map[string]any{}
 
@@ -363,7 +346,7 @@ func apply(question *Question, events []argv.Event, numbers Numbers) {
 
 			descriptions[key] = text
 		default:
-			applyPolicy(question, event, numbers)
+			applyPolicy(question, event)
 		}
 	}
 
@@ -384,14 +367,14 @@ func apply(question *Question, events []argv.Event, numbers Numbers) {
 	}
 }
 
-func applyPolicy(question *Question, event argv.Event, numbers Numbers) {
+func applyPolicy(question *Question, event argv.Event) {
 	switch event.Name {
 	case "threshold":
-		if value, isNumber := policyNumber(numbers.Threshold, event.Value); isNumber {
+		if value, isNumber := policyNumber(policyKind("threshold"), event.Value); isNumber {
 			question.Policy.Threshold = &value
 		}
 	case "min-confidence":
-		if value, isNumber := policyNumber(numbers.MinConfidence, event.Value); isNumber {
+		if value, isNumber := policyNumber(policyKind("min_confidence"), event.Value); isNumber {
 			question.Policy.MinConfidence = &value
 		}
 	case "fallback":
@@ -399,7 +382,7 @@ func applyPolicy(question *Question, event argv.Event, numbers Numbers) {
 	}
 }
 
-func policyNumber(number Number, raw string) (float64, bool) {
+func policyNumber(number settingrow.Kind, raw string) (float64, bool) {
 	parsed, err := number.Parse(raw)
 
 	// A number out of range is kept, since validation words the range for flag and file values
@@ -489,4 +472,26 @@ type group struct {
 	ask    string
 	asked  bool
 	events []argv.Event
+}
+
+func policyKind(name settingrow.Name) settingrow.Kind {
+	row, _ := settingrow.Lookup(name)
+	return row.Kind
+}
+
+func detached(question Question) Question {
+	question.Typed = slices.Clone(question.Typed)
+	question.DescOrder = slices.Clone(question.DescOrder)
+	question.Options = slices.Clone(question.Options)
+	question.Levels = slices.Clone(question.Levels)
+	question.UnknownDesc = maps.Clone(question.UnknownDesc)
+	if question.Criteria != nil {
+		criteria := *question.Criteria
+		question.Criteria = &criteria
+	}
+	if question.Policy.Fallback != nil {
+		fallback := *question.Policy.Fallback
+		question.Policy.Fallback = &fallback
+	}
+	return question
 }

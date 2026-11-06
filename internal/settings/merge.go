@@ -1,3 +1,4 @@
+// Package settings merges sources and validates the settings of a run.
 package settings
 
 import (
@@ -7,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -14,7 +17,7 @@ import (
 )
 
 // Merge applies the resolved choice and takes other settings from the highest layer, with notices.
-func Merge(rows []Row, layers []Layer, chosen Choice) (*Merged, []Notice) {
+func Merge(rows []settingrow.Row, layers []Layer, chosen Choice) (*Merged, []Notice) {
 	ranked := highestFirst(layers)
 	merged := &Merged{}
 
@@ -22,7 +25,7 @@ func Merge(rows []Row, layers []Layer, chosen Choice) (*Merged, []Notice) {
 
 	for _, row := range rows {
 		switch {
-		case row.Scope == ScopeQuestion, row.Name == profileName:
+		case row.Scope == settingrow.ScopeQuestion, row.Name == profileName:
 		case row.Name == providerName:
 			notices = append(notices, mergeChoice(merged, ranked, chosen, rows)...)
 		default:
@@ -35,14 +38,14 @@ func Merge(rows []Row, layers []Layer, chosen Choice) (*Merged, []Notice) {
 	return merged, notices
 }
 
-// MergeQuestions applies to each question from -f its --for flags, and the top level flags when it is
-// the one question asked. It returns a notice for each setting a flag gave, in the order typed.
-func MergeQuestions(built *plan.Plan, typed []argv.Event) []Notice {
+// MergeQuestions reports the settings that changed between file questions and the assembled plan.
+// Notices follow the order of the typed flags.
+func MergeQuestions(before []plan.Question, built *plan.Plan, typed []argv.Event) []Notice {
 	if built == nil {
 		return nil
 	}
 
-	notices := refinedNotices(built)
+	notices := refinedNotices(before, built)
 	groups := typedGroups(typed, "", built)
 
 	slices.SortStableFunc(notices, func(a, b Notice) int {
@@ -53,7 +56,7 @@ func MergeQuestions(built *plan.Plan, typed []argv.Event) []Notice {
 }
 
 func firstTyped(groups []typedGroup, notice Notice) int {
-	row, _ := Lookup(notice.Setting)
+	row, _ := settingrow.Lookup(notice.Setting)
 
 	for _, group := range groups {
 		if group.id != notice.Question {
@@ -70,22 +73,25 @@ func firstTyped(groups []typedGroup, notice Notice) int {
 	return math.MaxInt
 }
 
-func refinedNotices(built *plan.Plan) []Notice {
+func refinedNotices(original []plan.Question, built *plan.Plan) []Notice {
 	var notices []Notice
 
 	for i := range built.Questions {
 		question := &built.Questions[i]
 
-		events := typedFor(built, question.ID)
+		events := built.EventsFor(question.ID)
 		if !question.Origin.FromFile() || len(events) == 0 {
 			continue
 		}
 
-		before := detached(*question)
-		plan.Refine(question, events, PolicyNumbers())
+		at := slices.IndexFunc(original, func(q plan.Question) bool { return q.ID == question.ID })
+		if at < 0 {
+			continue
+		}
+		before := original[at]
 
-		for _, row := range Table() {
-			if row.Scope != ScopeQuestion || !slices.ContainsFunc(events, typedAs(row)) {
+		for _, row := range settingrow.Table() {
+			if row.Scope != settingrow.ScopeQuestion || !slices.ContainsFunc(events, typedAs(row)) {
 				continue
 			}
 
@@ -106,39 +112,11 @@ func refinedNotices(built *plan.Plan) []Notice {
 	return notices
 }
 
-func typedFor(built *plan.Plan, id string) []argv.Event {
-	var events []argv.Event
-
-	if len(built.Questions) == 1 {
-		events = append(events, built.Orphans...)
-	}
-
-	for _, selection := range built.Selections {
-		if selection.ID == id {
-			events = append(events, selection.Events...)
-		}
-	}
-
-	return events
-}
-
-func detached(question plan.Question) plan.Question {
-	question.Options = slices.Clone(question.Options)
-	question.Levels = slices.Clone(question.Levels)
-
-	if question.Criteria != nil {
-		criteria := *question.Criteria
-		question.Criteria = &criteria
-	}
-
-	return question
-}
-
-func typedAs(row Row) func(argv.Event) bool {
+func typedAs(row settingrow.Row) func(argv.Event) bool {
 	return func(event argv.Event) bool { return event.Name == row.Flag.Long }
 }
 
-func questionSetting(question plan.Question, name Name) any {
+func questionSetting(question plan.Question, name settingrow.Name) any {
 	policy := question.Policy
 
 	switch {
@@ -157,7 +135,7 @@ func questionSetting(question plan.Question, name Name) any {
 	}
 }
 
-func describedNotices(row Row, before, after plan.Question, events []argv.Event) []Notice {
+func describedNotices(row settingrow.Row, before, after plan.Question, events []argv.Event) []Notice {
 	was, now := descriptions(before), descriptions(after)
 
 	var notices []Notice
@@ -221,7 +199,7 @@ func describedKey(question plan.Question, key string) string {
 	}
 }
 
-func refinedNotice(row Row, question plan.Question, was, now any) (Notice, bool) {
+func refinedNotice(row settingrow.Row, question plan.Question, was, now any) (Notice, bool) {
 	if now == nil || reflect.DeepEqual(was, now) {
 		return Notice{}, false
 	}
@@ -240,7 +218,7 @@ func refinedNotice(row Row, question plan.Question, was, now any) (Notice, bool)
 	return notice, true
 }
 
-func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
+func mergeRow(merged *Merged, row settingrow.Row, ranked []Layer) []Notice {
 	candidates := holding(ranked, row.Name)
 	if len(candidates) == 0 {
 		return nil
@@ -266,7 +244,7 @@ func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {
 }
 
 func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
-	endpoint, holds := merged.values[endpointName].(EndpointValue)
+	endpoint, holds := merged.values[endpointName].(settingrow.EndpointValue)
 	if !holds || merged.sources[endpointName] == SourceDefault || ownEndpoint(merged, endpoint) {
 		return notices
 	}
@@ -276,14 +254,14 @@ func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
 		return notices
 	}
 
-	row, _ := Lookup(apiKeyName)
+	row, _ := settingrow.Lookup(apiKeyName)
 	dropped := merged.Origin(apiKeyName)
 	notice := Notice{Setting: apiKeyName, Winner: merged.Origin(endpointName), Loser: dropped, Verb: VerbPairs}
 
 	delete(merged.values, apiKeyName)
 	delete(merged.sources, apiKeyName)
 	delete(merged.spellings, apiKeyName)
-	merged.setAside = map[Name]Origin{apiKeyName: dropped}
+	merged.setAside = map[settingrow.Name]Origin{apiKeyName: dropped}
 
 	for _, paired := range holding(ranked, apiKeyName) {
 		if slices.Contains(pairs, paired.layer.Source) {
@@ -299,7 +277,7 @@ func pairKey(merged *Merged, ranked []Layer, notices []Notice) []Notice {
 	return append(kept, notice)
 }
 
-func ownEndpoint(merged *Merged, endpoint EndpointValue) bool {
+func ownEndpoint(merged *Merged, endpoint settingrow.EndpointValue) bool {
 	// An account is the provider's own endpoint, and so is a whole account URL given as a base URL.
 	provider, err := onesie.ProviderNamed(textOf(merged.values[providerName]))
 	if err != nil {
@@ -334,7 +312,7 @@ func textOf(value any) string {
 	return ""
 }
 
-func holding(ranked []Layer, name Name) []candidate {
+func holding(ranked []Layer, name settingrow.Name) []candidate {
 	var candidates []candidate
 
 	for _, layer := range ranked {
@@ -351,7 +329,7 @@ type candidate struct {
 	value any
 }
 
-func originOf(layer Layer, row Row) Origin {
+func originOf(layer Layer, row settingrow.Row) Origin {
 	origin := Origin{Source: layer.Source, Spelled: layer.Spelled[row.Name], Body: layer.Body}
 	if origin.Spelled != "" {
 		return origin
@@ -368,7 +346,7 @@ func originOf(layer Layer, row Row) Origin {
 	return origin
 }
 
-func mergeChoice(merged *Merged, ranked []Layer, chosen Choice, rows []Row) []Notice {
+func mergeChoice(merged *Merged, ranked []Layer, chosen Choice, rows []settingrow.Row) []Notice {
 	switch {
 	case chosen.Provider != "":
 		return providerChosen(merged, ranked, chosen, choiceOrigin(rows, providerName, chosen.ProviderBy))
@@ -460,7 +438,7 @@ func defaultProvider(merged *Merged) {
 	}
 }
 
-func choiceOrigin(rows []Row, name Name, source Source) Origin {
+func choiceOrigin(rows []settingrow.Row, name settingrow.Name, source Source) Origin {
 	origin := Origin{Source: source}
 	for _, row := range rows {
 		if row.Name != name {
@@ -479,20 +457,20 @@ func choiceOrigin(rows []Row, name Name, source Source) Origin {
 	return origin
 }
 
-func choiceNotice(setting Name, winner Origin, loser Layer, lost Name, name string) Notice {
+func choiceNotice(setting settingrow.Name, winner Origin, loser Layer, lost settingrow.Name, name string) Notice {
 	return Notice{
 		Setting: setting, Winner: winner, Loser: Origin{Source: loser.Source, Spelled: loser.Spelled[lost]},
 		Values: [2]string{name},
 	}
 }
 
-func setFrom(merged *Merged, layer Layer, name Name) {
+func setFrom(merged *Merged, layer Layer, name settingrow.Name) {
 	if value, found := layer.Values[name]; found {
 		merged.Set(name, value, layer.Source)
 	}
 }
 
-func fallBack(merged *Merged, ranked []Layer, name Name) {
+func fallBack(merged *Merged, ranked []Layer, name settingrow.Name) {
 	if _, holds := merged.values[name]; holds {
 		return
 	}
@@ -506,28 +484,28 @@ func fallBack(merged *Merged, ranked []Layer, name Name) {
 
 // Merged holds each run setting and the source that gave it.
 type Merged struct {
-	values    map[Name]any
-	sources   map[Name]Source
-	spellings map[Name]string
-	setAside  map[Name]Origin
+	values    map[settingrow.Name]any
+	sources   map[settingrow.Name]Source
+	spellings map[settingrow.Name]string
+	setAside  map[settingrow.Name]Origin
 }
 
 // Set records the value name takes for the run and the source that gave it.
-func (m *Merged) Set(name Name, value any, source Source) {
+func (m *Merged) Set(name settingrow.Name, value any, source Source) {
 	if m.values == nil {
-		m.values = map[Name]any{}
+		m.values = map[settingrow.Name]any{}
 	}
 
 	if m.sources == nil {
-		m.sources = map[Name]Source{}
+		m.sources = map[settingrow.Name]Source{}
 	}
 
 	m.values[name], m.sources[name] = value, source
 }
 
-func (m *Merged) spelled(name Name, spelling string) {
+func (m *Merged) spelled(name settingrow.Name, spelling string) {
 	if m.spellings == nil {
-		m.spellings = map[Name]string{}
+		m.spellings = map[settingrow.Name]string{}
 	}
 
 	m.spellings[name] = spelling
@@ -535,7 +513,7 @@ func (m *Merged) spelled(name Name, spelling string) {
 
 // Value is name's value as stored, for a caller with no Key, such as a check that every value fits
 // its row.
-func (m *Merged) Value(name Name) any {
+func (m *Merged) Value(name settingrow.Name) any {
 	if m == nil {
 		return nil
 	}
@@ -544,7 +522,7 @@ func (m *Merged) Value(name Name) any {
 }
 
 // Source is where name's value came from, SourceDefault when nothing gave it.
-func (m *Merged) Source(name Name) Source {
+func (m *Merged) Source(name settingrow.Name) Source {
 	if m == nil {
 		return SourceDefault
 	}
@@ -553,7 +531,7 @@ func (m *Merged) Source(name Name) Source {
 }
 
 // Origin is where name's value came from, as a notice or a message names it.
-func (m *Merged) Origin(name Name) Origin {
+func (m *Merged) Origin(name settingrow.Name) Origin {
 	if m == nil {
 		return Origin{}
 	}
@@ -563,7 +541,7 @@ func (m *Merged) Origin(name Name) Origin {
 
 // SetAside is where a value came from that the merge set aside after it won, as a key from another
 // source than the endpoint it would go to.
-func (m *Merged) SetAside(name Name) (Origin, bool) {
+func (m *Merged) SetAside(name settingrow.Name) (Origin, bool) {
 	if m == nil {
 		return Origin{}, false
 	}

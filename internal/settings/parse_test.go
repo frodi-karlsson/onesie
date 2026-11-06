@@ -4,6 +4,8 @@ import (
 	"slices"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -13,12 +15,12 @@ func TestParseRun(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		command   settings.Command
+		command   settingrow.Command
 		args      []string
 		wantErr   string
 		want      values
-		wantTyped []settings.Name
-		wantDef   []settings.Name
+		wantTyped []settingrow.Name
+		wantDef   []settingrow.Name
 	}{
 		{
 			name:    "should report -o before --threshold",
@@ -104,31 +106,31 @@ func TestParseRun(t *testing.T) {
 			name:      "should accept every number at its ceiling",
 			args:      []string{"-j", "256", "--timeout", "86400", "--retries", "100", "--max-retry-after", "86400"},
 			want:      values{"jobs": 256, "timeout": 86400, "retries": 100, "max_retry_after": 86400},
-			wantTyped: []settings.Name{"jobs", "timeout", "retries", "max_retry_after"},
+			wantTyped: []settingrow.Name{"jobs", "timeout", "retries", "max_retry_after"},
 		},
 		{
 			name:      "should accept a retry count of zero",
 			args:      []string{"--retries", "0"},
 			want:      values{"retries": 0},
-			wantTyped: []settings.Name{"retries"},
+			wantTyped: []settingrow.Name{"retries"},
 		},
 		{
 			name:      "should read md as markdown",
 			args:      []string{"-o", "md"},
 			want:      values{"output": "markdown"},
-			wantTyped: []settings.Name{"output"},
+			wantTyped: []settingrow.Name{"output"},
 		},
 		{
 			name:      "should read a typed value with its source",
 			args:      []string{"-m", "x", "-q", "--out", "a.jsonl", "--delimiter", ";"},
 			want:      values{"model": "x", "quiet": true, "out": "a.jsonl", "delimiter": ";"},
-			wantTyped: []settings.Name{"model", "quiet", "out", "delimiter"},
+			wantTyped: []settingrow.Name{"model", "quiet", "out", "delimiter"},
 		},
 		{
 			name:      "should read a repeated flag as a list",
 			args:      []string{"--assert", "a.value", "--assert", "b.value", "--image-field", "img"},
 			want:      values{"assert": []string{"a.value", "b.value"}, "image_field": []string{"img"}},
-			wantTyped: []settings.Name{"assert", "image_field"},
+			wantTyped: []settingrow.Name{"assert", "image_field"},
 		},
 		{
 			name: "should give a row nothing typed its default",
@@ -137,23 +139,23 @@ func TestParseRun(t *testing.T) {
 				"input": "text", "jobs": 1, "output": "",
 				"timeout": int(limits.DefaultAttemptTimeout.Seconds()), "retries": limits.DefaultRetries,
 			},
-			wantDef: []settings.Name{"input", "jobs", "timeout", "retries", "output", "model"},
+			wantDef: []settingrow.Name{"input", "jobs", "timeout", "retries", "output", "model"},
 		},
 		{
 			name:    "should hold no group row",
 			args:    []string{"--ask", "a=q", "--threshold", "0.5"},
-			wantDef: []settings.Name{"output"},
+			wantDef: []settingrow.Name{"output"},
 		},
 		{
 			name:      "should leave calibrate's own -o and -i to its rules",
-			command:   settings.CommandCalibrate,
+			command:   settingrow.CommandCalibrate,
 			args:      []string{"-o", "values", "-i", "text", "-j", "4"},
 			want:      values{"jobs": 4},
-			wantTyped: []settings.Name{"jobs"},
+			wantTyped: []settingrow.Name{"jobs"},
 		},
 		{
 			name:    "should check a number on calibrate",
-			command: settings.CommandCalibrate,
+			command: settingrow.CommandCalibrate,
 			args:    []string{"-j", "0"},
 			wantErr: "-j takes a positive number of records in flight, got 0",
 		},
@@ -165,13 +167,13 @@ func TestParseRun(t *testing.T) {
 
 			command := tc.command
 			if command == 0 {
-				command = settings.CommandRoot
+				command = settingrow.CommandRoot
 			}
 
 			registered := register(command)
 			registered.parse(t, tc.args...)
 
-			merged, err := settings.ParseRun(settings.Table(), registered.given, command)
+			merged, err := settings.ParseRun(settingrow.Table(), registered.given, command)
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("ParseRun error = %v, want %q", err, tc.wantErr)
@@ -186,14 +188,14 @@ func TestParseRun(t *testing.T) {
 
 			checkParsed(t, merged, tc.want, tc.wantTyped, tc.wantDef)
 
-			for _, name := range []settings.Name{"threshold", "ask", "pick"} {
+			for _, name := range []settingrow.Name{"threshold", "ask", "pick"} {
 				if got := merged.Value(name); got != nil {
 					t.Errorf("Value(%s) = %v, want no value, since the row binds to a question", name, got)
 				}
 			}
 
-			if command == settings.CommandCalibrate {
-				for _, name := range []settings.Name{"output", "input"} {
+			if command == settingrow.CommandCalibrate {
+				for _, name := range []settingrow.Name{"output", "input"} {
 					if merged.Value(name) != nil {
 						t.Errorf("calibrate holds %s, want it left to calibrate's rules", name)
 					}
@@ -203,7 +205,7 @@ func TestParseRun(t *testing.T) {
 	}
 }
 
-func checkParsed(t *testing.T, merged *settings.Merged, want values, typed, untyped []settings.Name) {
+func checkParsed(t *testing.T, merged *settings.Merged, want values, typed, untyped []settingrow.Name) {
 	t.Helper()
 
 	for name, value := range want {

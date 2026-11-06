@@ -5,10 +5,11 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/jsonschema"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 // Schema returns the JSON Schema, draft 07, that describes a question file. A document with a top
@@ -24,7 +25,7 @@ func Schema() []byte {
 }
 
 func questionFileSchema() jsonschema.Node {
-	rows := fileRows(settings.Table())
+	rows := fileRows(settingrow.Table())
 	gates := append(fileKeys(gateRows(rows)), "$schema")
 
 	return jsonschema.Node{
@@ -60,25 +61,25 @@ func questionFileSchema() jsonschema.Node {
 	}
 }
 
-func fileRows(rows []settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
+func fileRows(rows []settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
 		return row.FileKey == "" || row.InBody
 	})
 }
 
-func gateRows(rows []settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
-		return row.Scope != settings.ScopeRun
+func gateRows(rows []settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
+		return row.Scope != settingrow.ScopeRun
 	})
 }
 
-func questionRows(rows []settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
-		return row.Scope != settings.ScopeQuestion
+func questionRows(rows []settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
+		return row.Scope != settingrow.ScopeQuestion
 	})
 }
 
-func fileKeys(rows []settings.Row) []string {
+func fileKeys(rows []settingrow.Row) []string {
 	keys := make([]string, 0, len(rows))
 	for _, row := range rows {
 		keys = append(keys, row.FileKey)
@@ -95,7 +96,7 @@ func inWords(words []string, last string) string {
 	return strings.Join(words[:len(words)-1], ", ") + " " + last + " " + words[len(words)-1]
 }
 
-func settingProperties(rows []settings.Row) jsonschema.Properties {
+func settingProperties(rows []settingrow.Row) jsonschema.Properties {
 	properties := make(jsonschema.Properties, 0, len(rows))
 
 	for _, row := range rows {
@@ -134,7 +135,7 @@ func questionSchema() jsonschema.Node {
 	}
 }
 
-func fieldsSchema(rows []settings.Row) jsonschema.Node {
+func fieldsSchema(rows []settingrow.Row) jsonschema.Node {
 	return jsonschema.Node{
 		Type:                 "object",
 		Required:             []string{"ask"},
@@ -162,7 +163,7 @@ func contentProperties() jsonschema.Properties {
 	}
 }
 
-func shapeConstraints(rows []settings.Row) []any {
+func shapeConstraints(rows []settingrow.Row) []any {
 	shapers := shapeRows(rows)
 	shapeKeys := fileKeys(shapers)
 	yesOrNoOnly := append([]string{"yes_means", "no_means", "true", "false"}, fileKeys(yesOrNoRows(rows))...)
@@ -208,30 +209,30 @@ func shapeConstraints(rows []settings.Row) []any {
 	return constraints
 }
 
-func shapeRows(rows []settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
+func shapeRows(rows []settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
 		return !makesShape(row)
 	})
 }
 
-func makesShape(row settings.Row) bool {
+func makesShape(row settingrow.Row) bool {
 	return len(row.Shapes) == 1 && row.Shapes[0] != plan.Noul
 }
 
-func yesOrNoRows(rows []settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
+func yesOrNoRows(rows []settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
 		return !onlyYesOrNo(row)
 	})
 }
 
-func onlyYesOrNo(row settings.Row) bool {
+func onlyYesOrNo(row settingrow.Row) bool {
 	return len(row.Shapes) > 0 && !slices.ContainsFunc(row.Shapes, func(shape plan.Shape) bool {
 		return shape != plan.Noul
 	})
 }
 
-func refusedBy(rows []settings.Row, shaper settings.Row) []settings.Row {
-	return slices.DeleteFunc(slices.Clone(rows), func(row settings.Row) bool {
+func refusedBy(rows []settingrow.Row, shaper settingrow.Row) []settingrow.Row {
+	return slices.DeleteFunc(slices.Clone(rows), func(row settingrow.Row) bool {
 		return makesShape(row) || onlyYesOrNo(row) || slices.Contains(row.Shapes, shaper.Shapes[0])
 	})
 }

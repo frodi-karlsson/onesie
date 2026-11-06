@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -32,7 +34,7 @@ func TestNewRunConfig(t *testing.T) {
 						got.inputMode, got.input, got.timeout, got.longContext)
 				}
 
-				for _, name := range []setting.Name{
+				for _, name := range []settingrow.Name{
 					setting.Input.Name(), setting.State.Name(), setting.Map.Name(), setting.Timeout.Name(),
 				} {
 					if !got.typed(name) {
@@ -40,7 +42,7 @@ func TestNewRunConfig(t *testing.T) {
 					}
 				}
 
-				for _, name := range []setting.Name{setting.StateFile.Name(), setting.ID.Name(), setting.Jobs.Name()} {
+				for _, name := range []settingrow.Name{setting.StateFile.Name(), setting.ID.Name(), setting.Jobs.Name()} {
 					if got.typed(name) {
 						t.Errorf("typed(%s) = true, want false", name)
 					}
@@ -129,7 +131,7 @@ func TestNewRunConfig(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			parsed, err := setting.ParseRun(setting.Table(), flags.given, setting.CommandRoot)
+			parsed, err := setting.ParseRun(settingrow.Table(), flags.given, settingrow.CommandRoot)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -157,8 +159,8 @@ func TestNewRunConfig(t *testing.T) {
 func registeredRun() (*runFlags, *cobra.Command) {
 	flags := &runFlags{}
 	cmd := &cobra.Command{Use: "onesie"}
-	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
-		setting.CommandRoot, runTargets(flags))
+	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+		settingrow.CommandRoot, runTargets(flags))
 
 	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
@@ -168,8 +170,8 @@ func registeredRun() (*runFlags, *cobra.Command) {
 func TestRunConfig_withMerged(t *testing.T) {
 	t.Parallel()
 
-	layer := func(source setting.Source, values map[setting.Name]any, spelled string) setting.Layer {
-		spellings := map[setting.Name]string{}
+	layer := func(source setting.Source, values map[settingrow.Name]any, spelled string) setting.Layer {
+		spellings := map[settingrow.Name]string{}
 		for name := range values {
 			spellings[name] = spelled
 		}
@@ -185,8 +187,8 @@ func TestRunConfig_withMerged(t *testing.T) {
 		{
 			name: "should read the mock file from --mock first",
 			layers: []setting.Layer{
-				layer(setting.SourceFlag, map[setting.Name]any{"mock": "flag.json"}, "--mock"),
-				layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, "ONESIE_MOCK"),
+				layer(setting.SourceFlag, map[settingrow.Name]any{"mock": "flag.json"}, "--mock"),
+				layer(setting.SourceEnv, map[settingrow.Name]any{"mock": "env.json"}, "ONESIE_MOCK"),
 			},
 			check: func(t *testing.T, got runConfig) {
 				t.Helper()
@@ -198,7 +200,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 		},
 		{
 			name:   "should read the mock file from ONESIE_MOCK without --mock",
-			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, "ONESIE_MOCK")},
+			layers: []setting.Layer{layer(setting.SourceEnv, map[settingrow.Name]any{"mock": "env.json"}, "ONESIE_MOCK")},
 			check: func(t *testing.T, got runConfig) {
 				t.Helper()
 
@@ -209,7 +211,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 		},
 		{
 			name: "should take the cache and its source, long context and the alias lifetime",
-			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{
+			layers: []setting.Layer{layer(setting.SourceEnv, map[settingrow.Name]any{
 				"cache": true, "long_context": true, "cache_ttl": time.Duration(0),
 			}, "ONESIE_X")},
 			check: func(t *testing.T, got runConfig) {
@@ -227,7 +229,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			merged, _ := setting.Merge(setting.Table(), tc.layers, setting.Choice{})
+			merged, _ := setting.Merge(settingrow.Table(), tc.layers, setting.Choice{})
 			tc.check(t, runConfig{}.withMerged(merged))
 		})
 	}

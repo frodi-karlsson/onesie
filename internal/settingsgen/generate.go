@@ -15,6 +15,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 	"github.com/frodi-karlsson/onesie/internal/settings"
@@ -130,7 +132,7 @@ type output struct {
 
 func withBlocks(existing []byte) ([]byte, error) {
 	text := string(existing)
-	rows := settings.Table()
+	rows := settingrow.Table()
 
 	blocks := []struct {
 		name   string
@@ -213,13 +215,13 @@ func marker(name, edge string) string {
 	return "<!-- settings:" + name + " " + edge + " -->"
 }
 
-func environmentBlock(rows []settings.Row) (string, error) {
-	var variables []settings.EnvSpec
+func environmentBlock(rows []settingrow.Row) (string, error) {
+	var variables []settingrow.EnvSpec
 	for _, row := range rows {
 		variables = append(variables, row.Env...)
 	}
 
-	slices.SortStableFunc(variables, func(a, b settings.EnvSpec) int {
+	slices.SortStableFunc(variables, func(a, b settingrow.EnvSpec) int {
 		return cmp.Compare(a.Order, b.Order)
 	})
 
@@ -240,7 +242,7 @@ func environmentBlock(rows []settings.Row) (string, error) {
 	return table.String()
 }
 
-func questionKeysBlock(rows []settings.Row) (string, error) {
+func questionKeysBlock(rows []settingrow.Row) (string, error) {
 	table := newTable("Key", "Where", "What it does")
 
 	for _, row := range rows {
@@ -252,9 +254,9 @@ func questionKeysBlock(rows []settings.Row) (string, error) {
 	return table.String()
 }
 
-func keyPlace(row settings.Row) string {
+func keyPlace(row settingrow.Row) string {
 	switch {
-	case row.Scope == settings.ScopeQuestion:
+	case row.Scope == settingrow.ScopeQuestion:
 		return "a question"
 	case row.InBody:
 		return "a request body"
@@ -274,7 +276,7 @@ func asCell(sentence string) string {
 	return string(unicode.ToLower(first)) + sentence[size:]
 }
 
-func runUsesBlock(rows []settings.Row) (string, error) {
+func runUsesBlock(rows []settingrow.Row) (string, error) {
 	table := newTable("Setting", "Flag", "Chosen profile", "Question file or body", "Environment", "Default profile")
 
 	for _, row := range rows {
@@ -294,9 +296,9 @@ func runUsesBlock(rows []settings.Row) (string, error) {
 	return table.String()
 }
 
-func ranked(row settings.Row) bool {
+func ranked(row settingrow.Row) bool {
 	// The provider and the profile choose the sources the other rows rank.
-	if row.Scope != settings.ScopeRun || row.Name == settings.Provider.Name() || row.Name == settings.Profile.Name() {
+	if row.Scope != settingrow.ScopeRun || row.Name == settings.Provider.Name() || row.Name == settings.Profile.Name() {
 		return false
 	}
 
@@ -311,7 +313,7 @@ func ranked(row settings.Row) bool {
 	return sources > 1
 }
 
-func profileMembers(row settings.Row) string {
+func profileMembers(row settingrow.Row) string {
 	keys := make([]string, 0, len(row.Profile))
 	for _, member := range row.Profile {
 		keys = append(keys, codeSpan(member.Key))
@@ -320,7 +322,7 @@ func profileMembers(row settings.Row) string {
 	return strings.Join(keys, " or ")
 }
 
-func fileSource(row settings.Row) string {
+func fileSource(row settingrow.Row) string {
 	switch {
 	case row.FileKey == "":
 		return ""
@@ -331,7 +333,7 @@ func fileSource(row settings.Row) string {
 	}
 }
 
-func variables(row settings.Row) string {
+func variables(row settingrow.Row) string {
 	names := make([]string, 0, len(row.Env))
 	providers := map[string]bool{}
 

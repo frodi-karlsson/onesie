@@ -9,9 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
-	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 var (
@@ -133,17 +134,17 @@ func TestSchema(t *testing.T) {
 				otherwise, _ := schema["else"].(map[string]any)
 				top, _ := otherwise["properties"].(map[string]any)
 
-				for _, row := range settings.Table() {
+				for _, row := range settingrow.Table() {
 					_, inFields := fields[row.FileKey]
 					_, atTop := top[row.FileKey]
 
 					switch {
 					case row.FileKey == "":
-					case row.Scope == settings.ScopeQuestion && !inFields:
+					case row.Scope == settingrow.ScopeQuestion && !inFields:
 						t.Errorf("%s is a question row, and fields has no %s", row.Name, row.FileKey)
-					case row.Scope == settings.ScopeRun && row.InBody && atTop:
+					case row.Scope == settingrow.ScopeRun && row.InBody && atTop:
 						t.Errorf("%s is a request body key, and a question file takes it at the top level", row.FileKey)
-					case row.Scope == settings.ScopeRun && !row.InBody && !atTop:
+					case row.Scope == settingrow.ScopeRun && !row.InBody && !atTop:
 						t.Errorf("%s is a run row, and the top level has no %s", row.Name, row.FileKey)
 					}
 				}

@@ -1,6 +1,9 @@
 package cli
 
-import setting "github.com/frodi-karlsson/onesie/internal/settings"
+import (
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+)
 
 const (
 	envCache       = "ONESIE_CACHE"
@@ -8,10 +11,10 @@ const (
 	envLongContext = "ONESIE_LONG_CONTEXT"
 )
 
-func checkEnvSettings(lookupEnv func(string) (string, bool), names ...setting.Name) error {
-	rows := make([]setting.Row, 0, len(names))
+func checkEnvSettings(lookupEnv func(string) (string, bool), names ...settingrow.Name) error {
+	rows := make([]settingrow.Row, 0, len(names))
 	for _, name := range names {
-		row, _ := setting.Lookup(name)
+		row, _ := settingrow.Lookup(name)
 		rows = append(rows, row)
 	}
 	_, err := setting.Read(rows, setting.Sources{LookupEnv: lookupEnv})

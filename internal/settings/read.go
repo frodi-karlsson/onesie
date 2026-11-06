@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
 	"github.com/spf13/pflag"
 
@@ -14,19 +17,19 @@ import (
 )
 
 const (
-	fileName     Name = "file"
-	profileName  Name = "profile"
-	providerName Name = "provider"
-	apiKeyName   Name = "api_key"
-	endpointName Name = "endpoint"
-	pickName     Name = "pick"
-	rateName     Name = "rate"
-	descName     Name = "desc"
+	fileName     settingrow.Name = "file"
+	profileName  settingrow.Name = "profile"
+	providerName settingrow.Name = "provider"
+	apiKeyName   settingrow.Name = "api_key"
+	endpointName settingrow.Name = "endpoint"
+	pickName     settingrow.Name = "pick"
+	rateName     settingrow.Name = "rate"
+	descName     settingrow.Name = "desc"
 )
 
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
 // value whose row has no effect in the run's mode is left out, and a typed flag is kept.
-func Read(rows []Row, src Sources) ([]Layer, error) {
+func Read(rows []settingrow.Row, src Sources) ([]Layer, error) {
 	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return nil, err
@@ -69,7 +72,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 
 // Choose resolves the rows that pick a source rather than set a value: the question file, the
 // profile and the provider. The caller loads what it names before calling Read.
-func Choose(rows []Row, src Sources) (Choice, error) {
+func Choose(rows []settingrow.Row, src Sources) (Choice, error) {
 	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return Choice{}, err
@@ -87,7 +90,7 @@ type Sources struct {
 	LookupEnv      func(string) (string, bool)
 	Profile        *ProfileValues
 	DefaultProfile string
-	Command        Command
+	Command        settingrow.Command
 }
 
 // FileValues is what a question file or a request body gives, keyed as the file spells each key.
@@ -116,8 +119,8 @@ type HeldKey struct {
 // Layer holds each value and its spelling from one source. Body marks a request body.
 type Layer struct {
 	Source  Source
-	Values  map[Name]any
-	Spelled map[Name]string
+	Values  map[settingrow.Name]any
+	Spelled map[settingrow.Name]string
 	Body    bool
 }
 
@@ -129,7 +132,7 @@ type Choice struct {
 	DefaultProfile          string
 }
 
-func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
+func readFlags(rows []settingrow.Row, given *Given, command settingrow.Command) (Layer, error) {
 	layer := Layer{Source: SourceFlag}
 	if given == nil {
 		return layer, nil
@@ -161,7 +164,7 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	return layer, nil
 }
 
-func flagValue(row Row, bound BoundFlag, flag *pflag.Flag, command Command) (any, error) {
+func flagValue(row settingrow.Row, bound settingrow.BoundFlag, flag *pflag.Flag, command settingrow.Command) (any, error) {
 	if parsedPerRun(row, command) {
 		return parseFlag(row, bound, flag)
 	}
@@ -171,31 +174,31 @@ func flagValue(row Row, bound BoundFlag, flag *pflag.Flag, command Command) (any
 	return flag.Value.String(), nil
 }
 
-func boundOn(row Row, command Command) (BoundFlag, bool) {
-	if bound, registered := row.FlagOn(command); registered || command == CommandRoot {
+func boundOn(row settingrow.Row, command settingrow.Command) (settingrow.BoundFlag, bool) {
+	if bound, registered := row.FlagOn(command); registered || command == settingrow.CommandRoot {
 		return bound, registered
 	}
 
-	bound, registered := row.FlagOn(CommandRoot)
+	bound, registered := row.FlagOn(settingrow.CommandRoot)
 
 	return bound, registered && bound.Persistent
 }
 
-func offTheChoice(row Row, command Command) bool {
+func offTheChoice(row settingrow.Row, command settingrow.Command) bool {
 	return choosesSource(row.Name) && profileCommand(command)
 }
 
-func profileCommand(command Command) bool {
-	return command == CommandProfileCreate || command == CommandProfileUpdate
+func profileCommand(command settingrow.Command) bool {
+	return command == settingrow.CommandProfileCreate || command == settingrow.CommandProfileUpdate
 }
 
-func choosesSource(name Name) bool {
+func choosesSource(name settingrow.Name) bool {
 	return name == profileName || name == providerName
 }
 
-func (l *Layer) set(name Name, value any, spelled string) {
+func (l *Layer) set(name settingrow.Name, value any, spelled string) {
 	if l.Values == nil {
-		l.Values = map[Name]any{}
+		l.Values = map[settingrow.Name]any{}
 	}
 
 	l.Values[name] = value
@@ -205,17 +208,17 @@ func (l *Layer) set(name Name, value any, spelled string) {
 	}
 
 	if l.Spelled == nil {
-		l.Spelled = map[Name]string{}
+		l.Spelled = map[settingrow.Name]string{}
 	}
 
 	l.Spelled[name] = spelled
 }
 
-func readDefaults(rows []Row, command Command) Layer {
+func readDefaults(rows []settingrow.Row, command settingrow.Command) Layer {
 	layer := Layer{Source: SourceDefault}
 
 	for _, row := range rows {
-		if row.Scope != ScopeRun || offTheChoice(row, command) {
+		if row.Scope != settingrow.ScopeRun || offTheChoice(row, command) {
 			continue
 		}
 
@@ -235,20 +238,20 @@ func readDefaults(rows []Row, command Command) Layer {
 	return layer
 }
 
-func readPerRun(row Row) bool {
-	return row.Scope == ScopeRun && !row.Flag.Group
+func readPerRun(row settingrow.Row) bool {
+	return row.Scope == settingrow.ScopeRun && !row.Flag.Group
 }
 
-func runMode(command Command, flags, defaults Layer) Mode {
+func runMode(command settingrow.Command, flags, defaults Layer) settingrow.Mode {
 	switch command {
-	case CommandCalibrate:
-		return ModeCalibrate
-	case CommandProfileCreate, CommandProfileUpdate:
-		return ModeProfile
-	case CommandRoot:
+	case settingrow.CommandCalibrate:
+		return settingrow.ModeCalibrate
+	case settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate:
+		return settingrow.ModeProfile
+	case settingrow.CommandRoot:
 	}
 
-	given := func(name Name) any {
+	given := func(name settingrow.Name) any {
 		if value, found := flags.Values[name]; found {
 			return value
 		}
@@ -258,13 +261,13 @@ func runMode(command Command, flags, defaults Layer) Mode {
 
 	for _, selector := range []struct {
 		key  Key[bool]
-		mode Mode
+		mode settingrow.Mode
 	}{
-		{Version, ModeVersion},
-		{PrintSchema, ModePrintSchema},
-		{ListModels, ModeListModels},
-		{PrintRequest, ModePrintRequest},
-		{PrintQuestions, ModePrintQuestions},
+		{Version, settingrow.ModeVersion},
+		{PrintSchema, settingrow.ModePrintSchema},
+		{ListModels, settingrow.ModeListModels},
+		{PrintRequest, settingrow.ModePrintRequest},
+		{PrintQuestions, settingrow.ModePrintQuestions},
 	} {
 		if on, isSwitch := given(selector.key.Name()).(bool); isSwitch && on {
 			return selector.mode
@@ -273,18 +276,18 @@ func runMode(command Command, flags, defaults Layer) Mode {
 
 	name, isText := given(Input.Name()).(string)
 	if !isText {
-		return ModeAsk
+		return settingrow.ModeAsk
 	}
 
 	switch mode, err := input.ParseMode(name); {
 	case err != nil:
-		return ModeAsk
+		return settingrow.ModeAsk
 	case mode == input.Request:
-		return ModeRequest
+		return settingrow.ModeRequest
 	case mode.Streaming():
-		return ModeStream
+		return settingrow.ModeStream
 	default:
-		return ModeAsk
+		return settingrow.ModeAsk
 	}
 }
 
@@ -294,14 +297,14 @@ func highestFirst(layers []Layer) []Layer {
 	})
 }
 
-func sourceChoice(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
+func sourceChoice(rows []settingrow.Row, src Sources, flags Layer, mode settingrow.Mode) (Choice, error) {
 	if src.Choice != nil {
 		return *src.Choice, nil
 	}
 	return choose(rows, src, flags, mode)
 }
 
-func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
+func choose(rows []settingrow.Row, src Sources, flags Layer, mode settingrow.Mode) (Choice, error) {
 	chosen := Choice{File: textIn(flags, fileName), DefaultProfile: src.DefaultProfile}
 	if profileCommand(src.Command) {
 		return chosen, nil
@@ -335,7 +338,7 @@ func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
 	return chosen, nil
 }
 
-func textIn(layer Layer, name Name) string {
+func textIn(layer Layer, name settingrow.Name) string {
 	if text, isText := layer.Values[name].(string); isText {
 		return text
 	}
@@ -343,7 +346,7 @@ func textIn(layer Layer, name Name) string {
 	return ""
 }
 
-func ambientText(rows []Row, name Name, lookupEnv func(string) (string, bool), mode Mode) (value, variable string) {
+func ambientText(rows []settingrow.Row, name settingrow.Name, lookupEnv func(string) (string, bool), mode settingrow.Mode) (value, variable string) {
 	for _, row := range rows {
 		if row.Name != name || len(row.Env) == 0 {
 			continue
@@ -364,7 +367,7 @@ func lookedUp(lookupEnv func(string) (string, bool), name string) string {
 	return strings.TrimSpace(value)
 }
 
-func readProfile(rows []Row, profile *ProfileValues, chosen Choice, mode Mode) (Layer, error) {
+func readProfile(rows []settingrow.Row, profile *ProfileValues, chosen Choice, mode settingrow.Mode) (Layer, error) {
 	if chosen.Provider != "" {
 		layer := Layer{Source: SourceDefaultProfile}
 		if chosen.DefaultProfile != "" {
@@ -420,8 +423,8 @@ func readProfile(rows []Row, profile *ProfileValues, chosen Choice, mode Mode) (
 	return layer, nil
 }
 
-func parseHalf(row Row, raw string, half EndpointHalf) (any, error) {
-	if endpoint, isEndpoint := row.Kind.(EndpointKind); isEndpoint {
+func parseHalf(row settingrow.Row, raw string, half settingrow.EndpointHalf) (any, error) {
+	if endpoint, isEndpoint := row.Kind.(settingrow.EndpointKind); isEndpoint {
 		return endpoint.ParseHalf(raw, half)
 	}
 
@@ -444,7 +447,7 @@ func runProvider(chosen Choice, profile *ProfileValues) string {
 	}
 }
 
-func readFile(rows []Row, file *FileValues, mode Mode) (Layer, error) {
+func readFile(rows []settingrow.Row, file *FileValues, mode settingrow.Mode) (Layer, error) {
 	layer := Layer{Source: SourceFile}
 	if file == nil {
 		return layer, nil
@@ -453,7 +456,7 @@ func readFile(rows []Row, file *FileValues, mode Mode) (Layer, error) {
 	layer.Body = file.Body
 
 	for _, row := range rows {
-		if row.Scope != ScopeRun || row.FileKey == "" || row.InBody != file.Body || !row.Modes.Has(mode) {
+		if row.Scope != settingrow.ScopeRun || row.FileKey == "" || row.InBody != file.Body || !row.Modes.Has(mode) {
 			continue
 		}
 
@@ -488,7 +491,7 @@ func keyless(chosen Choice, profile *ProfileValues) bool {
 }
 
 func readEnv(
-	rows []Row, lookupEnv func(string) (string, bool), provider string, mode Mode, command Command, keyless bool,
+	rows []settingrow.Row, lookupEnv func(string) (string, bool), provider string, mode settingrow.Mode, command settingrow.Command, keyless bool,
 ) (Layer, error) {
 	layer := Layer{Source: SourceEnv}
 	if lookupEnv == nil {
@@ -526,14 +529,14 @@ func readEnv(
 	return layer, nil
 }
 
-func envError(row Row, variable EnvSpec, raw string, err error) error {
-	switch row.Kind.(type) {
-	case boolKind:
+func envError(row settingrow.Row, variable settingrow.EnvSpec, raw string, err error) error {
+	switch row.Kind.Zero().(type) {
+	case bool:
 		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", variable.Name, raw, row.Flag.Long)
-	case durationKind:
+	case time.Duration:
 		return fmt.Errorf("%s=%s is not a duration of zero or more, such as 90m or 72h", variable.Name, raw)
-	case EndpointKind:
-		if variable.Half == HalfAccount {
+	case settingrow.EndpointValue:
+		if variable.Half == settingrow.HalfAccount {
 			return fmt.Errorf("%s must be 32 hexadecimal characters", variable.Name)
 		}
 
