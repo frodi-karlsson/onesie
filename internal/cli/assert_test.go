@@ -553,20 +553,31 @@ func TestGateOf(t *testing.T) {
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.95"},
 			wantCode: cli.ExitRejected,
 			contains: []string{`"assert":false`},
+			wantErr:  "onesie: --assert overrides the question file's assert\n",
 		},
 		{
-			name:     "should exit one when the file's assertion is the false half",
+			name:     "should replace the file's assert with --assert",
 			file:     "assert: urgent.value > 0.95\n" + question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5"},
+			wantCode: cli.ExitOK,
+			missing:  []string{"assert"},
+			wantErr:  "onesie: --assert overrides the question file's assert\n",
+		},
+		{
+			name:     "should combine two typed --assert with and",
+			file:     question,
+			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5", "--assert", "urgent.value > 0.95"},
 			wantCode: cli.ExitRejected,
 			contains: []string{`"assert":false`},
 		},
 		{
-			name:     "should exit zero when both assertions hold",
-			file:     "assert: urgent.value > 0.5\n" + question,
-			args:     []string{"-o", "json", "--assert", "urgent.value < 0.95"},
-			wantCode: cli.ExitOK,
-			missing:  []string{"assert"},
+			name:     "should replace the file's abstain_if with --abstain-if",
+			file:     "assert: urgent.value > 0.95\nabstain_if: urgent.value > 0.5\n" + question,
+			args:     []string{"-o", "json", "--abstain-if", "urgent.value < 0.5"},
+			wantCode: cli.ExitRejected,
+			contains: []string{`"assert":false`},
+			missing:  []string{"abstain"},
+			wantErr:  "onesie: --abstain-if overrides the question file's abstain_if\n",
 		},
 		{
 			name:      "should name the file's key when its assertion cannot parse",
@@ -581,6 +592,13 @@ func TestGateOf(t *testing.T) {
 			wantCode:  cli.ExitUsage,
 			wantErr:   "onesie: 'assert': unknown question 'sevrity'. Questions: urgent",
 			noRequest: true,
+		},
+		{
+			name:     "should check no file assertion that --assert replaced",
+			file:     "assert: sevrity.value > 0.5\n" + question,
+			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5"},
+			wantCode: cli.ExitOK,
+			wantErr:  "onesie: --assert overrides the question file's assert\n",
 		},
 		{
 			name:      "should name the flag when the command line's assertion is the bad one",
@@ -607,7 +625,7 @@ func TestGateOf(t *testing.T) {
 			noRequest: true,
 		},
 		{
-			name:      "should name --abstain-if when the flag joins the file's key with no assertion anywhere",
+			name:      "should name --abstain-if when the flag replaces the file's key with no assertion anywhere",
 			file:      "abstain_if: urgent.value > 0.5\n" + question,
 			args:      []string{"--abstain-if", "urgent.value < 0.95"},
 			wantCode:  cli.ExitUsage,
@@ -691,7 +709,7 @@ func TestGateOf(t *testing.T) {
 		})
 	}
 
-	t.Run("should put the file's assertion ahead of the command line's", func(t *testing.T) {
+	t.Run("should print the gate a run uses", func(t *testing.T) {
 		t.Parallel()
 
 		const question = "urgent: is this urgent\n"
@@ -704,6 +722,7 @@ func TestGateOf(t *testing.T) {
 			file    string
 			args    []string
 			wantOut string
+			wantErr string
 		}{
 			{
 				name:    "should write the file's assertion back unchanged",
@@ -712,11 +731,11 @@ func TestGateOf(t *testing.T) {
 				wantOut: header + "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
 			},
 			{
-				name: "should write the file's assertion ahead of the command line's",
-				file: "assert: urgent.value > 0.5\n" + question,
-				args: []string{"-f", "q.yaml", "--assert", "urgent.value < 0.95"},
-				wantOut: header + "assert: (urgent.value > 0.5) and (urgent.value < 0.95)\n" +
-					"urgent:\n  ask: is this urgent\n",
+				name:    "should write the command line's assertion in place of the file's, with a notice",
+				file:    "assert: urgent.value > 0.5\n" + question,
+				args:    []string{"-f", "q.yaml", "--assert", "urgent.value < 0.95"},
+				wantOut: header + "assert: urgent.value < 0.95\nurgent:\n  ask: is this urgent\n",
+				wantErr: "onesie: --assert overrides the question file's assert\n",
 			},
 			{
 				name:    "should write an assertion given only on the command line",
@@ -724,15 +743,16 @@ func TestGateOf(t *testing.T) {
 				wantOut: header + "assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n",
 			},
 			{
-				name: "should combine a repeated --abstain-if and the file key with and",
+				name: "should replace the file's abstain_if with a repeated --abstain-if combined with and",
 				file: "assert: urgent.value < 0.2\nabstain_if: urgent.value < 0.8\n" + question,
 				args: []string{
 					"-f", "q.yaml", "--abstain-if", "urgent.value > 0.1",
 					"--abstain-if", "urgent.value != 0.5",
 				},
 				wantOut: header + "assert: urgent.value < 0.2\n" +
-					"abstain_if: (urgent.value < 0.8) and (urgent.value > 0.1) and (urgent.value != 0.5)\n" +
+					"abstain_if: (urgent.value > 0.1) and (urgent.value != 0.5)\n" +
 					"urgent:\n  ask: is this urgent\n",
+				wantErr: "onesie: --abstain-if overrides the question file's abstain_if\n",
 			},
 			{
 				name:    "should write no assert key when nothing asserted",
@@ -753,8 +773,8 @@ func TestGateOf(t *testing.T) {
 					t.Errorf("stdout =\n%s\nwant\n%s", out, tc.wantOut)
 				}
 
-				if errOut != "" {
-					t.Errorf("stderr = %q, want nothing", errOut)
+				if errOut != tc.wantErr {
+					t.Errorf("stderr = %q, want %q", errOut, tc.wantErr)
 				}
 
 				if requests != 0 {

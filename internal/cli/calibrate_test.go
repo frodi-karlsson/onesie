@@ -53,6 +53,8 @@ func TestNewCalibrateCmd(t *testing.T) {
 	mixedBodyFile := writeCalibrateFile(t, dir, "mixed-body.json",
 		`{"questions":{"urgent":{"type":"noul","instructions":"is this urgent"},`+
 			`"mood":{"type":"score","instructions":"how cross is the writer","criteria":["calm","annoyed","furious"]}}}`)
+	teamFile := writeCalibrateFile(t, dir, "team.yaml",
+		"team:\n  ask: which team\n  pick: [billing, shipping]\nurgent:\n  ask: is this urgent\n")
 	bodyFile := writeCalibrateFile(t, dir, "body.json",
 		`{"questions":{"mood":{"type":"score","instructions":"how cross is the writer",`+
 			`"criteria":["calm","annoyed","furious"]}}}`)
@@ -535,6 +537,33 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     with("-f", replaceFile, "--replace"),
 			wantCode: ExitUsage,
 			contains: []string{nothing},
+		},
+		{
+			name: "should apply --for ID --desc to that question, with a notice",
+			args: []string{
+				"calibrate", "-f", teamFile, "--for", "team", "--desc", "billing=money", "-i", "jsonl", "--map", ".body",
+				"--label", "team=.t", "--print-request",
+			},
+			wantCode: ExitOK,
+			contains: []string{"onesie: --desc sets the question file's pick for 'team'\n"},
+		},
+		{
+			name: "should refuse --threshold after --for ID",
+			args: []string{
+				"calibrate", "-f", teamFile, "--for", "urgent", "--threshold", "0.5", "-i", "jsonl", "--map", ".body",
+				"--label", "urgent=.u",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"onesie: calibrate reports every cut, so --threshold does not apply. Drop it\n"},
+		},
+		{
+			name: "should refuse --for naming no question of the file, listing the file's",
+			args: []string{
+				"calibrate", "-f", teamFile, "--for", "nope", "--desc", "a=b", "-i", "jsonl", "--map", ".body",
+				"--label", "team=.t",
+			},
+			wantCode: ExitUsage,
+			contains: []string{"--for nope names no question in " + teamFile + ", which has: 'team', 'urgent'."},
 		},
 		{
 			name:     "should refuse a flag the root does not know either",

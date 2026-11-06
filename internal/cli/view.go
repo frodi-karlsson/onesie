@@ -70,7 +70,7 @@ func viewOf(config runConfig, facts runFacts, built *plan.Plan) setting.View {
 	merged.Set(setting.Cache.Name(), config.env.cache, config.env.cacheFrom)
 
 	viewFacts := setting.Facts{
-		Command: setting.CommandRoot, FileAssert: facts.assert, FileAbstainIf: facts.abstainIf,
+		Command: setting.CommandRoot, FileName: facts.name, FileAssert: facts.assert, FileAbstainIf: facts.abstainIf,
 		BodyState: facts.bodyState, Events: config.events, Positional: config.positional, StdoutTTY: config.stdoutTTY,
 	}
 

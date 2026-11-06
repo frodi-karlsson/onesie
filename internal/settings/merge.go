@@ -1,11 +1,15 @@
 package settings
 
 import (
+	"cmp"
+	"math"
 	"reflect"
 	"slices"
+	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
+	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -42,6 +46,214 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 	}
 
 	return merged, notices
+}
+
+// MergeQuestions applies to each question from -f its --for flags, and the top level flags when it is
+// the one question asked. It returns a notice for each setting a flag gave, in the order typed.
+func MergeQuestions(merged *Merged, built *plan.Plan, typed []argv.Event) []Notice {
+	if built == nil {
+		return nil
+	}
+
+	notices := refinedNotices(merged, built)
+	groups := typedGroups(typed, "", built)
+
+	slices.SortStableFunc(notices, func(a, b Notice) int {
+		return cmp.Compare(firstTyped(groups, a), firstTyped(groups, b))
+	})
+
+	return notices
+}
+
+func firstTyped(groups []typedGroup, notice Notice) int {
+	row, _ := Lookup(notice.Setting)
+
+	for _, group := range groups {
+		if group.id != notice.Question {
+			continue
+		}
+
+		if at := slices.IndexFunc(group.events, typedAs(row)); at >= 0 {
+			return group.positions[at]
+		}
+	}
+
+	// A notice whose flag the command line does not show, as when a caller gives no events, keeps its
+	// place after those it does.
+	return math.MaxInt
+}
+
+func refinedNotices(merged *Merged, built *plan.Plan) []Notice {
+	var notices []Notice
+
+	for i := range built.Questions {
+		question := &built.Questions[i]
+
+		events := typedFor(built, question.ID)
+		if !question.Origin.FromFile() || len(events) == 0 {
+			continue
+		}
+
+		before := detached(*question)
+		plan.Refine(question, events, PolicyNumbers())
+
+		for _, row := range Table() {
+			if row.Scope != ScopeQuestion || !slices.ContainsFunc(events, typedAs(row)) {
+				continue
+			}
+
+			if row.Name == descName {
+				notices = append(notices, describedNotices(row, before, *question, events)...)
+
+				continue
+			}
+
+			was, now := questionSetting(before, row.Name), questionSetting(*question, row.Name)
+			if now != nil && merged != nil && plan.PolicyFlag(row.Flag.Long) {
+				merged.setFor(question.ID, row.Name, now)
+			}
+
+			if notice, changed := refinedNotice(row, *question, was, now); changed {
+				notices = append(notices, notice)
+			}
+		}
+	}
+
+	return notices
+}
+
+func typedFor(built *plan.Plan, id string) []argv.Event {
+	var events []argv.Event
+
+	if len(built.Questions) == 1 {
+		events = append(events, built.Orphans...)
+	}
+
+	for _, selection := range built.Selections {
+		if selection.ID == id {
+			events = append(events, selection.Events...)
+		}
+	}
+
+	return events
+}
+
+func detached(question plan.Question) plan.Question {
+	question.Options = slices.Clone(question.Options)
+	question.Levels = slices.Clone(question.Levels)
+
+	if question.Criteria != nil {
+		criteria := *question.Criteria
+		question.Criteria = &criteria
+	}
+
+	return question
+}
+
+func typedAs(row Row) func(argv.Event) bool {
+	return func(event argv.Event) bool { return event.Name == row.Flag.Long }
+}
+
+func questionSetting(question plan.Question, name Name) any {
+	policy := question.Policy
+
+	switch {
+	case name == Threshold.Name() && policy.Threshold != nil:
+		return *policy.Threshold
+	case name == MinConfidence.Name() && policy.MinConfidence != nil:
+		return *policy.MinConfidence
+	case name == FallbackAnswer.Name() && policy.Fallback != nil:
+		return policy.Fallback.Text
+	case name == pickName && question.Shape == plan.Pick:
+		return question.Options
+	case name == rateName && question.Shape == plan.Rate:
+		return question.Levels
+	default:
+		return nil
+	}
+}
+
+func describedNotices(row Row, before, after plan.Question, events []argv.Event) []Notice {
+	was, now := descriptions(before), descriptions(after)
+
+	var notices []Notice
+
+	for _, event := range events {
+		key, _, _ := strings.Cut(event.Value, "=")
+		key = strings.TrimSpace(key)
+
+		described, known := now[key]
+		if event.Name != row.Flag.Long || !known || reflect.DeepEqual(was[key], described) {
+			continue
+		}
+
+		notice, _ := refinedNotice(row, after, was[key], described)
+		notice.Loser.Spelled = describedKey(after, key)
+
+		// Several keys under one file key print one notice, which overrides when any key did.
+		at := slices.IndexFunc(notices, func(n Notice) bool { return n.Loser.Spelled == notice.Loser.Spelled })
+		switch {
+		case at < 0:
+			notices = append(notices, notice)
+		case notice.Verb == VerbOverrides:
+			notices[at].Verb = VerbOverrides
+		}
+	}
+
+	return notices
+}
+
+func descriptions(question plan.Question) map[string]any {
+	described := map[string]any{}
+
+	switch question.Shape {
+	case plan.Pick:
+		for _, option := range question.Options {
+			described[option.Name] = option.Desc
+		}
+	case plan.Rate:
+		for _, level := range question.Levels {
+			described[level.Label] = level.Desc
+		}
+	case plan.Noul:
+		described["yes"], described["no"] = nil, nil
+		if question.Criteria != nil {
+			described["yes"], described["no"] = question.Criteria.Yes, question.Criteria.No
+		}
+	case plan.Box:
+	}
+
+	return described
+}
+
+func describedKey(question plan.Question, key string) string {
+	switch question.Shape {
+	case plan.Pick:
+		return string(pickName)
+	case plan.Rate:
+		return string(rateName)
+	default:
+		return key + "_means"
+	}
+}
+
+func refinedNotice(row Row, question plan.Question, was, now any) (Notice, bool) {
+	if now == nil || reflect.DeepEqual(was, now) {
+		return Notice{}, false
+	}
+
+	notice := Notice{
+		Setting:  row.Name,
+		Winner:   Origin{Source: SourceFlag, Spelled: "--" + row.Flag.Long},
+		Loser:    Origin{Source: SourceFile, Spelled: row.FileKey, Body: question.Origin == plan.OriginBody},
+		Question: question.ID,
+	}
+
+	if was == nil {
+		notice.Verb = VerbSets
+	}
+
+	return notice, true
 }
 
 func mergeRow(merged *Merged, row Row, ranked []Layer) []Notice {

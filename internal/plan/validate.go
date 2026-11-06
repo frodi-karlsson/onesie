@@ -348,7 +348,7 @@ func checkBox(q *Question) error {
 	} {
 		if flag.set {
 			return fmt.Errorf("%s does not apply to box question '%s'. Gate a box with %s",
-				Spelling(q.Origin, flag.name), q.ID, Spelling(q.Origin, "--assert"))
+				spelledAs(q, flag.name, flag.name), q.ID, spelledAs(q, flag.name, "--assert"))
 		}
 	}
 
@@ -369,11 +369,10 @@ func countTrue(conditions ...bool) int {
 
 func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 	policy := q.Policy
-	threshold := Spelling(q.Origin, "--threshold")
-	confidence := Spelling(q.Origin, "--min-confidence")
-	fallback := Spelling(q.Origin, "--fallback")
 
 	if policy.Threshold != nil {
+		threshold := spelledAs(q, "--threshold", "--threshold")
+
 		if !yesNo {
 			noun := "options"
 			if q.Shape == Rate {
@@ -382,7 +381,8 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 
 			return fmt.Errorf(
 				"%s cuts a yes or no probability. '%s' has %s, use %s with %s",
-				threshold, q.ID, noun, confidence, fallback)
+				threshold, q.ID, noun, spelledAs(q, "--threshold", "--min-confidence"),
+				spelledAs(q, "--threshold", "--fallback"))
 		}
 
 		if outOfRange(numbers.Threshold, *policy.Threshold) {
@@ -392,12 +392,20 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 	}
 
 	if policy.MinConfidence != nil {
+		confidence := spelledAs(q, "--min-confidence", "--min-confidence")
+
 		if yesNo {
+			remedy := spelledAs(q, "--min-confidence", "--threshold")
+
+			// A flag never reshapes a question from a file, so only a flag question can take a shape.
+			if q.Origin.FromFile() {
+				return fmt.Errorf("%s needs a confidence value. '%s' is a yes or no question, use %s",
+					confidence, q.ID, remedy)
+			}
+
 			return fmt.Errorf(
-				"%s needs a confidence value. '%s' is a yes or no question, "+
-					"use %s, or add %s or %s",
-				confidence, q.ID, threshold,
-				Spelling(q.Origin, "--pick"), Spelling(q.Origin, "--rate"))
+				"%s needs a confidence value. '%s' is a yes or no question, use %s, or add --pick or --rate",
+				confidence, q.ID, remedy)
 		}
 
 		if outOfRange(numbers.MinConfidence, *policy.MinConfidence) {
@@ -406,8 +414,8 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 		}
 
 		if policy.Fallback == nil {
-			return fmt.Errorf(
-				"%s needs %s, nothing to substitute for '%s'", confidence, fallback, q.ID)
+			return fmt.Errorf("%s needs %s, nothing to substitute for '%s'",
+				confidence, spelledAs(q, "--min-confidence", "--fallback"), q.ID)
 		}
 	}
 
@@ -415,7 +423,7 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
 				"%s on a yes or no question takes true, false, yes or no, got '%s'",
-				fallback, policy.Fallback.Text)
+				spelledAs(q, "--fallback", "--fallback"), policy.Fallback.Text)
 		}
 	}
 
@@ -450,6 +458,15 @@ func ShapeName(q *Question, flag string) string {
 	// criteria key, which is the only thing a message can point the reader at.
 	if q.Origin == OriginBody {
 		return "'criteria'"
+	}
+
+	return spelledAs(q, flag, flag)
+}
+
+func spelledAs(q *Question, given, flag string) string {
+	// A message about a setting a flag gave names flags, even on a question from a file.
+	if slices.Contains(q.Typed, given) {
+		return flag
 	}
 
 	return Spelling(q.Origin, flag)

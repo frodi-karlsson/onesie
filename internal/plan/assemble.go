@@ -3,6 +3,7 @@ package plan
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -27,9 +28,9 @@ func Assemble(src Source) (*Plan, error) {
 		return nil, ErrNoNumbers
 	}
 
-	groups, orphans := split(src.Events, src.Positional, len(src.File) > 0)
+	groups, selections, orphans := split(src.Events, src.Positional, len(src.File) > 0)
 
-	built := &Plan{Questions: append([]Question(nil), src.File...)}
+	built := &Plan{Questions: append([]Question(nil), src.File...), Selections: selections}
 	fromFile := positions(src.File)
 
 	for _, g := range groups {
@@ -43,28 +44,40 @@ func Assemble(src Source) (*Plan, error) {
 		}
 	}
 
-	// Top level flags bind when exactly one question was asked from any source. split already
-	// handles a lone --ask group, so this covers the case where the single question came from a
-	// file. With any other count they have nothing to bind to and validation reports them.
-	if len(orphans) > 0 && len(built.Questions) == 1 {
-		if built.Questions[0].Origin == OriginBody {
-			for _, event := range orphans {
-				if !PolicyFlag(event.Name) {
-					return nil, fmt.Errorf(
-						"--%s cannot reshape a request body's question. "+
-							"A body carries its own type and criteria", event.Name)
-				}
-			}
-		}
+	built.Orphans = orphans
 
+	switch {
+	case len(orphans) == 0 || len(built.Questions) != 1:
+	case !built.Questions[0].Origin.FromFile():
+		// A question --ask defines takes the top level flags as its own, as a lone --ask with no file
+		// does in split. A file question takes them in settings.MergeQuestions, with a notice.
 		if err := applyEvents(&built.Questions[0], orphans, src); err != nil {
 			return nil, err
 		}
 
-		orphans = nil
+		built.Orphans = nil
+	default:
+		prepared, err := prepare(orphans, src)
+		if err != nil {
+			return nil, err
+		}
+
+		built.Orphans = prepared
 	}
 
-	built.Orphans = orphans
+	for i, selection := range built.Selections {
+		// A group naming no question from the file is refused for that by validation, ahead of its flags.
+		if !slices.ContainsFunc(src.File, func(q Question) bool { return q.ID == selection.ID }) {
+			continue
+		}
+
+		prepared, err := prepare(selection.Events, src)
+		if err != nil {
+			return nil, err
+		}
+
+		built.Selections[i].Events = prepared
+	}
 
 	return built, nil
 }
@@ -102,28 +115,39 @@ type Number interface {
 	FromFile(raw any) (any, error)
 }
 
-func split(events []argv.Event, positional string, hasFile bool) ([]group, []argv.Event) {
+func split(events []argv.Event, positional string, hasFile bool) ([]group, []Selection, []argv.Event) {
 	var (
-		groups  []group
-		leading []argv.Event
+		groups     []group
+		selections []Selection
+		leading    []argv.Event
 	)
 
+	joining := &leading
+
 	for _, event := range events {
-		if event.Name != "ask" {
-			if len(groups) == 0 {
-				leading = append(leading, event)
-			} else {
-				groups[len(groups)-1].events = append(groups[len(groups)-1].events, event)
+		switch event.Name {
+		case "ask":
+			groups = append(groups, group{ask: event.Value, asked: true})
+			joining = nil
+		case "for":
+			at := slices.IndexFunc(selections, func(s Selection) bool { return s.ID == event.Value })
+			if at < 0 {
+				selections = append(selections, Selection{ID: event.Value})
+				at = len(selections) - 1
 			}
 
-			continue
-		}
+			joining = &selections[at].Events
+		default:
+			if joining == nil {
+				joining = &groups[len(groups)-1].events
+			}
 
-		groups = append(groups, group{ask: event.Value, asked: true})
+			*joining = append(*joining, event)
+		}
 	}
 
 	if positional != "" {
-		return append([]group{{id: PositionalID, text: positional, events: leading}}, groups...), nil
+		return append([]group{{id: PositionalID, text: positional, events: leading}}, groups...), selections, nil
 	}
 
 	// A lone --ask absorbs the top level flags only when it is the only question. With a file
@@ -131,10 +155,10 @@ func split(events []argv.Event, positional string, hasFile bool) ([]group, []arg
 	if len(groups) == 1 && !hasFile {
 		groups[0].events = append(leading, groups[0].events...)
 
-		return groups, nil
+		return groups, selections, nil
 	}
 
-	return groups, leading
+	return groups, selections, leading
 }
 
 func build(g group, src Source) (Question, error) {
@@ -206,6 +230,104 @@ func positions(questions []Question) map[string]int {
 }
 
 func applyEvents(question *Question, events []argv.Event, src Source) error {
+	prepared, err := prepare(events, src)
+	if err != nil {
+		return err
+	}
+
+	apply(question, prepared, src.Numbers)
+
+	return nil
+}
+
+// Refine applies the flags Assemble prepared for a question from a file or a body. It replaces options
+// or levels within the question's shape, and leaves a flag it cannot apply to validation.
+func Refine(question *Question, events []argv.Event, numbers Numbers) {
+	kept := slices.DeleteFunc(slices.Clone(events), func(event argv.Event) bool {
+		return !refines(*question, event.Name)
+	})
+
+	if slices.ContainsFunc(kept, named("pick")) {
+		question.Options = nil
+	}
+
+	if slices.ContainsFunc(kept, named("rate")) {
+		question.Levels = nil
+	}
+
+	for _, event := range kept {
+		if flag := "--" + event.Name; event.Name != "sep" && !slices.Contains(question.Typed, flag) {
+			question.Typed = append(question.Typed, flag)
+		}
+	}
+
+	apply(question, kept, numbers)
+}
+
+func refines(question Question, flag string) bool {
+	if PolicyFlag(flag) {
+		return true
+	}
+
+	if question.Origin != OriginFile {
+		return false
+	}
+
+	switch flag {
+	case "pick":
+		return question.Shape == Pick
+	case "rate":
+		return question.Shape == Rate
+	case "desc", "sep":
+		return true
+	default:
+		return false
+	}
+}
+
+func named(flag string) func(argv.Event) bool {
+	return func(event argv.Event) bool { return event.Name == flag }
+}
+
+func prepare(events []argv.Event, src Source) ([]argv.Event, error) {
+	prepared := make([]argv.Event, 0, len(events))
+
+	for _, event := range events {
+		switch event.Name {
+		case "box":
+			if event.Value != "true" {
+				return nil, fmt.Errorf("--box takes no value, got '%s'", event.Value)
+			}
+		case "desc":
+			key, text, ok := strings.Cut(event.Value, "=")
+			if !ok {
+				return nil, fmt.Errorf("--desc takes KEY=TEXT, got '%s'", event.Value)
+			}
+
+			resolved, err := resolve(text, src.ReadFile)
+			if err != nil {
+				return nil, err
+			}
+
+			event.Value = key + "=" + resolved
+		case "threshold", "min-confidence":
+			number := src.Numbers.Threshold
+			if event.Name == "min-confidence" {
+				number = src.Numbers.MinConfidence
+			}
+
+			if _, isNumber := policyNumber(number, event.Value); !isNumber {
+				return nil, fmt.Errorf("--%s takes a number, got '%s'", event.Name, event.Value)
+			}
+		}
+
+		prepared = append(prepared, event)
+	}
+
+	return prepared, nil
+}
+
+func apply(question *Question, events []argv.Event, numbers Numbers) {
 	separator := defaultSeparator
 	descriptions := map[string]any{}
 
@@ -222,41 +344,26 @@ func applyEvents(question *Question, events []argv.Event, src Source) error {
 			}
 		case "rate":
 			question.Shape = Rate
-			// Labelled is set here rather than from the final shape. Assemble applies top level
-			// flags in a second pass, and a request body's score question carries criteria by
-			// index with no labels, so keying off the shape would relabel it with empty strings.
+			// Labelled is set here rather than from the final shape, since a request body's score
+			// question carries criteria by index with no labels, so keying off the shape would relabel
+			// it with empty strings.
 			question.Labelled = true
 			for _, label := range strings.Split(event.Value, separator) {
 				question.Levels = append(question.Levels, Level{Label: strings.TrimSpace(label)})
 			}
 		case "box":
-			if event.Value != "true" {
-				return fmt.Errorf("--box takes no value, got '%s'", event.Value)
-			}
-
 			question.Boxed = true
 		case "desc":
-			key, text, ok := strings.Cut(event.Value, "=")
-			if !ok {
-				return fmt.Errorf("--desc takes KEY=TEXT, got '%s'", event.Value)
-			}
-
+			key, text, _ := strings.Cut(event.Value, "=")
 			key = strings.TrimSpace(key)
-
-			resolved, err := resolve(text, src.ReadFile)
-			if err != nil {
-				return err
-			}
 
 			if _, seen := descriptions[key]; !seen {
 				descOrder = append(descOrder, key)
 			}
 
-			descriptions[key] = resolved
+			descriptions[key] = text
 		default:
-			if err := applyPolicy(question, event, src.Numbers); err != nil {
-				return err
-			}
+			applyPolicy(question, event, numbers)
 		}
 	}
 
@@ -275,44 +382,34 @@ func applyEvents(question *Question, events []argv.Event, src Source) error {
 			question.Policy.Fallback.Boolean = value
 		}
 	}
-
-	return nil
 }
 
-func applyPolicy(question *Question, event argv.Event, numbers Numbers) error {
+func applyPolicy(question *Question, event argv.Event, numbers Numbers) {
 	switch event.Name {
 	case "threshold":
-		value, err := policyNumber(numbers.Threshold, event)
-		if err != nil {
-			return err
+		if value, isNumber := policyNumber(numbers.Threshold, event.Value); isNumber {
+			question.Policy.Threshold = &value
 		}
-
-		question.Policy.Threshold = &value
 	case "min-confidence":
-		value, err := policyNumber(numbers.MinConfidence, event)
-		if err != nil {
-			return err
+		if value, isNumber := policyNumber(numbers.MinConfidence, event.Value); isNumber {
+			question.Policy.MinConfidence = &value
 		}
-
-		question.Policy.MinConfidence = &value
 	case "fallback":
 		question.Policy.Fallback = &Fallback{Text: event.Value}
 	}
-
-	return nil
 }
 
-func policyNumber(number Number, event argv.Event) (float64, error) {
-	parsed, err := number.Parse(event.Value)
+func policyNumber(number Number, raw string) (float64, bool) {
+	parsed, err := number.Parse(raw)
 
 	// A number out of range is kept, since validation words the range for flag and file values
 	// alike, after the shape checks that come first.
 	value, isNumber := parsed.(float64)
 	if err != nil && !isNumber {
-		return 0, fmt.Errorf("--%s takes a number, got '%s'", event.Name, event.Value)
+		return 0, false
 	}
 
-	return value, nil
+	return value, true
 }
 
 func attach(question *Question, descriptions map[string]any) {

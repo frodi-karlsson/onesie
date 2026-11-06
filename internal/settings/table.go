@@ -97,11 +97,23 @@ func questionRows() []Row {
 			Help: "NAME=QUESTION, repeatable, opens a question group",
 		},
 		{
+			Name: "for", Kind: NonEmptyText(), Modes: shaping(),
+			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
+				CommandCalibrate: {
+					Help: "ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep " +
+						"after it apply to that question",
+				},
+			}},
+			Help: "ID, repeatable, selects a question from -f, so the question flags after it apply to that " +
+				"question, each with a notice",
+		},
+		{
 			Name: "pick", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []plan.Shape{plan.Pick},
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",
 			Flag:     FlagSpec{Long: "pick", Group: true, Commands: onRuns()},
-			Help:     "comma separated options, making this a choice question. A repeated --pick adds to the options",
+			Help: "comma separated options, making this a choice question. A repeated --pick adds to the options, " +
+				"and together they replace the options of a choice question from -f",
 		},
 		{
 			Name: "rate", Scope: ScopeQuestion, Kind: Levels(), Modes: shaping(), Shapes: []plan.Shape{plan.Rate},
@@ -110,14 +122,15 @@ func questionRows() []Row {
 				"a mapping of name to description.",
 			Flag: FlagSpec{Long: "rate", Group: true, Commands: onRuns()},
 			Help: "comma separated levels in ascending order, making this a score question. A repeated --rate " +
-				"adds levels after the earlier ones. Its score is the level index averaged over p, from 0, and " +
+				"adds levels after the earlier ones, and together they replace the levels of a score question from " +
+				"-f. Its score is the level index averaged over p, from 0, and " +
 				"norm is score over the top index, from 0 to 1",
 		},
 		{
 			Name: "desc", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(),
 			Shapes: []plan.Shape{plan.Noul, plan.Pick, plan.Rate},
 			Flag:   FlagSpec{Long: "desc", Group: true, Commands: onRuns()},
-			Help:   "KEY=TEXT, describing one option, level, yes or no",
+			Help:   "KEY=TEXT, describing one option, level, yes or no. On a question from -f it replaces that key's description alone",
 		},
 		{
 			Name: "sep", Scope: ScopeQuestion, Kind: Separator(), Modes: shaping(),
@@ -163,18 +176,19 @@ func policyRows() []Row {
 			Help:     "value substituted on low confidence and on error",
 		},
 		{
-			Name: "assert", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "assert", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
 			FileKey:  "assert",
 			FileHelp: "A gate over every answer, as --assert takes it.",
 			Flag:     FlagSpec{Long: "assert", Repeat: true, Commands: onRoot()},
-			Help:     "boolean expression over the record, repeatable, combined with and",
+			Help:     "boolean expression over the record, repeatable, combined with and. Replaces the -f file's assert",
 		},
 		{
-			Name: "abstain_if", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "abstain_if", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
 			FileKey:  "abstain_if",
 			FileHelp: "An abstain expression, as --abstain-if takes it.",
 			Flag:     FlagSpec{Long: "abstain-if", Repeat: true, Commands: onRoot()},
-			Help:     "boolean expression that turns a no into an unsure, repeatable, needs --assert",
+			Help: "boolean expression that turns a no into an unsure, repeatable, combined with and, needs " +
+				"--assert. Replaces the -f file's abstain_if",
 		},
 	}
 }

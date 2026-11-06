@@ -22,6 +22,7 @@ func TestValidate(t *testing.T) {
 		positional  string
 		set         values
 		typed       []settings.Name
+		facts       settings.Facts
 		wantErr     string
 		wantExact   string
 		wantWarning string
@@ -115,6 +116,49 @@ func TestValidate(t *testing.T) {
 			positional: "is this urgent",
 			typed:      []settings.Name{"state", "state_file"},
 			wantErr:    "--state and --state-file are mutually exclusive",
+		},
+		{
+			name:    "should refuse --for without -f",
+			events:  []argv.Event{{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "0.9"}},
+			wantErr: "--for selects a question from -f, which was not given",
+		},
+		{
+			name: "should refuse --for without -f before checking the values after it",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "high"},
+			},
+			wantExact: "--for selects a question from -f, which was not given",
+		},
+		{
+			name:   "should refuse --for naming no file question, listing the file's",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "for", Value: "nope"}, {Name: "threshold", Value: "0.9"}},
+			wantExact: "--for nope names no question in two.yaml, which has: 'urgent', 'spam'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
+			name:   "should name a built in set the way the file is named elsewhere",
+			file:   fileNouls("hostile", "spam"),
+			set:    values{"file": "moderation"},
+			facts:  settings.Facts{FileName: "built in moderation"},
+			events: []argv.Event{{Name: "for", Value: "nope"}},
+			wantExact: "--for nope names no question in built in moderation, which has: 'hostile', 'spam'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
+			name:   "should refuse --for beside --replace",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml", "replace": true},
+			events: []argv.Event{{Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.9"}},
+			wantExact: "--for never replaces a question, so --replace has nothing to do beside it. " +
+				"Redefine a question whole with --ask ID=QUESTION --replace, or drop --replace",
+		},
+		{
+			name:   "should accept --for naming a question of the file",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "for", Value: "spam"}, {Name: "threshold", Value: "0.9"}},
 		},
 		{
 			name:       "should reject replace with no file given",
@@ -315,35 +359,130 @@ func TestValidate(t *testing.T) {
 			file: bodyQuestions(1),
 		},
 		{
-			name:   "should reject a policy flag aimed at a two question body",
-			file:   bodyQuestions(2),
-			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
-			wantErr: "policy flags apply to a request body only when it has one question. " +
-				"the question file has 2, freeze with --print-questions first",
+			name:   "should refuse a top level --threshold beside two questions, naming --for",
+			file:   fileNouls("urgent", "spam"),
+			set:    values{"file": "two.yaml"},
+			events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'urgent', 'spam'. " +
+				"Put it after --for ID to set one, as in --for urgent --threshold 0.9",
 		},
 		{
-			name: "should count only the body's own questions in the policy error",
+			name:   "should suggest the first file question that takes the flag",
+			file:   append(filePick("billing", "technical"), fileNouls("urgent")...),
+			events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'team', 'urgent'. " +
+				"Put it after --for ID to set one, as in --for urgent --threshold 0.9",
+		},
+		{
+			name:   "should suggest a pick question from the file for a top level --pick",
+			file:   append(fileNouls("urgent"), filePick("billing", "technical")...),
+			events: []argv.Event{{Name: "pick", Value: "x,y"}},
+			wantExact: "--pick applies to one question, and 2 were asked: 'urgent', 'team'. " +
+				"Put it after --for ID to set one, as in --for team --pick x,y",
+		},
+		{
+			name:   "should suggest --ask when no file question takes the flag",
+			file:   fileNouls("urgent", "spam"),
+			events: []argv.Event{{Name: "box", Value: "true"}},
+			wantExact: "--box applies to one question, and 2 were asked: 'urgent', 'spam'. " +
+				"No question from the file takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION --box",
+		},
+		{
+			name:   "should refuse it beside a body of two questions",
+			file:   bodyQuestions(2),
+			events: []argv.Event{{Name: "threshold", Value: "0.8"}},
+			wantExact: "--threshold applies to one question, and 2 were asked: 'b0', 'b1'. " +
+				"Put it after --for ID to set one, as in --for b0 --threshold 0.8",
+		},
+		{
+			name: "should list every question asked beside a top level flag",
 			file: bodyQuestions(2),
 			events: []argv.Event{
 				{Name: "threshold", Value: "0.8"},
 				{Name: "ask", Value: "extra=second"},
 			},
-			wantErr: "the question file has 2",
+			wantErr: "and 3 were asked: 'b0', 'b1', 'extra'. Put it after --for ID to set one, as in --for b0",
 		},
 		{
-			name: "should reject policy carried by a body question itself",
-			file: append(bodyQuestions(1), plan.Question{
-				ID: "b2", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
-				Policy: plan.Policy{Threshold: pointerTo(0.8)},
-			}),
-			wantErr: "the question file has 2",
+			name: "should keep the old wording for a top level flag beside several --ask with no file",
+			events: []argv.Event{
+				{Name: "fallback", Value: "no"}, {Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"},
+			},
+			wantExact: "--fallback given with no --ask to bind to and 2 questions asked",
 		},
 		{
-			name:    "should name the body's file in the policy error",
+			name:   "should accept a policy --for gives a body question",
+			file:   bodyQuestions(2),
+			set:    values{"file": "body.json"},
+			events: []argv.Event{{Name: "for", Value: "b1"}, {Name: "threshold", Value: "0.8"}},
+		},
+		{
+			name:    "should refuse --pick after --for on a body question",
 			file:    bodyQuestions(2),
-			events:  []argv.Event{{Name: "threshold", Value: "0.8"}},
-			set:     values{"file": "triage.json"},
-			wantErr: "triage.json has 2",
+			set:     values{"file": "body.json"},
+			events:  []argv.Event{{Name: "for", Value: "b1"}, {Name: "pick", Value: "x,y"}},
+			wantErr: "--pick cannot reshape a request body's question. A body carries its own type and criteria",
+		},
+		{
+			name:   "should refuse --rate on a file pick question",
+			file:   filePick("billing", "technical"),
+			set:    values{"file": "team.yaml"},
+			events: []argv.Event{{Name: "for", Value: "team"}, {Name: "rate", Value: "low,high"}},
+			wantExact: "--rate cannot make 'team' a score question, since a flag never changes the shape of a " +
+				"question from team.yaml. Redefine it whole with --ask team=QUESTION --replace",
+		},
+		{
+			name:   "should refuse --box on a file question",
+			file:   filePick("billing", "technical"),
+			events: []argv.Event{{Name: "box", Value: "true"}},
+			wantExact: "--box cannot make 'team' a box question, since a flag never changes the shape of a " +
+				"question from the question file. Redefine it whole with --ask team=QUESTION --replace",
+		},
+		{
+			name: "should refuse --box on a file box question",
+			file: []plan.Question{{ID: "mug", Shape: plan.Box, Boxed: true, Instructions: "q", Origin: plan.OriginFile}},
+			set:  values{"file": "mug.yaml"},
+			events: []argv.Event{
+				{Name: "for", Value: "mug"}, {Name: "box", Value: "true"},
+			},
+			wantExact: "--box does not apply to 'mug', a box question from mug.yaml already. Drop --box",
+		},
+		{
+			name:    "should refuse --pick on a yes or no file question",
+			file:    fileNouls("urgent"),
+			events:  []argv.Event{{Name: "pick", Value: "a,b"}},
+			wantErr: "--pick cannot make 'urgent' a choice question",
+		},
+		{
+			name:      "should spell a --threshold given after --for by its flag in its range error",
+			file:      fileNouls("urgent", "spam"),
+			set:       values{"file": "two.yaml"},
+			events:    []argv.Event{{Name: "for", Value: "spam"}, {Name: "threshold", Value: "2"}},
+			wantExact: "--threshold must be between 0 and 1, got 2",
+		},
+		{
+			name:   "should suggest no shape for --min-confidence on a yes or no file question",
+			file:   fileNouls("urgent"),
+			events: []argv.Event{{Name: "min-confidence", Value: "0.5"}},
+			wantExact: "--min-confidence needs a confidence value. 'urgent' is a yes or no question, " +
+				"use --threshold",
+		},
+		{
+			name:   "should accept --pick on a file pick question",
+			file:   filePick("billing", "technical"),
+			events: []argv.Event{{Name: "pick", Value: "sales,support"}},
+		},
+		{
+			name:    "should refuse --pick that leaves a file pick question one option",
+			file:    filePick("billing", "technical"),
+			events:  []argv.Event{{Name: "pick", Value: "sales"}},
+			wantErr: "needs at least two options in question 'team', got 1: sales",
+		},
+		{
+			name:    "should refuse a top level --desc on a lone body question",
+			file:    bodyQuestions(1),
+			events:  []argv.Event{{Name: "desc", Value: "yes=nope"}},
+			wantErr: "--desc cannot reshape a request body's question",
 		},
 		{
 			name:       "should report a streaming -q before -o table",
@@ -397,6 +536,7 @@ func TestValidate(t *testing.T) {
 
 			given := run{
 				set: tc.set, typed: tc.typed, events: tc.events, positional: tc.positional, file: tc.file, planned: true,
+				facts: tc.facts,
 			}
 
 			warnings, _, err := settings.Validate(given.view(t), settings.Rules())
@@ -506,6 +646,127 @@ func TestValidate(t *testing.T) {
 				}
 
 				_, notices, err := settings.Validate(settings.NewView(&settings.Merged{}, nil, facts), []settings.Rule{rule})
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+
+				var got []string
+				for _, notice := range notices {
+					got = append(got, notice.String())
+				}
+
+				if !slices.Equal(got, tc.want) {
+					t.Errorf("notices = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("should note a question setting typed twice under rule setting-given-twice", func(t *testing.T) {
+		t.Parallel()
+
+		ask := func(events ...argv.Event) []argv.Event {
+			return append([]argv.Event{{Name: "ask", Value: "a=q"}}, events...)
+		}
+
+		tests := []struct {
+			name       string
+			events     []argv.Event
+			positional string
+			file       []plan.Question
+			want       []string
+		}{
+			{
+				name:   "should keep the last value of a question setting typed twice for one --ask",
+				events: ask(argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "threshold", Value: "0.6"}),
+				want:   []string{"--threshold is given twice for 'a', '0.6' overrides '0.5'"},
+			},
+			{
+				name:       "should keep the last value of a question setting typed twice for the bare question",
+				positional: "is this urgent",
+				events:     []argv.Event{{Name: "threshold", Value: "0.5"}, {Name: "threshold", Value: "0.6"}},
+				want:       []string{"--threshold is given twice, '0.6' overrides '0.5'"},
+			},
+			{
+				name: "should keep the last value of a question setting typed twice for one --for, with a notice",
+				file: fileNouls("tone", "spam"),
+				events: []argv.Event{
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "human"},
+					{Name: "for", Value: "spam"},
+					{Name: "threshold", Value: "0.6"},
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "x"},
+				},
+				want: []string{"--fallback is given twice for 'tone', 'x' overrides 'human'"},
+			},
+			{
+				name: "should count a top level flag and a --for group on the lone file question as one",
+				file: fileNouls("urgent"),
+				events: []argv.Event{
+					{Name: "threshold", Value: "0.5"}, {Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.6"},
+				},
+				want: []string{"--threshold is given twice for 'urgent', '0.6' overrides '0.5'"},
+			},
+			{
+				name: "should count a top level flag a lone --ask takes with the group's own",
+				events: []argv.Event{
+					{Name: "min-confidence", Value: "0.5"}, {Name: "ask", Value: "a=q"}, {Name: "min-confidence", Value: "0.7"},
+				},
+				want: []string{"--min-confidence is given twice for 'a', '0.7' overrides '0.5'"},
+			},
+			{
+				name:   "should note --desc given twice for the same key",
+				events: ask(argv.Event{Name: "desc", Value: "k=x"}, argv.Event{Name: "desc", Value: "k=y"}),
+				want:   []string{"--desc is given twice for 'a', 'k=y' overrides 'k=x'"},
+			},
+			{
+				name:   "should accept --desc for different keys",
+				events: ask(argv.Event{Name: "desc", Value: "k=x"}, argv.Event{Name: "desc", Value: "j=y"}),
+			},
+			{
+				name: "should accept repeated --pick and --rate",
+				events: ask(
+					argv.Event{Name: "pick", Value: "x"}, argv.Event{Name: "pick", Value: "y"},
+					argv.Event{Name: "ask", Value: "b=r"}, argv.Event{Name: "rate", Value: "1"},
+					argv.Event{Name: "rate", Value: "2"},
+				),
+			},
+			{
+				name: "should accept a repeated --for with different settings",
+				file: fileNouls("tone"),
+				events: []argv.Event{
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "human"},
+					{Name: "for", Value: "tone"},
+					{Name: "threshold", Value: "0.6"},
+				},
+			},
+			{
+				name:   "should print nothing for the same question setting typed twice with one value",
+				events: ask(argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "threshold", Value: ".50"}),
+			},
+			{
+				name: "should keep apart the same setting typed for two questions",
+				events: ask(
+					argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "ask", Value: "b=r"},
+					argv.Event{Name: "threshold", Value: "0.6"},
+				),
+			},
+		}
+
+		rule := ruleByID(t, "setting-given-twice")
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				given := run{
+					planned: true, events: tc.events, positional: tc.positional, file: tc.file,
+					set: values{"file": "q.yaml"}, facts: settings.Facts{Command: settings.CommandRoot},
+				}
+
+				_, notices, err := settings.Validate(given.view(t), []settings.Rule{rule})
 				if err != nil {
 					t.Fatalf("Validate: %v", err)
 				}
@@ -1339,11 +1600,12 @@ func TestRules(t *testing.T) {
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "delimiter-needs-csv", "abstain-needs-assert",
 					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
 					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
-					"body-policy-needs-one-question", "group-flags-bind", "questions-valid", "quiet-needs-one-question",
+					"policy-binding", "questions-valid", "quiet-needs-one-question",
 					"raw-needs-one-question", "one-state", "setting-given-twice",
 				}
 
@@ -1603,6 +1865,29 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'line' is reserved under -i lines, which writes the input line number as line",
 		},
 		{
+			rule: "file-question-shape",
+			refused: run{
+				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "pick", Value: "x,y"}},
+			},
+			passed: run{
+				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "fallback", Value: "no"}},
+			},
+			wantErr: "--pick cannot reshape a request body's question. A body carries its own type and criteria",
+		},
+		{
+			rule: "for-selects-a-file-question",
+			refused: run{
+				planned: true, file: fileNouls("urgent"), set: values{"file": "one.yaml"},
+				events: []argv.Event{{Name: "for", Value: "nope"}},
+			},
+			passed: run{
+				planned: true, file: fileNouls("urgent"), set: values{"file": "one.yaml"},
+				events: []argv.Event{{Name: "for", Value: "urgent"}},
+			},
+			wantErr: "--for nope names no question in one.yaml, which has: 'urgent'. " +
+				"Define a new question with --ask nope=QUESTION",
+		},
+		{
 			rule: "questions-valid",
 			refused: run{planned: true, events: []argv.Event{
 				{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "a=two"},
@@ -1611,21 +1896,15 @@ func ruleCases() []ruleCase {
 			wantErr: "question id 'a' is given twice",
 		},
 		{
-			rule: "body-policy-needs-one-question",
+			rule: "policy-binding",
 			refused: run{
 				planned: true, file: bodyQuestions(2), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			},
 			passed: run{
 				planned: true, file: bodyQuestions(1), events: []argv.Event{{Name: "threshold", Value: "0.8"}},
 			},
-			wantErr: "policy flags apply to a request body only when it has one question. " +
-				"the question file has 2, freeze with --print-questions first",
-		},
-		{
-			rule:    "group-flags-bind",
-			refused: run{planned: true, events: append([]argv.Event{{Name: "pick", Value: "x,y"}}, two...)},
-			passed:  run{planned: true, events: two},
-			wantErr: "--pick given with no --ask to bind to and 2 questions asked",
+			wantErr: "--threshold applies to one question, and 2 were asked: 'b0', 'b1'. " +
+				"Put it after --for ID to set one, as in --for b0 --threshold 0.8",
 		},
 		{
 			rule:    "quiet-needs-one-question",
@@ -1713,6 +1992,8 @@ func (r run) view(t *testing.T) settings.View {
 		t.Fatalf("assembling: %v", err)
 	}
 
+	settings.MergeQuestions(merged, built, r.events)
+
 	return settings.NewView(merged, built, facts)
 }
 
@@ -1742,10 +2023,6 @@ func bodyQuestions(n int) []plan.Question {
 	return questions
 }
 
-func pointerTo[T any](value T) *T {
-	return &value
-}
-
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
 	t.Helper()
 
@@ -1763,6 +2040,15 @@ func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
 	if !strings.Contains(joined, want) {
 		t.Errorf("warnings = %q\nwant one containing %q", joined, want)
 	}
+}
+
+func fileNouls(ids ...string) []plan.Question {
+	questions := make([]plan.Question, 0, len(ids))
+	for _, id := range ids {
+		questions = append(questions, plan.Question{ID: id, Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile})
+	}
+
+	return questions
 }
 
 func filePick(options ...string) []plan.Question {

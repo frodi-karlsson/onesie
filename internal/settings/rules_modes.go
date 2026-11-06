@@ -174,6 +174,7 @@ func requestRefusals() []refusal {
 		{"", positionalGiven, says("-i request carries its own questions. Drop the question argument")},
 		{"ask", event("ask"), says("-i request carries its own questions. Drop --ask")},
 		{File.Name(), filled(File), says("-f does not apply to -i request, which carries its own questions")},
+		{"for", event("for"), says("-i request carries its own questions. Drop --for")},
 		{Replace.Name(), on(Replace), says("--replace applies to -f, which -i request does not accept")},
 		{"pick", event("pick"), says("-i request carries its own questions. Drop --pick")},
 		{"rate", event("rate"), says("-i request carries its own questions. Drop --rate")},

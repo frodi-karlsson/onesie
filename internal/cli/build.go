@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"io"
+	"slices"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
@@ -62,6 +63,7 @@ func assemble(
 
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
+	refined := setting.MergeQuestions(flags.merged, built, flags.events)
 
 	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
@@ -69,8 +71,39 @@ func assemble(
 	}
 
 	return assembled{
-		config: flags, plan: built, file: file, warnings: warnings, notices: append(typedTwice, merged.notices...),
+		config: flags, plan: built, file: file, warnings: warnings,
+		notices: inOrder(typedTwice, merged.notices, refined),
 	}, err
+}
+
+func inOrder(typedTwice, merged, refined []setting.Notice) []setting.Notice {
+	var run, questions []setting.Notice
+
+	for _, notice := range typedTwice {
+		if row, found := setting.Lookup(notice.Setting); found && row.Scope == setting.ScopeQuestion {
+			questions = append(questions, notice)
+		} else {
+			run = append(run, notice)
+		}
+	}
+
+	ordered := slices.Concat(run, merged)
+
+	// A question setting typed twice follows the notice of what that setting did to the file.
+	for _, notice := range refined {
+		ordered = append(ordered, notice)
+
+		for i, twice := range questions {
+			if twice.Setting == notice.Setting && twice.Question == notice.Question {
+				ordered = append(ordered, twice)
+				questions = slices.Delete(questions, i, i+1)
+
+				break
+			}
+		}
+	}
+
+	return append(ordered, questions...)
 }
 
 type assembled struct {
@@ -104,7 +137,9 @@ func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bo
 		withoutJudgment(file.loaded)
 	}
 
-	file.facts = runFacts{assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState}
+	file.facts = runFacts{
+		name: path, assert: file.loaded.Assert, abstainIf: file.loaded.AbstainIf, bodyState: file.loaded.HasState,
+	}
 
 	return file, nil
 }
@@ -175,26 +210,19 @@ func withoutJudgment(loaded *qfile.File) {
 	}
 }
 
-func gateOf(flag, fileSource string, sources []string, built *plan.Plan) (*assert.Expr, error) {
-	exprs := make([]*assert.Expr, 0, len(sources)+1)
-
-	// The file leads and the command line follows. The file's expression is the more general one,
-	// and argv puts the flag after the -f that named the file. A file's key and its flag combine by
-	// and, for the abstain expression as for the assertion, and and is commutative, so the order is
-	// a matter of which one an error names first.
-	if fileSource != "" {
-		// Spelled the way the file spells it, which is the rule plan holds every other message to
-		// that names where a setting came from.
-		expr, err := gateExpr(fileSource, plan.Spelling(plan.OriginFile, flag), built)
-		if err != nil {
-			return nil, err
-		}
-
-		exprs = append(exprs, expr)
+func gateOf(flag, fileSource string, typed []string, built *plan.Plan) (*assert.Expr, error) {
+	// A typed flag replaces the file's key, and several typed ones combine by and. The file's key is
+	// spelled the way the file spells it, which is the rule plan holds every other message to that
+	// names where a setting came from.
+	sources, named := typed, flag
+	if len(typed) == 0 && fileSource != "" {
+		sources, named = []string{fileSource}, plan.Spelling(plan.OriginFile, flag)
 	}
 
+	exprs := make([]*assert.Expr, 0, len(sources))
+
 	for _, source := range sources {
-		expr, err := gateExpr(source, flag, built)
+		expr, err := gateExpr(source, named, built)
 		if err != nil {
 			return nil, err
 		}

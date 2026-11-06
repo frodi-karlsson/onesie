@@ -1624,7 +1624,153 @@ func TestNewRootCmd(t *testing.T) {
 					`"b":{"type":"noul","instructions":"q"}}}`,
 			},
 			wantCode: cli.ExitUsage,
-			contains: []string{"one question", "body.json has 2"},
+			contains: []string{"onesie: --threshold applies to one question, and 2 were asked: 'a', 'b'. " +
+				"Put it after --for ID to set one, as in --for a --threshold 0.5\n"},
+		},
+		{
+			name: "should set each --for group's setting on its question only, with a notice each",
+			args: []string{
+				"-f", "mod.yaml", "--for", "tone", "--fallback", "human", "--for", "spam", "--threshold", "0.6",
+				"--print-questions",
+			},
+			files: map[string]string{
+				"mod.yaml": "tone:\n  ask: what tone\n  pick: [calm, angry]\nspam: is this spam\n",
+			},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --fallback sets the question file's fallback for 'tone'\n" +
+					"onesie: --threshold sets the question file's threshold for 'spam'\n",
+				"tone:\n  ask: what tone\n  pick:\n  - calm\n  - angry\n  fallback: human\n",
+				"spam:\n  ask: is this spam\n  threshold: 0.6\n",
+			},
+		},
+		{
+			name: "should print the --for notices in the order typed",
+			args: []string{
+				"-f", "mod.yaml", "--for", "tone", "--fallback", "human", "--for", "spam", "--threshold", "0.6",
+				"--print-questions",
+			},
+			files: map[string]string{
+				"mod.yaml": "spam: is this spam\ntone:\n  ask: what tone\n  pick: [calm, angry]\n",
+			},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --fallback sets the question file's fallback for 'tone'\n" +
+					"onesie: --threshold sets the question file's threshold for 'spam'\n",
+			},
+		},
+		{
+			name:     "should replace a lone file question's threshold, with a notice",
+			args:     []string{"-f", "one.yaml", "--threshold", "0.9", "--print-questions"},
+			files:    map[string]string{"one.yaml": "urgent:\n  ask: is this urgent\n  threshold: 0.7\n"},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --threshold overrides the question file's threshold for 'urgent'\n",
+				"  threshold: 0.9\n",
+			},
+			absent: []string{"0.7"},
+		},
+		{
+			name:     "should give a lone file question a threshold it lacked, with a sets notice",
+			args:     []string{"-f", "one.yaml", "--threshold", "0.9", "--print-questions"},
+			files:    map[string]string{"one.yaml": "urgent: is this urgent\n"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: --threshold sets the question file's threshold for 'urgent'\n", "  threshold: 0.9\n"},
+		},
+		{
+			name:     "should refuse --for naming no question of the file, listing the file's",
+			args:     []string{"-f", "two.yaml", "--for", "nope", "--threshold", "0.9", "--print-questions"},
+			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --for nope names no question in two.yaml, which has: 'a', 'b'. " +
+					"Define a new question with --ask nope=QUESTION\n",
+			},
+		},
+		{
+			name:     "should refuse --for without -f",
+			args:     []string{"--ask", "a=is it a", "--for", "a", "--threshold", "0.9", "--print-questions"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
+		},
+		{
+			name:     "should refuse --for without -f before the values after it",
+			args:     []string{"--ask", "a=is it a", "--for", "a", "--threshold", "high", "--print-questions"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
+			absent:   []string{"takes a number"},
+		},
+		{
+			name:     "should refuse --for beside --replace",
+			args:     []string{"-f", "two.yaml", "--replace", "--for", "a", "--threshold", "0.9", "--print-questions"},
+			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --for never replaces a question, so --replace has nothing to do beside it"},
+		},
+		{
+			name: "should set a policy on one question of a request body through --for",
+			args: []string{"-f", "body.json", "--for", "b", "--threshold", "0.8", "--print-questions"},
+			files: map[string]string{
+				"body.json": `{"questions":{"a":{"type":"noul","instructions":"q"},` +
+					`"b":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: --threshold sets the request body's threshold for 'b'\n", "  threshold: 0.8\n"},
+		},
+		{
+			name: "should refuse --pick after --for on a request body question",
+			args: []string{"-f", "body.json", "--for", "b", "--pick", "x,y", "--print-questions"},
+			files: map[string]string{
+				"body.json": `{"questions":{"a":{"type":"noul","instructions":"q"},` +
+					`"b":{"type":"noul","instructions":"q"}}}`,
+			},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --pick cannot reshape a request body's question. A body carries its own type and criteria\n"},
+		},
+		{
+			name:     "should keep the last of a question setting typed twice for one --ask, with a notice",
+			args:     []string{"--ask", "a=is it a", "--threshold", "0.5", "--threshold", "0.6", "--print-questions"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: --threshold is given twice for 'a', '0.6' overrides '0.5'\n", "  threshold: 0.6\n"},
+		},
+		{
+			name: "should keep the last of a question setting typed twice across --for groups, with a notice",
+			args: []string{
+				"-f", "mod.yaml", "--for", "tone", "--fallback", "human", "--for", "tone", "--fallback", "x",
+				"--print-questions",
+			},
+			files:    map[string]string{"mod.yaml": "tone:\n  ask: what tone\n  pick: [calm, angry]\nspam: is this spam\n"},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --fallback sets the question file's fallback for 'tone'\n" +
+					"onesie: --fallback is given twice for 'tone', 'x' overrides 'human'\n",
+				"  fallback: x\n",
+			},
+		},
+		{
+			name:     "should refuse --pick sales on a one option result",
+			args:     []string{"-f", "team.yaml", "--pick", "sales", "--print-questions"},
+			files:    map[string]string{"team.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --pick needs at least two options in question 'team', got 1: sales\n"},
+			absent:   []string{"overrides"},
+		},
+		{
+			name:     "should refuse --pick on a yes or no file question",
+			args:     []string{"-f", "yesno.yaml", "--pick", "a,b", "--print-questions"},
+			files:    map[string]string{"yesno.yaml": "urgent: is this urgent\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{
+				"onesie: --pick cannot make 'urgent' a choice question, since a flag never changes the shape of a " +
+					"question from yesno.yaml. Redefine it whole with --ask urgent=QUESTION --replace\n",
+			},
+		},
+		{
+			name:     "should refuse --rate after --for on a file pick question",
+			args:     []string{"-f", "two.yaml", "--for", "team", "--rate", "low,high", "--print-questions"},
+			files:    map[string]string{"two.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\nb: is it b\n"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: --rate cannot make 'team' a score question"},
 		},
 		{
 			name: "should allow policy on an ask added beside a one question body",
@@ -1641,42 +1787,43 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"a":{"value":0.92`, `"extra":{"value":0.92`},
 		},
 		{
-			name: "should orphan a top level flag when a file and one ask both ask",
+			name: "should refuse a top level flag when a file and one ask both ask, naming --for",
 			args: []string{
 				"-f", "one.yaml", "--threshold", "0.8", "--ask", "other=is this urgent",
 			},
 			files:    map[string]string{"one.yaml": "urgent: is this urgent\n"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
-			contains: []string{"--threshold given with no --ask to bind to and 2 questions asked"},
+			contains: []string{"--threshold applies to one question, and 2 were asked: 'urgent', 'other'. " +
+				"Put it after --for ID to set one, as in --for urgent --threshold 0.8"},
 		},
 		{
-			name:     "should name the file keys for --min-confidence beside a file of several questions",
+			name:     "should name --for for --min-confidence beside a file of several questions",
 			args:     []string{"-f", "two.yaml", "--min-confidence", "0.5", "--fallback", "x", "--print-request"},
 			files:    map[string]string{"two.yaml": "a:\n  ask: which\n  pick: [x, y]\nb:\n  ask: which too\n  pick: [x, y]\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: --min-confidence given with no --ask to bind to and 2 questions asked. " +
-					"Set min_confidence and fallback on a question in the -f file instead",
+				"onesie: --min-confidence applies to one question, and 2 were asked: 'a', 'b'. " +
+					"Put it after --for ID to set one, as in --for a --min-confidence 0.5",
 			},
 		},
 		{
-			name:     "should name the file key for --threshold beside a file of several questions",
+			name:     "should name --for for --threshold beside a file of several questions",
 			args:     []string{"-f", "two.yaml", "--threshold", "0.5", "--print-request"},
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
-			contains: []string{"Set threshold on a question in the -f file instead"},
+			contains: []string{"Put it after --for ID to set one, as in --for a --threshold 0.5"},
 		},
 		{
-			name:     "should name no file key for a shape flag",
+			name:     "should name --for for a shape flag beside a file of several questions",
 			args:     []string{"-f", "two.yaml", "--pick", "x,y", "--print-request"},
 			files:    map[string]string{"two.yaml": "a: is it a\nb: is it b\n"},
 			stdin:    "s",
 			wantCode: cli.ExitUsage,
-			contains: []string{"--pick given with no --ask to bind to"},
-			absent:   []string{"in the -f file instead"},
+			contains: []string{"--pick applies to one question, and 2 were asked: 'a', 'b'. No question from the " +
+				"file takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION --pick x,y"},
 		},
 		{
 			name:     "should reject a question file holding a second document",

@@ -12,9 +12,19 @@ type Plan struct {
 	// turn it on, and none turns it off.
 	LongContext bool
 
-	// Orphans are shape or policy flags that had no --ask to bind to. They are kept off Question
-	// so nothing iterating Questions has to know to skip a pseudo entry.
+	// Selections are the --for groups, in the order each ID was first selected.
+	Selections []Selection
+
+	// Orphans are the top level question flags no --ask or positional question took. A lone question
+	// from a file takes them, and beside several questions validation refuses them.
 	Orphans []argv.Event
+}
+
+// Selection is a --for ID group: the question it selects from -f and the flags typed after it,
+// across every --for that names the same ID.
+type Selection struct {
+	ID     string
+	Events []argv.Event
 }
 
 // Question carries everything the API request body cannot: labels, policy and output position.
@@ -40,6 +50,10 @@ type Question struct {
 	// Boxed records --box or a file's box key. The shape is Box whenever it is set, and validation
 	// refuses it beside options or levels.
 	Boxed bool
+
+	// Typed lists the flags, such as --threshold, that gave a question from a file a setting, so a
+	// message spells that setting the way it was given.
+	Typed []string
 
 	// DescOrder is the order --desc keys appeared, so validation can report them as written.
 	DescOrder []string
@@ -94,6 +108,11 @@ const (
 
 func (o Origin) chosen() bool {
 	return o != OriginPositional
+}
+
+// FromFile reports whether the question came from a question file or a request body.
+func (o Origin) FromFile() bool {
+	return o == OriginFile || o == OriginBody
 }
 
 // Option is one choice, with the description sent as criteria. A nil Desc sends null, which the

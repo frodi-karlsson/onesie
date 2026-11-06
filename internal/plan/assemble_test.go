@@ -4,6 +4,8 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -567,29 +569,119 @@ func TestAssemble(t *testing.T) {
 				},
 			},
 			{
-				name: "should bind top level flags to a lone file question",
+				name: "should record a --for group as a selection",
 				src: plan.Source{
-					File: []plan.Question{
-						{ID: "team", Shape: plan.Noul, Instructions: "which team", Origin: plan.OriginFile},
+					File: fileQuestions(),
+					Events: []argv.Event{
+						{Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.9"},
 					},
-					Events:   []argv.Event{{Name: "pick", Value: "billing,technical"}},
 					ReadFile: readFile,
 				},
 				check: func(t *testing.T, p *plan.Plan) {
 					t.Helper()
 
-					if p.Questions[0].Shape != plan.Pick {
-						t.Errorf("shape = %s, want pick", p.Questions[0].Shape)
+					want := []plan.Selection{{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.9"}}}}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
 					}
 
-					if len(p.Questions[0].Options) != 2 {
-						t.Errorf("options = %+v, want two", p.Questions[0].Options)
-					}
-
-					if len(p.Orphans) != 0 {
-						t.Errorf("orphans = %v, want none", p.Orphans)
+					if len(p.Orphans) != 0 || len(p.Questions) != 2 {
+						t.Errorf("orphans = %v, questions = %d, want none and the file's two", p.Orphans, len(p.Questions))
 					}
 				},
+			},
+			{
+				name: "should continue a repeated --for ID",
+				src: plan.Source{
+					File: fileQuestions(),
+					Events: []argv.Event{
+						{Name: "for", Value: "team"},
+						{Name: "fallback", Value: "human"},
+						{Name: "for", Value: "urgent"},
+						{Name: "threshold", Value: "0.6"},
+						{Name: "for", Value: "team"},
+						{Name: "desc", Value: "yes=a team"},
+					},
+					ReadFile: readFile,
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []plan.Selection{
+						{ID: "team", Events: []argv.Event{
+							{Name: "fallback", Value: "human"}, {Name: "desc", Value: "yes=a team"},
+						}},
+						{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
+					}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
+					}
+				},
+			},
+			{
+				name: "should keep refusing --ask without =TEXT",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "urgent"}, {Name: "ask", Value: "urgent"}},
+					ReadFile: readFile,
+				},
+				wantErr: "--ask takes NAME=QUESTION, got 'urgent'",
+			},
+			{
+				name: "should keep top level flags as orphans beside a lone file question, for the merge",
+				src: plan.Source{
+					File: []plan.Question{
+						{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
+					},
+					Events:   []argv.Event{{Name: "threshold", Value: "0.9"}, {Name: "desc", Value: "yes=@q.txt"}},
+					ReadFile: func(string) ([]byte, error) { return []byte("very urgent\n"), nil },
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []argv.Event{{Name: "threshold", Value: "0.9"}, {Name: "desc", Value: "yes=very urgent"}}
+					if !reflect.DeepEqual(p.Orphans, want) {
+						t.Errorf("orphans = %v, want %v with the reference read", p.Orphans, want)
+					}
+
+					if p.Questions[0].Policy.Threshold != nil || p.Questions[0].Criteria != nil {
+						t.Errorf("question = %+v, want it as the file gave it", p.Questions[0])
+					}
+				},
+			},
+			{
+				name: "should refuse a --for group's threshold that is no number",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "urgent"}, {Name: "threshold", Value: "high"}},
+					ReadFile: readFile,
+				},
+				wantErr: "--threshold takes a number, got 'high'",
+			},
+			{
+				name: "should leave a --for group naming no file question to validation",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "nope"}, {Name: "threshold", Value: "high"}},
+					ReadFile: readFile,
+				},
+				check: func(t *testing.T, p *plan.Plan) {
+					t.Helper()
+
+					want := []plan.Selection{{ID: "nope", Events: []argv.Event{{Name: "threshold", Value: "high"}}}}
+					if !reflect.DeepEqual(p.Selections, want) {
+						t.Errorf("selections = %+v, want %+v", p.Selections, want)
+					}
+				},
+			},
+			{
+				name: "should refuse a --for group's desc with no equals",
+				src: plan.Source{
+					File:     fileQuestions(),
+					Events:   []argv.Event{{Name: "for", Value: "urgent"}, {Name: "desc", Value: "yes"}},
+					ReadFile: readFile,
+				},
+				wantErr: "--desc takes KEY=TEXT, got 'yes'",
 			},
 			{
 				name: "should orphan top level flags when the file has several questions",
@@ -603,27 +695,6 @@ func TestAssemble(t *testing.T) {
 
 					if len(p.Orphans) != 1 {
 						t.Errorf("orphans = %v, want one", p.Orphans)
-					}
-				},
-			},
-			{
-				name: "should bind a policy flag to a lone file question",
-				src: plan.Source{
-					File: []plan.Question{
-						{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
-					},
-					Events:   []argv.Event{{Name: "threshold", Value: "0.9"}},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					if p.Questions[0].Policy.Threshold == nil {
-						t.Fatal("a top level policy flag must bind to a lone file question")
-					}
-
-					if *p.Questions[0].Policy.Threshold != 0.9 {
-						t.Errorf("threshold = %v, want 0.9", *p.Questions[0].Policy.Threshold)
 					}
 				},
 			},
@@ -675,140 +746,6 @@ func TestAssemble(t *testing.T) {
 					}
 				},
 			},
-			{
-				name: "should merge a top level desc into the file's yes/no criteria",
-				src: plan.Source{
-					File: []plan.Question{
-						{
-							ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
-							Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
-						},
-					},
-					Events:   []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					criteria := p.Questions[0].Criteria
-					if criteria == nil {
-						t.Fatal("criteria = nil, want the file's criteria refined")
-					}
-
-					if criteria.Yes != "CLI YES" {
-						t.Errorf("yes = %v, want the flag to win", criteria.Yes)
-					}
-
-					if criteria.No != "FILE NO" {
-						t.Errorf("no = %v, want the file's half kept", criteria.No)
-					}
-				},
-			},
-			{
-				name: "should keep the file's yes half when only no is named",
-				src: plan.Source{
-					File: []plan.Question{
-						{
-							ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
-							Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
-						},
-					},
-					Events:   []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					criteria := p.Questions[0].Criteria
-					if criteria.Yes != "FILE YES" || criteria.No != "CLI NO" {
-						t.Errorf("criteria = %+v, want FILE YES and CLI NO", criteria)
-					}
-				},
-			},
-			{
-				name: "should still build criteria for a question that had none",
-				src: plan.Source{
-					File: []plan.Question{
-						{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile},
-					},
-					Events:   []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					criteria := p.Questions[0].Criteria
-					if criteria == nil || criteria.Yes != "CLI YES" || criteria.No != nil {
-						t.Errorf("criteria = %+v, want only the yes half set", criteria)
-					}
-				},
-			},
-			{
-				name: "should reject a shape flag aimed at a body question",
-				src: plan.Source{
-					File: []plan.Question{
-						{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
-					},
-					Events:   []argv.Event{{Name: "pick", Value: "x,y"}},
-					ReadFile: readFile,
-				},
-				wantErr: "--pick cannot reshape a request body's question. " +
-					"A body carries its own type and criteria",
-			},
-			{
-				name: "should reject a desc aimed at a body question",
-				src: plan.Source{
-					File: []plan.Question{
-						{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
-					},
-					Events:   []argv.Event{{Name: "desc", Value: "yes=nope"}},
-					ReadFile: readFile,
-				},
-				wantErr: "--desc cannot reshape a request body's question",
-			},
-			{
-				name: "should bind a policy flag to a lone body question",
-				src: plan.Source{
-					File: []plan.Question{
-						{ID: "bq", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
-					},
-					Events:   []argv.Event{{Name: "threshold", Value: "0.8"}},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					if p.Questions[0].Policy.Threshold == nil {
-						t.Fatal("policy is the one thing a body question accepts from a flag")
-					}
-				},
-			},
-			{
-				name: "should leave a body's score question unlabelled when policy flags are applied",
-				src: plan.Source{
-					File: []plan.Question{{
-						ID: "frustration", Shape: plan.Rate, Origin: plan.OriginBody,
-						Levels:   []plan.Level{{}, {}, {}},
-						Labelled: false,
-					}},
-					Events: []argv.Event{
-						{Name: "min-confidence", Value: "0.7"},
-						{Name: "fallback", Value: "human"},
-					},
-					ReadFile: readFile,
-				},
-				check: func(t *testing.T, p *plan.Plan) {
-					t.Helper()
-
-					if p.Questions[0].Labelled {
-						t.Error("a body's score question must stay unlabelled, its criteria are by index")
-					}
-
-					if p.Questions[0].Policy.Fallback == nil {
-						t.Error("the fallback flag must still bind")
-					}
-				},
-			},
 		}
 
 		for _, tc := range tests {
@@ -840,6 +777,111 @@ func TestAssemble(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestRefine(t *testing.T) {
+	t.Parallel()
+
+	noul := func(origin plan.Origin) plan.Question {
+		return plan.Question{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: origin}
+	}
+
+	pick := plan.Question{
+		ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+		Options: []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical"}},
+	}
+
+	tests := []struct {
+		name     string
+		question plan.Question
+		events   []argv.Event
+		want     plan.Question
+	}{
+		{
+			name:     "should set a policy on a file question",
+			question: noul(plan.OriginFile),
+			events:   []argv.Event{{Name: "threshold", Value: "0.9"}, {Name: "fallback", Value: "yes"}},
+			want: plan.Question{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Threshold: pointerTo(0.9), Fallback: &plan.Fallback{Text: "yes", Boolean: true}},
+				Typed:  []string{"--threshold", "--fallback"},
+			},
+		},
+		{
+			name:     "should replace a pick question's options, a repeated --pick adding to them",
+			question: pick,
+			events:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "sales"}, {Name: "support"}}, Typed: []string{"--pick"},
+			},
+		},
+		{
+			name: "should replace a rate question's levels after --sep",
+			question: plan.Question{
+				ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+				Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
+			},
+			events: []argv.Event{{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;high"}},
+			want: plan.Question{
+				ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+				Levels: []plan.Level{{Label: "low"}, {Label: "high"}}, Typed: []string{"--rate"},
+			},
+		},
+		{
+			name:     "should merge --desc by key",
+			question: pick,
+			events:   []argv.Event{{Name: "desc", Value: "technical=systems"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options:   []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical", Desc: "systems"}},
+				DescOrder: []string{"technical"}, Typed: []string{"--desc"},
+			},
+		},
+		{
+			name:     "should leave --pick on a yes or no question for validation",
+			question: noul(plan.OriginFile),
+			events:   []argv.Event{{Name: "pick", Value: "a,b"}},
+			want:     plan.Question{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile},
+		},
+		{
+			name:     "should leave --box on a file question for validation",
+			question: pick,
+			events:   []argv.Event{{Name: "box", Value: "true"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical"}},
+			},
+		},
+		{
+			name:     "should apply only the policy flags to a body question",
+			question: noul(plan.OriginBody),
+			events:   []argv.Event{{Name: "desc", Value: "yes=x"}, {Name: "threshold", Value: "0.8"}},
+			want: plan.Question{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
+				Policy: plan.Policy{Threshold: pointerTo(0.8)}, Typed: []string{"--threshold"},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			question := tc.question
+			question.Options = slices.Clone(question.Options)
+			plan.Refine(&question, tc.events, settings.PolicyNumbers())
+
+			// Refine leaves an empty map of unknown keys, which reads the same as none.
+			if len(question.UnknownDesc) == 0 {
+				question.UnknownDesc = nil
+			}
+
+			if !reflect.DeepEqual(question, tc.want) {
+				t.Errorf("question = %+v\nwant %+v", question, tc.want)
+			}
+		})
+	}
 }
 
 func wantFallbackBoolean(want bool) func(t *testing.T, p *plan.Plan) {
