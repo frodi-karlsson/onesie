@@ -81,21 +81,18 @@ type View struct {
 }
 
 // Facts are what a rule or a derived default reads about a run that no setting holds: the command,
-// the question file's name as messages give it, its gates and state, the group flags in the order typed, the positional question,
-// calibrate's -o and whether it was typed, whether stdout is a terminal, and the flags as parsed
-// from Args, the command line.
+// the question file's path as messages give it, whether that file holds a state, the group flags in
+// the order typed, the positional question, whether stdout is a terminal, and the command line as
+// typed, Args, with the flags Given counts.
 type Facts struct {
-	Command                   Command
-	FileName                  string
-	FileAssert, FileAbstainIf string
-	BodyState                 bool
-	Events                    []argv.Event
-	Positional                string
-	Report                    string
-	ReportSet                 bool
-	StdoutTTY                 bool
-	Given                     *Given
-	Args                      []string
+	Command    Command
+	FileName   string
+	BodyState  bool
+	Events     []argv.Event
+	Positional string
+	StdoutTTY  bool
+	Given      *Given
+	Args       []string
 }
 
 func typed(v View, name Name) bool {
@@ -149,15 +146,15 @@ func mergeName(v View) string {
 }
 
 func hasAssert(v View) bool {
-	return len(listOf(v, assertName)) > 0 || v.Facts.FileAssert != ""
+	return len(listOf(v, assertName)) > 0
 }
 
 func hasAbstainIf(v View) bool {
-	return len(listOf(v, abstainIfName)) > 0 || v.Facts.FileAbstainIf != ""
+	return len(listOf(v, abstainIfName)) > 0
 }
 
 func assertFlag(v View) string {
-	if givenByFile(v, assertName, v.Facts.FileAssert) {
+	if v.Merged.Source(assertName) == SourceFile {
 		return plan.Spelling(plan.OriginFile, "--assert")
 	}
 
@@ -165,19 +162,11 @@ func assertFlag(v View) string {
 }
 
 func abstainFlag(v View) string {
-	if givenByFile(v, abstainIfName, v.Facts.FileAbstainIf) {
+	if v.Merged.Source(abstainIfName) == SourceFile {
 		return plan.Spelling(plan.OriginFile, "--abstain-if")
 	}
 
 	return "--abstain-if"
-}
-
-func givenByFile(v View, name Name, fileFact string) bool {
-	if v.Merged.Source(name) == SourceFile {
-		return true
-	}
-
-	return len(listOf(v, name)) == 0 && fileFact != ""
 }
 
 func eventGiven(v View, flag string) bool {

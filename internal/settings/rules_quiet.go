@@ -13,7 +13,7 @@ func quietWithMarkdownRule() Rule {
 		Reads: []Name{Quiet.Name(), Output.Name()},
 		Check: func(v View) error {
 			if Get(v.Merged, Quiet) && markdownOutput(v) {
-				return fmt.Errorf("-q suppresses output, which leaves -o %s nothing to write", Get(v.Merged, Output))
+				return fmt.Errorf("-q suppresses output, which leaves -o %s nothing to write", outputTyped(v))
 			}
 
 			return nil
@@ -22,9 +22,16 @@ func quietWithMarkdownRule() Rule {
 }
 
 func markdownOutput(v View) bool {
-	output := Get(v.Merged, Output)
+	return Get(v.Merged, Output) == "markdown"
+}
 
-	return output == "markdown" || output == "md"
+func outputTyped(v View) string {
+	// The merge holds an alias by the mode it names, and a message names -o as it was typed.
+	if typed := v.Facts.Given.Values(Output.Name()); len(typed) > 0 {
+		return typed[len(typed)-1]
+	}
+
+	return Get(v.Merged, Output)
 }
 
 func quietWritesNothingRule() Rule {
@@ -50,7 +57,7 @@ func droppedByQuiet(v View) string {
 	case Get(v.Merged, Raw):
 		return "-r"
 	case Get(v.Merged, Output) != "":
-		return "-o " + Get(v.Merged, Output)
+		return "-o " + outputTyped(v)
 	case Get(v.Merged, Out) != "":
 		return "--out"
 	default:

@@ -58,15 +58,7 @@ func (c runConfig) withMerged(merged *setting.Merged) runConfig {
 		aliasTTL:    setting.Derived(setting.NewView(merged, nil, setting.Facts{}), setting.CacheTTL),
 	}
 	c.mockPath = setting.Get(merged, setting.Mock)
-
-	switch merged.Source(setting.Mock.Name()) {
-	case setting.SourceFlag:
-		c.mockSpelled = flagMock
-	case setting.SourceEnv:
-		c.mockSpelled = envMock
-	default:
-		c.mockSpelled = ""
-	}
+	c.mockSpelled = merged.Origin(setting.Mock.Name()).Spelled
 
 	return c
 }

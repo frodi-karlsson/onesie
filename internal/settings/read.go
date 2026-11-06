@@ -7,8 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie-go"
+	"github.com/spf13/pflag"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -140,7 +141,7 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 
 	for _, row := range rows {
 		bound, registered := boundOn(row, command)
-		if !registered || !parsedPerRun(row, command) || offTheChoice(row, command) {
+		if !registered || !readPerRun(row) || offTheChoice(row, command) {
 			continue
 		}
 
@@ -149,7 +150,7 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 			continue
 		}
 
-		value, err := parseFlag(row, bound, flag)
+		value, err := flagValue(row, bound, flag, command)
 		if err != nil {
 			return Layer{}, err
 		}
@@ -162,6 +163,20 @@ func readFlags(rows []Row, given *Given, command Command) (Layer, error) {
 	}
 
 	return layer, nil
+}
+
+func readPerRun(row Row) bool {
+	return row.Scope == ScopeRun && !row.Flag.Group
+}
+
+func flagValue(row Row, bound BoundFlag, flag *pflag.Flag, command Command) (any, error) {
+	if parsedPerRun(row, command) {
+		return parseFlag(row, bound, flag)
+	}
+
+	// A command that gives a flag a kind of its own keeps the flag as typed, and its rules word the
+	// refusal.
+	return flag.Value.String(), nil
 }
 
 func boundOn(row Row, command Command) (BoundFlag, bool) {
@@ -213,7 +228,7 @@ func readDefaults(rows []Row, command Command) Layer {
 		}
 
 		if bound, registered := boundOn(row, command); registered {
-			if parsedPerRun(row, command) {
+			if readPerRun(row) {
 				layer.set(row.Name, untyped(row, bound), "")
 			}
 

@@ -49,7 +49,18 @@ func TestRead(t *testing.T) {
 			check: func(t *testing.T, layers []settings.Layer) {
 				t.Helper()
 
-				wantNoValue(t, layerAt(t, layers, settings.SourceDefault), "input")
+				wantValue(t, layerAt(t, layers, settings.SourceDefault), "input", "", "")
+			},
+		},
+		{
+			name:    "should keep a flag its command gives a kind of its own as typed, for the rules to word",
+			reading: reading{command: settings.CommandCalibrate, args: []string{"-o", "csv", "-i", "text"}},
+			check: func(t *testing.T, layers []settings.Layer) {
+				t.Helper()
+
+				flags := layerAt(t, layers, settings.SourceFlag)
+				wantValue(t, flags, "output", "csv", "--output")
+				wantValue(t, flags, "input", "text", "--input")
 			},
 		},
 		{

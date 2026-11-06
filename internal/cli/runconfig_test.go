@@ -154,17 +154,6 @@ func TestNewRunConfig(t *testing.T) {
 	})
 }
 
-func parsedRun(t *testing.T, args ...string) runFlags {
-	t.Helper()
-
-	flags, cmd := registeredRun()
-	if err := cmd.Flags().Parse(args); err != nil {
-		t.Fatal(err)
-	}
-
-	return *flags
-}
-
 func registeredRun() (*runFlags, *cobra.Command) {
 	flags := &runFlags{}
 	cmd := &cobra.Command{Use: "onesie"}

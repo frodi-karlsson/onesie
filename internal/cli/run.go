@@ -178,7 +178,7 @@ func runPlan(
 		return err
 	}
 
-	outputMode, err := output.ParseMode(setting.Derived(viewOf(flags, runFacts{}, built), setting.Output))
+	outputMode, err := output.ParseMode(setting.Derived(setting.NewView(flags.merged, built, setting.Facts{StdoutTTY: flags.stdoutTTY}), setting.Output))
 	if err != nil {
 		return err
 	}

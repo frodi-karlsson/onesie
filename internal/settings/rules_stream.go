@@ -87,8 +87,8 @@ func tableOnStreamRule() Rule {
 		Reads: []Name{Output.Name(), Input.Name()},
 		Check: func(v View) error {
 			// A stream writes one line per input line. A table is several lines with a repeated header,
-			// and unlike raw it has no streaming form.
-			if inputModeOf(v).Streaming() && Get(v.Merged, Output) == "table" {
+			// and unlike raw it has no streaming form. Calibrate's -o is its report, which is one table.
+			if inputModeOf(v).Streaming() && Get(v.Merged, Output) == "table" && v.Facts.Command != CommandCalibrate {
 				return fmt.Errorf("-o table reads one record. Drop -i %s or use -o json", inputName(v))
 			}
 
