@@ -2018,6 +2018,52 @@ func TestProfileShow(t *testing.T) {
 			t.Error("the default profile's base_url took a request")
 		}
 	})
+
+	t.Run("should show the key and account a run on a cloudflare default profile sends, beside "+
+		"CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN", func(t *testing.T) {
+		t.Parallel()
+
+		const profileAccount = "fedcba9876543210fedcba9876543210"
+
+		accountURL := "https://api.cloudflare.com/client/v4/accounts/" + testAccountID + "/ai"
+		dir := configWith(t, `{"default":"cf","profiles":{"cf":{"provider":"cloudflare","api_key":"SECRET-CF-PROFILE",`+
+			`"account_id":"`+profileAccount+`"}}}`)
+		env := map[string]string{
+			onesie.Cloudflare().EnvAccountID(): testAccountID, onesie.Cloudflare().EnvAPIKey(): "SECRET-ENV",
+		}
+
+		out, errOut, code := runInConfig(t, dir, []string{"profile", "show"}, "", env)
+		if code != ExitOK {
+			t.Fatalf("profile show exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		for _, want := range []string{
+			"key: env CLOUDFLARE_API_TOKEN\n", "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\n",
+			"account: CLOUDFLARE_ACCOUNT_ID\n",
+		} {
+			if !strings.Contains(out, want) {
+				t.Errorf("profile show printed %q, want a line %q", out, want)
+			}
+		}
+
+		srv, sent := modelTLSServer(t)
+
+		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-r", "--state", "the server is down"}, "", env,
+			withTLSDialTo(srv))
+		if code != ExitOK {
+			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
+		}
+
+		got := sent()
+		if len(got) != 1 || !strings.HasPrefix("https://"+got[0].url, accountURL) {
+			t.Errorf("the run sent %d requests, want one under the account URL profile show printed", len(got))
+		}
+
+		// Compared, never printed, since the header carries the key.
+		if len(got) != 1 || got[0].auth != "Bearer SECRET-ENV" {
+			t.Errorf("the run sent %d requests, want one with CLOUDFLARE_API_TOKEN's key", len(got))
+		}
+	})
 }
 
 func TestProfileTest(t *testing.T) {
