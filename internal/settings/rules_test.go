@@ -401,6 +401,15 @@ func TestValidate(t *testing.T) {
 				"question from the question file. Redefine it whole with --ask team=QUESTION --replace",
 		},
 		{
+			name: "should refuse --box on a file box question",
+			file: []plan.Question{{ID: "mug", Shape: plan.Box, Boxed: true, Instructions: "q", Origin: plan.OriginFile}},
+			set:  values{"file": "mug.yaml"},
+			events: []argv.Event{
+				{Name: "for", Value: "mug"}, {Name: "box", Value: "true"},
+			},
+			wantExact: "--box does not apply to 'mug', a box question from mug.yaml already. Drop --box",
+		},
+		{
 			name:    "should refuse --pick on a yes or no file question",
 			file:    fileNouls("urgent"),
 			events:  []argv.Event{{Name: "pick", Value: "a,b"}},
@@ -584,6 +593,127 @@ func TestValidate(t *testing.T) {
 				}
 
 				_, notices, err := settings.Validate(settings.NewView(&settings.Merged{}, nil, facts), []settings.Rule{rule})
+				if err != nil {
+					t.Fatalf("Validate: %v", err)
+				}
+
+				var got []string
+				for _, notice := range notices {
+					got = append(got, notice.String())
+				}
+
+				if !slices.Equal(got, tc.want) {
+					t.Errorf("notices = %q, want %q", got, tc.want)
+				}
+			})
+		}
+	})
+
+	t.Run("should note a question setting typed twice under rule setting-given-twice", func(t *testing.T) {
+		t.Parallel()
+
+		ask := func(events ...argv.Event) []argv.Event {
+			return append([]argv.Event{{Name: "ask", Value: "a=q"}}, events...)
+		}
+
+		tests := []struct {
+			name       string
+			events     []argv.Event
+			positional string
+			file       []plan.Question
+			want       []string
+		}{
+			{
+				name:   "should keep the last value of a question setting typed twice for one --ask",
+				events: ask(argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "threshold", Value: "0.6"}),
+				want:   []string{"--threshold is given twice for 'a', '0.6' overrides '0.5'"},
+			},
+			{
+				name:       "should keep the last value of a question setting typed twice for the bare question",
+				positional: "is this urgent",
+				events:     []argv.Event{{Name: "threshold", Value: "0.5"}, {Name: "threshold", Value: "0.6"}},
+				want:       []string{"--threshold is given twice, '0.6' overrides '0.5'"},
+			},
+			{
+				name: "should keep the last value of a question setting typed twice for one --for, with a notice",
+				file: fileNouls("tone", "spam"),
+				events: []argv.Event{
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "human"},
+					{Name: "for", Value: "spam"},
+					{Name: "threshold", Value: "0.6"},
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "x"},
+				},
+				want: []string{"--fallback is given twice for 'tone', 'x' overrides 'human'"},
+			},
+			{
+				name: "should count a top level flag and a --for group on the lone file question as one",
+				file: fileNouls("urgent"),
+				events: []argv.Event{
+					{Name: "threshold", Value: "0.5"}, {Name: "for", Value: "urgent"}, {Name: "threshold", Value: "0.6"},
+				},
+				want: []string{"--threshold is given twice for 'urgent', '0.6' overrides '0.5'"},
+			},
+			{
+				name: "should count a top level flag a lone --ask takes with the group's own",
+				events: []argv.Event{
+					{Name: "min-confidence", Value: "0.5"}, {Name: "ask", Value: "a=q"}, {Name: "min-confidence", Value: "0.7"},
+				},
+				want: []string{"--min-confidence is given twice for 'a', '0.7' overrides '0.5'"},
+			},
+			{
+				name:   "should note --desc given twice for the same key",
+				events: ask(argv.Event{Name: "desc", Value: "k=x"}, argv.Event{Name: "desc", Value: "k=y"}),
+				want:   []string{"--desc is given twice for 'a', 'k=y' overrides 'k=x'"},
+			},
+			{
+				name:   "should accept --desc for different keys",
+				events: ask(argv.Event{Name: "desc", Value: "k=x"}, argv.Event{Name: "desc", Value: "j=y"}),
+			},
+			{
+				name: "should accept repeated --pick and --rate",
+				events: ask(
+					argv.Event{Name: "pick", Value: "x"}, argv.Event{Name: "pick", Value: "y"},
+					argv.Event{Name: "ask", Value: "b=r"}, argv.Event{Name: "rate", Value: "1"},
+					argv.Event{Name: "rate", Value: "2"},
+				),
+			},
+			{
+				name: "should accept a repeated --for with different settings",
+				file: fileNouls("tone"),
+				events: []argv.Event{
+					{Name: "for", Value: "tone"},
+					{Name: "fallback", Value: "human"},
+					{Name: "for", Value: "tone"},
+					{Name: "threshold", Value: "0.6"},
+				},
+			},
+			{
+				name:   "should print nothing for the same question setting typed twice with one value",
+				events: ask(argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "threshold", Value: ".50"}),
+			},
+			{
+				name: "should keep apart the same setting typed for two questions",
+				events: ask(
+					argv.Event{Name: "threshold", Value: "0.5"}, argv.Event{Name: "ask", Value: "b=r"},
+					argv.Event{Name: "threshold", Value: "0.6"},
+				),
+			},
+		}
+
+		rule := ruleByID(t, "setting-given-twice")
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				given := run{
+					planned: true, events: tc.events, positional: tc.positional, file: tc.file,
+					set: values{"file": "q.yaml"}, facts: settings.Facts{Command: settings.CommandRoot},
+				}
+
+				_, notices, err := settings.Validate(given.view(t), []settings.Rule{rule})
 				if err != nil {
 					t.Fatalf("Validate: %v", err)
 				}

@@ -6,6 +6,9 @@ import (
 	"slices"
 	"strings"
 	"unicode"
+
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const shownValueRunes = 40
@@ -24,40 +27,181 @@ func givenTwice(v View) []Notice {
 		}
 
 		typed := v.Facts.Given.Values(row.Name)
-		if len(typed) < 2 {
-			continue
+
+		if notice, twice := typedTwice(row, bound.Kind, typed); twice {
+			notice.Winner.Spelled = lastSpelling(v, row.Name, bound, len(typed))
+			notices = append(notices, notice)
 		}
+	}
 
-		last := typed[len(typed)-1]
+	return append(notices, givenTwiceFor(v)...)
+}
 
-		var overridden []string
+func givenTwiceFor(v View) []Notice {
+	var notices []Notice
 
-		for _, earlier := range typed[:len(typed)-1] {
-			same := func(value string) bool { return sameValue(bound.Kind, value, earlier) }
-			if !same(last) && !slices.ContainsFunc(overridden, same) {
-				overridden = append(overridden, earlier)
+	for _, group := range typedGroups(v) {
+		for _, row := range Table() {
+			if row.Scope != ScopeQuestion || !row.Flag.Group || !overridesWhenRepeated(row.Name) {
+				continue
+			}
+
+			for _, typed := range typedValues(row, group.events) {
+				notice, twice := typedTwice(row, row.Kind, typed)
+				if !twice {
+					continue
+				}
+
+				notice.Winner.Spelled, notice.Question = "--"+row.Flag.Long, group.question
+				notices = append(notices, notice)
 			}
 		}
-
-		if len(overridden) == 0 {
-			continue
-		}
-
-		shown := make([]string, 0, len(overridden))
-		for _, value := range overridden {
-			shown = append(shown, quotedValue(value))
-		}
-
-		notices = append(notices, Notice{
-			Setting: row.Name,
-			Winner:  Origin{Source: SourceFlag, Spelled: lastSpelling(v, row.Name, bound, len(typed))},
-			Verb:    VerbGivenTwice,
-			Values:  [2]string{quotedValue(last), joinedAnd(shown)},
-			Times:   len(typed),
-		})
 	}
 
 	return notices
+}
+
+func overridesWhenRepeated(name Name) bool {
+	// A repeated --pick or --rate adds options, --sep applies to the flags after it, and --box takes no
+	// value to override.
+	return name == Threshold.Name() || name == MinConfidence.Name() || name == FallbackAnswer.Name() ||
+		name == descName
+}
+
+func typedValues(row Row, events []argv.Event) [][]string {
+	if row.Name != descName {
+		var typed []string
+
+		for _, event := range events {
+			if event.Name == row.Flag.Long {
+				typed = append(typed, event.Value)
+			}
+		}
+
+		return [][]string{typed}
+	}
+
+	var (
+		keys  []string
+		byKey = map[string][]string{}
+	)
+
+	for _, event := range events {
+		if event.Name != row.Flag.Long {
+			continue
+		}
+
+		key, _, _ := strings.Cut(event.Value, "=")
+		if key = strings.TrimSpace(key); byKey[key] == nil {
+			keys = append(keys, key)
+		}
+
+		byKey[key] = append(byKey[key], event.Value)
+	}
+
+	typed := make([][]string, 0, len(keys))
+	for _, key := range keys {
+		typed = append(typed, byKey[key])
+	}
+
+	return typed
+}
+
+func typedGroups(v View) []typedGroup {
+	if v.Plan == nil {
+		return nil
+	}
+
+	// The flags before the first --ask or --for belong to the one question asked: the bare question,
+	// a lone --ask or a lone question from -f.
+	var leading string
+
+	switch {
+	case v.Facts.Positional != "":
+		leading = plan.PositionalID
+	case len(v.Plan.Questions) == 1:
+		leading = v.Plan.Questions[0].ID
+	}
+
+	var groups []typedGroup
+
+	joining := func(id string) int {
+		at := slices.IndexFunc(groups, func(g typedGroup) bool { return g.id == id })
+		if at < 0 {
+			question := id
+			if id == plan.PositionalID && v.Facts.Positional != "" {
+				question = ""
+			}
+
+			groups = append(groups, typedGroup{id: id, question: question})
+			at = len(groups) - 1
+		}
+
+		return at
+	}
+
+	current := -1
+
+	for _, event := range v.Facts.Events {
+		switch event.Name {
+		case "ask":
+			id, _, _ := strings.Cut(event.Value, "=")
+			current = joining(id)
+		case "for":
+			current = joining(event.Value)
+		default:
+			at := current
+			if at < 0 && leading != "" {
+				at = joining(leading)
+			}
+
+			if at >= 0 {
+				groups[at].events = append(groups[at].events, event)
+			}
+		}
+	}
+
+	return groups
+}
+
+type typedGroup struct {
+	id       string
+	question string
+	events   []argv.Event
+}
+
+func typedTwice(row Row, kind Kind, typed []string) (Notice, bool) {
+	if len(typed) < 2 {
+		return Notice{}, false
+	}
+
+	last := typed[len(typed)-1]
+
+	var overridden []string
+
+	for _, earlier := range typed[:len(typed)-1] {
+		same := func(value string) bool { return sameValue(kind, value, earlier) }
+		if !same(last) && !slices.ContainsFunc(overridden, same) {
+			overridden = append(overridden, earlier)
+		}
+	}
+
+	if len(overridden) == 0 {
+		return Notice{}, false
+	}
+
+	shown := make([]string, 0, len(overridden))
+	for _, value := range overridden {
+		shown = append(shown, quotedValue(value))
+	}
+
+	return Notice{
+		Setting: row.Name,
+		Winner:  Origin{Source: SourceFlag},
+		Verb:    VerbGivenTwice,
+		Values:  [2]string{quotedValue(last), joinedAnd(shown)},
+		Times:   len(typed),
+	}, true
 }
 
 func sameValue(kind Kind, a, b string) bool {

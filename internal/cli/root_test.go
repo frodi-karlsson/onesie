@@ -1706,6 +1706,26 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --pick cannot reshape a request body's question. A body carries its own type and criteria\n"},
 		},
 		{
+			name:     "should keep the last of a question setting typed twice for one --ask, with a notice",
+			args:     []string{"--ask", "a=is it a", "--threshold", "0.5", "--threshold", "0.6", "--print-questions"},
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: --threshold is given twice for 'a', '0.6' overrides '0.5'\n", "  threshold: 0.6\n"},
+		},
+		{
+			name: "should keep the last of a question setting typed twice across --for groups, with a notice",
+			args: []string{
+				"-f", "mod.yaml", "--for", "tone", "--fallback", "human", "--for", "tone", "--fallback", "x",
+				"--print-questions",
+			},
+			files:    map[string]string{"mod.yaml": "tone:\n  ask: what tone\n  pick: [calm, angry]\nspam: is this spam\n"},
+			wantCode: cli.ExitOK,
+			contains: []string{
+				"onesie: --fallback is given twice for 'tone', 'x' overrides 'human'\n" +
+					"onesie: --fallback sets the question file's fallback for 'tone'\n",
+				"  fallback: x\n",
+			},
+		},
+		{
 			name:     "should refuse --pick sales on a one option result",
 			args:     []string{"-f", "team.yaml", "--pick", "sales", "--print-questions"},
 			files:    map[string]string{"team.yaml": "team:\n  ask: who owns this\n  pick: [billing, technical]\n"},

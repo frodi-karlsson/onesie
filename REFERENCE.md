@@ -19,7 +19,8 @@ prints the built in limits.
   `p` and `score`, is rounded to four places. A printed number is the one a gate compares.
 - `--pick` and `--rate` split their names on the comma, or on `--sep`, and trim the spaces around
   each one, so `--pick 'yes, no'` names `yes` and `no`. A repeated `--pick` or `--rate` adds its
-  names after the earlier ones. An empty name exits 2. A question file's names are kept as
+  names after the earlier ones. On a pick or rate question from `-f`, the names replace the file's
+  options or levels. An empty name exits 2. A question file's names are kept as
   written, and an empty or all whitespace one exits 2 too.
 - An empty or all whitespace question exits 2 before any request, the way an empty state does,
   whether it came from the positional argument, `--ask`, a question file's `ask` or the
@@ -52,7 +53,32 @@ prints the built in limits.
   the error says `was read as flags`. A flag typed after `--` is part of the question, so the
   error says `flags go before --`.
 - `--desc KEY=TEXT` describes one option, one level, or `yes` or `no`, which steers the answer. A
-  rate needs every level described, or none.
+  rate needs every level described, or none. On a question from `-f` it replaces the description of
+  that key and keeps the others.
+- A question flag, `--pick`, `--rate`, `--desc`, `--sep`, `--box`, `--threshold`, `--min-confidence`
+  or `--fallback`, binds to the `--ask` before it, and one typed before any `--ask` binds to the one
+  question the run asks: the positional question, a lone `--ask` or a `-f` file of one question.
+  Beside several questions it exits 2 and names `--for ID`.
+- `--for ID` selects the question `ID` of the `-f` file, and the question flags after it, up to the
+  next `--for` or `--ask`, apply to that question alone. The question keeps its wording and every
+  setting no flag names. `--for` may repeat, and a second `--for` with the same ID goes on with that
+  question:
+
+  ```sh
+  onesie -f moderation --for tone --fallback human --for spam --threshold 0.6 --print-questions
+  ```
+
+  `--for` exits 2 without `-f`, with an ID the file does not hold, naming the file's questions, and
+  beside `--replace`. It never defines a question: `--ask ID=QUESTION` does, and redefining a file
+  question whole takes `--ask ID=QUESTION --replace`. On a request body `--for` takes only
+  `--threshold`, `--min-confidence` and `--fallback`, and on `calibrate` only `--pick`, `--rate`,
+  `--desc` and `--sep`.
+- A flag that gives a question from `-f` a setting prints a notice on stderr, `sets` when the file
+  had none and `overrides` when it had another, as in
+  `onesie: --threshold overrides the question file's threshold for 'spam'`. The same value prints
+  nothing. A flag never changes a file question's shape: `--rate` on a pick question, `--pick` or
+  `--rate` on a yes or no question and `--box` on any file question exit 2. A `--pick` that leaves
+  a pick question one option exits 2, as it would on `--ask`.
 - `--box` makes a question a box, answered with `left`, `top`, `right` and `bottom`, each a fraction
   of the image from its top left corner, and a `confidence`. It needs an image, as in Images below,
   and a provider that takes it, TypeSafe or OpenRouter, as on `typesafe/jev-1.14`. Cloudflare,
@@ -87,7 +113,10 @@ onesie --ask urgent='is this urgent' --assert 'urgnet.value < 0.5'
   gives `calibrate` no cut, so a `--require` that reads its cut from one says so and needs
   `at CUT`.
 - A false assertion exits 1 and still prints the record with `"assert": false`. `-q` prints nothing
-  and leaves the exit code to the assertion. Repeated flags combine with `and`.
+  and leaves the exit code to the assertion. Repeated flags combine with `and`. A typed `--assert`
+  replaces a question file's `assert`, and a typed `--abstain-if` its `abstain_if`, each with a
+  notice such as `onesie: --assert overrides the question file's assert`, whatever the number of
+  questions.
 - `--abstain-if` is checked only when the assertion fails. When it holds, the record is an unsure:
   exit 7, and `"abstain": true` in place of `"assert": false`.
 - `--abstain-if` and `--stop-on-assert` both need an assertion, from `--assert` or from the
@@ -755,8 +784,13 @@ the Cloudflare account together. A request body's `long_context: false` counts a
   Each value is quoted on one line, with a newline shown as `\n`, and cut to 40 characters with `…`.
   The same value typed twice prints nothing, and so does one value spelled two ways, such as
   `--cache=1 --cache=true` or `-j 2 -j 02`. A flag repeatable by design is no duplicate: `--assert`,
-  `--abstain-if`, `--image`, `--image-field` and `--ask` add to each other, and `--pick` and `--rate`
-  add options.
+  `--abstain-if`, `--image`, `--image-field`, `--ask` and `--for` add to each other, and `--pick` and
+  `--rate` add options.
+- A question setting typed twice for one question keeps the last value with the same notice, which
+  names the question, as in `onesie: --fallback is given twice for 'tone', 'x' overrides 'human'`.
+  The flags of one question are those after its `--ask`, those around the positional question, and
+  those after every `--for` that names it, with any typed before them when it is the one question
+  asked. `--desc` is typed twice only when it names the same key twice for one question.
 - A key goes only with its own endpoint. When a run's base URL is custom, not the provider's own,
   the key comes from the source that gave the base URL: a profile's `base_url` takes that profile's
   key and no key variable, and `ONESIE_BASE_URL` or `TYPESAFE_BASE_URL` takes the provider's key

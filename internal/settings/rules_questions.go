@@ -138,8 +138,13 @@ func keepsShape(v View, question plan.Question, flag string) error {
 	shapes := map[string]plan.Shape{"pick": plan.Pick, "rate": plan.Rate, "box": plan.Box}
 
 	shape, shaping := shapes[flag]
-	if !shaping || shape == question.Shape {
+
+	switch {
+	case !shaping || (shape == question.Shape && shape != plan.Box):
 		return nil
+	case shape == question.Shape:
+		return fmt.Errorf("--box does not apply to '%s', a box question from %s already. Drop --box",
+			question.ID, fileNamed(v))
 	}
 
 	return fmt.Errorf("--%s cannot make '%s' a %s question, since a flag never changes the shape of a question "+

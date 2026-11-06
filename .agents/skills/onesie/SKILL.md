@@ -58,7 +58,7 @@ onesie --ask urgent='is this urgent' --ask refund='do they want money back' --as
 
 ### Put each shape or policy flag right after the --ask it belongs to.
 
-Nothing warns when you meant a flag for every question. With two asks and a trailing `--threshold`, `--print-questions` shows the threshold attached only to the second question and the first left with none.
+Nothing warns when you meant a flag for every question. With two asks and a trailing `--threshold`, `--print-questions` shows the threshold attached only to the second question and the first left with none. A question from `-f` takes its flags after `--for ID`, as in `onesie -f moderation --for spam --threshold 0.6`, and a flag typed before any `--for` reaches it only when it is the one question asked. Beside several questions such a flag exits 2 and names `--for ID`.
 
 **Bad:**
 
@@ -168,7 +168,7 @@ onesie --ask team='which team owns this' --pick billing,shipping --desc billing=
 
 ### Keep a question set you reuse in a file written by --print-questions, and load it with -f by path or by name.
 
-`--print-questions > q.yaml` writes the questions, their policy flags and any assertion as YAML, and `onesie -f q.yaml` reads it back. Save a set the repository shares as `.onesie/questions/NAME.yaml`, after `mkdir -p .onesie/questions`, and `-f NAME` finds it. An `--ask` beside `-f` adds a question, and reusing an id from the file needs `--replace`. An unknown key exits 2. `onesie questions` lists every name with the file it resolves to. The lookup order and the file format are under More in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#more).
+`--print-questions > q.yaml` writes the questions, their policy flags and any assertion as YAML, and `onesie -f q.yaml` reads it back. Save a set the repository shares as `.onesie/questions/NAME.yaml`, after `mkdir -p .onesie/questions`, and `-f NAME` finds it. An `--ask` beside `-f` adds a question, and reusing an id from the file needs `--replace`, which redefines that question whole. To change one setting of a file question instead, put the flag after `--for ID`: it replaces the file's value and prints a notice on stderr saying it sets or overrides it. `--pick` and `--rate` there replace the options or levels of a question of their shape, `--desc` replaces one key's description, and no flag changes a question's shape. A typed `--assert` or `--abstain-if` replaces the file's gate in the same way. An unknown key exits 2. `onesie questions` lists every name with the file it resolves to. The lookup order and the file format are under More in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#more).
 
 ### Use --stats for a run summary and --usage for the tokens of each answer.
 
