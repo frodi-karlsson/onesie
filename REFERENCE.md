@@ -716,11 +716,23 @@ Each setting takes the first source that gives it, in this order:
 5. the default profile, the one the file's `default` names
 6. the built in default
 
-| Value | Sources, highest first |
-|-------|------------------------|
-| key | the chosen profile's key, then the provider's key variable, then the default profile's key, each only with its own endpoint |
-| model | `-m`, then the chosen profile's `model`, then the `model` of a `-f` request body, then `TYPESAFE_DEFAULT_MODEL` on typesafe, then the default profile's `model`, then the provider's default |
-| base_url or account | `--base-url`, then the chosen profile's `base_url` or `account_id`, then `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare, then the default profile's `base_url` or `account_id`, then the provider's own |
+The table gives each setting that more than one source can give, its sources in that order from
+left to right. A cell names the flag, the profiles.json member, the `-f` key or the variable. A
+variable marked with a provider applies only on that provider, and where a cell lists several that
+apply, the first one set wins. A setting no source gives takes its built in default: the provider's
+own base URL and model, no key, no mock, and off for the switches. `endpoint` is the base URL and
+the Cloudflare account together. A request body's `long_context: false` counts as not given.
+
+<!-- settings:run_uses begin -->
+| Setting | Flag | Chosen profile | Question file or body | Environment | Default profile |
+|---------|------|----------------|-----------------------|-------------|-----------------|
+| `model` | `--model` | `model` | the request body's `model` | `TYPESAFE_DEFAULT_MODEL` on typesafe | `model` |
+| `endpoint` | `--base-url` | `base_url` or `account_id` |  | `ONESIE_BASE_URL`, then `TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare | `base_url` or `account_id` |
+| `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |
+| `mock` | `--mock` |  |  | `ONESIE_MOCK` |  |
+| `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |
+| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, then `OPENROUTER_API_KEY` on openrouter, then `BERGET_API_KEY` on berget, then `LEVANTO_API_KEY` on levanto, then `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |
+<!-- settings:run_uses end -->
 
 - A chosen profile keeps its key, model and base URL ahead of every variable. Its key goes only
   with its own endpoint, so a proxy in front of it belongs in the profile's `base_url` or in
@@ -731,15 +743,15 @@ Each setting takes the first source that gives it, in this order:
 - A higher source that replaces a different value prints one notice on stderr, as in
   `onesie: TYPESAFE_DEFAULT_MODEL overrides the default profile's model` or
   `onesie: --model overrides the request body's model`. A notice names both sources and never a
-  value.
+  value. Equal values and built in defaults print nothing, and a refused run prints only its
+  refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
+  notice.
 - A run setting typed twice keeps the last value, so an alias such as `alias ons='onesie -m a'`
   still takes `ons -m b`. It prints a notice that spells the flag as it was typed and names both
   values, since the user typed both, as in `onesie: -m is given twice, jev-preview overrides jev-1.13.0`.
   The same value typed twice prints nothing. A flag repeatable by design is no duplicate: `--assert`,
   `--abstain-if`, `--image`, `--image-field` and `--ask` add to each other, and `--pick` and `--rate`
-  add options. Equal values and built in defaults print nothing, and a refused run prints only its
-  refusal. A run that sends nothing, under `--mock` or `--print-request`, prints no base URL or key
-  notice.
+  add options.
 - A key goes only with its own endpoint. When a run's base URL is custom, not the provider's own,
   the key comes from the source that gave the base URL: a profile's `base_url` takes that profile's
   key and no key variable, and `ONESIE_BASE_URL` or `TYPESAFE_BASE_URL` takes the provider's key
@@ -747,7 +759,8 @@ Each setting takes the first source that gives it, in this order:
   variable, never the default profile's. A key set aside this way prints a notice, as in
   `onesie: ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own endpoint`.
   With no key left, the custom base URL gets the request without one. On the provider's own base
-  URL, a Cloudflare account and a whole Cloudflare account URL included, the key ranks as above.
+  URL, a Cloudflare account and a whole Cloudflare account URL included, the key ranks in the order
+  above.
 - A profile that holds no key reads no key variable, so a key in the environment never reaches the
   server of a keyless profile. No provider falls back to another's key.
 - A request body that names no model, under `-f` or `-i request`, takes the model above.
