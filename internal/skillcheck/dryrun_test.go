@@ -495,3 +495,36 @@ func testRejected() (always, questionsOnly []string) {
 			"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank", "map", "id",
 		}
 }
+
+func TestJudgingFlags(t *testing.T) {
+	t.Parallel()
+
+	catalog := testCatalog(t)
+
+	tests := []struct {
+		name string
+		want []string
+	}{
+		{
+			name: "should list the flags a dry run routes to --print-questions",
+			want: []string{"assert", "abstain-if", "threshold", "min-confidence", "fallback"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := JudgingFlags(); !slices.Equal(got, tc.want) {
+				t.Fatalf("JudgingFlags() = %q, want %q", got, tc.want)
+			}
+
+			for _, long := range tc.want {
+				args, _, err := catalog.DryRunArgs([]string{"onesie", "--ask", "a=x", "--" + long, "v"})
+				if err != nil || args[0] != "--print-questions" {
+					t.Errorf("DryRunArgs with --%s = %q, %v, want --print-questions first", long, args, err)
+				}
+			}
+		})
+	}
+}

@@ -12,7 +12,6 @@ import (
 var (
 	printFlags      = []string{"print-request", "print-questions"}
 	answerFileFlags = []string{"out", "resume", "offline", "prune"}
-	judgingFlags    = []string{"assert", "abstain-if", "threshold", "min-confidence", "fallback"}
 )
 
 // NewCatalog reads each flag in the command tree under root, its spellings and whether it takes a
@@ -87,7 +86,7 @@ func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err
 	raw := tokens[1:]
 
 	mode := "--print-request"
-	if slices.ContainsFunc(judgingFlags, func(long string) bool { return c.hasFlag(raw, long) }) {
+	if slices.ContainsFunc(JudgingFlags(), func(long string) bool { return c.hasFlag(raw, long) }) {
 		mode = "--print-questions"
 	}
 
@@ -106,6 +105,12 @@ func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err
 	}
 
 	return final, "", nil
+}
+
+// JudgingFlags returns by long name the flags that set a gate or a policy, which DryRunArgs dry runs
+// under --print-questions since --print-request refuses them.
+func JudgingFlags() []string {
+	return []string{"assert", "abstain-if", "threshold", "min-confidence", "fallback"}
 }
 
 func (c *Catalog) pairingProblem(tokens []string) string {

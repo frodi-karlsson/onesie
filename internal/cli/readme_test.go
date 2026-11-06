@@ -220,9 +220,11 @@ func TestReadme(t *testing.T) {
 
 			// A dry run writes no answers, so --resume has nothing to pick up and is refused.
 			tokens = slices.DeleteFunc(tokens, func(token string) bool { return token == "--resume" })
-			// --print-request refuses a typed gate, and --print-questions a positional question, so
-			// the pull request recipe dry runs without its gate. The test below runs it whole.
-			tokens = withoutFlag(tokens, "--assert")
+			// --print-request refuses a typed gate or policy, and --print-questions a positional
+			// question, so a command dry runs without them. The test below runs the gated recipe whole.
+			for _, long := range skillcheck.JudgingFlags() {
+				tokens = withoutFlag(tokens, "--"+long)
+			}
 			tokens = intoTempDir(t, tokens)
 
 			args, reason, err := catalog.DryRunArgs(tokens)
@@ -261,6 +263,10 @@ func withoutFlag(tokens []string, flag string) []string {
 		if tokens[i] == flag {
 			i++
 
+			continue
+		}
+
+		if strings.HasPrefix(tokens[i], flag+"=") {
 			continue
 		}
 
