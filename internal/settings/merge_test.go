@@ -25,7 +25,6 @@ func TestMerge(t *testing.T) {
 		wantSources map[settings.Name]settings.Source
 		wantNotices []string
 		check       func(t *testing.T, merged *settings.Merged)
-		checkPlan   func(t *testing.T, built *plan.Plan)
 	}{
 		{
 			name: "should let a flag beat the request body, spelling the flag by its long name",
@@ -392,242 +391,6 @@ func TestMerge(t *testing.T) {
 			check: wantThreshold("urgent", 0.9),
 		},
 		{
-			name: "should set a lone file question's threshold with a sets notice",
-			built: &plan.Plan{
-				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
-			},
-			wantNotices: []string{"--threshold sets the question file's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
-			checkPlan:   wantPlanThreshold(0, 0.9),
-		},
-		{
-			name: "should override it with an overrides notice",
-			built: &plan.Plan{
-				Questions: withThreshold(fileQuestions("urgent"), 0, 0.7),
-				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
-			},
-			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
-			check:       wantThreshold("urgent", 0.9),
-			checkPlan:   wantPlanThreshold(0, 0.9),
-		},
-		{
-			name: "should note nothing for a flag that gives the file's own value",
-			built: &plan.Plan{
-				Questions: withThreshold(fileQuestions("urgent"), 0, 0.9),
-				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
-			},
-			checkPlan: wantPlanThreshold(0, 0.9),
-		},
-		{
-			name: "should leave top level flags beside two questions to validation",
-			built: &plan.Plan{
-				Questions: fileQuestions("urgent", "spam"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
-			},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				for _, question := range built.Questions {
-					if question.Policy.Threshold != nil {
-						t.Errorf("threshold of %s = %v, want none", question.ID, *question.Policy.Threshold)
-					}
-				}
-			},
-		},
-		{
-			name: "should apply each --for group to its question only",
-			built: &plan.Plan{
-				Questions: fileQuestions("tone", "spam"),
-				Selections: []plan.Selection{
-					{ID: "tone", Events: []argv.Event{{Name: "fallback", Value: "no"}}},
-					{ID: "spam", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
-				},
-			},
-			wantNotices: []string{
-				"--fallback sets the question file's fallback for 'tone'",
-				"--threshold sets the question file's threshold for 'spam'",
-			},
-			check: wantThreshold("spam", 0.6),
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				tone, spam := built.Questions[0], built.Questions[1]
-				if tone.Policy.Threshold != nil || tone.Policy.Fallback == nil || tone.Policy.Fallback.Text != "no" {
-					t.Errorf("tone policy = %+v, want only the fallback no", tone.Policy)
-				}
-
-				if spam.Policy.Fallback != nil || spam.Policy.Threshold == nil {
-					t.Errorf("spam policy = %+v, want only the threshold", spam.Policy)
-				}
-			},
-		},
-		{
-			name: "should let a --for group beat a top level flag on the lone question",
-			built: &plan.Plan{
-				Questions:  withThreshold(fileQuestions("urgent"), 0, 0.7),
-				Orphans:    []argv.Event{{Name: "threshold", Value: "0.8"}},
-				Selections: []plan.Selection{{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.9"}}}},
-			},
-			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
-			checkPlan:   wantPlanThreshold(0, 0.9),
-		},
-		{
-			name: "should set a policy on a request body question through --for",
-			built: &plan.Plan{
-				Questions: []plan.Question{
-					{ID: "b0", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
-					{ID: "b1", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
-				},
-				Selections: []plan.Selection{{ID: "b1", Events: []argv.Event{{Name: "threshold", Value: "0.8"}}}},
-			},
-			wantNotices: []string{"--threshold sets the request body's threshold for 'b1'"},
-			checkPlan:   wantPlanThreshold(1, 0.8),
-		},
-		{
-			name: "should merge a top level desc into the file's yes/no criteria",
-			built: &plan.Plan{
-				Questions: []plan.Question{{
-					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
-					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
-				}},
-				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
-			},
-			wantNotices: []string{"--desc overrides the question file's yes_means for 'urgent'"},
-			checkPlan:   wantCriteria("CLI YES", "FILE NO"),
-		},
-		{
-			name: "should keep the file's yes half when only no is named",
-			built: &plan.Plan{
-				Questions: []plan.Question{{
-					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
-					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
-				}},
-				Orphans: []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
-			},
-			wantNotices: []string{"--desc overrides the question file's no_means for 'urgent'"},
-			checkPlan:   wantCriteria("FILE YES", "CLI NO"),
-		},
-		{
-			name: "should build criteria for a file question that had none",
-			built: &plan.Plan{
-				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
-			},
-			wantNotices: []string{"--desc sets the question file's yes_means for 'urgent'"},
-			checkPlan:   wantCriteria("CLI YES", nil),
-		},
-		{
-			name: "should leave a body's score question unlabelled when policy flags are applied",
-			built: &plan.Plan{
-				Questions: []plan.Question{{
-					ID: "frustration", Shape: plan.Rate, Origin: plan.OriginBody, Levels: []plan.Level{{}, {}, {}},
-				}},
-				Orphans: []argv.Event{{Name: "min-confidence", Value: "0.7"}, {Name: "fallback", Value: "human"}},
-			},
-			wantNotices: []string{
-				"--min-confidence sets the request body's min_confidence for 'frustration'",
-				"--fallback sets the request body's fallback for 'frustration'",
-			},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				if built.Questions[0].Labelled {
-					t.Error("a body's score question must stay unlabelled, its criteria are by index")
-				}
-
-				if built.Questions[0].Policy.Fallback == nil {
-					t.Error("the fallback flag must still bind")
-				}
-			},
-		},
-		{
-			name: "should replace a pick question's options with --pick",
-			built: &plan.Plan{
-				Questions: []plan.Question{filePickQuestion()},
-				Orphans:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
-			},
-			wantNotices: []string{"--pick overrides the question file's pick for 'team'"},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				want := []plan.Option{{Name: "sales"}, {Name: "support"}}
-				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
-					t.Errorf("options = %+v, want %+v", got, want)
-				}
-			},
-		},
-		{
-			name: "should replace a rate question's levels with --rate after --sep",
-			built: &plan.Plan{
-				Questions: []plan.Question{{
-					ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
-					Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
-				}},
-				Selections: []plan.Selection{{ID: "mood", Events: []argv.Event{
-					{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;mid;high"},
-				}}},
-			},
-			wantNotices: []string{"--rate overrides the question file's rate for 'mood'"},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				want := []plan.Level{{Label: "low"}, {Label: "mid"}, {Label: "high"}}
-				if got := built.Questions[0].Levels; !reflect.DeepEqual(got, want) {
-					t.Errorf("levels = %+v, want %+v", got, want)
-				}
-			},
-		},
-		{
-			name: "should merge --desc by key",
-			built: &plan.Plan{
-				Questions: []plan.Question{filePickQuestion()},
-				Orphans:   []argv.Event{{Name: "desc", Value: "technical=it is broken"}},
-			},
-			wantNotices: []string{"--desc sets the question file's pick for 'team'"},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				want := []plan.Option{{Name: "billing", Desc: "about money"}, {Name: "technical", Desc: "it is broken"}}
-				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
-					t.Errorf("options = %+v, want %+v", got, want)
-				}
-			},
-		},
-		{
-			name: "should note --desc over a file's yes_means",
-			built: &plan.Plan{
-				Questions: []plan.Question{{
-					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
-					Criteria: &plan.YesNoCriteria{Yes: "FILE YES"},
-				}},
-				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}, {Name: "desc", Value: "no=CLI NO"}},
-			},
-			wantNotices: []string{
-				"--desc overrides the question file's yes_means for 'urgent'",
-				"--desc sets the question file's no_means for 'urgent'",
-			},
-			checkPlan: wantCriteria("CLI YES", "CLI NO"),
-		},
-		{
-			name: "should leave a shape flag that changes a file question's shape to validation",
-			built: &plan.Plan{
-				Questions: fileQuestions("urgent"),
-				Orphans:   []argv.Event{{Name: "pick", Value: "a,b"}, {Name: "box", Value: "true"}},
-			},
-			checkPlan: func(t *testing.T, built *plan.Plan) {
-				t.Helper()
-
-				if question := built.Questions[0]; question.Shape != plan.Noul || len(question.Options) != 0 {
-					t.Errorf("question = %+v, want the file's yes or no question", question)
-				}
-			},
-		},
-		{
-			name: "should note no setting on a question the flags define",
-			built: &plan.Plan{
-				Questions: []plan.Question{{ID: "a", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFlag}},
-				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
-			},
-		},
-		{
 			name: "should merge a profile's key as HeldKey with its rank",
 			reading: reading{
 				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
@@ -893,10 +656,6 @@ func TestMerge(t *testing.T) {
 			if tc.check != nil {
 				tc.check(t, merged)
 			}
-
-			if tc.checkPlan != nil {
-				tc.checkPlan(t, tc.built)
-			}
 		})
 	}
 }
@@ -924,6 +683,289 @@ func wantPlanThreshold(at int, want float64) func(t *testing.T, built *plan.Plan
 			t.Errorf("threshold of %s = %v, want %v", built.Questions[at].ID, got, want)
 		}
 	}
+}
+
+func TestMergeQuestions(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		built       *plan.Plan
+		wantNotices []string
+		check       func(t *testing.T, merged *settings.Merged)
+		checkPlan   func(t *testing.T, built *plan.Plan)
+	}{
+		{
+			name: "should set a lone file question's threshold with a sets notice",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			wantNotices: []string{"--threshold sets the question file's threshold for 'urgent'"},
+			check:       wantThreshold("urgent", 0.9),
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should override it with an overrides notice",
+			built: &plan.Plan{
+				Questions: withThreshold(fileQuestions("urgent"), 0, 0.7),
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
+			check:       wantThreshold("urgent", 0.9),
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should note nothing for a flag that gives the file's own value",
+			built: &plan.Plan{
+				Questions: withThreshold(fileQuestions("urgent"), 0, 0.9),
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			checkPlan: wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should leave top level flags beside two questions to validation",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent", "spam"), Orphans: []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				for _, question := range built.Questions {
+					if question.Policy.Threshold != nil {
+						t.Errorf("threshold of %s = %v, want none", question.ID, *question.Policy.Threshold)
+					}
+				}
+			},
+		},
+		{
+			name: "should apply each --for group to its question only",
+			built: &plan.Plan{
+				Questions: fileQuestions("tone", "spam"),
+				Selections: []plan.Selection{
+					{ID: "tone", Events: []argv.Event{{Name: "fallback", Value: "no"}}},
+					{ID: "spam", Events: []argv.Event{{Name: "threshold", Value: "0.6"}}},
+				},
+			},
+			wantNotices: []string{
+				"--fallback sets the question file's fallback for 'tone'",
+				"--threshold sets the question file's threshold for 'spam'",
+			},
+			check: wantThreshold("spam", 0.6),
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				tone, spam := built.Questions[0], built.Questions[1]
+				if tone.Policy.Threshold != nil || tone.Policy.Fallback == nil || tone.Policy.Fallback.Text != "no" {
+					t.Errorf("tone policy = %+v, want only the fallback no", tone.Policy)
+				}
+
+				if spam.Policy.Fallback != nil || spam.Policy.Threshold == nil {
+					t.Errorf("spam policy = %+v, want only the threshold", spam.Policy)
+				}
+			},
+		},
+		{
+			name: "should let a --for group beat a top level flag on the lone question",
+			built: &plan.Plan{
+				Questions:  withThreshold(fileQuestions("urgent"), 0, 0.7),
+				Orphans:    []argv.Event{{Name: "threshold", Value: "0.8"}},
+				Selections: []plan.Selection{{ID: "urgent", Events: []argv.Event{{Name: "threshold", Value: "0.9"}}}},
+			},
+			wantNotices: []string{"--threshold overrides the question file's threshold for 'urgent'"},
+			checkPlan:   wantPlanThreshold(0, 0.9),
+		},
+		{
+			name: "should set a policy on a request body question through --for",
+			built: &plan.Plan{
+				Questions: []plan.Question{
+					{ID: "b0", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
+					{ID: "b1", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody},
+				},
+				Selections: []plan.Selection{{ID: "b1", Events: []argv.Event{{Name: "threshold", Value: "0.8"}}}},
+			},
+			wantNotices: []string{"--threshold sets the request body's threshold for 'b1'"},
+			checkPlan:   wantPlanThreshold(1, 0.8),
+		},
+		{
+			name: "should merge a top level desc into the file's yes/no criteria",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+			},
+			wantNotices: []string{"--desc overrides the question file's yes_means for 'urgent'"},
+			checkPlan:   wantCriteria("CLI YES", "FILE NO"),
+		},
+		{
+			name: "should keep the file's yes half when only no is named",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES", No: "FILE NO"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "no=CLI NO"}},
+			},
+			wantNotices: []string{"--desc overrides the question file's no_means for 'urgent'"},
+			checkPlan:   wantCriteria("FILE YES", "CLI NO"),
+		},
+		{
+			name: "should build criteria for a file question that had none",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"), Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}},
+			},
+			wantNotices: []string{"--desc sets the question file's yes_means for 'urgent'"},
+			checkPlan:   wantCriteria("CLI YES", nil),
+		},
+		{
+			name: "should leave a body's score question unlabelled when policy flags are applied",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "frustration", Shape: plan.Rate, Origin: plan.OriginBody, Levels: []plan.Level{{}, {}, {}},
+				}},
+				Orphans: []argv.Event{{Name: "min-confidence", Value: "0.7"}, {Name: "fallback", Value: "human"}},
+			},
+			wantNotices: []string{
+				"--min-confidence sets the request body's min_confidence for 'frustration'",
+				"--fallback sets the request body's fallback for 'frustration'",
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				if built.Questions[0].Labelled {
+					t.Error("a body's score question must stay unlabelled, its criteria are by index")
+				}
+
+				if built.Questions[0].Policy.Fallback == nil {
+					t.Error("the fallback flag must still bind")
+				}
+			},
+		},
+		{
+			name: "should replace a pick question's options with --pick",
+			built: &plan.Plan{
+				Questions: []plan.Question{filePickQuestion()},
+				Orphans:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
+			},
+			wantNotices: []string{"--pick overrides the question file's pick for 'team'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Option{{Name: "sales"}, {Name: "support"}}
+				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
+					t.Errorf("options = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should replace a rate question's levels with --rate after --sep",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+					Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
+				}},
+				Selections: []plan.Selection{{ID: "mood", Events: []argv.Event{
+					{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;mid;high"},
+				}}},
+			},
+			wantNotices: []string{"--rate overrides the question file's rate for 'mood'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Level{{Label: "low"}, {Label: "mid"}, {Label: "high"}}
+				if got := built.Questions[0].Levels; !reflect.DeepEqual(got, want) {
+					t.Errorf("levels = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should merge --desc by key",
+			built: &plan.Plan{
+				Questions: []plan.Question{filePickQuestion()},
+				Orphans:   []argv.Event{{Name: "desc", Value: "technical=it is broken"}},
+			},
+			wantNotices: []string{"--desc sets the question file's pick for 'team'"},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				want := []plan.Option{{Name: "billing", Desc: "about money"}, {Name: "technical", Desc: "it is broken"}}
+				if got := built.Questions[0].Options; !reflect.DeepEqual(got, want) {
+					t.Errorf("options = %+v, want %+v", got, want)
+				}
+			},
+		},
+		{
+			name: "should note --desc over a file's yes_means",
+			built: &plan.Plan{
+				Questions: []plan.Question{{
+					ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+					Criteria: &plan.YesNoCriteria{Yes: "FILE YES"},
+				}},
+				Orphans: []argv.Event{{Name: "desc", Value: "yes=CLI YES"}, {Name: "desc", Value: "no=CLI NO"}},
+			},
+			wantNotices: []string{
+				"--desc overrides the question file's yes_means for 'urgent'",
+				"--desc sets the question file's no_means for 'urgent'",
+			},
+			checkPlan: wantCriteria("CLI YES", "CLI NO"),
+		},
+		{
+			name: "should leave a shape flag that changes a file question's shape to validation",
+			built: &plan.Plan{
+				Questions: fileQuestions("urgent"),
+				Orphans:   []argv.Event{{Name: "pick", Value: "a,b"}, {Name: "box", Value: "true"}},
+			},
+			checkPlan: func(t *testing.T, built *plan.Plan) {
+				t.Helper()
+
+				if question := built.Questions[0]; question.Shape != plan.Noul || len(question.Options) != 0 {
+					t.Errorf("question = %+v, want the file's yes or no question", question)
+				}
+			},
+		},
+		{
+			name: "should note no setting on a question the flags define",
+			built: &plan.Plan{
+				Questions: []plan.Question{{ID: "a", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFlag}},
+				Orphans:   []argv.Event{{Name: "threshold", Value: "0.9"}},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			merged := &settings.Merged{}
+			notices := settings.MergeQuestions(merged, tc.built)
+
+			got := make([]string, 0, len(notices))
+			for _, notice := range notices {
+				got = append(got, notice.String())
+			}
+
+			if !slices.Equal(got, tc.wantNotices) && len(got)+len(tc.wantNotices) > 0 {
+				t.Errorf("notices = %q, want %q", got, tc.wantNotices)
+			}
+
+			if tc.check != nil {
+				tc.check(t, merged)
+			}
+
+			if tc.checkPlan != nil {
+				tc.checkPlan(t, tc.built)
+			}
+		})
+	}
+
+	t.Run("should merge nothing without a plan", func(t *testing.T) {
+		t.Parallel()
+
+		if notices := settings.MergeQuestions(&settings.Merged{}, nil); len(notices) != 0 {
+			t.Errorf("notices = %v, want none", notices)
+		}
+	})
 }
 
 func wantThreshold(id string, want float64) func(t *testing.T, merged *settings.Merged) {

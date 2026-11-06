@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 
@@ -760,6 +761,110 @@ func TestAssemble(t *testing.T) {
 			})
 		}
 	})
+}
+
+func TestRefine(t *testing.T) {
+	t.Parallel()
+
+	noul := func(origin plan.Origin) plan.Question {
+		return plan.Question{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: origin}
+	}
+
+	pick := plan.Question{
+		ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+		Options: []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical"}},
+	}
+
+	tests := []struct {
+		name     string
+		question plan.Question
+		events   []argv.Event
+		want     plan.Question
+	}{
+		{
+			name:     "should set a policy on a file question",
+			question: noul(plan.OriginFile),
+			events:   []argv.Event{{Name: "threshold", Value: "0.9"}, {Name: "fallback", Value: "yes"}},
+			want: plan.Question{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
+				Policy: plan.Policy{Threshold: pointerTo(0.9), Fallback: &plan.Fallback{Text: "yes", Boolean: true}},
+			},
+		},
+		{
+			name:     "should replace a pick question's options, a repeated --pick adding to them",
+			question: pick,
+			events:   []argv.Event{{Name: "pick", Value: "sales"}, {Name: "pick", Value: "support"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "sales"}, {Name: "support"}},
+			},
+		},
+		{
+			name: "should replace a rate question's levels after --sep",
+			question: plan.Question{
+				ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+				Levels: []plan.Level{{Label: "calm"}, {Label: "angry"}},
+			},
+			events: []argv.Event{{Name: "sep", Value: ";"}, {Name: "rate", Value: "low;high"}},
+			want: plan.Question{
+				ID: "mood", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginFile, Labelled: true,
+				Levels: []plan.Level{{Label: "low"}, {Label: "high"}},
+			},
+		},
+		{
+			name:     "should merge --desc by key",
+			question: pick,
+			events:   []argv.Event{{Name: "desc", Value: "technical=systems"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options:   []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical", Desc: "systems"}},
+				DescOrder: []string{"technical"},
+			},
+		},
+		{
+			name:     "should leave --pick on a yes or no question for validation",
+			question: noul(plan.OriginFile),
+			events:   []argv.Event{{Name: "pick", Value: "a,b"}},
+			want:     plan.Question{ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile},
+		},
+		{
+			name:     "should leave --box on a file question for validation",
+			question: pick,
+			events:   []argv.Event{{Name: "box", Value: "true"}},
+			want: plan.Question{
+				ID: "team", Shape: plan.Pick, Instructions: "q", Origin: plan.OriginFile,
+				Options: []plan.Option{{Name: "billing", Desc: "money"}, {Name: "technical"}},
+			},
+		},
+		{
+			name:     "should apply only the policy flags to a body question",
+			question: noul(plan.OriginBody),
+			events:   []argv.Event{{Name: "desc", Value: "yes=x"}, {Name: "threshold", Value: "0.8"}},
+			want: plan.Question{
+				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginBody,
+				Policy: plan.Policy{Threshold: pointerTo(0.8)},
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			question := tc.question
+			question.Options = slices.Clone(question.Options)
+			plan.Refine(&question, tc.events, settings.PolicyNumbers())
+
+			// Refine leaves an empty map of unknown keys, which reads the same as none.
+			if len(question.UnknownDesc) == 0 {
+				question.UnknownDesc = nil
+			}
+
+			if !reflect.DeepEqual(question, tc.want) {
+				t.Errorf("question = %+v\nwant %+v", question, tc.want)
+			}
+		})
+	}
 }
 
 func wantFallbackBoolean(want bool) func(t *testing.T, p *plan.Plan) {

@@ -15,9 +15,8 @@ type Plan struct {
 	// Selections are the --for groups, in the order each ID was first selected.
 	Selections []Selection
 
-	// Orphans are the top level shape or policy flags no --ask or positional question took. With a
-	// lone question from a file they are its flags, and with any other count validation refuses them.
-	// They are kept off Question so nothing iterating Questions has to know to skip a pseudo entry.
+	// Orphans are the top level question flags no --ask or positional question took. A lone question
+	// from a file takes them, and beside several questions validation refuses them.
 	Orphans []argv.Event
 }
 

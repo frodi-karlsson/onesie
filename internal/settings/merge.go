@@ -43,12 +43,11 @@ func Merge(rows []Row, layers []Layer, built *plan.Plan) (*Merged, []Notice) {
 		}
 	}
 
-	return merged, append(notices, MergeQuestions(merged, built)...)
+	return merged, notices
 }
 
-// MergeQuestions applies to each question from -f the flags its --for groups typed, and the top level
-// flags when it is the one question asked, and records its settings in merged. It returns a sets or
-// overrides notice for each setting a flag gave.
+// MergeQuestions applies to each question from -f its --for flags, and the top level flags when it is
+// the one question asked, and returns a sets or overrides notice for each setting a flag gave.
 func MergeQuestions(merged *Merged, built *plan.Plan) []Notice {
 	if built == nil {
 		return nil

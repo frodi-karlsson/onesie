@@ -235,10 +235,8 @@ func applyEvents(question *Question, events []argv.Event, src Source) error {
 	return nil
 }
 
-// Refine applies the flags typed for a question from a file or a request body, as Assemble prepared
-// them in Selections and Orphans. --pick and --rate replace the options or levels of a question of
-// their shape, and --desc merges by key. A flag that would change the question's shape, and any but a
-// policy flag on a body question, is left for validation to refuse.
+// Refine applies the flags Assemble prepared for a question from a file or a body. It replaces options
+// or levels within the question's shape, and leaves a flag it cannot apply to validation.
 func Refine(question *Question, events []argv.Event, numbers Numbers) {
 	kept := slices.DeleteFunc(slices.Clone(events), func(event argv.Event) bool {
 		return !refines(*question, event.Name)
