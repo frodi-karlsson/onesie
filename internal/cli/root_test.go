@@ -82,7 +82,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should keep the last value of -m typed twice, with a notice naming both",
 			args:     []string{"is this urgent", "--state", "x", "-m", "jev-1.13.0", "-m", "jev-preview", "--print-request"},
 			wantCode: cli.ExitOK,
-			contains: []string{`"model":"jev-preview"`, "onesie: -m is given twice, jev-preview overrides jev-1.13.0\n"},
+			contains: []string{`"model":"jev-preview"`, "onesie: -m is given twice, 'jev-preview' overrides 'jev-1.13.0'\n"},
 			absent:   []string{`"model":"jev-1.13.0"`},
 		},
 		{
@@ -107,7 +107,14 @@ func TestNewRootCmd(t *testing.T) {
 			},
 			stdin:    `{"u":true,"body":"down"}` + "\n",
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie: -m is given twice, b overrides a\n"},
+			contains: []string{"onesie: -m is given twice, 'b' overrides 'a'\n"},
+		},
+		{
+			name:     "should print a multi line --state typed twice as one notice line",
+			args:     []string{"is this urgent", "--state", "line one\nline two", "--state", "x", "--print-request"},
+			wantCode: cli.ExitOK,
+			contains: []string{`onesie: --state is given twice, 'x' overrides 'line one\nline two'` + "\n"},
+			absent:   []string{"line two'\n\n", "\nline two"},
 		},
 		{
 			name:     "should report a flag clash before a bad provider",

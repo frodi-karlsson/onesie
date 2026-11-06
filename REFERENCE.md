@@ -748,8 +748,10 @@ the Cloudflare account together. A request body's `long_context: false` counts a
   notice.
 - A run setting typed twice keeps the last value, so an alias such as `alias ons='onesie -m a'`
   still takes `ons -m b`. It prints a notice that spells the flag as it was typed and names both
-  values, since the user typed both, as in `onesie: -m is given twice, jev-preview overrides jev-1.13.0`.
-  The same value typed twice prints nothing. A flag repeatable by design is no duplicate: `--assert`,
+  values, since the user typed both, as in `onesie: -m is given twice, 'jev-preview' overrides 'jev-1.13.0'`.
+  Each value is quoted on one line, with a newline shown as `\n`, and cut to 40 characters with `…`.
+  The same value typed twice prints nothing, and so does one value spelled two ways, such as
+  `--cache=1 --cache=true` or `-j 2 -j 02`. A flag repeatable by design is no duplicate: `--assert`,
   `--abstain-if`, `--image`, `--image-field` and `--ask` add to each other, and `--pick` and `--rate`
   add options.
 - A key goes only with its own endpoint. When a run's base URL is custom, not the provider's own,

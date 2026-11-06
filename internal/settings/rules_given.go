@@ -1,9 +1,14 @@
 package settings
 
 import (
+	"fmt"
+	"reflect"
 	"slices"
 	"strings"
+	"unicode"
 )
+
+const shownValueRunes = 40
 
 func givenTwiceRule() Rule {
 	return Rule{ID: "setting-given-twice", Notice: givenTwice}
@@ -25,21 +30,45 @@ func givenTwice(v View) []Notice {
 
 		last := typed[len(typed)-1]
 
-		overridden := unique(slices.DeleteFunc(typed[:len(typed)-1], func(value string) bool { return value == last }))
+		var overridden []string
+
+		for _, earlier := range typed[:len(typed)-1] {
+			same := func(value string) bool { return sameValue(bound.Kind, value, earlier) }
+			if !same(last) && !slices.ContainsFunc(overridden, same) {
+				overridden = append(overridden, earlier)
+			}
+		}
+
 		if len(overridden) == 0 {
 			continue
+		}
+
+		shown := make([]string, 0, len(overridden))
+		for _, value := range overridden {
+			shown = append(shown, quotedValue(value))
 		}
 
 		notices = append(notices, Notice{
 			Setting: row.Name,
 			Winner:  Origin{Source: SourceFlag, Spelled: lastSpelling(v, row.Name, bound, len(typed))},
 			Verb:    VerbGivenTwice,
-			Values:  [2]string{last, joinedAnd(overridden)},
+			Values:  [2]string{quotedValue(last), joinedAnd(shown)},
 			Times:   len(typed),
 		})
 	}
 
 	return notices
+}
+
+func sameValue(kind Kind, a, b string) bool {
+	parsedA, errA := kind.Parse(a)
+	parsedB, errB := kind.Parse(b)
+
+	if errA != nil || errB != nil {
+		return a == b
+	}
+
+	return reflect.DeepEqual(parsedA, parsedB)
 }
 
 func lastSpelling(v View, name Name, bound BoundFlag, times int) string {
@@ -52,16 +81,36 @@ func lastSpelling(v View, name Name, bound BoundFlag, times int) string {
 	return spelled[len(spelled)-1]
 }
 
-func unique(values []string) []string {
-	var kept []string
+func quotedValue(value string) string {
+	runes := []rune(value)
 
-	for _, value := range values {
-		if !slices.Contains(kept, value) {
-			kept = append(kept, value)
+	var cut string
+	if len(runes) > shownValueRunes {
+		runes, cut = runes[:shownValueRunes], "…"
+	}
+
+	var quoted strings.Builder
+
+	quoted.WriteString("'")
+
+	for _, r := range runes {
+		switch {
+		case r == '\n':
+			quoted.WriteString(`\n`)
+		case r == '\t':
+			quoted.WriteString(`\t`)
+		case r == '\'' || r == '\\':
+			quoted.WriteString(`\` + string(r))
+		case unicode.IsControl(r):
+			fmt.Fprintf(&quoted, `\x%02x`, r)
+		default:
+			quoted.WriteRune(r)
 		}
 	}
 
-	return kept
+	quoted.WriteString(cut + "'")
+
+	return quoted.String()
 }
 
 func joinedAnd(values []string) string {
