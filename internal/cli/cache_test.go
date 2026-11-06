@@ -815,7 +815,7 @@ func TestAsk(t *testing.T) {
 		},
 		{
 			name: "should refuse --cache beside --print-request", args: []string{"--cache", "--print-request"},
-			want: "onesie: --cache stores answers, which --print-request does not produce\n",
+			want: "onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n",
 		},
 	}
 

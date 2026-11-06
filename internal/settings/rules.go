@@ -35,10 +35,6 @@ func Rules() []Rule {
 // the first refusal.
 func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err error) {
 	for _, rule := range rules {
-		if rule.Warn != nil {
-			warnings = append(warnings, rule.Warn(v)...)
-		}
-
 		if rule.Inspect != nil {
 			found, refusal := rule.Inspect(v)
 			if warnings = append(warnings, found...); refusal != nil {
@@ -60,14 +56,13 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 	return warnings, notices, nil
 }
 
-// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Warn and Notice
-// report without refusing, and Inspect warns and refuses in one pass.
+// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Notice reports
+// without refusing, and Inspect warns and refuses in one pass.
 type Rule struct {
 	ID      string
 	Reads   []Name
 	Check   func(View) error
 	Notice  func(View) []Notice
-	Warn    func(View) []string
 	Inspect func(View) ([]string, error)
 }
 
@@ -204,12 +199,4 @@ func mockSpelled(v View) string {
 	default:
 		return ""
 	}
-}
-
-func mockAdvice(v View, flag string) string {
-	if mockSpelled(v) == "--mock" {
-		return "Drop one"
-	}
-
-	return "Unset it or drop " + flag
 }

@@ -154,7 +154,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --state does not apply to --print-questions, which reads no state",
+				"onesie: --state does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -165,7 +165,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --state-file does not apply to --print-questions, which reads no state",
+				"onesie: --state-file does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -175,7 +175,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -i does not apply to --print-questions, which reads no input",
+				"onesie: -i does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -185,8 +185,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --usage reports the tokens a question cost, " +
-					"which --print-questions does not ask",
+				"onesie: --usage does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -196,7 +195,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -j does not apply to --print-questions, which makes no request",
+				"onesie: -j does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -206,7 +205,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: -m names a model to ask, which --print-questions does not do",
+				"onesie: -m does not apply to --print-questions, which writes the questions as a question file and sends nothing",
 			},
 		},
 		{
@@ -774,21 +773,21 @@ func TestPrintRequest(t *testing.T) {
 			args:     []string{"is this urgent", "--threshold", "0.9", "--print-request"},
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --threshold sets a policy for an answer, which --print-request does not produce\n"},
+			stderr:   []string{"onesie: --threshold does not apply to --print-request, which writes the request bodies and sends none\n"},
 		},
 		{
 			name:     "should refuse a typed --min-confidence and --fallback",
 			args:     []string{"--ask", "team=which team", "--pick", "a,b", "--min-confidence", "0.6", "--fallback", "a", "--print-request"},
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --min-confidence sets a policy for an answer, which --print-request does not produce\n"},
+			stderr:   []string{"onesie: --min-confidence does not apply to --print-request, which writes the request bodies and sends none\n"},
 		},
 		{
 			name:     "should refuse a typed --fallback",
 			args:     []string{"is this urgent", "--fallback", "yes", "--print-request"},
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --fallback sets a policy for an answer, which --print-request does not produce\n"},
+			stderr:   []string{"onesie: --fallback does not apply to --print-request, which writes the request bodies and sends none\n"},
 		},
 		{
 			name:     "should leave a file's policy alone",
@@ -802,7 +801,7 @@ func TestPrintRequest(t *testing.T) {
 			args:     []string{"is this urgent", "--cache", "--print-request"},
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --cache stores answers, which --print-request does not produce\n"},
+			stderr:   []string{"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"},
 		},
 		{
 			name:     "should print one request body and exit without a request",
@@ -882,8 +881,7 @@ func TestPrintRequest(t *testing.T) {
 			stdin:    "the server is down",
 			wantCode: ExitUsage,
 			stderr: []string{
-				"onesie: --usage reports the tokens a question cost, " +
-					"which --print-request does not ask",
+				"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none",
 			},
 		},
 		{
@@ -1308,8 +1306,7 @@ func TestPrintRequest(t *testing.T) {
 	t.Run("should reject --merge with --print-request", func(t *testing.T) {
 		t.Parallel()
 
-		const message = "onesie: --merge needs answers to fold in, " +
-			"which --print-request does not produce"
+		const message = "onesie: --merge does not apply to --print-request, which writes the request bodies and sends none"
 
 		tests := []struct {
 			name  string
@@ -1397,7 +1394,7 @@ func TestPrintRequest(t *testing.T) {
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "answer.value > 0.99",
 				},
-				want: "onesie: --assert judges an answer, which --print-request does not produce",
+				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should reject an unparseable --assert with --print-request",
@@ -1405,19 +1402,19 @@ func TestPrintRequest(t *testing.T) {
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "nonsense syntax here !!",
 				},
-				want: "onesie: --assert judges an answer, which --print-request does not produce",
+				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should reject --assert typed beside a file's assertion",
 				args: []string{"-f", path, "--print-request", "--state", "x", "--assert", "urgent.value > 0.9"},
-				want: "onesie: --assert judges an answer, which --print-request does not produce",
+				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should reject --abstain-if typed beside a file's assertion",
 				args: []string{
 					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
 				},
-				want: "onesie: --abstain-if judges an answer, which --print-request does not produce",
+				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should still check a file's assertion against the plan",
@@ -1428,8 +1425,7 @@ func TestPrintRequest(t *testing.T) {
 				name:  "should reject --stop-on-assert with --print-request in a stream",
 				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
 				stdin: "a\nb\n",
-				want: "onesie: --stop-on-assert ends a stream on a false assertion, " +
-					"which --print-request does not produce",
+				want:  "onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
 			},
 		}
 

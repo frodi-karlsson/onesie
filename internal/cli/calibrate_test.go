@@ -502,19 +502,19 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should refuse --stats under --print-request",
 			args:     with("--print-request", "--stats"),
 			wantCode: ExitUsage,
-			contains: []string{"--stats has nothing to report with --print-request"},
+			contains: []string{"--stats does not apply to --print-request, which writes the request bodies and sends none"},
 		},
 		{
 			name:     "should refuse --usage under --print-request",
 			args:     with("--print-request", "--usage"),
 			wantCode: ExitUsage,
-			contains: []string{"--usage reports the tokens a question cost, which --print-request does not ask"},
+			contains: []string{"--usage does not apply to --print-request, which writes the request bodies and sends none"},
 		},
 		{
 			name:     "should refuse -o under --print-request",
 			args:     with("--print-request", "-o", "json"),
 			wantCode: ExitUsage,
-			contains: []string{"onesie: -o does not apply to --print-request, which writes a request body"},
+			contains: []string{"onesie: -o does not apply to --print-request, which writes the request bodies and sends none"},
 		},
 		{
 			name:     "should refuse --state, since each state comes from the input",
@@ -680,7 +680,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			}
 
 			_, errOut, code := runMocked(t, t.Context(), args, "{\"body\":\"x\",\"u\":true}\n", nil, nil)
-			if code != ExitUsage || !strings.Contains(errOut, "--mock answers requests, and --print-request sends none") {
+			if code != ExitUsage || !strings.Contains(errOut, "--mock does not apply to --print-request, which writes the request bodies and sends none") {
 				t.Errorf("exit %d\n%s", code, errOut)
 			}
 		})

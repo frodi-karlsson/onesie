@@ -335,6 +335,10 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
 
 - A record that fails prints a line with an `error` key, and the run exits 6. `--stop-on-error`
   ends at the first failure, and `--unordered` trades input order for throughput.
+- `-j`, `--unordered`, `--stop-on-error`, `--stop-on-assert`, `--skip-blank`, `--no-dedup`, `--id`
+  and `--image-field` act on a stream only, so beside one record each exits 2 and names the `-i`
+  that reads it, as in `-j applies to streaming input. -i text reads one record`. `-j 1` is the
+  default, so one record takes it.
 - The `error` object holds `kind`, `status` and `message`. Its `kind` is `input` for a record that
   never became a request, `transport` for a connection that failed or timed out, `response` for a
   2xx response onesie could not use, `auth` for a key or account the provider refused, and `http`
