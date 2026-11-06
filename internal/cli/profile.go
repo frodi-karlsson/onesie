@@ -805,7 +805,7 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 		LookupEnv:      connectionEnv(settings.lookupEnv, choosing),
 		Profile:        run.values(),
 		DefaultProfile: run.fallback,
-		Facts:          setting.Facts{Command: setting.CommandRoot},
+		Command:        setting.CommandRoot,
 	})
 	if err != nil {
 		return resolution{}, err

@@ -28,13 +28,13 @@ const (
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
 // value whose row has no effect in the run's mode is left out, and a typed flag is kept.
 func Read(rows []Row, src Sources) ([]Layer, error) {
-	flags, err := readFlags(rows, src.Given, src.Facts.Command)
+	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return nil, err
 	}
 
-	defaults := readDefaults(rows, src.Facts.Command)
-	mode := runMode(src.Facts.Command, flags, defaults)
+	defaults := readDefaults(rows, src.Command)
+	mode := runMode(src.Command, flags, defaults)
 
 	choice, err := choose(rows, src, flags, mode)
 	if err != nil {
@@ -51,7 +51,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 		return nil, err
 	}
 
-	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Facts.Command,
+	env, err := readEnv(rows, src.LookupEnv, runProvider(choice, src.Profile), mode, src.Command,
 		keyless(choice, src.Profile))
 	if err != nil {
 		return nil, err
@@ -71,12 +71,12 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 // Choose resolves the rows that pick a source rather than set a value: the question file, the
 // profile and the provider. The caller loads what it names before calling Read.
 func Choose(rows []Row, src Sources) (Choice, error) {
-	flags, err := readFlags(rows, src.Given, src.Facts.Command)
+	flags, err := readFlags(rows, src.Given, src.Command)
 	if err != nil {
 		return Choice{}, err
 	}
 
-	return choose(rows, src, flags, runMode(src.Facts.Command, flags, readDefaults(rows, src.Facts.Command)))
+	return choose(rows, src, flags, runMode(src.Command, flags, readDefaults(rows, src.Command)))
 }
 
 // Sources is everything Read reads, each filled by the caller. DefaultProfile is the default member
@@ -87,7 +87,7 @@ type Sources struct {
 	LookupEnv      func(string) (string, bool)
 	Profile        *ProfileValues
 	DefaultProfile string
-	Facts          Facts
+	Command        Command
 }
 
 // FileValues is what a question file or a request body gives, keyed as the file spells each key.
@@ -300,7 +300,7 @@ func highestFirst(layers []Layer) []Layer {
 
 func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
 	chosen := Choice{File: textIn(flags, fileName), DefaultProfile: src.DefaultProfile}
-	if profileCommand(src.Facts.Command) {
+	if profileCommand(src.Command) {
 		return chosen, nil
 	}
 

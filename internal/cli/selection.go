@@ -45,7 +45,7 @@ func checkChoice(flags *runFlags, lookupEnv func(string) (string, bool)) error {
 
 func choose(flags *runFlags, lookupEnv func(string) (string, bool)) (choice, error) {
 	chosen, err := setting.Choose(setting.Table(), setting.Sources{
-		Given: flags.given, LookupEnv: lookupEnv, Facts: setting.Facts{Command: setting.CommandRoot},
+		Given: flags.given, LookupEnv: lookupEnv, Command: setting.CommandRoot,
 	})
 
 	switch {

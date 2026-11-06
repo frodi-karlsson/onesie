@@ -750,7 +750,7 @@ func (r reading) sources(t *testing.T) settings.Sources {
 			return value, found
 		},
 		DefaultProfile: r.defaultProfile,
-		Facts:          settings.Facts{Command: command, Events: registered.recorder.Events()},
+		Command:        command,
 	}
 
 	if r.profile != nil {

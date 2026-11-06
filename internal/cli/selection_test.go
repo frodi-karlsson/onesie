@@ -625,7 +625,7 @@ func mergedRun(
 
 	layers, err := setting.Read(setting.Table(), setting.Sources{
 		Given: flags.given, LookupEnv: lookupFrom(lookup), Profile: run.values(), DefaultProfile: run.fallback,
-		Facts: setting.Facts{Command: setting.CommandRoot},
+		Command: setting.CommandRoot,
 	})
 	if err != nil {
 		t.Fatal(err)

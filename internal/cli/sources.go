@@ -15,7 +15,7 @@ func mergeRun(
 		Given:     given,
 		File:      fileValues(loaded),
 		LookupEnv: settings.lookupEnv,
-		Facts:     setting.Facts{Command: command, Events: flags.events},
+		Command:   command,
 	}
 
 	// A refused choice waits for the stage, so a flag clash beside it still reports first. The stage
