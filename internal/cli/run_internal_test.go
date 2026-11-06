@@ -464,7 +464,8 @@ func TestRunInputs(t *testing.T) {
 			}
 
 			flags := tc.flags
-			flags.merged, _ = setting.Merge(setting.Table(), layers)
+			flags.merged, _ = setting.Merge(setting.Table(), layers, setting.Choice{})
+			flags.merged.Set(setting.Profile.Name(), tc.chosen.profile, setting.SourceDefaultProfile)
 
 			settings := rootSettings{
 				holder:    &holder{resolved: func() (resolution, error) { return tc.chosen, nil }},

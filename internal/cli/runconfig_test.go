@@ -186,7 +186,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 			name: "should read the mock file from --mock first",
 			layers: []setting.Layer{
 				layer(setting.SourceFlag, map[setting.Name]any{"mock": "flag.json"}, "--mock"),
-				layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, envMock),
+				layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, "ONESIE_MOCK"),
 			},
 			check: func(t *testing.T, got runConfig) {
 				t.Helper()
@@ -198,11 +198,11 @@ func TestRunConfig_withMerged(t *testing.T) {
 		},
 		{
 			name:   "should read the mock file from ONESIE_MOCK without --mock",
-			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, envMock)},
+			layers: []setting.Layer{layer(setting.SourceEnv, map[setting.Name]any{"mock": "env.json"}, "ONESIE_MOCK")},
 			check: func(t *testing.T, got runConfig) {
 				t.Helper()
 
-				if got.mockPath != "env.json" || got.mockSpelled != envMock {
+				if got.mockPath != "env.json" || got.mockSpelled != "ONESIE_MOCK" {
 					t.Errorf("mock = %q from %q, want env.json from ONESIE_MOCK", got.mockPath, got.mockSpelled)
 				}
 			},
@@ -227,7 +227,7 @@ func TestRunConfig_withMerged(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			merged, _ := setting.Merge(setting.Table(), tc.layers)
+			merged, _ := setting.Merge(setting.Table(), tc.layers, setting.Choice{})
 			tc.check(t, runConfig{}.withMerged(merged))
 		})
 	}

@@ -223,7 +223,7 @@ func TestNewCacheCmd(t *testing.T) {
 
 		env := cacheEnv(t)
 		env[envCache] = "yes"
-		env[envMock] = "absent.json"
+		env["ONESIE_MOCK"] = "absent.json"
 
 		for _, args := range [][]string{{"cache"}, {"cache", "clear"}} {
 			if out, errOut, code := runCached(t, env, args, ""); code != ExitOK {

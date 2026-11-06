@@ -35,7 +35,7 @@ func Read(rows []Row, src Sources) ([]Layer, error) {
 	defaults := readDefaults(rows, src.Command)
 	mode := runMode(src.Command, flags, defaults)
 
-	choice, err := choose(rows, src, flags, mode)
+	choice, err := sourceChoice(rows, src, flags, mode)
 	if err != nil {
 		return nil, err
 	}
@@ -78,9 +78,10 @@ func Choose(rows []Row, src Sources) (Choice, error) {
 	return choose(rows, src, flags, runMode(src.Command, flags, readDefaults(rows, src.Command)))
 }
 
-// Sources is everything Read reads, each filled by the caller. DefaultProfile is the default member
-// of profiles.json, read without converting anything, and empty when it cannot be read.
+// Sources holds the inputs to Read. Choice reuses a resolved selection when supplied.
+// DefaultProfile is the default member of profiles.json, empty when it cannot be read.
 type Sources struct {
+	Choice         *Choice
 	Given          *Given
 	File           *FileValues
 	LookupEnv      func(string) (string, bool)
@@ -97,14 +98,20 @@ type FileValues struct {
 }
 
 // ProfileValues is the members of the profile Choose named, keyed as profiles.json spells them.
-// KeyHeld says the profile holds a key, in the file or the keychain, and Read never reads the key.
+// KeyHeld says the profile holds a key, with its credential metadata in Key.
 type ProfileValues struct {
 	Members map[string]string
 	KeyHeld bool
+	Key     HeldKey
 }
 
-// HeldKey is the value of a key a profile holds, standing in for the key itself.
-type HeldKey struct{}
+// HeldKey carries the credential metadata of a profile without opening the keychain.
+type HeldKey struct {
+	Key      string
+	Keychain bool
+	Account  string
+	KeyEnd   string
+}
 
 // Layer holds each value and its spelling from one source. Body marks a request body.
 type Layer struct {
@@ -287,6 +294,13 @@ func highestFirst(layers []Layer) []Layer {
 	})
 }
 
+func sourceChoice(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
+	if src.Choice != nil {
+		return *src.Choice, nil
+	}
+	return choose(rows, src, flags, mode)
+}
+
 func choose(rows []Row, src Sources, flags Layer, mode Mode) (Choice, error) {
 	chosen := Choice{File: textIn(flags, fileName), DefaultProfile: src.DefaultProfile}
 	if profileCommand(src.Command) {
@@ -380,7 +394,7 @@ func readProfile(rows []Row, profile *ProfileValues, chosen Choice, mode Mode) (
 
 		if row.Name == apiKeyName {
 			if profile.KeyHeld {
-				layer.set(apiKeyName, HeldKey{}, string(apiKeyName))
+				layer.set(apiKeyName, profile.Key, string(apiKeyName))
 			}
 
 			continue

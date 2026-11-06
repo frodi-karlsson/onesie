@@ -1814,7 +1814,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should show ONESIE_BASE_URL and its source over the default profile",
 			file: proxied,
 			args: []string{"profile", "show"},
-			env:  map[string]string{envBaseURL: "https://env.example"},
+			env:  map[string]string{"ONESIE_BASE_URL": "https://env.example"},
 			wantOut: tsKeyless + "model: jev-latest, the provider's default\n" +
 				"base_url: https://env.example, ONESIE_BASE_URL\n",
 		},
@@ -1822,7 +1822,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should keep a chosen profile's base_url",
 			file: proxied,
 			args: []string{"--profile", "ts", "profile", "show"},
-			env:  map[string]string{envBaseURL: "https://env.example"},
+			env:  map[string]string{"ONESIE_BASE_URL": "https://env.example"},
 			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: --profile\nkey: file, ends in 6789\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
@@ -1838,7 +1838,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should rank a named profile a run uses by default as the default profile",
 			file: proxied,
 			args: []string{"profile", "show", "ts"},
-			env:  map[string]string{envBaseURL: "https://env.example"},
+			env:  map[string]string{"ONESIE_BASE_URL": "https://env.example"},
 			wantOut: tsKeyless + "model: jev-latest, the provider's default\n" +
 				"base_url: https://env.example, ONESIE_BASE_URL\n",
 		},
@@ -1846,14 +1846,14 @@ func TestProfileShow(t *testing.T) {
 			name:    "should show no key when ONESIE_BASE_URL takes the profile's key off its endpoint",
 			file:    tsFile,
 			args:    []string{"profile", "show"},
-			env:     map[string]string{envBaseURL: "https://env.example"},
+			env:     map[string]string{"ONESIE_BASE_URL": "https://env.example"},
 			wantOut: tsKeyless + "model: jev-latest, the provider's default\nbase_url: https://env.example, ONESIE_BASE_URL\n",
 		},
 		{
 			name: "should show the key variable when ONESIE_BASE_URL takes the profile's key off its endpoint",
 			file: tsFile,
 			args: []string{"profile", "show"},
-			env:  map[string]string{envBaseURL: "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"},
+			env:  map[string]string{"ONESIE_BASE_URL": "https://env.example", "TYPESAFE_API_KEY": "SECRET-ENV"},
 			wantOut: "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://env.example, ONESIE_BASE_URL\n",
 		},
@@ -1861,7 +1861,7 @@ func TestProfileShow(t *testing.T) {
 			name: "should show the key variable over the default profile's key on the provider's own base URL",
 			file: tsFile,
 			args: []string{"profile", "show"},
-			env:  map[string]string{envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV"},
+			env:  map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV"},
 			wantOut: "profile: ts, the default profile\nprovider: typesafe\nchosen by: the default\nkey: env TYPESAFE_API_KEY\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
 		},
@@ -1870,7 +1870,7 @@ func TestProfileShow(t *testing.T) {
 			file: tsFile,
 			args: []string{"profile", "show"},
 			env: map[string]string{
-				envBaseURL: "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV", "ONESIE_PROFILE": "ts",
+				"ONESIE_BASE_URL": "https://api.typesafe.ai/", "TYPESAFE_API_KEY": "SECRET-ENV", "ONESIE_PROFILE": "ts",
 			},
 			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\nkey: file, ends in 6789\n" +
 				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, ONESIE_BASE_URL\n",
@@ -2175,7 +2175,7 @@ func TestProfileShow(t *testing.T) {
 		unwanted, strays := modelServer(t)
 		dir := configWith(t, `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",`+
 			`"base_url":"`+unwanted.URL+`"}}}`)
-		env := map[string]string{envBaseURL: wanted.URL, onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}
+		env := map[string]string{"ONESIE_BASE_URL": wanted.URL, onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV"}
 
 		out, errOut, code := runInConfig(t, dir, []string{"profile", "show"}, "", env)
 		if code != ExitOK {

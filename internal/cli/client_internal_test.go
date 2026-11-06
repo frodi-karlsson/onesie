@@ -265,7 +265,7 @@ func TestClientBuilder(t *testing.T) {
 			name: "should send ONESIE_BASE_URL over the default profile's base_url, with a notice",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{other}"}}}`,
-			args: asking(), env: map[string]string{envBaseURL: "{url}"},
+			args: asking(), env: map[string]string{"ONESIE_BASE_URL": "{url}"},
 			wantErr: []string{
 				"onesie: ONESIE_BASE_URL overrides the default profile's base_url\n",
 				"onesie: ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only with its own " +
@@ -275,7 +275,7 @@ func TestClientBuilder(t *testing.T) {
 		},
 		{
 			name: "should keep a chosen profile's base_url over ONESIE_BASE_URL", profiles: fileWork,
-			args: asking("--profile", "work"), env: map[string]string{envBaseURL: "{other}"},
+			args: asking("--profile", "work"), env: map[string]string{"ONESIE_BASE_URL": "{other}"},
 			wantErr:  []string{"onesie: the profile's base_url overrides ONESIE_BASE_URL\n"},
 			wantAuth: "Bearer SECRET-WORK", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
@@ -398,7 +398,7 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name: "should send to ONESIE_BASE_URL over TYPESAFE_BASE_URL", args: asking(),
 			env: map[string]string{
-				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "{url}", onesie.TypeSafe().EnvBaseURL(): "{other}",
+				onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", "ONESIE_BASE_URL": "{url}", onesie.TypeSafe().EnvBaseURL(): "{other}",
 			},
 			wantAuth: "Bearer SECRET-ENV", wantModel: onesie.TypeSafe().DefaultModel(),
 		},
@@ -406,7 +406,7 @@ func TestClientBuilder(t *testing.T) {
 			name: "should send to ONESIE_BASE_URL over CLOUDFLARE_ACCOUNT_ID on cloudflare",
 			args: asking("--provider", "cloudflare"),
 			env: map[string]string{
-				onesie.Cloudflare().EnvAPIKey(): "SECRET-CF", envBaseURL: "{url}",
+				onesie.Cloudflare().EnvAPIKey(): "SECRET-CF", "ONESIE_BASE_URL": "{url}",
 				onesie.Cloudflare().EnvAccountID(): testAccountID,
 			},
 			wantAuth: "Bearer SECRET-CF", wantModel: onesie.Cloudflare().DefaultModel(),
@@ -490,7 +490,7 @@ func TestClientBuilder(t *testing.T) {
 		{
 			name:     "should name ONESIE_BASE_URL in a plain http refusal",
 			args:     asking(),
-			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", envBaseURL: "http://proxy.example"},
+			env:      map[string]string{onesie.TypeSafe().EnvAPIKey(): "SECRET-ENV", "ONESIE_BASE_URL": "http://proxy.example"},
 			wantCode: ExitUsage,
 			wantErr:  []string{"onesie: ONESIE_BASE_URL http://proxy.example is plain http", "--allow-http"},
 		},
@@ -1036,7 +1036,7 @@ func TestBaseURLFrom(t *testing.T) {
 	}{
 		{
 			name: "should name ONESIE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
-			from: setting.SourceEnv, spelled: envBaseURL, endpoint: baseURL, want: envBaseURL,
+			from: setting.SourceEnv, spelled: "ONESIE_BASE_URL", endpoint: baseURL, want: "ONESIE_BASE_URL",
 		},
 		{
 			name: "should name TYPESAFE_BASE_URL", source: onesie.BaseURLFromOption, run: bare,
@@ -1084,9 +1084,9 @@ func TestBaseURLFrom(t *testing.T) {
 				})
 			}
 
-			merged, _ := setting.Merge(setting.Table(), layers)
+			merged, _ := setting.Merge(setting.Table(), layers, setting.Choice{})
 
-			if got := baseURLFrom(tc.source, tc.run.merged(merged)); got != tc.want {
+			if got := baseURLFrom(tc.source, runResolution(merged, tc.run.provider)); got != tc.want {
 				t.Errorf("baseURLFrom = %q, want %q", got, tc.want)
 			}
 		})

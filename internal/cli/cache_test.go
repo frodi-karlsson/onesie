@@ -53,7 +53,7 @@ func TestCaching(t *testing.T) {
 		},
 		{
 			name:  "should be off under ONESIE_MOCK",
-			flags: runConfig{mockPath: "m.json", mockSpelled: envMock, env: switches{cache: true}},
+			flags: runConfig{mockPath: "m.json", mockSpelled: "ONESIE_MOCK", env: switches{cache: true}},
 		},
 		{
 			name:  "should be off under --print-request",
@@ -795,8 +795,8 @@ func TestAsk(t *testing.T) {
 		env  map[string]string
 	}{
 		{name: "should answer from --mock under ONESIE_CACHE=1 and leave the cache dir absent", args: []string{"--mock", "MOCK"}, env: map[string]string{envCache: "1"}},
-		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{envCache: "1", envMock: "MOCK"}},
-		{name: "should answer from ONESIE_MOCK under a typed --cache and leave the cache dir absent", args: []string{"--cache"}, env: map[string]string{envMock: "MOCK"}},
+		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{envCache: "1", "ONESIE_MOCK": "MOCK"}},
+		{name: "should answer from ONESIE_MOCK under a typed --cache and leave the cache dir absent", args: []string{"--cache"}, env: map[string]string{"ONESIE_MOCK": "MOCK"}},
 		{name: "should leave the cache dir absent under --print-request with ONESIE_CACHE=1", args: []string{"--print-request"}, env: map[string]string{envCache: "1"}},
 	}
 

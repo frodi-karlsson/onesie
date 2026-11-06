@@ -235,5 +235,5 @@ func connected(settings rootSettings, flags runConfig) (resolution, error) {
 		return resolution{}, err
 	}
 
-	return chosen.merged(flags.merged), nil
+	return runResolution(flags.merged, chosen.provider), nil
 }

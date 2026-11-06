@@ -223,7 +223,11 @@ func runRoot(
 	// of run, since a dry run builds no client and would otherwise never look at the choice.
 	// --print-questions prints no provider and no model, so it checks the choice without the file.
 	if flags.printQuestions {
-		if refused := checkChoice(flags, settings.lookupEnv); refused != nil {
+		chosen, choiceErr := settings.holder.chosen()
+		if choiceErr != nil {
+			return choiceErr
+		}
+		if refused := checkChoice(chosen); refused != nil {
 			return refused
 		}
 	} else if _, resolveErr := settings.holder.resolved(); resolveErr != nil {

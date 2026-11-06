@@ -14,7 +14,42 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
+
+func TestNewHolder(t *testing.T) {
+	t.Run("should reuse one choice while loading and resolving the run", func(t *testing.T) {
+		settings := defaultSettings(BuildInfo{})
+		settings.profilesPath = nil
+		reads := 0
+		settings.lookupEnv = func(name string) (string, bool) {
+			if name != "ONESIE_PROVIDER" {
+				return "", false
+			}
+			reads++
+			if reads == 1 {
+				return "typesafe", true
+			}
+			return "unknown", true
+		}
+		held := newHolder(settings, flagsFrom(t), func() io.Writer { return io.Discard })
+		chosen, err := held.chosen()
+		if err != nil {
+			t.Fatal(err)
+		}
+		run, err := held.loaded()
+		if err != nil {
+			t.Fatal(err)
+		}
+		resolved, err := held.resolved()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if reads != 1 || chosen.Provider != "typesafe" || run.chosen != chosen || resolved.provider.Name() != "typesafe" {
+			t.Fatalf("provider changed across stages, selector reads %d", reads)
+		}
+	})
+}
 
 func TestOpenProfiles(t *testing.T) {
 	t.Parallel()
@@ -499,7 +534,11 @@ func linesOf(text string) []string {
 func loadAndResolve(
 	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
 ) (resolution, error) {
-	run, err := loadRun(flags, lookupEnv, open, func() string { return "" })
+	chosen, err := setting.Choose(setting.Table(), setting.Sources{Given: flags.given, LookupEnv: lookupEnv})
+	if err != nil {
+		return resolution{}, err
+	}
+	run, err := loadRun(chosen, open, func() string { return "" })
 	if err != nil {
 		return resolution{}, err
 	}

@@ -13,6 +13,24 @@ import (
 func TestRead(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should use the supplied choice despite ambient selectors", func(t *testing.T) {
+		src := reading{
+			env:     map[string]string{"ONESIE_PROFILE": "ambient", "ONESIE_PROVIDER": "levanto"},
+			profile: map[string]string{"provider": "openrouter", "model": "chosen-model"},
+		}.sources(t)
+		chosen := settings.Choice{Profile: "work", ProfileBy: settings.SourceFlag}
+		src.Choice = &chosen
+		layers, err := settings.Read(settings.Table(), src)
+		if err != nil {
+			t.Fatal(err)
+		}
+		merged, _ := settings.Merge(settings.Table(), layers, chosen)
+		profile, provider, model := settings.Get(merged, settings.Profile), settings.Get(merged, settings.Provider), settings.Get(merged, settings.Model)
+		if profile != "work" || provider != "openrouter" || model != "chosen-model" {
+			t.Fatalf("profile %s provider %s model %s, want work openrouter chosen-model", profile, provider, model)
+		}
+	})
+
 	tests := []struct {
 		name    string
 		reading reading

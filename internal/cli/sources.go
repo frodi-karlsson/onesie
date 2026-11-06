@@ -20,13 +20,15 @@ func mergeRun(
 
 	// A refused choice waits for the stage, so a flag clash beside it still reports first. The stage
 	// reads every other setting meanwhile.
-	if _, refusal := setting.Choose(rows, src); refusal != nil {
+	chosen, refusal := settings.holder.chosen()
+	if refusal != nil {
+		src.Choice = &setting.Choice{}
 		layers, err := setting.Read(withoutChoice(rows), src)
 		if err != nil {
 			return readSettings{}, err
 		}
 
-		merged, _ := setting.Merge(rows, layers)
+		merged, _ := setting.Merge(rows, layers, chosen)
 
 		return readSettings{config: flags.withMerged(merged), refusal: refusal}, nil
 	}
@@ -36,14 +38,16 @@ func mergeRun(
 		return readSettings{}, err
 	}
 
-	src.Profile, src.DefaultProfile = run.values(), run.fallback
+	chosen = run.chosen
+	chosen.DefaultProfile = run.fallback
+	src.Profile, src.Choice = run.values(), &chosen
 
 	layers, err := setting.Read(rows, src)
 	if err != nil {
 		return readSettings{}, err
 	}
 
-	merged, notices := setting.Merge(rows, layers)
+	merged, notices := setting.Merge(rows, layers, chosen)
 	config := flags.withMerged(merged)
 
 	return readSettings{config: config, notices: announced(notices, config.printRequest || config.mockPath != "")}, nil
@@ -74,8 +78,8 @@ func loadedFor(settings rootSettings, flags runConfig) (loadedRun, error) {
 
 	// --print-questions prints no provider, model or key, so it loads no profile and converts no
 	// credentials.json. A provider choice still names the default it runs without.
-	chosen, err := choose(&flags.runFlags, settings.lookupEnv)
-	if err != nil || chosen.provider == "" {
+	chosen, err := settings.holder.chosen()
+	if err != nil || chosen.Provider == "" {
 		return loadedRun{chosen: chosen}, err
 	}
 

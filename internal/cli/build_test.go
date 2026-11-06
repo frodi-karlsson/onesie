@@ -20,7 +20,7 @@ func TestGateOf(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			merged, _ := setting.Merge(setting.Table(), []setting.Layer{{Source: tc.source, Values: map[setting.Name]any{"assert": []string{"unknown"}}, Spelled: map[setting.Name]string{"assert": tc.spelled}}})
+			merged, _ := setting.Merge(setting.Table(), []setting.Layer{{Source: tc.source, Values: map[setting.Name]any{"assert": []string{"unknown"}}, Spelled: map[setting.Name]string{"assert": tc.spelled}}}, setting.Choice{})
 			named := tc.spelled
 			if tc.source == setting.SourceFile {
 				named = "'" + named + "'"

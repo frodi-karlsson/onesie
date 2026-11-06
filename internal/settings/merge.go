@@ -13,8 +13,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-// Merge takes each run setting from the highest layer, with notices for replaced values.
-func Merge(rows []Row, layers []Layer) (*Merged, []Notice) {
+// Merge applies the resolved choice and takes other settings from the highest layer, with notices.
+func Merge(rows []Row, layers []Layer, chosen Choice) (*Merged, []Notice) {
 	ranked := highestFirst(layers)
 	merged := &Merged{}
 
@@ -24,7 +24,7 @@ func Merge(rows []Row, layers []Layer) (*Merged, []Notice) {
 		switch {
 		case row.Scope == ScopeQuestion, row.Name == profileName:
 		case row.Name == providerName:
-			notices = append(notices, mergeChoice(merged, ranked)...)
+			notices = append(notices, mergeChoice(merged, ranked, chosen, rows)...)
 		default:
 			notices = append(notices, mergeRow(merged, row, ranked)...)
 		}
@@ -368,45 +368,27 @@ func originOf(layer Layer, row Row) Origin {
 	return origin
 }
 
-func mergeChoice(merged *Merged, ranked []Layer) []Notice {
-	// The profile and the provider are chosen as one: the highest flag or variable that names
-	// either wins both, so a profile's key only ever goes to its own provider.
-	for i, layer := range ranked {
-		if layer.Source != SourceFlag && layer.Source != SourceEnv {
-			continue
-		}
-
-		if name := textIn(layer, profileName); name != "" {
-			return profileChosen(merged, ranked, i, name)
-		}
-
-		if name := textIn(layer, providerName); name != "" {
-			return providerChosen(merged, ranked, i, name)
-		}
+func mergeChoice(merged *Merged, ranked []Layer, chosen Choice, rows []Row) []Notice {
+	switch {
+	case chosen.Provider != "":
+		return providerChosen(merged, ranked, chosen, choiceOrigin(rows, providerName, chosen.ProviderBy))
+	case chosen.Profile != "" && chosen.ProfileBy != SourceDefaultProfile:
+		return profileChosen(merged, ranked, chosen, choiceOrigin(rows, profileName, chosen.ProfileBy))
 	}
-
 	for _, layer := range ranked {
 		if layer.Source == SourceDefaultProfile {
 			setFrom(merged, layer, profileName)
 			setFrom(merged, layer, providerName)
 		}
 	}
-
 	fallBack(merged, ranked, profileName)
 	defaultProvider(merged)
-
 	return nil
 }
 
-func defaultProvider(merged *Merged) {
-	if _, holds := merged.values[providerName]; !holds {
-		merged.Set(providerName, onesie.TypeSafe().Name(), SourceDefault)
-	}
-}
-
-func profileChosen(merged *Merged, ranked []Layer, at int, name string) []Notice {
-	chooser := ranked[at]
-	merged.Set(profileName, name, chooser.Source)
+func profileChosen(merged *Merged, ranked []Layer, chosen Choice, winner Origin) []Notice {
+	name := chosen.Profile
+	merged.Set(profileName, name, chosen.ProfileBy)
 
 	for _, layer := range ranked {
 		if layer.Source == SourceChosenProfile {
@@ -416,11 +398,14 @@ func profileChosen(merged *Merged, ranked []Layer, at int, name string) []Notice
 
 	defaultProvider(merged)
 
-	winner := Origin{Source: chooser.Source, Spelled: chooser.Spelled[profileName]}
+	merged.spelled(profileName, winner.Spelled)
 
 	var notices []Notice
 
-	for _, layer := range ranked[at:] {
+	for _, layer := range ranked {
+		if layer.Source > chosen.ProfileBy {
+			continue
+		}
 		if layer.Source != SourceFlag && layer.Source != SourceEnv {
 			continue
 		}
@@ -437,16 +422,19 @@ func profileChosen(merged *Merged, ranked []Layer, at int, name string) []Notice
 	return notices
 }
 
-func providerChosen(merged *Merged, ranked []Layer, at int, name string) []Notice {
-	chooser := ranked[at]
-	merged.Set(providerName, name, chooser.Source)
+func providerChosen(merged *Merged, ranked []Layer, chosen Choice, winner Origin) []Notice {
+	name := chosen.Provider
+	merged.Set(providerName, name, chosen.ProviderBy)
 	fallBack(merged, ranked, profileName)
 
-	winner := Origin{Source: chooser.Source, Spelled: chooser.Spelled[providerName]}
+	merged.spelled(providerName, winner.Spelled)
 
 	var notices []Notice
 
-	for _, layer := range ranked[at+1:] {
+	for _, layer := range ranked {
+		if layer.Source >= chosen.ProviderBy {
+			continue
+		}
 		switch layer.Source {
 		case SourceFlag, SourceEnv:
 			if lower := textIn(layer, providerName); lower != "" && lower != name {
@@ -464,6 +452,31 @@ func providerChosen(merged *Merged, ranked []Layer, at int, name string) []Notic
 	}
 
 	return notices
+}
+
+func defaultProvider(merged *Merged) {
+	if _, holds := merged.values[providerName]; !holds {
+		merged.Set(providerName, onesie.TypeSafe().Name(), SourceDefault)
+	}
+}
+
+func choiceOrigin(rows []Row, name Name, source Source) Origin {
+	origin := Origin{Source: source}
+	for _, row := range rows {
+		if row.Name != name {
+			continue
+		}
+		switch source {
+		case SourceFlag:
+			origin.Spelled = "--" + row.Flag.Long
+		case SourceEnv:
+			if len(row.Env) > 0 {
+				origin.Spelled = row.Env[0].Name
+			}
+		}
+		break
+	}
+	return origin
 }
 
 func choiceNotice(setting Name, winner Origin, loser Layer, lost Name, name string) Notice {

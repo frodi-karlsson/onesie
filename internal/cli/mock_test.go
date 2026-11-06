@@ -1080,14 +1080,16 @@ func TestMockSource(t *testing.T) {
 		{
 			name:     "should answer from ONESIE_MOCK with the command unchanged",
 			args:     answer,
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			wantOut:  fileOf(`{"answer":0.9}` + "\n"),
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should let --mock beat ONESIE_MOCK",
-			args:     answer,
-			env:      func(string) map[string]string { return map[string]string{envMock: "/nonexistent/answers.json"} },
+			name: "should let --mock beat ONESIE_MOCK",
+			args: answer,
+			env: func(string) map[string]string {
+				return map[string]string{"ONESIE_MOCK": "/nonexistent/answers.json"}
+			},
 			flag:     true,
 			wantOut:  fileOf(`{"answer":0.9}` + "\n"),
 			wantCode: ExitOK,
@@ -1095,20 +1097,20 @@ func TestMockSource(t *testing.T) {
 		{
 			name:     "should read an empty ONESIE_MOCK as unset",
 			args:     []string{"is it urgent", "--state", "x", "--print-request"},
-			env:      func(string) map[string]string { return map[string]string{envMock: ""} },
+			env:      func(string) map[string]string { return map[string]string{"ONESIE_MOCK": ""} },
 			wantCode: ExitOK,
 		},
 		{
 			name:     "should name ONESIE_MOCK in a file error",
 			args:     []string{"--ask", "u=is it urgent", "--state", "x"},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			stderr:   []string{"onesie: ONESIE_MOCK: 'answer' is not a question. Questions: u"},
 			wantCode: ExitUsage,
 		},
 		{
 			name:     "should skip ONESIE_MOCK silently under --print-request",
 			args:     []string{"is it urgent", "--state", "x", "--print-request"},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			contains: []string{`"questions"`},
 			silent:   true,
 			wantCode: ExitOK,
@@ -1116,14 +1118,16 @@ func TestMockSource(t *testing.T) {
 		{
 			name:     "should skip ONESIE_MOCK silently under -i request",
 			args:     []string{"-i", "request", "--print-request"},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			silent:   true,
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should skip a malformed ONESIE_MOCK path silently under --print-request",
-			args:     []string{"is it urgent", "--state", "x", "--print-request"},
-			env:      func(string) map[string]string { return map[string]string{envMock: "/nonexistent/answers.json"} },
+			name: "should skip a malformed ONESIE_MOCK path silently under --print-request",
+			args: []string{"is it urgent", "--state", "x", "--print-request"},
+			env: func(string) map[string]string {
+				return map[string]string{"ONESIE_MOCK": "/nonexistent/answers.json"}
+			},
 			silent:   true,
 			wantCode: ExitOK,
 		},
@@ -1132,14 +1136,14 @@ func TestMockSource(t *testing.T) {
 			args: []string{
 				"calibrate", "is it urgent", "-i", "jsonl", "--map", ".body", "--label", ".u", "--print-request",
 			},
-			env:      func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			stderr:   []string{"onesie: ONESIE_MOCK does not apply to --print-request, which writes the request bodies and sends none"},
 			wantCode: ExitUsage,
 		},
 		{
 			name: "should refuse profile show under ONESIE_MOCK",
 			args: []string{"profile", "show"},
-			env:  func(path string) map[string]string { return map[string]string{envMock: path} },
+			env:  func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
 			stderr: []string{
 				"onesie: profile reads and writes real configuration, so it does not run under ONESIE_MOCK. Unset it",
 			},

@@ -15,12 +15,23 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 		return openProfiles(settings, stderr())
 	})
 
+	chosen := sync.OnceValues(func() (setting.Choice, error) {
+		return setting.Choose(setting.Table(), setting.Sources{
+			Given: flags.given, LookupEnv: settings.lookupEnv, Command: setting.CommandRoot,
+		})
+	})
+
 	loaded := sync.OnceValues(func() (loadedRun, error) {
-		return loadRun(flags, settings.lookupEnv, opened, func() string { return defaultName(settings) })
+		choice, err := chosen()
+		if err != nil {
+			return loadedRun{}, err
+		}
+		return loadRun(choice, opened, func() string { return defaultName(settings) })
 	})
 
 	return &holder{
 		stderr: stderr,
+		chosen: chosen,
 		opened: opened,
 		loaded: loaded,
 		resolved: sync.OnceValues(func() (resolution, error) {
@@ -35,6 +46,7 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 }
 
 type holder struct {
+	chosen   func() (setting.Choice, error)
 	stderr   func() io.Writer
 	opened   func() (creds.Opened, error)
 	loaded   func() (loadedRun, error)
@@ -42,17 +54,12 @@ type holder struct {
 }
 
 func loadRun(
-	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
+	chosen setting.Choice, open func() (creds.Opened, error),
 	fallback func() string,
 ) (loadedRun, error) {
-	chosen, err := choose(flags, lookupEnv)
-	if err != nil {
-		return loadedRun{}, err
-	}
-
 	// A run that names its provider never opens the file, so CI that names one stays apart from any
 	// file on the machine. It only peeks at the default it runs without, for the notice.
-	if chosen.provider != "" {
+	if chosen.Provider != "" {
 		return loadedRun{chosen: chosen, fallback: fallback()}, nil
 	}
 
@@ -67,7 +74,7 @@ func loadRun(
 func resolveRun(
 	run loadedRun, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
 ) (resolution, error) {
-	if run.chosen.provider == "" {
+	if run.chosen.Provider == "" {
 		if run.name == "" {
 			return providerRun(onesie.TypeSafe().Name(), byNothing, lookupEnv)
 		}
@@ -75,7 +82,7 @@ func resolveRun(
 		return profileRun(run.name, run.profile, run.by)
 	}
 
-	bare, err := providerRun(run.chosen.provider, run.chosen.by, lookupEnv)
+	bare, err := providerRun(run.chosen.Provider, choiceBy(run.chosen.ProviderBy, setting.Provider.Name()), lookupEnv)
 	if err == nil {
 		return bare, nil
 	}
@@ -90,7 +97,7 @@ func resolveRun(
 }
 
 type loadedRun struct {
-	chosen   choice
+	chosen   setting.Choice
 	name     string
 	by       string
 	profile  creds.Profile
@@ -108,6 +115,10 @@ func (r loadedRun) values() *setting.ProfileValues {
 			"base_url": r.profile.BaseURL, "account_id": r.profile.AccountID,
 		},
 		KeyHeld: creds.HoldsKey(r.profile),
+		Key: setting.HeldKey{
+			Key: r.profile.APIKey, Keychain: r.profile.Store == creds.StoreKeychain,
+			Account: r.profile.Account, KeyEnd: r.profile.KeyEnd,
+		},
 	}
 }
 
@@ -171,8 +182,8 @@ func conversionLines(opened creds.Opened, lookupEnv func(string) (string, bool))
 		lines = append(lines, notice{text: "converted credentials.json " + where + ", with " +
 			namedProfiles(opened.Converted) + ". " + defaultSentence(opened.Profiles.Default)})
 
-		if setVariable(lookupEnv, envProvider) != "" {
-			lines = append(lines, notice{text: envProvider + " is set, so a run uses no profile and reads only " +
+		if setVariable(lookupEnv, settingEnv(setting.Provider.Name())) != "" {
+			lines = append(lines, notice{text: settingEnv(setting.Provider.Name()) + " is set, so a run uses no profile and reads only " +
 				"the provider's key variable. To use a stored key, unset it and run onesie profile use NAME, " +
 				"or pass --profile NAME"})
 		}
