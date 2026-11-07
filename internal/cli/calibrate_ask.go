@@ -28,14 +28,9 @@ const maxCauses = 5
 
 func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
-	inv *invocation, scope calibrateScope, bound []boundRequirement,
+	inv *invocation, scope calibrateScope, bound []boundRequirement, base []float64,
 ) (err error) {
 	model, err := resolveModel(settings, flags, scope.scored.Model)
-	if err != nil {
-		return err
-	}
-
-	base, err := cutsOf(flags, calib)
 	if err != nil {
 		return err
 	}
@@ -245,19 +240,6 @@ func unansweredOffline(answers string, pending []labelledRecord) error {
 
 	return fmt.Errorf("%s does not answer %s or %d more, so --offline cannot report them. "+
 		"Rerun without --offline to ask them", answers, pending[0].name(), len(pending)-1)
-}
-
-func cutsOf(flags runConfig, calib calibrateFlags) ([]float64, error) {
-	if !flags.typed(setting.Cuts.Name()) {
-		return calibrate.DefaultCuts(), nil
-	}
-
-	cuts, err := calibrate.ParseCuts(calib.cuts)
-	if err != nil {
-		return nil, fmt.Errorf("--cuts %w", err)
-	}
-
-	return cuts, nil
 }
 
 func writeCost(

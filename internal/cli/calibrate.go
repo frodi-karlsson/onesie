@@ -132,11 +132,6 @@ func runCalibrate(
 		return noticeErr
 	}
 
-	reqs, err := parseRequirements(calib.requires)
-	if err != nil {
-		return err
-	}
-
 	if noteErr := noteOverriddenBodyState(
 		cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(inv.plan.Questions)); noteErr != nil {
 		return noteErr
@@ -157,7 +152,7 @@ func runCalibrate(
 		return refuseErr
 	}
 
-	bound, err := resolveRequirements(scope, inv.fileGate, reqs)
+	bound, err := resolveRequirements(scope, inv.fileGate, ready.calibration.Requirements)
 	if err != nil {
 		return err
 	}
@@ -170,7 +165,7 @@ func runCalibrate(
 		return calibrateRequests(cmd, settings, flags, inputMode, inv, scope)
 	}
 
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound)
+	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
 }
 
 func refusedOnCalibrate(root *cobra.Command, err error) error {

@@ -8,7 +8,7 @@ import (
 
 func validateRun(
 	config runConfig, facts runFacts, built *plan.Plan, typed commandLine,
-) ([]string, []setting.Notice, error) {
+) (setting.CalibrationArguments, []string, []setting.Notice, error) {
 	command := settingrow.CommandRoot
 	if config.calibrate != nil {
 		command = settingrow.CommandCalibrate
@@ -19,7 +19,11 @@ func validateRun(
 		Positional: config.positional, StdoutTTY: config.stdoutTTY, Given: typed.given, Args: typed.args,
 	})
 
-	return setting.Validate(view, setting.Rules())
+	warnings, notices, err := setting.Validate(view, setting.Rules())
+	if err != nil {
+		return setting.CalibrationArguments{}, warnings, notices, err
+	}
+	return view.Calibration, warnings, notices, nil
 }
 
 type commandLine struct {

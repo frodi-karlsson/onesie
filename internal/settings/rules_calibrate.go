@@ -26,15 +26,7 @@ func calibrateRules() []Rule {
 		}),
 		calibrating("calibrate-report", checkReport),
 		calibrating("cuts-parse", func(v View) error {
-			if !typed(v, Cuts.Name()) {
-				return nil
-			}
-
-			if _, err := calibrate.ParseCuts(Get(v.Merged, Cuts)); err != nil {
-				return fmt.Errorf("--cuts %w", err)
-			}
-
-			return nil
+			return v.cutsError
 		}),
 		calibrating("calibrate-resumes-by-id", func(v View) error {
 			// A dry run is left to the resume rule, whose message drops --resume rather than asking for
@@ -57,13 +49,7 @@ func calibrateRules() []Rule {
 		}),
 		calibrating("calibrate-usage", checkCalibrateUsage),
 		calibrating("requires-parse", func(v View) error {
-			for _, text := range listOf(v, requireName) {
-				if _, err := calibrate.ParseRequirement(text); err != nil {
-					return fmt.Errorf("--require '%s' %w", text, err)
-				}
-			}
-
-			return nil
+			return v.requirementsError
 		}),
 	}
 }
@@ -142,4 +128,28 @@ func checkCalibrateUsage(v View) error {
 	}
 
 	return nil
+}
+
+func prepareCalibration(v View) (CalibrationArguments, error, error) {
+	var args CalibrationArguments
+	var cutsError error
+	if typed(v, Cuts.Name()) {
+		args.Cuts, cutsError = calibrate.ParseCuts(Get(v.Merged, Cuts))
+		if cutsError != nil {
+			cutsError = fmt.Errorf("--cuts %w", cutsError)
+		}
+	} else {
+		args.Cuts = calibrate.DefaultCuts()
+	}
+	for _, text := range listOf(v, requireName) {
+		req, err := calibrate.ParseRequirement(text)
+		if err != nil {
+			return CalibrationArguments{}, cutsError, fmt.Errorf("--require '%s' %w", text, err)
+		}
+		args.Requirements = append(args.Requirements, req)
+	}
+	if cutsError != nil {
+		return CalibrationArguments{}, cutsError, nil
+	}
+	return args, nil, nil
 }

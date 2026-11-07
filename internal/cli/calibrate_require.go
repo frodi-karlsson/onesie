@@ -13,21 +13,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func parseRequirements(texts []string) ([]calibrate.Requirement, error) {
-	reqs := make([]calibrate.Requirement, 0, len(texts))
-
-	for _, text := range texts {
-		req, err := calibrate.ParseRequirement(text)
-		if err != nil {
-			return nil, fmt.Errorf("--require '%s' %w", text, err)
-		}
-
-		reqs = append(reqs, req)
-	}
-
-	return reqs, nil
-}
-
 func resolveRequirements(scope calibrateScope, gate fileGate, reqs []calibrate.Requirement) ([]boundRequirement, error) {
 	bound := make([]boundRequirement, 0, len(reqs))
 

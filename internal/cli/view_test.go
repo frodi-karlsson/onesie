@@ -6,10 +6,24 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestValidateRun(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should return no calibration arguments when validation fails", func(t *testing.T) {
+		t.Parallel()
+		config := runConfig{merged: &setting.Merged{}, calibrate: &calibrateFlags{}}
+		args, _, _, err := validateRun(config, runFacts{}, nil, commandLine{})
+		if err == nil {
+			t.Fatal("expected a refusal")
+		}
+		if args.Cuts != nil || args.Requirements != nil {
+			t.Fatalf("arguments = %v", args)
+		}
+	})
 
 	t.Run("should refuse each flag -i request does not take through a run", func(t *testing.T) {
 		t.Parallel()

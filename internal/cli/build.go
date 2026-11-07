@@ -66,13 +66,13 @@ func assemble(
 	built.LongContext = flags.env.longContext
 	refined := setting.MergeQuestions(source.File, built, flags.events)
 
-	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
+	calibration, warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
 		err = merged.refusal
 	}
 
 	return assembled{
-		config: flags, plan: built, file: file, warnings: warnings,
+		config: flags, plan: built, file: file, warnings: warnings, calibration: calibration,
 		notices: inOrder(typedTwice, merged.notices, refined),
 	}, err
 }
@@ -108,11 +108,12 @@ func inOrder(typedTwice, merged, refined []setting.Notice) []setting.Notice {
 }
 
 type assembled struct {
-	config   runConfig
-	plan     *plan.Plan
-	file     buildFile
-	warnings []string
-	notices  []setting.Notice
+	calibration setting.CalibrationArguments
+	config      runConfig
+	plan        *plan.Plan
+	file        buildFile
+	warnings    []string
+	notices     []setting.Notice
 }
 
 func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (buildFile, error) {

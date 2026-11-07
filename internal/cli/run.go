@@ -57,7 +57,7 @@ func validated(
 			return staged{}, mergeErr
 		}
 
-		_, typedTwice, validateErr := validateRun(merged.config, runFacts{}, nil,
+		_, _, typedTwice, validateErr := validateRun(merged.config, runFacts{}, nil,
 			commandLine{given: parsed.given, args: settings.args})
 		if validateErr != nil {
 			return staged{}, validateErr

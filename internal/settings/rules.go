@@ -2,6 +2,7 @@ package settings
 
 import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
@@ -69,15 +70,28 @@ type Rule struct {
 // NewView returns what the rules read about one run. built is nil for a run that builds no plan,
 // such as --list-models and -i request.
 func NewView(merged *Merged, built *plan.Plan, facts Facts) View {
-	return View{Merged: merged, Plan: built, Facts: facts}
+	view := View{Merged: merged, Plan: built, Facts: facts}
+	if facts.Command == settingrow.CommandCalibrate {
+		view.Calibration, view.cutsError, view.requirementsError = prepareCalibration(view)
+	}
+	return view
 }
 
 // View is what a rule or a derived default reads: the merged settings, the plan and the facts of a
 // run.
 type View struct {
-	Merged *Merged
-	Plan   *plan.Plan
-	Facts  Facts
+	Merged            *Merged
+	Plan              *plan.Plan
+	Facts             Facts
+	Calibration       CalibrationArguments
+	cutsError         error
+	requirementsError error
+}
+
+// CalibrationArguments holds the syntax results prepared for one calibration invocation.
+type CalibrationArguments struct {
+	Cuts         []float64
+	Requirements []calibrate.Requirement
 }
 
 // Facts are what a rule or a derived default reads about a run that no setting holds: the command,

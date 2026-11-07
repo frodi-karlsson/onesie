@@ -3257,9 +3257,13 @@ func TestCutsFor(t *testing.T) {
 	t.Parallel()
 
 	bound := func(texts ...string) []boundRequirement {
-		reqs, err := parseRequirements(texts)
-		if err != nil {
-			t.Fatal(err)
+		reqs := make([]calibrate.Requirement, 0, len(texts))
+		for _, text := range texts {
+			req, err := calibrate.ParseRequirement(text)
+			if err != nil {
+				t.Fatal(err)
+			}
+			reqs = append(reqs, req)
 		}
 
 		out := make([]boundRequirement, 0, len(reqs))
@@ -3868,6 +3872,40 @@ func TestCasesOf(t *testing.T) {
 			var unusable *onesie.ResponseError
 			if err == nil || errors.As(err, &unusable) || err.Error() != tc.want {
 				t.Errorf("casesOf error = %v, want a plain error reading %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestRunCalibrate(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		extra []string
+		noMap bool
+		want  string
+	}{
+		{name: "should report cuts before malformed requirements", extra: []string{"--cuts", "invalid", "--require", "bad"}, want: "--cuts"},
+		{name: "should report missing map before syntax errors", noMap: true, extra: []string{"--cuts", "invalid", "--require", "bad"}, want: "calibrate needs --map"},
+		{name: "should preserve the invalid second requirement", extra: []string{"--require", "u.catches >= 0.9 at 0.5", "--require", "second malformed entry"}, want: "--require 'second malformed entry'"},
+		{name: "should report resume before malformed requirements", extra: []string{"--cuts", "0.5", "--resume", "--require", "bad"}, want: "calibrate resumes by id"},
+		{name: "should reject syntax before request preview", extra: []string{"--print-request", "--require", "bad"}, want: "--require 'bad' needs an operator"},
+		{name: "should bind valid syntax before request preview", extra: []string{"--print-request", "--require", "missing.catches >= 0.9 at 0.5"}, want: "names an unknown question 'missing'"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			args := []string{"calibrate", "-i", "jsonl", "--ask", "u=is this urgent", "--label", "u=.u"}
+			if !tc.noMap {
+				args = append(args, "--map", ".body")
+			}
+			args = append(args, tc.extra...)
+			out, errOut, code := runMocked(t, t.Context(), args, requireStdin, nil, nil)
+			if code != ExitUsage || !strings.Contains(errOut, tc.want) {
+				t.Errorf("exit %d, stdout %q, stderr %q, want %q", code, out, errOut, tc.want)
+			}
+			if out != "" {
+				t.Errorf("stdout = %q", out)
 			}
 		})
 	}
