@@ -14,6 +14,12 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
+const (
+	setupSkill   = "The onesie-setup skill walks the user through it."
+	keylessModes = "Only --print-request, --print-questions, --print-schema and --mock work until the user "
+	accountFails = "Every request fails until the user "
+)
+
 func newProfilePreflightCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	return &cobra.Command{
 		Use: "preflight", Hidden: true, Args: noArguments,
@@ -113,52 +119,15 @@ type connectionInspection struct {
 }
 
 func renderReadiness(f readinessFacts) string {
-	var lines []string
-	if f.converted {
-		where := "into profiles.json"
-		if f.inMemory {
-			where = "for this run only"
-		}
-		lines = append(lines, "onesie: converted credentials.json "+where+".")
-	}
-	if f.permissions {
-		lines = append(lines, "onesie: warning: could not set mode 600 on profiles.json. The key is not protected by the filesystem. Run onesie profile show for manual inspection.")
-	}
-	if f.warning {
-		lines = append(lines, "onesie: warning: configuration storage needs attention. Run onesie profile show to inspect file permissions and migration warnings.")
-	}
-	if f.retained {
-		message := "Legacy credentials.json still holds the key. Remove it after verifying profiles.json."
-		if f.linkRemoved {
-			message = "Removed the credentials.json link, but its target still holds the key. Remove the target after verifying profiles.json."
-		}
-		lines = append(lines, "onesie: warning: "+message)
-	}
-	switch {
-	case f.problem != "":
-		lines = append(lines, "onesie is on PATH, but configuration is not ready. "+f.problem)
-	case f.missingAccount:
-		lines = append(lines, "onesie is on PATH, but no account resolves for provider "+f.provider+". Set "+f.accountVariable+" or run onesie profile update NAME --account-id ACCOUNT_ID.")
-	case f.keySource == sourceNone && !f.custom:
-		lines = append(lines, "onesie is on PATH, but no API key resolves for provider "+f.provider+". Set "+f.keyVariable+" or run onesie profile create NAME --provider "+f.provider+". The onesie-setup skill walks the user through it.")
-	default:
-		key := "a key resolves"
-		if f.keySource == sourceKeychain {
-			key = "a keychain entry is configured, retrieval is not verified"
-		}
-		if f.keySource == sourceNone {
-			key = "needs no key, since its base URL is custom"
-		}
-		lines = append(lines, "onesie is on PATH and "+key+", profile: "+safeReadinessName(f.profile)+", provider: "+f.provider+".")
-	}
-	if f.missingAccount && f.keySource == sourceNone {
-		lines = append(lines, "No API key resolves. Set "+f.keyVariable+".")
-	}
+	lines := migrationLines(f.migrationFacts)
+	verdict, ready := readinessVerdict(f)
+	lines = append(lines, verdict)
 	if f.endpointEnv && f.endpoint != "" && f.keySource != sourceNone {
-		lines = append(lines, "Its base URL comes from ONESIE_BASE_URL, so the key goes to "+safeReadinessName(f.endpoint)+".")
+		lines = append(lines, "Its base URL comes from "+settingEnv(setting.APIEndpoint.Name())+", so the key goes to "+safeReadinessName(f.endpoint)+".")
 	}
-	if f.providerEnv {
-		lines = append(lines, "ONESIE_PROVIDER is set, so a stored profile is not used. Unset ONESIE_PROVIDER to use a stored profile.")
+	if ready && f.providerEnv {
+		provider := settingEnv(setting.Provider.Name())
+		lines = append(lines, provider+" is set, so a stored profile is not used. Unset "+provider+" to use a stored profile.")
 	}
 	if f.endpoint != "" && f.custom && (!f.endpointEnv || f.keySource == sourceNone) {
 		lines = append(lines, "Its base URL uses "+safeReadinessName(f.endpoint)+".")
@@ -167,6 +136,92 @@ func renderReadiness(f readinessFacts) string {
 		lines = append(lines, "Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.")
 	}
 	return strings.Join(lines, "\n")
+}
+
+func migrationLines(m migrationFacts) []string {
+	var lines []string
+	if m.converted {
+		where := "into profiles.json"
+		if m.inMemory {
+			where = "for this run only"
+		}
+		lines = append(lines, "onesie: converted credentials.json "+where+".")
+	}
+	if m.permissions {
+		lines = append(lines, "onesie: warning: could not set mode 600 on profiles.json. The key is not protected by the filesystem. Run onesie profile show for manual inspection.")
+	}
+	if m.warning {
+		lines = append(lines, "onesie: warning: configuration storage needs attention. Run onesie profile show to inspect file permissions and migration warnings.")
+	}
+	if m.retained {
+		message := "Legacy credentials.json still holds the key. Remove it after verifying profiles.json."
+		if m.linkRemoved {
+			message = "Removed the credentials.json link, but its target still holds the key. Remove the target after verifying profiles.json."
+		}
+		lines = append(lines, "onesie: warning: "+message)
+	}
+	return lines
+}
+
+func readinessVerdict(f readinessFacts) (string, bool) {
+	missingKey := f.keySource == sourceNone && !f.custom
+	if f.problem != "" {
+		return "onesie is on PATH, but configuration is not ready. " + f.problem + " " + setupSkill, false
+	}
+	if !missingKey && !f.missingAccount {
+		key := "a key resolves"
+		if f.keySource == sourceKeychain {
+			key = "a keychain entry is configured, retrieval is not verified"
+		}
+		if f.keySource == sourceNone {
+			key = "needs no key, since its base URL is custom"
+		}
+		return "onesie is on PATH and " + key + ", profile: " + safeReadinessName(f.profile) + ", provider: " + f.provider + ".", true
+	}
+	var gap string
+	switch {
+	case missingKey && f.missingAccount:
+		gap = "onesie is on PATH, but no API key resolves for provider " + f.provider + ", and no account does either. "
+	case missingKey:
+		gap = "onesie is on PATH, but no API key resolves for provider " + f.provider + ". "
+	case f.profile != "":
+		gap = "onesie is on PATH and a key resolves for profile " + safeReadinessName(f.profile) + ", but no account does. "
+	default:
+		gap = "onesie is on PATH and a key resolves for provider " + f.provider + ", but no account does. "
+	}
+	until := accountFails
+	if missingKey {
+		until = keylessModes
+	}
+	return gap + until + setupAction(f, missingKey) + ". " + setupSkill, false
+}
+
+func setupAction(f readinessFacts, missingKey bool) string {
+	if f.profile != "" {
+		update := "runs onesie profile update " + safeReadinessName(f.profile)
+		switch {
+		case missingKey && f.missingAccount:
+			return update + " --key --account-id ACCOUNT_ID"
+		case missingKey:
+			return update + " --key"
+		default:
+			return update + " --account-id ACCOUNT_ID or sets " + f.accountVariable
+		}
+	}
+	create := "stores a profile with onesie profile create NAME --provider " + f.provider
+	var action string
+	switch {
+	case missingKey && f.missingAccount:
+		action = "sets " + f.keyVariable + " and " + f.accountVariable + ", or " + create + " --account-id ACCOUNT_ID"
+	case missingKey:
+		action = "sets " + f.keyVariable + " or " + create
+	default:
+		action = "sets " + f.accountVariable + " or " + create + " --account-id ACCOUNT_ID"
+	}
+	if f.providerEnv {
+		action += ". " + settingEnv(setting.Provider.Name()) + " is set, so no stored profile is used"
+	}
+	return action
 }
 
 type readinessFacts struct {
