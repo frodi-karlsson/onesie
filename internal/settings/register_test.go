@@ -183,7 +183,7 @@ func TestRegister(t *testing.T) {
 				},
 				{command: settingrow.CommandProfileUpdate, empty: []string{"name", "provider"}, blank: []string{"name", "provider"}},
 			} {
-				for value, want := range map[string][]string{"": pin.empty, " ": pin.blank} {
+				for value, want := range map[string][]string{"": pin.empty, " ": pin.blank, "\u2003\u00a0": pin.blank} {
 					var got []string
 
 					for _, name := range register(pin.command).names() {
@@ -196,6 +196,43 @@ func TestRegister(t *testing.T) {
 						t.Errorf("%s refuses %q on %v, want %v", pin.command, value, got, want)
 					}
 				}
+			}
+		}},
+		{name: "should refuse Unicode blank values before recording or appending", run: func(t *testing.T) {
+			for _, tc := range []struct {
+				name      settingrow.Name
+				flag, raw string
+			}{
+				{name: "map", flag: "map", raw: "\u2003\u00a0"},
+				{name: "image_field", flag: "image-field", raw: "\u2003\u00a0"},
+				{name: "model", flag: "model", raw: "\u2003\u00a0"},
+				{name: "sep", flag: "sep", raw: ""},
+			} {
+				name := tc.name
+				registered := register(settingrow.CommandRoot)
+				if err := registered.parseErr("--"+tc.flag, tc.raw); !errors.Is(err, settingrow.ErrEmptyValue) {
+					t.Fatalf("%s error = %v, want ErrEmptyValue", name, err)
+				}
+				if registered.lookup(tc.flag).Changed || registered.given.Count(name) != 0 {
+					t.Errorf("%s recorded a refused value", name)
+				}
+				if len(registered.recorder.Events()) != 0 {
+					t.Errorf("%s recorded events after refusal", name)
+				}
+				if values, ok := registered.targets[name].(*[]string); ok && len(*values) != 0 {
+					t.Errorf("%s appended refused value", name)
+				}
+			}
+		}},
+		{name: "should defer invalid nonempty enum values to settings parsing", run: func(t *testing.T) {
+			registered := register(settingrow.CommandRoot)
+			registered.parse(t, "--output", "unknown")
+			if !registered.lookup("output").Changed || registered.given.Count("output") != 1 {
+				t.Error("nonempty enum value was not recorded")
+			}
+			_, err := settings.Read(settingrow.Table(), settings.Sources{Given: registered.given, Command: settingrow.CommandRoot})
+			if err == nil || errors.Is(err, settingrow.ErrEmptyValue) {
+				t.Errorf("Read error = %v, want enum syntax error", err)
 			}
 		}},
 		{name: "should keep pflag's own message for a bad int", run: func(t *testing.T) {

@@ -13,6 +13,15 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/jsonschema"
 )
 
+const (
+	// AllowEmpty leaves empty values to the semantic parser.
+	AllowEmpty EmptyPolicy = iota
+	// RefuseEmpty refuses only the empty string.
+	RefuseEmpty
+	// RefuseBlank refuses text containing only whitespace.
+	RefuseBlank
+)
+
 var (
 	// ErrEmptyValue is what a kind that needs a value returns for an empty one.
 	ErrEmptyValue = errors.New("empty value")
@@ -32,12 +41,12 @@ func Text() Kind {
 
 // NonEmptyText is a setting that takes text with something other than spaces in it.
 func NonEmptyText() Kind {
-	return textKind{empty: refuseBlank}
+	return textKind{empty: RefuseBlank}
 }
 
 // Separator is a setting that takes any text but the empty one, so a space is a value.
 func Separator() Kind {
-	return textKind{empty: refuseEmpty}
+	return textKind{empty: RefuseEmpty}
 }
 
 // Int is a setting that takes a whole number from min to max.
@@ -104,6 +113,17 @@ type Kind interface {
 	ValueName() string
 }
 
+// EmptyPolicyOf returns the empty value policy used when registering a kind.
+func EmptyPolicyOf(kind Kind) EmptyPolicy {
+	if configured, ok := kind.(interface{ emptyPolicy() EmptyPolicy }); ok {
+		return configured.emptyPolicy()
+	}
+	return AllowEmpty
+}
+
+// EmptyPolicy describes which empty values a kind refuses.
+type EmptyPolicy int
+
 type boolKind struct{}
 
 func (boolKind) Parse(raw string) (any, error) {
@@ -137,34 +157,19 @@ func (boolKind) ValueName() string {
 }
 
 type textKind struct {
-	empty emptyRule
+	empty EmptyPolicy
 }
 
-type emptyRule int
-
-const (
-	allowEmpty emptyRule = iota
-	refuseEmpty
-	refuseBlank
-)
-
 func (k textKind) Parse(raw string) (any, error) {
-	if k.empty.refuses(raw) {
+	if k.empty.Refuses(raw) {
 		return "", ErrEmptyValue
 	}
 
 	return raw, nil
 }
 
-func (r emptyRule) refuses(raw string) bool {
-	switch r {
-	case refuseEmpty:
-		return raw == ""
-	case refuseBlank:
-		return strings.TrimSpace(raw) == ""
-	default:
-		return false
-	}
+func (k textKind) emptyPolicy() EmptyPolicy {
+	return k.empty
 }
 
 func (k textKind) FromFile(raw any) (any, error) {
@@ -181,7 +186,7 @@ func (textKind) Zero() any {
 }
 
 func (k textKind) Schema() jsonschema.Node {
-	if k.empty == refuseBlank {
+	if k.empty == RefuseBlank {
 		return jsonschema.Node{Type: "string", Pattern: `\S`}
 	}
 
@@ -301,7 +306,7 @@ type enumKind struct {
 }
 
 func (k enumKind) Parse(raw string) (any, error) {
-	if strings.TrimSpace(raw) == "" {
+	if k.emptyPolicy().Refuses(raw) {
 		return "", ErrEmptyValue
 	}
 
@@ -324,6 +329,10 @@ func inWords(values []string) string {
 	}
 
 	return strings.Join(values[:len(values)-1], ", ") + " or " + values[len(values)-1]
+}
+
+func (enumKind) emptyPolicy() EmptyPolicy {
+	return RefuseBlank
 }
 
 func (k enumKind) FromFile(raw any) (any, error) {
@@ -378,8 +387,8 @@ func (exprKind) ValueName() string {
 
 type durationKind struct{}
 
-func (durationKind) Parse(raw string) (any, error) {
-	if raw == "" {
+func (k durationKind) Parse(raw string) (any, error) {
+	if k.emptyPolicy().Refuses(raw) {
 		return time.Duration(0), ErrEmptyValue
 	}
 
@@ -389,6 +398,10 @@ func (durationKind) Parse(raw string) (any, error) {
 	}
 
 	return d, nil
+}
+
+func (durationKind) emptyPolicy() EmptyPolicy {
+	return RefuseEmpty
 }
 
 func (k durationKind) FromFile(raw any) (any, error) {
@@ -499,8 +512,8 @@ func (k EndpointKind) Parse(raw string) (any, error) {
 }
 
 // ParseHalf reads raw as the half of the endpoint its source gives.
-func (EndpointKind) ParseHalf(raw string, half EndpointHalf) (any, error) {
-	if strings.TrimSpace(raw) == "" {
+func (k EndpointKind) ParseHalf(raw string, half EndpointHalf) (any, error) {
+	if k.emptyPolicy().Refuses(raw) {
 		return EndpointValue{}, ErrEmptyValue
 	}
 
@@ -516,6 +529,10 @@ func (EndpointKind) ParseHalf(raw string, half EndpointHalf) (any, error) {
 	default:
 		return EndpointValue{}, errors.New("is given by a source that names no half of the endpoint")
 	}
+}
+
+func (EndpointKind) emptyPolicy() EmptyPolicy {
+	return RefuseBlank
 }
 
 // FromFile reads a question file's value as an API root.
@@ -548,4 +565,16 @@ func (EndpointKind) ValueName() string {
 type EndpointValue struct {
 	BaseURL   string
 	AccountID string
+}
+
+// Refuses reports whether raw violates the empty value policy.
+func (r EmptyPolicy) Refuses(raw string) bool {
+	switch r {
+	case RefuseEmpty:
+		return raw == ""
+	case RefuseBlank:
+		return strings.TrimSpace(raw) == ""
+	default:
+		return false
+	}
 }

@@ -1,7 +1,6 @@
 package settings
 
 import (
-	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -11,12 +10,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
-)
-
-const (
-	allowEmpty emptyRule = iota
-	refuseEmpty
-	refuseBlank
 )
 
 // AnnotationAsksNothing marks a flag that asks no question, so a subcommand that lacks it does not
@@ -73,7 +66,7 @@ func Register(
 func addFlag(
 	set *pflag.FlagSet, row settingrow.Row, bound settingrow.BoundFlag, recorder *argv.Recorder, target any, command settingrow.Command,
 ) *pflag.Flag {
-	rule := emptyRuleOf(bound.Kind)
+	rule := settingrow.EmptyPolicyOf(bound.Kind)
 
 	if row.Flag.Group {
 		if recorder == nil {
@@ -98,7 +91,7 @@ func addFlag(
 	case *int:
 		set.IntVarP(into, bound.Long, bound.Short, defaultOf(bound, 0), bound.Help)
 	case *[]string:
-		if rule == allowEmpty {
+		if rule == settingrow.AllowEmpty {
 			set.StringArrayVarP(into, bound.Long, bound.Short, nil, bound.Help)
 		} else {
 			set.VarP(nonEmptyList{values: into, rule: rule}, bound.Long, bound.Short, bound.Help)
@@ -115,25 +108,8 @@ func addFlag(
 	return flag
 }
 
-func emptyRuleOf(kind settingrow.Kind) emptyRule {
-	switch {
-	case !refusesAsEmpty(kind, ""):
-		return allowEmpty
-	case refusesAsEmpty(kind, " "):
-		return refuseBlank
-	default:
-		return refuseEmpty
-	}
-}
-
-func refusesAsEmpty(kind settingrow.Kind, raw string) bool {
-	_, err := kind.Parse(raw)
-
-	return errors.Is(err, settingrow.ErrEmptyValue)
-}
-
-func refusingEmpty(value pflag.Value, rule emptyRule) pflag.Value {
-	if rule == allowEmpty {
+func refusingEmpty(value pflag.Value, rule settingrow.EmptyPolicy) pflag.Value {
+	if rule == settingrow.AllowEmpty {
 		return value
 	}
 
@@ -152,7 +128,7 @@ func defaultOf[T any](bound settingrow.BoundFlag, zero T) T {
 // flag no row registers.
 func RefuseEmpty(set *pflag.FlagSet, name string) {
 	flag := set.Lookup(name)
-	flag.Value = nonEmpty{Value: flag.Value, rule: refuseBlank}
+	flag.Value = nonEmpty{Value: flag.Value, rule: settingrow.RefuseBlank}
 }
 
 // Given counts how often each row's flag was set in one parse, keeps each value it was set to, and
@@ -323,11 +299,11 @@ func (c counted) Set(value string) error {
 
 type nonEmpty struct {
 	pflag.Value
-	rule emptyRule
+	rule settingrow.EmptyPolicy
 }
 
 func (v nonEmpty) Set(value string) error {
-	if v.rule.refuses(value) {
+	if v.rule.Refuses(value) {
 		return settingrow.ErrEmptyValue
 	}
 
@@ -336,11 +312,11 @@ func (v nonEmpty) Set(value string) error {
 
 type nonEmptyList struct {
 	values *[]string
-	rule   emptyRule
+	rule   settingrow.EmptyPolicy
 }
 
 func (l nonEmptyList) Set(value string) error {
-	if l.rule.refuses(value) {
+	if l.rule.Refuses(value) {
 		return settingrow.ErrEmptyValue
 	}
 
@@ -360,16 +336,3 @@ func (l nonEmptyList) String() string {
 func (nonEmptyList) Type() string {
 	return "stringArray"
 }
-
-func (r emptyRule) refuses(raw string) bool {
-	switch r {
-	case refuseEmpty:
-		return raw == ""
-	case refuseBlank:
-		return strings.TrimSpace(raw) == ""
-	default:
-		return false
-	}
-}
-
-type emptyRule int
