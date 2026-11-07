@@ -31,6 +31,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const noKeyCacheSentence = "The cache needs the key too, to find the API address it keys answers by"
@@ -710,7 +711,7 @@ func TestAsk(t *testing.T) {
 	}{
 		{name: "should hit jev-latest 23 hours later", after: 23 * time.Hour, hit: true},
 		{name: "should ask jev-latest again 24 hours later", after: 24 * time.Hour},
-		{name: "should ask jev-latest again 90 minutes later under ONESIE_CACHE_TTL=90m", after: 90 * time.Minute, env: map[string]string{envCacheTTL: "90m"}},
+		{name: "should ask jev-latest again 90 minutes later under ONESIE_CACHE_TTL=90m", after: 90 * time.Minute, env: map[string]string{settingEnv(setting.CacheTTL.Name()): "90m"}},
 		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, providersOwnURL: true, hit: true},
 		{name: "should not pin an answer from a custom base URL", extra: []string{"-m", "jev-1.13.0"}, after: 24 * time.Hour},
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
@@ -794,10 +795,10 @@ func TestAsk(t *testing.T) {
 		args []string
 		env  map[string]string
 	}{
-		{name: "should answer from --mock under ONESIE_CACHE=1 and leave the cache dir absent", args: []string{"--mock", "MOCK"}, env: map[string]string{envCache: "1"}},
-		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{envCache: "1", "ONESIE_MOCK": "MOCK"}},
+		{name: "should answer from --mock under ONESIE_CACHE=1 and leave the cache dir absent", args: []string{"--mock", "MOCK"}, env: map[string]string{settingEnv(setting.Cache.Name()): "1"}},
+		{name: "should answer from ONESIE_MOCK under ONESIE_CACHE=1 and leave the cache dir absent", env: map[string]string{settingEnv(setting.Cache.Name()): "1", "ONESIE_MOCK": "MOCK"}},
 		{name: "should answer from ONESIE_MOCK under a typed --cache and leave the cache dir absent", args: []string{"--cache"}, env: map[string]string{"ONESIE_MOCK": "MOCK"}},
-		{name: "should leave the cache dir absent under --print-request with ONESIE_CACHE=1", args: []string{"--print-request"}, env: map[string]string{envCache: "1"}},
+		{name: "should leave the cache dir absent under --print-request with ONESIE_CACHE=1", args: []string{"--print-request"}, env: map[string]string{settingEnv(setting.Cache.Name()): "1"}},
 	}
 
 	refused := []struct {
@@ -893,7 +894,7 @@ func TestAsk(t *testing.T) {
 		stub := newAnswerStub(t)
 		env := cacheEnv(t)
 		delete(env, "ONESIE_CACHE_DIR")
-		env[envCache] = "1"
+		env[settingEnv(setting.Cache.Name())] = "1"
 
 		home := filepath.Join(t.TempDir(), "home")
 		mustMkdirMode(t, home, 0o500)
@@ -924,7 +925,7 @@ func TestAsk(t *testing.T) {
 		stub := newAnswerStub(t)
 		env := cacheEnv(t)
 		delete(env, "ONESIE_CACHE_DIR")
-		env[envCache] = "1"
+		env[settingEnv(setting.Cache.Name())] = "1"
 
 		home := filepath.Join(t.TempDir(), "home")
 		mustMkdirMode(t, home, 0o500)

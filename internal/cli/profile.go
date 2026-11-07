@@ -804,7 +804,7 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 	}
 
 	layers, err := setting.Read(settingrow.Table(), setting.Sources{
-		LookupEnv: connectionEnv(settings.lookupEnv),
+		LookupEnv: profileTestModelEndpointKeyEnv(settings.lookupEnv),
 		Profile:   run.values(),
 		Choice:    &chosen,
 		Command:   settingrow.CommandRoot,
@@ -820,7 +820,7 @@ func testedConnection(settings rootSettings, shown resolution) (resolution, erro
 	return tested, nil
 }
 
-func connectionEnv(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
+func profileTestModelEndpointKeyEnv(lookupEnv func(string) (string, bool)) func(string) (string, bool) {
 	return func(name string) (string, bool) {
 		for _, key := range []settingrow.Name{setting.Model.Name(), setting.APIEndpoint.Name(), setting.APIKey.Name()} {
 			row, _ := settingrow.Lookup(key)
