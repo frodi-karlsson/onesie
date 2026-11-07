@@ -8,27 +8,28 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/creds"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestTable(t *testing.T) {
 	t.Parallel()
 
-	commands := []settings.Command{
-		settings.CommandRoot, settings.CommandCalibrate, settings.CommandProfileCreate, settings.CommandProfileUpdate,
+	commands := []settingrow.Command{
+		settingrow.CommandRoot, settingrow.CommandCalibrate, settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate,
 	}
 
 	tests := []struct {
 		name  string
-		check func(rows []settings.Row) []string
+		check func(rows []settingrow.Row) []string
 	}{
 		{
 			name: "should give each command unique long names and shorthands",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, command := range commands {
-					longs, shorts := map[string]settings.Name{}, map[string]settings.Name{}
+					longs, shorts := map[string]settingrow.Name{}, map[string]settingrow.Name{}
 
 					for _, row := range rows {
 						flag, ok := row.FlagOn(command)
@@ -55,7 +56,7 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should give every row help on every command that registers it",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, command := range commands {
@@ -71,14 +72,14 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should name the shapes of every question row",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, row := range rows {
 					switch {
-					case row.Scope == settings.ScopeQuestion && len(row.Shapes) == 0:
+					case row.Scope == settingrow.ScopeQuestion && len(row.Shapes) == 0:
 						problems = append(problems, fmt.Sprintf("%s is per question and names no shape", row.Name))
-					case row.Scope == settings.ScopeRun && len(row.Shapes) > 0:
+					case row.Scope == settingrow.ScopeRun && len(row.Shapes) > 0:
 						problems = append(problems, fmt.Sprintf("%s is per run and names shapes", row.Name))
 					}
 				}
@@ -88,10 +89,10 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should give every key a row whose kind yields its type",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
-				seen := map[settings.Name]bool{}
+				seen := map[settingrow.Name]bool{}
 
 				for _, key := range settings.Keys() {
 					if seen[key.Name()] {
@@ -100,7 +101,7 @@ func TestTable(t *testing.T) {
 
 					seen[key.Name()] = true
 
-					row, found := settings.Lookup(key.Name())
+					row, found := settingrow.Lookup(key.Name())
 
 					switch {
 					case !found:
@@ -116,10 +117,10 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should keep env names unique per provider, and give an order to one row and one help",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
-				names, orders := map[string]settings.Name{}, map[int]settings.Row{}
+				names, orders := map[string]settingrow.Name{}, map[int]settingrow.Row{}
 
 				for _, row := range rows {
 					for _, env := range row.Env {
@@ -149,7 +150,7 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should give every row with a file key its file help",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, row := range rows {
@@ -163,7 +164,7 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should name only members FileMembers holds",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				var members []string
@@ -184,7 +185,7 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should map each profile writer flag that writes a member to one FileMembers holds",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				var members []string
@@ -194,7 +195,7 @@ func TestTable(t *testing.T) {
 
 				wants := map[string]string{"provider": "provider", "model": "model", "base-url": "base_url", "account-id": "account_id"}
 
-				for _, command := range []settings.Command{settings.CommandProfileCreate, settings.CommandProfileUpdate} {
+				for _, command := range []settingrow.Command{settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate} {
 					for _, row := range rows {
 						flag, ok := row.FlagOn(command)
 						if !ok {
@@ -212,7 +213,7 @@ func TestTable(t *testing.T) {
 					}
 				}
 
-				for _, command := range []settings.Command{settings.CommandRoot, settings.CommandCalibrate} {
+				for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
 					for _, row := range rows {
 						if flag, ok := row.FlagOn(command); ok && flag.Member.Key != "" {
 							problems = append(problems, fmt.Sprintf("%s: --%s writes a profile member", command, flag.Long))
@@ -225,16 +226,16 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should give every provider's key variable to the api_key row",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
-				row, found := settings.Lookup("api_key")
+				row, found := settingrow.Lookup("api_key")
 				if !found || len(row.Env) == 0 {
 					return []string{"no api_key row with variables"}
 				}
 
 				for _, provider := range onesie.Providers() {
-					if !slices.Contains(row.Env, settings.EnvSpec{
+					if !slices.Contains(row.Env, settingrow.EnvSpec{
 						Name: provider.EnvAPIKey(), Provider: provider.Name(), Order: row.Env[0].Order, Help: row.Env[0].Help,
 					}) {
 						problems = append(problems, provider.EnvAPIKey()+" is not a variable of the api_key row")
@@ -246,11 +247,11 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should mark only run rows with a file key as request body keys",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, row := range rows {
-					if row.InBody && (row.FileKey == "" || row.Scope != settings.ScopeRun) {
+					if row.InBody && (row.FileKey == "" || row.Scope != settingrow.ScopeRun) {
 						problems = append(problems, fmt.Sprintf("%s is a body key with no file key or on a question", row.Name))
 					}
 				}
@@ -260,7 +261,7 @@ func TestTable(t *testing.T) {
 		},
 		{
 			name: "should give every default the type of its kind",
-			check: func(rows []settings.Row) []string {
+			check: func(rows []settingrow.Row) []string {
 				var problems []string
 
 				for _, command := range commands {
@@ -282,14 +283,14 @@ func TestTable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			for _, problem := range tc.check(settings.Table()) {
+			for _, problem := range tc.check(settingrow.Table()) {
 				t.Error(problem)
 			}
 		})
 	}
 }
 
-func sharesHelp(row settings.Row, env settings.EnvSpec) bool {
+func sharesHelp(row settingrow.Row, env settingrow.EnvSpec) bool {
 	for _, other := range row.Env {
 		if other.Order == env.Order && other.Help != env.Help {
 			return false
@@ -304,7 +305,7 @@ func TestLookup(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		row       settings.Name
+		row       settingrow.Name
 		wantFound bool
 	}{
 		{name: "should find a row by its name", row: "allow_http", wantFound: true},
@@ -315,7 +316,7 @@ func TestLookup(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			row, found := settings.Lookup(tc.row)
+			row, found := settingrow.Lookup(tc.row)
 			if found != tc.wantFound || (found && row.Name != tc.row) {
 				t.Errorf("Lookup(%s) = %s, %v, want found %v", tc.row, row.Name, found, tc.wantFound)
 			}

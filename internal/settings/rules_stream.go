@@ -4,6 +4,8 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
@@ -12,7 +14,7 @@ const lineField = "line"
 func singleRecordRule() Rule {
 	return Rule{
 		ID: "streaming-flags-need-a-stream",
-		Reads: []Name{
+		Reads: []settingrow.Name{
 			Input.Name(), Unordered.Name(), StopOnError.Name(), StopOnAssert.Name(), SkipBlank.Name(), NoDedup.Name(),
 			ID.Name(), imageFieldName, imageName, State.Name(), StateFile.Name(), Jobs.Name(),
 		},
@@ -58,7 +60,7 @@ func singleRecordRefusal(v View) error {
 func streamStateRule() Rule {
 	return Rule{
 		ID:    "stream-reads-its-own-state",
-		Reads: []Name{Input.Name(), State.Name(), StateFile.Name(), imageFieldName},
+		Reads: []settingrow.Name{Input.Name(), State.Name(), StateFile.Name(), imageFieldName},
 		Check: func(v View) error {
 			mode := inputModeOf(v)
 			if !mode.Streaming() {
@@ -84,11 +86,11 @@ func streamStateRule() Rule {
 func tableOnStreamRule() Rule {
 	return Rule{
 		ID:    "table-reads-one-record",
-		Reads: []Name{Output.Name(), Input.Name()},
+		Reads: []settingrow.Name{Output.Name(), Input.Name()},
 		Check: func(v View) error {
 			// A stream writes one line per input line. A table is several lines with a repeated header,
 			// and unlike raw it has no streaming form. Calibrate's -o is its report, which is one table.
-			if inputModeOf(v).Streaming() && Get(v.Merged, Output) == "table" && v.Facts.Command != CommandCalibrate {
+			if inputModeOf(v).Streaming() && Get(v.Merged, Output) == "table" && v.Facts.Command != settingrow.CommandCalibrate {
 				return fmt.Errorf("-o table reads one record. Drop -i %s or use -o json", inputName(v))
 			}
 
@@ -100,7 +102,7 @@ func tableOnStreamRule() Rule {
 func lineFieldRule() Rule {
 	return Rule{
 		ID:    "line-field-reserved",
-		Reads: []Name{Input.Name()},
+		Reads: []settingrow.Name{Input.Name()},
 		Check: func(v View) error {
 			if v.Plan == nil || inputModeOf(v) != input.Lines {
 				return nil

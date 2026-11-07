@@ -2,7 +2,6 @@ package plan_test
 
 import (
 	"encoding/json"
-	"errors"
 	"math"
 	"strconv"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/internal/settings"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func TestValidate(t *testing.T) {
@@ -601,15 +600,12 @@ func TestValidate(t *testing.T) {
 				File:       tc.file,
 				Positional: tc.positional,
 				ReadFile:   readFile,
-				Numbers:    settings.PolicyNumbers(),
 			})
 			if err != nil {
 				t.Fatalf("assembling: %v", err)
 			}
 
-			settings.MergeQuestions(built, tc.events)
-
-			warnings, err := plan.Validate(built, settings.PolicyNumbers())
+			warnings, err := plan.Validate(built)
 			assertWarning(t, warnings, tc.wantWarning, tc.wantErr != "" || tc.wantExact != "")
 
 			if tc.wantExact != "" {
@@ -652,16 +648,6 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("should refuse a zero Numbers, which the caller has to fill", func(t *testing.T) {
-		t.Parallel()
-
-		built := &plan.Plan{Questions: []plan.Question{{ID: "answer", Instructions: "q", Origin: plan.OriginPositional}}}
-
-		if _, err := plan.Validate(built, plan.Numbers{}); !errors.Is(err, plan.ErrNoNumbers) {
-			t.Errorf("Validate error = %v, want ErrNoNumbers", err)
-		}
-	})
 }
 
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {
@@ -732,4 +718,21 @@ func bodyLevels(n int) []plan.Question {
 		ID: "bq", Shape: plan.Rate, Instructions: "q", Origin: plan.OriginBody,
 		Levels: levels,
 	}}
+}
+
+func TestSpelling(t *testing.T) {
+	t.Run("should use the file key of every row", func(t *testing.T) {
+		for _, row := range settingrow.Table() {
+			if row.FileKey == "" || row.Flag.Long == "" || row.InBody {
+				continue
+			}
+			flag := "--" + row.Flag.Long
+			if got := plan.Spelling(plan.OriginFile, flag); got != "'"+row.FileKey+"'" {
+				t.Errorf("Spelling %s = %s, want file key %s", flag, got, row.FileKey)
+			}
+			if got := plan.Spelling(plan.OriginFlag, flag); got != flag {
+				t.Errorf("Spelling flag = %s, want %s", got, flag)
+			}
+		}
+	})
 }

@@ -4,13 +4,14 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 const (
-	assertName     Name = "assert"
-	abstainIfName  Name = "abstain_if"
-	imageName      Name = "image"
-	imageFieldName Name = "image_field"
+	assertName     settingrow.Name = "assert"
+	abstainIfName  settingrow.Name = "abstain_if"
+	imageName      settingrow.Name = "image"
+	imageFieldName settingrow.Name = "image_field"
 )
 
 // Rules returns every cross setting rule, in the order Validate runs them.
@@ -60,7 +61,7 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 // without refusing, and Inspect warns and refuses in one pass.
 type Rule struct {
 	ID      string
-	Reads   []Name
+	Reads   []settingrow.Name
 	Check   func(View) error
 	Notice  func(View) []Notice
 	Inspect func(View) ([]string, error)
@@ -85,7 +86,7 @@ type View struct {
 // the order typed, the positional question, whether stdout is a terminal, and the command line as
 // typed, Args, with the flags Given counts.
 type Facts struct {
-	Command    Command
+	Command    settingrow.Command
 	FileName   string
 	BodyState  bool
 	Events     []argv.Event
@@ -95,11 +96,11 @@ type Facts struct {
 	Args       []string
 }
 
-func typed(v View, name Name) bool {
+func typed(v View, name settingrow.Name) bool {
 	return v.Merged.Source(name) == SourceFlag
 }
 
-func listOf(v View, name Name) []string {
+func listOf(v View, name settingrow.Name) []string {
 	if v.Merged == nil {
 		return nil
 	}

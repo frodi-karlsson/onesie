@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -81,8 +83,8 @@ func TestBuild(t *testing.T) {
 
 			parsed := &runFlags{}
 			cmd := &cobra.Command{Use: "onesie"}
-			parsed.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), setting.Table(), argv.New(),
-				setting.CommandRoot, runTargets(parsed))
+			parsed.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+				settingrow.CommandRoot, runTargets(parsed))
 			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 			args := append([]string{"-f", "gated.yaml"}, tc.args...)
@@ -100,9 +102,9 @@ func TestBuild(t *testing.T) {
 			settings.holder = newHolder(settings, parsed, func() io.Writer { return io.Discard })
 			flags := runConfig{runFlags: *parsed, events: tc.events}
 
-			command := setting.CommandRoot
+			command := settingrow.CommandRoot
 			if tc.ignoreJudged {
-				command = setting.CommandCalibrate
+				command = settingrow.CommandCalibrate
 			}
 
 			inv, _, err := build(settings, flags, parsed.given, command, tc.ignoreJudged)

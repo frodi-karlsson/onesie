@@ -16,6 +16,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"golang.org/x/term"
@@ -93,8 +95,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 		},
 	}
 
-	flags.given = setting.Register(root.Flags(), root.PersistentFlags(), setting.Table(), recorder,
-		setting.CommandRoot, runTargets(flags))
+	flags.given = setting.Register(root.Flags(), root.PersistentFlags(), settingrow.Table(), recorder,
+		settingrow.CommandRoot, runTargets(flags))
 
 	root.AddCommand(newVersionCmd(info))
 	root.AddCommand(newProfileCmd(settings, flags))
@@ -124,8 +126,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	return &Root{Command: root, laterFailures: settings.laterFailures}
 }
 
-func runTargets(flags *runFlags) map[setting.Name]any {
-	return map[setting.Name]any{
+func runTargets(flags *runFlags) map[settingrow.Name]any {
+	return map[settingrow.Name]any{
 		setting.Version.Name(): &flags.version, setting.PrintQuestions.Name(): &flags.printQuestions,
 		setting.PrintSchema.Name(): &flags.printSchema, setting.ListModels.Name(): &flags.listModels,
 		setting.PrintRequest.Name(): &flags.printRequest,
@@ -387,7 +389,7 @@ func plainFlagError(cmd *cobra.Command, err error) error {
 	case errors.As(err, &invalid) && errors.Is(err, argv.ErrSwitchValue):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s takes no value, got '%s'",
 			invalid.GetFlag().Name, invalid.GetValue())}
-	case errors.As(err, &invalid) && errors.Is(err, setting.ErrEmptyValue):
+	case errors.As(err, &invalid) && errors.Is(err, settingrow.ErrEmptyValue):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s is empty. Name one, or leave the flag out",
 			invalid.GetFlag().Name)}
 	case errors.As(err, &invalid):

@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -20,11 +22,11 @@ func TestRead(t *testing.T) {
 		}.sources(t)
 		chosen := settings.Choice{Profile: "work", ProfileBy: settings.SourceFlag}
 		src.Choice = &chosen
-		layers, err := settings.Read(settings.Table(), src)
+		layers, err := settings.Read(settingrow.Table(), src)
 		if err != nil {
 			t.Fatal(err)
 		}
-		merged, _ := settings.Merge(settings.Table(), layers, chosen)
+		merged, _ := settings.Merge(settingrow.Table(), layers, chosen)
 		profile, provider, model := settings.Get(merged, settings.Profile), settings.Get(merged, settings.Provider), settings.Get(merged, settings.Model)
 		if profile != "work" || provider != "openrouter" || model != "chosen-model" {
 			t.Fatalf("profile %s provider %s model %s, want work openrouter chosen-model", profile, provider, model)
@@ -62,7 +64,7 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name:    "should take a command's own default",
-			reading: reading{command: settings.CommandCalibrate},
+			reading: reading{command: settingrow.CommandCalibrate},
 			check: func(t *testing.T, layers []settings.Layer) {
 				t.Helper()
 
@@ -71,7 +73,7 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name:    "should keep a flag its command gives a kind of its own as typed, for the rules to word",
-			reading: reading{command: settings.CommandCalibrate, args: []string{"-o", "csv", "-i", "text"}},
+			reading: reading{command: settingrow.CommandCalibrate, args: []string{"-o", "csv", "-i", "text"}},
 			check: func(t *testing.T, layers []settings.Layer) {
 				t.Helper()
 
@@ -107,7 +109,7 @@ func TestRead(t *testing.T) {
 				t.Helper()
 
 				wantValue(t, layerAt(t, layers, settings.SourceEnv), "endpoint",
-					settings.EndpointValue{BaseURL: "https://a.test"}, "ONESIE_BASE_URL")
+					settingrow.EndpointValue{BaseURL: "https://a.test"}, "ONESIE_BASE_URL")
 			},
 		},
 		{
@@ -139,7 +141,7 @@ func TestRead(t *testing.T) {
 				t.Helper()
 
 				env := layerAt(t, layers, settings.SourceEnv)
-				wantValue(t, env, "endpoint", settings.EndpointValue{AccountID: strings.Repeat("a", 32)},
+				wantValue(t, env, "endpoint", settingrow.EndpointValue{AccountID: strings.Repeat("a", 32)},
 					"CLOUDFLARE_ACCOUNT_ID")
 				wantNoValue(t, env, "api_key")
 			},
@@ -243,7 +245,7 @@ func TestRead(t *testing.T) {
 		},
 		{
 			name: "should drop calibrate file gates by mode",
-			reading: reading{command: settings.CommandCalibrate, file: &settings.FileValues{
+			reading: reading{command: settingrow.CommandCalibrate, file: &settings.FileValues{
 				TopLevel: map[string]any{"assert": "urgent", "abstain_if": "unsure"},
 			}},
 			check: func(t *testing.T, layers []settings.Layer) {
@@ -321,7 +323,7 @@ func TestRead(t *testing.T) {
 				fallback := layerAt(t, layers, settings.SourceDefaultProfile)
 				wantValue(t, fallback, "profile", "work", "")
 				wantValue(t, fallback, "model", "m", "model")
-				wantValue(t, fallback, "endpoint", settings.EndpointValue{BaseURL: "https://w.test"}, "base_url")
+				wantValue(t, fallback, "endpoint", settingrow.EndpointValue{BaseURL: "https://w.test"}, "base_url")
 
 				if _, found := layerOf(layers, settings.SourceChosenProfile); found {
 					t.Error("found a chosen profile layer with nothing chosen")
@@ -338,7 +340,7 @@ func TestRead(t *testing.T) {
 				t.Helper()
 
 				wantValue(t, layerAt(t, layers, settings.SourceChosenProfile), "endpoint",
-					settings.EndpointValue{AccountID: strings.Repeat("b", 32)}, "account_id")
+					settingrow.EndpointValue{AccountID: strings.Repeat("b", 32)}, "account_id")
 			},
 		},
 		{
@@ -375,7 +377,7 @@ func TestRead(t *testing.T) {
 				t.Helper()
 
 				fallback := layerAt(t, layers, settings.SourceDefaultProfile)
-				if want := (map[settings.Name]any{"profile": "work"}); !reflect.DeepEqual(fallback.Values, want) {
+				if want := (map[settingrow.Name]any{"profile": "work"}); !reflect.DeepEqual(fallback.Values, want) {
 					t.Errorf("default profile layer = %#v, want %#v", fallback.Values, want)
 				}
 			},
@@ -499,7 +501,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "should read --profile on calibrate from root's persistent flags",
 			reading: reading{
-				command: settings.CommandCalibrate, args: []string{"--profile", "work"},
+				command: settingrow.CommandCalibrate, args: []string{"--profile", "work"},
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			check: func(t *testing.T, layers []settings.Layer) {
@@ -512,7 +514,7 @@ func TestRead(t *testing.T) {
 		{
 			name: "should keep a profile command off the run choice",
 			reading: reading{
-				command: settings.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
+				command: settingrow.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
 				env: map[string]string{"ONESIE_PROFILE": "work", "ONESIE_PROVIDER": "levanto"},
 			},
 			check: func(t *testing.T, layers []settings.Layer) {
@@ -530,7 +532,7 @@ func TestRead(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			layers, err := settings.Read(settings.Table(), tc.reading.sources(t))
+			layers, err := settings.Read(settingrow.Table(), tc.reading.sources(t))
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("Read error = %v, want %q", err, tc.wantErr)
@@ -579,21 +581,21 @@ func TestChoose(t *testing.T) {
 		{
 			name: "should choose the profile --profile names on calibrate",
 			reading: reading{
-				command: settings.CommandCalibrate, args: []string{"--profile", "work"}, defaultProfile: "home",
+				command: settingrow.CommandCalibrate, args: []string{"--profile", "work"}, defaultProfile: "home",
 			},
 			want: settings.Choice{Profile: "work", ProfileBy: settings.SourceFlag, DefaultProfile: "home"},
 		},
 		{
 			name: "should choose the provider --provider names on calibrate",
 			reading: reading{
-				command: settings.CommandCalibrate, args: []string{"--provider", "openrouter"},
+				command: settingrow.CommandCalibrate, args: []string{"--provider", "openrouter"},
 			},
 			want: settings.Choice{Provider: "openrouter", ProviderBy: settings.SourceFlag},
 		},
 		{
 			name: "should keep profile update's --provider off the run choice beside ONESIE_PROFILE",
 			reading: reading{
-				command: settings.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
+				command: settingrow.CommandProfileUpdate, args: []string{"--provider", "openrouter"},
 				env: map[string]string{"ONESIE_PROFILE": "work"}, defaultProfile: "home",
 			},
 			want: settings.Choice{DefaultProfile: "home"},
@@ -651,7 +653,7 @@ func TestChoose(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := settings.Choose(settings.Table(), tc.reading.sources(t))
+			got, err := settings.Choose(settingrow.Table(), tc.reading.sources(t))
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
 					t.Fatalf("Choose error = %v, want %q", err, tc.wantErr)
@@ -672,7 +674,7 @@ func TestChoose(t *testing.T) {
 }
 
 type reading struct {
-	command        settings.Command
+	command        settingrow.Command
 	args           []string
 	env            map[string]string
 	file           *settings.FileValues
@@ -686,12 +688,12 @@ func (r reading) sources(t *testing.T) settings.Sources {
 
 	command := r.command
 	if command == 0 {
-		command = settings.CommandRoot
+		command = settingrow.CommandRoot
 	}
 
 	registered := register(command)
-	if command == settings.CommandCalibrate {
-		root := register(settings.CommandRoot)
+	if command == settingrow.CommandCalibrate {
+		root := register(settingrow.CommandRoot)
 		registered.persistent = root.persistent
 		registered.given.Inherit(root.persistent)
 	}
@@ -738,7 +740,7 @@ func layerAt(t *testing.T, layers []settings.Layer, source settings.Source) sett
 	return layer
 }
 
-func wantValue(t *testing.T, layer settings.Layer, name settings.Name, want any, spelled string) {
+func wantValue(t *testing.T, layer settings.Layer, name settingrow.Name, want any, spelled string) {
 	t.Helper()
 
 	got, found := layer.Values[name]
@@ -757,7 +759,7 @@ func wantValue(t *testing.T, layer settings.Layer, name settings.Name, want any,
 	}
 }
 
-func wantNoValue(t *testing.T, layer settings.Layer, name settings.Name) {
+func wantNoValue(t *testing.T, layer settings.Layer, name settingrow.Name) {
 	t.Helper()
 
 	if got, found := layer.Values[name]; found {

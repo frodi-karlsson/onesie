@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"sync"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
@@ -16,8 +18,8 @@ func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) 
 	})
 
 	chosen := sync.OnceValues(func() (setting.Choice, error) {
-		return setting.Choose(setting.Table(), setting.Sources{
-			Given: flags.given, LookupEnv: settings.lookupEnv, Command: setting.CommandRoot,
+		return setting.Choose(settingrow.Table(), setting.Sources{
+			Given: flags.given, LookupEnv: settings.lookupEnv, Command: settingrow.CommandRoot,
 		})
 	})
 

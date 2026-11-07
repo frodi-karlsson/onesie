@@ -6,9 +6,17 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
+)
+
+const (
+	allowEmpty emptyRule = iota
+	refuseEmpty
+	refuseBlank
 )
 
 // AnnotationAsksNothing marks a flag that asks no question, so a subcommand that lacks it does not
@@ -18,10 +26,10 @@ const AnnotationAsksNothing = "onesie-asks-nothing"
 // Register adds command's rows to set, or to persistent where marked. A group row records through
 // recorder, and every other row fills its *string, *bool, *int or *[]string entry in targets.
 func Register(
-	set, persistent *pflag.FlagSet, rows []Row, recorder *argv.Recorder, command Command, targets map[Name]any,
+	set, persistent *pflag.FlagSet, rows []settingrow.Row, recorder *argv.Recorder, command settingrow.Command, targets map[settingrow.Name]any,
 ) *Given {
 	given := &Given{
-		counts: map[Name]int{}, values: map[Name][]string{}, spellings: map[Name]BoundFlag{}, sets: []*pflag.FlagSet{set},
+		counts: map[settingrow.Name]int{}, values: map[settingrow.Name][]string{}, spellings: map[settingrow.Name]settingrow.BoundFlag{}, sets: []*pflag.FlagSet{set},
 	}
 	if persistent != nil {
 		given.sets = append(given.sets, persistent)
@@ -63,7 +71,7 @@ func Register(
 }
 
 func addFlag(
-	set *pflag.FlagSet, row Row, bound BoundFlag, recorder *argv.Recorder, target any, command Command,
+	set *pflag.FlagSet, row settingrow.Row, bound settingrow.BoundFlag, recorder *argv.Recorder, target any, command settingrow.Command,
 ) *pflag.Flag {
 	rule := emptyRuleOf(bound.Kind)
 
@@ -107,7 +115,7 @@ func addFlag(
 	return flag
 }
 
-func emptyRuleOf(kind Kind) emptyRule {
+func emptyRuleOf(kind settingrow.Kind) emptyRule {
 	switch {
 	case !refusesAsEmpty(kind, ""):
 		return allowEmpty
@@ -118,10 +126,10 @@ func emptyRuleOf(kind Kind) emptyRule {
 	}
 }
 
-func refusesAsEmpty(kind Kind, raw string) bool {
+func refusesAsEmpty(kind settingrow.Kind, raw string) bool {
 	_, err := kind.Parse(raw)
 
-	return errors.Is(err, ErrEmptyValue)
+	return errors.Is(err, settingrow.ErrEmptyValue)
 }
 
 func refusingEmpty(value pflag.Value, rule emptyRule) pflag.Value {
@@ -132,7 +140,7 @@ func refusingEmpty(value pflag.Value, rule emptyRule) pflag.Value {
 	return nonEmpty{Value: value, rule: rule}
 }
 
-func defaultOf[T any](bound BoundFlag, zero T) T {
+func defaultOf[T any](bound settingrow.BoundFlag, zero T) T {
 	if value, ok := bound.Default.(T); ok {
 		return value
 	}
@@ -150,9 +158,9 @@ func RefuseEmpty(set *pflag.FlagSet, name string) {
 // Given counts how often each row's flag was set in one parse, keeps each value it was set to, and
 // spells where it was typed.
 type Given struct {
-	counts    map[Name]int
-	values    map[Name][]string
-	spellings map[Name]BoundFlag
+	counts    map[settingrow.Name]int
+	values    map[settingrow.Name][]string
+	spellings map[settingrow.Name]settingrow.BoundFlag
 	sets      []*pflag.FlagSet
 	parent    *Given
 }
@@ -177,7 +185,7 @@ func (g *Given) Within(parent *Given) {
 }
 
 // Count is how many times the flag of name was set. A repeatable flag counts nothing.
-func (g *Given) Count(name Name) int {
+func (g *Given) Count(name settingrow.Name) int {
 	owner := g.owning(name)
 	if owner == nil {
 		return 0
@@ -188,7 +196,7 @@ func (g *Given) Count(name Name) int {
 
 // Values lists each value the flag of name was set to, in the order typed. A repeatable flag lists
 // nothing.
-func (g *Given) Values(name Name) []string {
+func (g *Given) Values(name settingrow.Name) []string {
 	owner := g.owning(name)
 	if owner == nil {
 		return nil
@@ -199,7 +207,7 @@ func (g *Given) Values(name Name) []string {
 
 // Spelled returns each spelling of name's flag in args in order, reading args as pflag does, so
 // a cluster such as -qm holds several shorthands, a flag's value is no flag, and -- ends the flags.
-func (g *Given) Spelled(args []string, name Name) []string {
+func (g *Given) Spelled(args []string, name settingrow.Name) []string {
 	owner := g.owning(name)
 	if owner == nil {
 		return nil
@@ -240,7 +248,7 @@ func (g *Given) Spelled(args []string, name Name) []string {
 	return spelled
 }
 
-func (g *Given) owning(name Name) *Given {
+func (g *Given) owning(name settingrow.Name) *Given {
 	if g == nil {
 		return nil
 	}
@@ -299,7 +307,7 @@ func (*Given) takesValue(flag *pflag.Flag) bool {
 type counted struct {
 	pflag.Value
 	given *Given
-	name  Name
+	name  settingrow.Name
 }
 
 func (c counted) Set(value string) error {
@@ -320,7 +328,7 @@ type nonEmpty struct {
 
 func (v nonEmpty) Set(value string) error {
 	if v.rule.refuses(value) {
-		return ErrEmptyValue
+		return settingrow.ErrEmptyValue
 	}
 
 	return v.Value.Set(value)
@@ -333,7 +341,7 @@ type nonEmptyList struct {
 
 func (l nonEmptyList) Set(value string) error {
 	if l.rule.refuses(value) {
-		return ErrEmptyValue
+		return settingrow.ErrEmptyValue
 	}
 
 	*l.values = append(*l.values, value)
@@ -352,3 +360,16 @@ func (l nonEmptyList) String() string {
 func (nonEmptyList) Type() string {
 	return "stringArray"
 }
+
+func (r emptyRule) refuses(raw string) bool {
+	switch r {
+	case refuseEmpty:
+		return raw == ""
+	case refuseBlank:
+		return strings.TrimSpace(raw) == ""
+	default:
+		return false
+	}
+}
+
+type emptyRule int

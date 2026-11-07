@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"slices"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -15,7 +17,7 @@ var ErrNoQuestion = errors.New("no question given. Pass a question, --ask, or -f
 func noQuestionRule() Rule {
 	return Rule{
 		ID:    "needs-a-question",
-		Reads: []Name{"ask", File.Name()},
+		Reads: []settingrow.Name{"ask", File.Name()},
 		Check: func(v View) error {
 			if v.Plan != nil && len(v.Plan.Questions) == 0 {
 				return ErrNoQuestion
@@ -29,7 +31,7 @@ func noQuestionRule() Rule {
 func replaceNeedsFileRule() Rule {
 	return Rule{
 		ID:    "replace-needs-file",
-		Reads: []Name{Replace.Name(), File.Name()},
+		Reads: []settingrow.Name{Replace.Name(), File.Name()},
 		Check: func(v View) error {
 			if Get(v.Merged, Replace) && Get(v.Merged, File) == "" {
 				return errors.New("--replace applies to -f, which was not given")
@@ -43,7 +45,7 @@ func replaceNeedsFileRule() Rule {
 func forSelectsRule() Rule {
 	return Rule{
 		ID:    "for-selects-a-file-question",
-		Reads: []Name{"for", File.Name(), Replace.Name()},
+		Reads: []settingrow.Name{"for", File.Name(), Replace.Name()},
 		Check: func(v View) error {
 			if v.Plan == nil || len(v.Plan.Selections) == 0 {
 				return nil
@@ -108,7 +110,7 @@ func fromFile(built *plan.Plan) []plan.Question {
 func fileQuestionShapeRule() Rule {
 	return Rule{
 		ID:    "file-question-shape",
-		Reads: []Name{"for", "pick", "rate", "box", "desc", "sep", File.Name()},
+		Reads: []settingrow.Name{"for", "pick", "rate", "box", "desc", "sep", File.Name()},
 		Check: func(v View) error {
 			if v.Plan == nil {
 				return nil
@@ -119,7 +121,7 @@ func fileQuestionShapeRule() Rule {
 					continue
 				}
 
-				for _, event := range typedFor(v.Plan, question.ID) {
+				for _, event := range v.Plan.EventsFor(question.ID) {
 					if err := keepsShape(v, question, event.Name); err != nil {
 						return err
 					}
@@ -171,7 +173,7 @@ func shapeNoun(shape plan.Shape) string {
 func policyBindingRule() Rule {
 	return Rule{
 		ID:    "policy-binding",
-		Reads: []Name{"ask", "pick", "rate", "box", "desc", "sep", "threshold", "min_confidence", "fallback"},
+		Reads: []settingrow.Name{"ask", "pick", "rate", "box", "desc", "sep", "threshold", "min_confidence", "fallback"},
 		Check: func(v View) error {
 			if v.Plan == nil || len(v.Plan.Orphans) == 0 || len(v.Plan.Questions) == 1 {
 				return nil
@@ -233,13 +235,13 @@ func typedFlag(event argv.Event) string {
 func questionsValidRule() Rule {
 	return Rule{
 		ID:    "questions-valid",
-		Reads: []Name{"ask", File.Name()},
+		Reads: []settingrow.Name{"ask", File.Name()},
 		Inspect: func(v View) ([]string, error) {
 			if v.Plan == nil {
 				return nil, nil
 			}
 
-			return plan.Validate(v.Plan, PolicyNumbers())
+			return plan.Validate(v.Plan)
 		},
 	}
 }

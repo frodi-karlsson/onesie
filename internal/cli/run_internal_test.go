@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
@@ -385,7 +387,7 @@ func TestRunInputs(t *testing.T) {
 		chosen   resolution
 		flags    runConfig
 		from     setting.Source
-		endpoint setting.EndpointValue
+		endpoint settingrow.EndpointValue
 		want     answersfile.FingerprintInputs
 	}{
 		{
@@ -396,25 +398,25 @@ func TestRunInputs(t *testing.T) {
 		{
 			name:   "should leave the base URL empty when --base-url names the provider's own",
 			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
-			endpoint: setting.EndpointValue{BaseURL: onesie.TypeSafe().DefaultBaseURL() + "/"},
+			endpoint: settingrow.EndpointValue{BaseURL: onesie.TypeSafe().DefaultBaseURL() + "/"},
 			want:     answersfile.FingerprintInputs{Provider: "typesafe"},
 		},
 		{
 			name:   "should fingerprint --base-url",
 			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
-			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com/"},
+			endpoint: settingrow.EndpointValue{BaseURL: "https://onesie.example.com/"},
 			want:     answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
 		},
 		{
 			name:   "should fingerprint ONESIE_BASE_URL",
 			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceEnv,
-			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
+			endpoint: settingrow.EndpointValue{BaseURL: "https://onesie.example.com"},
 			want:     answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
 		},
 		{
 			name:   "should fingerprint a profile's base URL and name",
 			chosen: resolution{provider: onesie.TypeSafe(), profile: "work"}, from: setting.SourceChosenProfile,
-			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
+			endpoint: settingrow.EndpointValue{BaseURL: "https://onesie.example.com"},
 			want: answersfile.FingerprintInputs{
 				Provider: "typesafe", Profile: "work", BaseURL: "https://onesie.example.com",
 			},
@@ -422,25 +424,25 @@ func TestRunInputs(t *testing.T) {
 		{
 			name:   "should fingerprint the cloudflare account from the environment",
 			chosen: resolution{provider: onesie.Cloudflare()}, from: setting.SourceEnv,
-			endpoint: setting.EndpointValue{AccountID: account},
+			endpoint: settingrow.EndpointValue{AccountID: account},
 			want:     answersfile.FingerprintInputs{Provider: "cloudflare", AccountID: account},
 		},
 		{
 			name:   "should fingerprint a profile's cloudflare account",
 			chosen: resolution{provider: onesie.Cloudflare(), profile: "edge"}, from: setting.SourceChosenProfile,
-			endpoint: setting.EndpointValue{AccountID: other},
+			endpoint: settingrow.EndpointValue{AccountID: other},
 			want:     answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
 		},
 		{
 			name:   "should fingerprint a whole cloudflare account URL as the base URL",
 			chosen: resolution{provider: onesie.Cloudflare()}, from: setting.SourceFlag,
-			endpoint: setting.EndpointValue{BaseURL: wholeAccount},
+			endpoint: settingrow.EndpointValue{BaseURL: wholeAccount},
 			want:     answersfile.FingerprintInputs{Provider: "cloudflare", BaseURL: wholeAccount},
 		},
 		{
 			name:   "should leave out the base URL a mock run ignores",
 			chosen: resolution{provider: onesie.TypeSafe()}, from: setting.SourceFlag,
-			endpoint: setting.EndpointValue{BaseURL: "https://onesie.example.com"},
+			endpoint: settingrow.EndpointValue{BaseURL: "https://onesie.example.com"},
 			flags:    runConfig{mockPath: "m.json", mockSpelled: "--mock"},
 			want:     answersfile.FingerprintInputs{Provider: "typesafe", Mock: true},
 		},
@@ -459,12 +461,12 @@ func TestRunInputs(t *testing.T) {
 			var layers []setting.Layer
 			if tc.from != setting.SourceDefault {
 				layers = append(layers, setting.Layer{
-					Source: tc.from, Values: map[setting.Name]any{"endpoint": tc.endpoint},
+					Source: tc.from, Values: map[settingrow.Name]any{"endpoint": tc.endpoint},
 				})
 			}
 
 			flags := tc.flags
-			flags.merged, _ = setting.Merge(setting.Table(), layers, setting.Choice{})
+			flags.merged, _ = setting.Merge(settingrow.Table(), layers, setting.Choice{})
 			flags.merged.Set(setting.Profile.Name(), tc.chosen.profile, setting.SourceDefaultProfile)
 
 			settings := rootSettings{

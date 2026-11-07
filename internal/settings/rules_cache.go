@@ -1,11 +1,15 @@
 package settings
 
-import "errors"
+import (
+	"errors"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+)
 
 func cacheBesideMockRule() Rule {
 	return Rule{
 		ID:    "cache-beside-mock",
-		Reads: []Name{Cache.Name(), Mock.Name()},
+		Reads: []settingrow.Name{Cache.Name(), Mock.Name()},
 		Check: func(v View) error {
 			// An ambient ONESIE_MOCK answers and leaves the cache untouched, so only a typed --mock makes
 			// a typed --cache pointless.

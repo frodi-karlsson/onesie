@@ -11,10 +11,10 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestAssemble(t *testing.T) {
+	testAssembleRefinements(t)
 	t.Parallel()
 
 	files := map[string]string{"q.txt": "are these the same person\n"}
@@ -439,7 +439,6 @@ func TestAssemble(t *testing.T) {
 				Events:     tc.events,
 				Positional: tc.positional,
 				ReadFile:   readFile,
-				Numbers:    settings.PolicyNumbers(),
 			})
 
 			if tc.wantErr {
@@ -458,15 +457,6 @@ func TestAssemble(t *testing.T) {
 		})
 	}
 
-	t.Run("should refuse a zero Numbers, which the caller has to fill", func(t *testing.T) {
-		t.Parallel()
-
-		_, err := plan.Assemble(plan.Source{Positional: "is this urgent", ReadFile: readFile})
-		if !errors.Is(err, plan.ErrNoNumbers) {
-			t.Errorf("Assemble error = %v, want ErrNoNumbers", err)
-		}
-	})
-
 	t.Run("should wrap a file read error", func(t *testing.T) {
 		t.Parallel()
 
@@ -476,7 +466,6 @@ func TestAssemble(t *testing.T) {
 			_, err := plan.Assemble(plan.Source{
 				Events:   []argv.Event{{Name: "ask", Value: "a=@gone.txt"}},
 				ReadFile: func(string) ([]byte, error) { return nil, os.ErrNotExist },
-				Numbers:  settings.PolicyNumbers(),
 			})
 
 			if !errors.Is(err, os.ErrNotExist) {
@@ -628,7 +617,7 @@ func TestAssemble(t *testing.T) {
 				wantErr: "--ask takes NAME=QUESTION, got 'urgent'",
 			},
 			{
-				name: "should keep top level flags as orphans beside a lone file question, for the merge",
+				name: "should retain top level events after refining a lone file question",
 				src: plan.Source{
 					File: []plan.Question{
 						{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
@@ -644,8 +633,9 @@ func TestAssemble(t *testing.T) {
 						t.Errorf("orphans = %v, want %v with the reference read", p.Orphans, want)
 					}
 
-					if p.Questions[0].Policy.Threshold != nil || p.Questions[0].Criteria != nil {
-						t.Errorf("question = %+v, want it as the file gave it", p.Questions[0])
+					question := p.Questions[0]
+					if question.Policy.Threshold == nil || *question.Policy.Threshold != 0.9 || question.Criteria == nil || question.Criteria.Yes != "very urgent" {
+						t.Errorf("question = %+v, want the resolved refinements", question)
 					}
 				},
 			},
@@ -753,7 +743,6 @@ func TestAssemble(t *testing.T) {
 				t.Parallel()
 
 				src := tc.src
-				src.Numbers = settings.PolicyNumbers()
 
 				got, err := plan.Assemble(src)
 
@@ -775,6 +764,38 @@ func TestAssemble(t *testing.T) {
 
 				tc.check(t, got)
 			})
+		}
+	})
+}
+
+func testAssembleRefinements(t *testing.T) {
+	t.Run("should apply file refinements before returning the plan", func(t *testing.T) {
+		questions := []plan.Question{{ID: "urgent", Instructions: "q", Origin: plan.OriginFile}}
+		built, err := plan.Assemble(plan.Source{
+			File:   questions,
+			Events: []argv.Event{{Name: "threshold", Value: "0.9"}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := built.Questions[0].Policy.Threshold; got == nil || *got != 0.9 {
+			t.Errorf("threshold = %v, want 0.9", got)
+		}
+		if questions[0].Policy.Threshold != nil {
+			t.Error("Assemble changed its file questions")
+		}
+	})
+	t.Run("should preserve the file fallback while normalizing the plan", func(t *testing.T) {
+		original := &plan.Fallback{Text: "yes"}
+		built, err := plan.Assemble(plan.Source{File: []plan.Question{{ID: "urgent", Instructions: "q", Origin: plan.OriginFile, Policy: plan.Policy{Fallback: original}}}, Events: []argv.Event{{Name: "threshold", Value: "0.9"}}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if original.Boolean {
+			t.Error("Assemble changed the file fallback")
+		}
+		if !built.Questions[0].Policy.Fallback.Boolean {
+			t.Error("plan fallback was not normalized")
 		}
 	})
 }
@@ -870,7 +891,7 @@ func TestRefine(t *testing.T) {
 
 			question := tc.question
 			question.Options = slices.Clone(question.Options)
-			plan.Refine(&question, tc.events, settings.PolicyNumbers())
+			plan.Refine(&question, tc.events)
 
 			// Refine leaves an empty map of unknown keys, which reads the same as none.
 			if len(question.UnknownDesc) == 0 {

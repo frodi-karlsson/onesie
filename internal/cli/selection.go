@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
@@ -233,7 +235,7 @@ func modelSource(origin setting.Origin) string {
 	}
 }
 
-func endpointName(origin setting.Origin, endpoint setting.EndpointValue) string {
+func endpointName(origin setting.Origin, endpoint settingrow.EndpointValue) string {
 	switch origin.Source {
 	case setting.SourceChosenProfile, setting.SourceDefaultProfile:
 		if endpoint.AccountID != "" {
@@ -381,8 +383,8 @@ func setVariable(lookupEnv func(string) (string, bool), name string) string {
 	return strings.TrimSpace(value)
 }
 
-func choiceBy(source setting.Source, name setting.Name) string {
-	row, _ := setting.Lookup(name)
+func choiceBy(source setting.Source, name settingrow.Name) string {
+	row, _ := settingrow.Lookup(name)
 	switch source {
 	case setting.SourceFlag:
 		return "--" + row.Flag.Long
@@ -395,7 +397,7 @@ func choiceBy(source setting.Source, name setting.Name) string {
 	}
 }
 
-func settingEnv(name setting.Name) string {
-	row, _ := setting.Lookup(name)
+func settingEnv(name settingrow.Name) string {
+	row, _ := settingrow.Lookup(name)
 	return row.Env[0].Name
 }

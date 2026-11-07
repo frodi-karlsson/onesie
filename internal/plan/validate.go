@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 var reservedIDs = []string{
@@ -18,12 +19,8 @@ var reservedIDs = []string{
 }
 
 // Validate checks the questions of a plan and returns the non fatal warnings plus the first fatal
-// error. numbers bound the policy numbers, and are required.
-func Validate(p *Plan, numbers Numbers) ([]string, error) {
-	if !numbers.complete() {
-		return nil, ErrNoNumbers
-	}
-
+// error. The setting rows bound the policy numbers.
+func Validate(p *Plan) ([]string, error) {
 	if err := checkSources(p); err != nil {
 		return nil, err
 	}
@@ -35,7 +32,7 @@ func Validate(p *Plan, numbers Numbers) ([]string, error) {
 	var warnings []string
 
 	for i := range p.Questions {
-		hint, err := checkQuestion(&p.Questions[i], numbers)
+		hint, err := checkQuestion(&p.Questions[i])
 		if err != nil {
 			return warnings, err
 		}
@@ -104,7 +101,7 @@ func checkDuplicateIDs(p *Plan) error {
 	return nil
 }
 
-func checkQuestion(q *Question, numbers Numbers) (string, error) {
+func checkQuestion(q *Question) (string, error) {
 	// The positional question is keyed answer by design, so the reserved list only applies to an
 	// id the user chose. A request body may carry answer, since --print-request writes a positional
 	// question under it and -f reads that body back.
@@ -128,13 +125,13 @@ func checkQuestion(q *Question, numbers Numbers) (string, error) {
 
 	switch q.Shape {
 	case Pick:
-		return checkPick(q, numbers)
+		return checkPick(q)
 	case Rate:
-		return "", checkRate(q, numbers)
+		return "", checkRate(q)
 	case Box:
 		return "", checkBox(q)
 	default:
-		return "", checkNoul(q, numbers)
+		return "", checkNoul(q)
 	}
 }
 
@@ -185,7 +182,7 @@ func notText(origin Origin) string {
 	return "an 'ask' that is not text or a mapping"
 }
 
-func checkPick(q *Question, numbers Numbers) (string, error) {
+func checkPick(q *Question) (string, error) {
 	names := make([]string, 0, len(q.Options))
 	for _, option := range q.Options {
 		names = append(names, option.Name)
@@ -213,7 +210,7 @@ func checkPick(q *Question, numbers Numbers) (string, error) {
 		return "", err
 	}
 
-	if err := checkPolicy(q, false, numbers); err != nil {
+	if err := checkPolicy(q, false); err != nil {
 		return "", err
 	}
 
@@ -226,7 +223,7 @@ func checkPick(q *Question, numbers Numbers) (string, error) {
 	return describedHint(q, names, described(q)), nil
 }
 
-func checkRate(q *Question, numbers Numbers) error {
+func checkRate(q *Question) error {
 	var labels []string
 
 	// A body's levels carry no labels at all, so every rule written around them is skipped and
@@ -253,7 +250,7 @@ func checkRate(q *Question, numbers Numbers) error {
 		}
 	}
 
-	return checkPolicy(q, false, numbers)
+	return checkPolicy(q, false)
 }
 
 func checkBlankNames(q *Question, shape, noun string, names []string) error {
@@ -321,7 +318,7 @@ func questionClause(q *Question) string {
 	return " in question '" + q.ID + "'"
 }
 
-func checkNoul(q *Question, numbers Numbers) error {
+func checkNoul(q *Question) error {
 	for _, key := range q.DescOrder {
 		if key != "yes" && key != "no" {
 			return fmt.Errorf(
@@ -329,7 +326,7 @@ func checkNoul(q *Question, numbers Numbers) error {
 		}
 	}
 
-	return checkPolicy(q, true, numbers)
+	return checkPolicy(q, true)
 }
 
 func checkBox(q *Question) error {
@@ -367,7 +364,7 @@ func countTrue(conditions ...bool) int {
 	return count
 }
 
-func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
+func checkPolicy(q *Question, yesNo bool) error {
 	policy := q.Policy
 
 	if policy.Threshold != nil {
@@ -385,7 +382,7 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 				spelledAs(q, "--threshold", "--fallback"))
 		}
 
-		if outOfRange(numbers.Threshold, *policy.Threshold) {
+		if outOfRange(policyKind("threshold"), *policy.Threshold) {
 			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				threshold, strconv.FormatFloat(*policy.Threshold, 'g', -1, 64))
 		}
@@ -408,7 +405,7 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 				confidence, q.ID, remedy)
 		}
 
-		if outOfRange(numbers.MinConfidence, *policy.MinConfidence) {
+		if outOfRange(policyKind("min_confidence"), *policy.MinConfidence) {
 			return fmt.Errorf("%s must be between 0 and 1, got %s",
 				confidence, strconv.FormatFloat(*policy.MinConfidence, 'g', -1, 64))
 		}
@@ -430,7 +427,7 @@ func checkPolicy(q *Question, yesNo bool, numbers Numbers) error {
 	return nil
 }
 
-func outOfRange(number Number, value float64) bool {
+func outOfRange(number settingrow.Kind, value float64) bool {
 	_, err := number.FromFile(value)
 
 	return err != nil
@@ -479,24 +476,12 @@ func Spelling(origin Origin, flag string) string {
 		return flag
 	}
 
-	switch flag {
-	case "--pick":
-		return "'pick'"
-	case "--rate":
-		return "'rate'"
-	case "--threshold":
-		return "'threshold'"
-	case "--min-confidence":
-		return "'min_confidence'"
-	case "--fallback":
-		return "'fallback'"
-	case "--assert":
-		return "'assert'"
-	case "--abstain-if":
-		return "'abstain_if'"
-	default:
-		return flag
+	for _, row := range settingrow.Table() {
+		if row.FileKey != "" && !row.InBody && "--"+row.Flag.Long == flag {
+			return "'" + row.FileKey + "'"
+		}
 	}
+	return flag
 }
 
 func describedHint(q *Question, names, have []string) string {

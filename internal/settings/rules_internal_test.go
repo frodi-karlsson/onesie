@@ -1,19 +1,23 @@
 package settings
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+)
 
 func TestModeRefusals(t *testing.T) {
 	t.Parallel()
 
-	modes := []Mode{ModeListModels, ModeRequest, ModePrintRequest, ModePrintQuestions}
+	modes := []settingrow.Mode{settingrow.ModeListModels, settingrow.ModeRequest, settingrow.ModePrintRequest, settingrow.ModePrintQuestions}
 
 	tests := []struct {
 		name  string
-		check func(t *testing.T, mode Mode, refusals []refusal)
+		check func(t *testing.T, mode settingrow.Mode, refusals []refusal)
 	}{
 		{
 			name: "should refuse only settings whose row is outside the mode",
-			check: func(t *testing.T, mode Mode, refusals []refusal) {
+			check: func(t *testing.T, mode settingrow.Mode, refusals []refusal) {
 				t.Helper()
 
 				for _, rule := range refusals {
@@ -21,7 +25,7 @@ func TestModeRefusals(t *testing.T) {
 						continue
 					}
 
-					row, found := Lookup(rule.setting)
+					row, found := settingrow.Lookup(rule.setting)
 					if !found {
 						t.Errorf("mode %d refuses %s, which no row is", mode, rule.setting)
 
@@ -30,7 +34,7 @@ func TestModeRefusals(t *testing.T) {
 
 					// -i request refuses -m, whose bodies carry their own model, and still sends a body that
 					// names none with the model a profile or TYPESAFE_DEFAULT_MODEL gives.
-					if row.Modes.Has(mode) && (mode != ModeRequest || rule.setting != Model.Name()) {
+					if row.Modes.Has(mode) && (mode != settingrow.ModeRequest || rule.setting != Model.Name()) {
 						t.Errorf("mode %d refuses %s, whose row has an effect in it", mode, rule.setting)
 					}
 				}
@@ -38,11 +42,11 @@ func TestModeRefusals(t *testing.T) {
 		},
 		{
 			name: "should refuse every typed root row outside the mode",
-			check: func(t *testing.T, mode Mode, refusals []refusal) {
+			check: func(t *testing.T, mode settingrow.Mode, refusals []refusal) {
 				t.Helper()
 
-				for _, row := range Table() {
-					bound, registered := row.FlagOn(CommandRoot)
+				for _, row := range settingrow.Table() {
+					bound, registered := row.FlagOn(settingrow.CommandRoot)
 					if !registered || row.Modes.Has(mode) {
 						continue
 					}
@@ -50,7 +54,7 @@ func TestModeRefusals(t *testing.T) {
 					t.Run("should refuse "+bound.Long, func(t *testing.T) {
 						merged := &Merged{}
 						merged.Set(row.Name, row.Kind.Zero(), SourceFlag)
-						view := NewView(merged, nil, Facts{Command: CommandRoot})
+						view := NewView(merged, nil, Facts{Command: settingrow.CommandRoot})
 						if err := firstRefusal(view, mode); err == nil {
 							t.Errorf("mode %d accepts typed %s outside its row modes", mode, row.Name)
 						}
@@ -60,7 +64,7 @@ func TestModeRefusals(t *testing.T) {
 		},
 		{
 			name: "should list refusals for the mode",
-			check: func(t *testing.T, mode Mode, refusals []refusal) {
+			check: func(t *testing.T, mode settingrow.Mode, refusals []refusal) {
 				t.Helper()
 
 				if len(refusals) == 0 {
@@ -80,7 +84,7 @@ func TestModeRefusals(t *testing.T) {
 		})
 	}
 	t.Run("should leave other modes to their own rules", func(t *testing.T) {
-		for _, mode := range []Mode{ModeAsk, ModeStream, ModePrintSchema, ModeVersion, ModeCalibrate, ModeProfile} {
+		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeVersion, settingrow.ModeCalibrate, settingrow.ModeProfile} {
 			if got := modeRefusals(mode); len(got) != 0 {
 				t.Errorf("mode %d has %d refusals", mode, len(got))
 			}
@@ -88,19 +92,19 @@ func TestModeRefusals(t *testing.T) {
 	})
 
 	t.Run("should declare effective modes in the table", func(t *testing.T) {
-		for name, modes := range map[Name][]Mode{
-			"out":           {ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels},
-			"skip_blank":    {ModeRequest, ModePrintRequest},
-			"unordered":     {ModeRequest, ModePrintRequest},
-			"stop_on_error": {ModeRequest, ModePrintRequest},
-			"jobs":          {ModePrintRequest},
-			"stats":         {ModeListModels},
-			"print_request": {ModeRequest},
-			"resume":        {ModeRequest},
-			"delimiter":     {ModePrintRequest},
+		for name, modes := range map[settingrow.Name][]settingrow.Mode{
+			"out":           {settingrow.ModeRequest, settingrow.ModePrintRequest, settingrow.ModePrintQuestions, settingrow.ModeListModels},
+			"skip_blank":    {settingrow.ModeRequest, settingrow.ModePrintRequest},
+			"unordered":     {settingrow.ModeRequest, settingrow.ModePrintRequest},
+			"stop_on_error": {settingrow.ModeRequest, settingrow.ModePrintRequest},
+			"jobs":          {settingrow.ModePrintRequest},
+			"stats":         {settingrow.ModeListModels},
+			"print_request": {settingrow.ModeRequest},
+			"resume":        {settingrow.ModeRequest},
+			"delimiter":     {settingrow.ModePrintRequest},
 		} {
 			t.Run("should declare the modes using "+string(name), func(t *testing.T) {
-				row, _ := Lookup(name)
+				row, _ := settingrow.Lookup(name)
 				for _, mode := range modes {
 					if !row.Modes.Has(mode) {
 						t.Errorf("%s omits effective mode %d", name, mode)

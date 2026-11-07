@@ -10,6 +10,8 @@ import (
 	"strings"
 	"sync/atomic"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -34,7 +36,7 @@ func validated(
 	cmd *cobra.Command, settings rootSettings, events []argv.Event, positional string, parsed *runFlags,
 ) (staged, error) {
 	// Only the refusal is read here. runConfig holds the values the run uses.
-	if _, err := setting.ParseRun(setting.Table(), parsed.given, setting.CommandRoot); err != nil {
+	if _, err := setting.ParseRun(settingrow.Table(), parsed.given, settingrow.CommandRoot); err != nil {
 		return staged{}, err
 	}
 
@@ -48,7 +50,7 @@ func validated(
 	// Both modes sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. They validate with no plan.
 	if flags.listModels || flags.inputMode == input.Request {
-		merged, mergeErr := mergeRun(settings, flags, parsed.given, setting.CommandRoot, nil)
+		merged, mergeErr := mergeRun(settings, flags, parsed.given, settingrow.CommandRoot, nil)
 		if mergeErr != nil {
 			return staged{}, mergeErr
 		}
@@ -66,7 +68,7 @@ func validated(
 		return staged{config: merged.config}, announce(cmd.ErrOrStderr(), append(typedTwice, merged.notices...))
 	}
 
-	ready, err := assemble(settings, flags, parsed.given, setting.CommandRoot, false)
+	ready, err := assemble(settings, flags, parsed.given, settingrow.CommandRoot, false)
 
 	// Warnings print whether or not validation succeeded, so a run that fails for one reason still
 	// reports the others.
@@ -1157,6 +1159,6 @@ func (f *runFlags) profileChosen() bool {
 	return f.typed(setting.Profile.Name())
 }
 
-func (f *runFlags) typed(name setting.Name) bool {
+func (f *runFlags) typed(name settingrow.Name) bool {
 	return f.given.Count(name) > 0
 }

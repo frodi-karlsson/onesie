@@ -3,19 +3,21 @@ package settings
 import (
 	"fmt"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
 func listModelsRule() Rule {
 	return Rule{
 		ID:    "list-models-alone",
-		Reads: readsOf(append([]Name{ListModels.Name()}, groupNames()...), modeRefusals(ModeListModels)),
+		Reads: readsOf(append([]settingrow.Name{ListModels.Name()}, groupNames()...), modeRefusals(settingrow.ModeListModels)),
 		Check: func(v View) error {
 			if !Get(v.Merged, ListModels) {
 				return nil
 			}
 
-			return firstRefusal(v, ModeListModels)
+			return firstRefusal(v, settingrow.ModeListModels)
 		},
 	}
 }
@@ -23,8 +25,8 @@ func listModelsRule() Rule {
 func dryRunAndRequestRule() Rule {
 	return Rule{
 		ID: "dry-run-and-request",
-		Reads: readsOf([]Name{PrintRequest.Name(), PrintQuestions.Name(), Input.Name()},
-			modeRefusals(ModeRequest), modeRefusals(ModePrintRequest), modeRefusals(ModePrintQuestions)),
+		Reads: readsOf([]settingrow.Name{PrintRequest.Name(), PrintQuestions.Name(), Input.Name()},
+			modeRefusals(settingrow.ModeRequest), modeRefusals(settingrow.ModePrintRequest), modeRefusals(settingrow.ModePrintQuestions)),
 		Check: func(v View) error {
 			// A dry run writes no response body and makes no request, so beside -i request it decides
 			// what the run does, and its refusals answer first. Otherwise the request mode rules lead, so
@@ -50,21 +52,21 @@ func requestModeRefusal(v View) error {
 		return nil
 	}
 
-	return firstRefusal(v, ModeRequest)
+	return firstRefusal(v, settingrow.ModeRequest)
 }
 
 func dryRunRefusal(v View) error {
 	switch {
 	case Get(v.Merged, PrintRequest):
-		return firstRefusal(v, ModePrintRequest)
+		return firstRefusal(v, settingrow.ModePrintRequest)
 	case Get(v.Merged, PrintQuestions):
-		return firstRefusal(v, ModePrintQuestions)
+		return firstRefusal(v, settingrow.ModePrintQuestions)
 	default:
 		return nil
 	}
 }
 
-func firstRefusal(v View, mode Mode) error {
+func firstRefusal(v View, mode settingrow.Mode) error {
 	name, reason := modeWording(mode)
 
 	for _, rule := range modeRefusals(mode) {
@@ -73,7 +75,7 @@ func firstRefusal(v View, mode Mode) error {
 		}
 
 		// A judgment the dry run cannot show has a run that can, so the refusal names it.
-		if mode == ModePrintRequest && judging(rule.setting) {
+		if mode == settingrow.ModePrintRequest && judging(rule.setting) {
 			return fmt.Errorf("%s does not apply to %s, which %s. %s", rule.spelled(v), name, reason, rehearse)
 		}
 
@@ -83,15 +85,15 @@ func firstRefusal(v View, mode Mode) error {
 	return nil
 }
 
-func modeWording(mode Mode) (name, reason string) {
+func modeWording(mode settingrow.Mode) (name, reason string) {
 	switch mode {
-	case ModeListModels:
+	case settingrow.ModeListModels:
 		return "--list-models", "only lists the models a provider serves"
-	case ModeRequest:
+	case settingrow.ModeRequest:
 		return "-i request", "sends each body as written and prints each raw response"
-	case ModePrintRequest:
+	case settingrow.ModePrintRequest:
 		return "--print-request", "writes the request bodies and sends none"
-	case ModePrintQuestions:
+	case settingrow.ModePrintQuestions:
 		return "--print-questions", "reads no input and writes the questions as a question file"
 	default:
 		return "", ""
@@ -100,7 +102,7 @@ func modeWording(mode Mode) (name, reason string) {
 
 const rehearse = "Rehearse the whole command with --mock, or see the questions with --print-questions"
 
-func readsOf(reads []Name, tables ...[]refusal) []Name {
+func readsOf(reads []settingrow.Name, tables ...[]refusal) []settingrow.Name {
 	for _, table := range tables {
 		for _, rule := range table {
 			switch rule.setting {
@@ -116,10 +118,10 @@ func readsOf(reads []Name, tables ...[]refusal) []Name {
 	return reads
 }
 
-func groupNames() []Name {
-	var names []Name
+func groupNames() []settingrow.Name {
+	var names []settingrow.Name
 
-	for _, row := range Table() {
+	for _, row := range settingrow.Table() {
 		if row.Flag.Group {
 			names = append(names, row.Name)
 		}
@@ -128,22 +130,22 @@ func groupNames() []Name {
 	return names
 }
 
-func modeRefusals(mode Mode) []refusal {
+func modeRefusals(mode settingrow.Mode) []refusal {
 	switch mode {
-	case ModeListModels, ModeRequest, ModePrintRequest, ModePrintQuestions:
+	case settingrow.ModeListModels, settingrow.ModeRequest, settingrow.ModePrintRequest, settingrow.ModePrintQuestions:
 	default:
 		return nil
 	}
 
 	var rules []refusal
-	if mode == ModeListModels || mode == ModeRequest {
+	if mode == settingrow.ModeListModels || mode == settingrow.ModeRequest {
 		rules = append(rules, refusal{"", positionalGiven, spelled("the question argument")})
 	}
-	if mode == ModeListModels {
+	if mode == settingrow.ModeListModels {
 		rules = append(rules, refusal{"", anyEvent, func(v View) string { return "--" + v.Facts.Events[0].Name }})
 	}
 
-	rows := Table()
+	rows := settingrow.Table()
 	for _, name := range refusalOrder(mode) {
 		for i, row := range rows {
 			if row.Name == name {
@@ -160,15 +162,15 @@ func modeRefusals(mode Mode) []refusal {
 	return rules
 }
 
-func refusalOrder(mode Mode) []Name {
-	if mode == ModePrintRequest {
-		return []Name{
+func refusalOrder(mode settingrow.Mode) []settingrow.Name {
+	if mode == settingrow.ModePrintRequest {
+		return []settingrow.Name{
 			"mock", "print_questions", "output", "raw", "quiet", "assert", "abstain_if",
 			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on_assert", "stats",
 		}
 	}
 
-	return []Name{
+	return []settingrow.Name{
 		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
 		"min_confidence", "fallback", "state", "state_file", "input", "image", "image_field", "map", "id",
 		"output", "raw", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
@@ -176,9 +178,9 @@ func refusalOrder(mode Mode) []Name {
 	}
 }
 
-func appendModeRefusal(rules []refusal, row Row, mode Mode) []refusal {
-	bound, registered := row.FlagOn(CommandRoot)
-	if !registered || row.Modes.Has(mode) && (mode != ModeRequest || row.Name != Model.Name()) {
+func appendModeRefusal(rules []refusal, row settingrow.Row, mode settingrow.Mode) []refusal {
+	bound, registered := row.FlagOn(settingrow.CommandRoot)
+	if !registered || row.Modes.Has(mode) && (mode != settingrow.ModeRequest || row.Name != Model.Name()) {
 		return rules
 	}
 
@@ -188,7 +190,7 @@ func appendModeRefusal(rules []refusal, row Row, mode Mode) []refusal {
 	}, name})
 }
 
-func modeException(row Row, bound BoundFlag, mode Mode) (func(View) bool, func(View) string) {
+func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingrow.Mode) (func(View) bool, func(View) string) {
 	name := spelled(spelling(bound))
 	if row.Flag.Group {
 		return event(bound.Long), name
@@ -201,7 +203,7 @@ func modeException(row Row, bound BoundFlag, mode Mode) (func(View) bool, func(V
 		StopOnAssert.Name(), SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
 		return func(v View) bool { return Get(v.Merged, Key[bool]{name: row.Name}) }, name
 	case assertName, abstainIfName:
-		if mode == ModePrintRequest {
+		if mode == settingrow.ModePrintRequest {
 			return listed(row.Name), name
 		}
 		return func(v View) bool { return len(listOf(v, row.Name)) > 0 }, name
@@ -221,7 +223,7 @@ func modeException(row Row, bound BoundFlag, mode Mode) (func(View) bool, func(V
 	}
 }
 
-func judging(setting Name) bool {
+func judging(setting settingrow.Name) bool {
 	switch setting {
 	case assertName, abstainIfName, "threshold", "min_confidence", "fallback":
 		return true
@@ -231,7 +233,7 @@ func judging(setting Name) bool {
 }
 
 type refusal struct {
-	setting Name
+	setting settingrow.Name
 	given   func(View) bool
 	spelled func(View) string
 }
@@ -240,7 +242,7 @@ func spelled(flag string) func(View) string {
 	return func(View) string { return flag }
 }
 
-func listed(name Name) func(View) bool {
+func listed(name settingrow.Name) func(View) bool {
 	return func(v View) bool { return len(listOf(v, name)) > 0 && v.Merged.Source(name) != SourceFile }
 }
 

@@ -6,14 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/creds"
-	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestEnum(t *testing.T) {
 	t.Parallel()
 
-	output := settings.Enum([]string{"auto", "json", "markdown"}, map[string]string{"md": "markdown"})
+	output := settingrow.Enum([]string{"auto", "json", "markdown"}, map[string]string{"md": "markdown"})
 
 	tests := []struct {
 		name      string
@@ -39,7 +40,7 @@ func TestEnum(t *testing.T) {
 
 			switch {
 			case tc.wantEmpty:
-				if !errors.Is(err, settings.ErrEmptyValue) {
+				if !errors.Is(err, settingrow.ErrEmptyValue) {
 					t.Fatalf("Parse(%q) error = %v, want ErrEmptyValue", tc.raw, err)
 				}
 			case tc.wantErr != nil:
@@ -78,9 +79,9 @@ func TestNonEmptyText(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := settings.NonEmptyText().Parse(tc.raw)
+			got, err := settingrow.NonEmptyText().Parse(tc.raw)
 			if tc.wantEmpty {
-				if !errors.Is(err, settings.ErrEmptyValue) {
+				if !errors.Is(err, settingrow.ErrEmptyValue) {
 					t.Errorf("Parse(%q) error = %v, want ErrEmptyValue", tc.raw, err)
 				}
 
@@ -110,8 +111,8 @@ func TestSeparator(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := settings.Separator().Parse(tc.raw)
-			if got := errors.Is(err, settings.ErrEmptyValue); got != tc.wantEmpty {
+			_, err := settingrow.Separator().Parse(tc.raw)
+			if got := errors.Is(err, settingrow.ErrEmptyValue); got != tc.wantEmpty {
 				t.Errorf("Parse(%q) error = %v, want ErrEmptyValue %v", tc.raw, err, tc.wantEmpty)
 			}
 		})
@@ -130,12 +131,12 @@ func TestEndpoint(t *testing.T) {
 		{
 			name: "should take an account from a source tagged HalfAccount",
 			run: func(t *testing.T) {
-				got, err := settings.Endpoint().ParseHalf(account, settings.HalfAccount)
+				got, err := settingrow.Endpoint().ParseHalf(account, settingrow.HalfAccount)
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				if want := (settings.EndpointValue{AccountID: account}); got != want {
+				if want := (settingrow.EndpointValue{AccountID: account}); got != want {
 					t.Errorf("ParseHalf = %+v, want %+v", got, want)
 				}
 			},
@@ -143,12 +144,12 @@ func TestEndpoint(t *testing.T) {
 		{
 			name: "should take a base URL from a source tagged HalfBaseURL",
 			run: func(t *testing.T) {
-				got, err := settings.Endpoint().Parse("https://example.com/v1")
+				got, err := settingrow.Endpoint().Parse("https://example.com/v1")
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				if want := (settings.EndpointValue{BaseURL: "https://example.com/v1"}); got != want {
+				if want := (settingrow.EndpointValue{BaseURL: "https://example.com/v1"}); got != want {
 					t.Errorf("Parse = %+v, want %+v", got, want)
 				}
 			},
@@ -159,7 +160,7 @@ func TestEndpoint(t *testing.T) {
 				for _, id := range []string{
 					account, "0123456789abcdef", account + "0", "0123456789abcdef0123456789abcdeg", " " + account[1:],
 				} {
-					_, err := settings.Endpoint().ParseHalf(id, settings.HalfAccount)
+					_, err := settingrow.Endpoint().ParseHalf(id, settingrow.HalfAccount)
 					if got, want := err == nil, creds.ValidAccountID(id); got != want {
 						t.Errorf("ParseHalf(%q) accepts %v, and creds.ValidAccountID says %v", id, got, want)
 					}
@@ -169,7 +170,7 @@ func TestEndpoint(t *testing.T) {
 		{
 			name: "should refuse a blank value with ErrEmptyValue",
 			run: func(t *testing.T) {
-				if _, err := settings.Endpoint().Parse(" "); !errors.Is(err, settings.ErrEmptyValue) {
+				if _, err := settingrow.Endpoint().Parse(" "); !errors.Is(err, settingrow.ErrEmptyValue) {
 					t.Errorf("Parse error = %v, want ErrEmptyValue", err)
 				}
 			},
@@ -207,7 +208,7 @@ func TestInt(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := settings.Int(1, 10).FromFile(tc.raw)
+			got, err := settingrow.Int(1, 10).FromFile(tc.raw)
 			if tc.wantErr {
 				if err == nil {
 					t.Errorf("FromFile(%#v) = %v, want an error", tc.raw, got)
@@ -225,7 +226,7 @@ func TestInt(t *testing.T) {
 	t.Run("should return the number it read beside a range refusal", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := settings.Int(1, 10).Parse("11")
+		got, err := settingrow.Int(1, 10).Parse("11")
 		if err == nil || got != 11 {
 			t.Errorf("Parse(11) = %v, %v, want 11 and a refusal", got, err)
 		}
@@ -234,7 +235,7 @@ func TestInt(t *testing.T) {
 	t.Run("should return no value for text that is no number", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := settings.Int(1, 10).Parse("x")
+		got, err := settingrow.Int(1, 10).Parse("x")
 		if err == nil || got != nil {
 			t.Errorf("Parse(x) = %v, %v, want no value and a refusal", got, err)
 		}
@@ -264,7 +265,7 @@ func TestProbability(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := settings.Probability().FromFile(tc.raw)
+			got, err := settingrow.Probability().FromFile(tc.raw)
 			if tc.wantErr {
 				if err == nil {
 					t.Errorf("FromFile(%#v) = %v, want an error", tc.raw, got)
@@ -282,7 +283,7 @@ func TestProbability(t *testing.T) {
 	t.Run("should return the number it read beside a range refusal", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := settings.Probability().Parse("2")
+		got, err := settingrow.Probability().Parse("2")
 		if err == nil || got != 2.0 {
 			t.Errorf("Parse(2) = %v, %v, want 2 and a refusal", got, err)
 		}
@@ -291,7 +292,7 @@ func TestProbability(t *testing.T) {
 	t.Run("should refuse NaN", func(t *testing.T) {
 		t.Parallel()
 
-		if got, err := settings.Probability().Parse("NaN"); err == nil {
+		if got, err := settingrow.Probability().Parse("NaN"); err == nil {
 			t.Errorf("Parse(NaN) = %v, want a refusal", got)
 		}
 	})
@@ -299,7 +300,7 @@ func TestProbability(t *testing.T) {
 	t.Run("should return no value for text that is no number", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := settings.Probability().Parse("high")
+		got, err := settingrow.Probability().Parse("high")
 		if err == nil || got != nil {
 			t.Errorf("Parse(high) = %v, %v, want no value and a refusal", got, err)
 		}
@@ -308,7 +309,7 @@ func TestProbability(t *testing.T) {
 	t.Run("should point its schema at the probability definition", func(t *testing.T) {
 		t.Parallel()
 
-		if got := settings.Probability().Schema(); got.Ref != "#/definitions/probability" {
+		if got := settingrow.Probability().Schema(); got.Ref != "#/definitions/probability" {
 			t.Errorf("Schema() = %+v, want a $ref to #/definitions/probability", got)
 		}
 	})
@@ -317,16 +318,16 @@ func TestProbability(t *testing.T) {
 func TestOptions(t *testing.T) {
 	t.Parallel()
 
-	checkListKind(t, settings.Options(), "#/definitions/pick")
+	checkListKind(t, settingrow.Options(), "#/definitions/pick")
 }
 
 func TestLevels(t *testing.T) {
 	t.Parallel()
 
-	checkListKind(t, settings.Levels(), "#/definitions/rate")
+	checkListKind(t, settingrow.Levels(), "#/definitions/rate")
 }
 
-func checkListKind(t *testing.T, kind settings.Kind, ref string) {
+func checkListKind(t *testing.T, kind settingrow.Kind, ref string) {
 	t.Helper()
 
 	tests := []struct {
@@ -394,7 +395,7 @@ func TestTrueOnly(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := settings.TrueOnly().FromFile(tc.raw)
+			got, err := settingrow.TrueOnly().FromFile(tc.raw)
 			if (err != nil) != tc.wantErr || (err == nil && got != true) {
 				t.Errorf("FromFile(%#v) = %v, %v, want an error %v", tc.raw, got, err, tc.wantErr)
 			}
@@ -404,7 +405,7 @@ func TestTrueOnly(t *testing.T) {
 	t.Run("should parse a flag value as Bool does", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := settings.TrueOnly().Parse("false")
+		got, err := settingrow.TrueOnly().Parse("false")
 		if err != nil || got != false {
 			t.Errorf("Parse(false) = %v, %v, want false", got, err)
 		}
@@ -413,7 +414,7 @@ func TestTrueOnly(t *testing.T) {
 	t.Run("should describe the one value true", func(t *testing.T) {
 		t.Parallel()
 
-		if got := settings.TrueOnly().Schema(); got.Const != true {
+		if got := settingrow.TrueOnly().Schema(); got.Const != true {
 			t.Errorf("Schema() = %+v, want const true", got)
 		}
 	})

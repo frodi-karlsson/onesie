@@ -2,15 +2,16 @@ package cli
 
 import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func validateRun(
 	config runConfig, facts runFacts, built *plan.Plan, typed commandLine,
 ) ([]string, []setting.Notice, error) {
-	command := setting.CommandRoot
+	command := settingrow.CommandRoot
 	if config.calibrate != nil {
-		command = setting.CommandCalibrate
+		command = settingrow.CommandCalibrate
 	}
 
 	view := setting.NewView(config.merged, built, setting.Facts{

@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -72,7 +74,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.F
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, setting.Table(), recorder, setting.CommandCalibrate,
+	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), recorder, settingrow.CommandCalibrate,
 		calibrateTargets(flags, calib))
 	given.Inherit(persistent)
 	given.Within(flags.given)
@@ -80,9 +82,9 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.F
 	return cmd
 }
 
-func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[setting.Name]any {
+func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[settingrow.Name]any {
 	targets := runTargets(flags)
-	maps.Copy(targets, map[setting.Name]any{
+	maps.Copy(targets, map[settingrow.Name]any{
 		setting.Output.Name(): &calib.report, setting.Input.Name(): &calib.input, "label": &calib.labels,
 		setting.Cuts.Name(): &calib.cuts, "require": &calib.requires, setting.Offline.Name(): &calib.offline,
 	})
@@ -136,7 +138,7 @@ func runCalibrate(
 	events []argv.Event, positional string,
 ) (err error) {
 	// Only the refusal is read here. runConfig holds the values the run uses.
-	if _, err = setting.ParseRun(setting.Table(), given, setting.CommandCalibrate); err != nil {
+	if _, err = setting.ParseRun(settingrow.Table(), given, settingrow.CommandCalibrate); err != nil {
 		return err
 	}
 
@@ -153,7 +155,7 @@ func runCalibrate(
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
 	// the one a user calibrates.
-	inv, ready, err := build(settings, flags, given, setting.CommandCalibrate, true)
+	inv, ready, err := build(settings, flags, given, settingrow.CommandCalibrate, true)
 
 	if warnErr := warnAll(cmd.ErrOrStderr(), ready.warnings); warnErr != nil {
 		return warnErr

@@ -21,6 +21,8 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -1168,8 +1170,8 @@ func TestLongContextCause(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			merged, _ := setting.Merge(setting.Table(), []setting.Layer{
-				{Source: tc.from, Values: map[setting.Name]any{"long_context": true}},
+			merged, _ := setting.Merge(settingrow.Table(), []setting.Layer{
+				{Source: tc.from, Values: map[settingrow.Name]any{"long_context": true}},
 			}, setting.Choice{})
 
 			if got := text(longContextCause(refusal, runConfig{}.withMerged(merged))); got != tc.want {

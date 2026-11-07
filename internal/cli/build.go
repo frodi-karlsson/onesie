@@ -5,6 +5,8 @@ import (
 	"io"
 	"slices"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -16,7 +18,7 @@ import (
 )
 
 func build(
-	settings rootSettings, flags runConfig, given *setting.Given, command setting.Command, ignoreFileJudgment bool,
+	settings rootSettings, flags runConfig, given *setting.Given, command settingrow.Command, ignoreFileJudgment bool,
 ) (*invocation, assembled, error) {
 	ready, err := assemble(settings, flags, given, command, ignoreFileJudgment)
 	if err != nil {
@@ -29,7 +31,7 @@ func build(
 }
 
 func assemble(
-	settings rootSettings, flags runConfig, given *setting.Given, command setting.Command, ignoreFileJudgment bool,
+	settings rootSettings, flags runConfig, given *setting.Given, command settingrow.Command, ignoreFileJudgment bool,
 ) (assembled, error) {
 	file, err := readBuildFile(settings, flags, ignoreFileJudgment)
 	if err != nil {
@@ -49,7 +51,6 @@ func assemble(
 		FileName:   file.name,
 		Replace:    flags.replace,
 		ReadFile:   settings.readFile,
-		Numbers:    setting.PolicyNumbers(),
 	}
 
 	if file.loaded != nil {
@@ -63,7 +64,7 @@ func assemble(
 
 	built.Model = setting.Get(flags.merged, setting.Model)
 	built.LongContext = flags.env.longContext
-	refined := setting.MergeQuestions(built, flags.events)
+	refined := setting.MergeQuestions(source.File, built, flags.events)
 
 	warnings, typedTwice, err := validateRun(flags, file.facts, built, commandLine{given: given, args: settings.args})
 	if err == nil {
@@ -80,7 +81,7 @@ func inOrder(typedTwice, merged, refined []setting.Notice) []setting.Notice {
 	var run, questions []setting.Notice
 
 	for _, notice := range typedTwice {
-		if row, found := setting.Lookup(notice.Setting); found && row.Scope == setting.ScopeQuestion {
+		if row, found := settingrow.Lookup(notice.Setting); found && row.Scope == settingrow.ScopeQuestion {
 			questions = append(questions, notice)
 		} else {
 			run = append(run, notice)
@@ -204,7 +205,7 @@ func warnAll(w io.Writer, warnings []string) error {
 	return nil
 }
 
-func gateOf(name setting.Name, merged *setting.Merged, built *plan.Plan) (*assert.Expr, error) {
+func gateOf(name settingrow.Name, merged *setting.Merged, built *plan.Plan) (*assert.Expr, error) {
 	sources, holds := merged.Value(name).([]string)
 	if !holds {
 		return nil, nil

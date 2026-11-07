@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
@@ -534,7 +536,7 @@ func linesOf(text string) []string {
 func loadAndResolve(
 	flags *runFlags, lookupEnv func(string) (string, bool), open func() (creds.Opened, error),
 ) (resolution, error) {
-	chosen, err := setting.Choose(setting.Table(), setting.Sources{Given: flags.given, LookupEnv: lookupEnv})
+	chosen, err := setting.Choose(settingrow.Table(), setting.Sources{Given: flags.given, LookupEnv: lookupEnv})
 	if err != nil {
 		return resolution{}, err
 	}

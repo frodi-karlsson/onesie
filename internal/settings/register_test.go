@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
@@ -24,15 +26,15 @@ func TestRegister(t *testing.T) {
 		run  func(t *testing.T)
 	}{
 		{name: "should register exactly its rows on each command", run: func(t *testing.T) {
-			for _, command := range []settings.Command{
-				settings.CommandRoot, settings.CommandCalibrate, settings.CommandProfileCreate,
-				settings.CommandProfileUpdate,
+			for _, command := range []settingrow.Command{
+				settingrow.CommandRoot, settingrow.CommandCalibrate, settingrow.CommandProfileCreate,
+				settingrow.CommandProfileUpdate,
 			} {
 				registered := register(command)
 
 				var want []string
 
-				for _, row := range settings.Table() {
+				for _, row := range settingrow.Table() {
 					if flag, ok := row.FlagOn(command); ok {
 						want = append(want, flag.Long)
 					}
@@ -44,10 +46,10 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should count each Set of a flag that is not repeatable", run: func(t *testing.T) {
-			registered := register(settings.CommandRoot)
+			registered := register(settingrow.CommandRoot)
 			registered.parse(t, "-m", "a", "--model=b", "-qm", "c", "--assert", "x", "--assert", "y", "--threshold", "0.5")
 
-			for name, want := range map[settings.Name]int{
+			for name, want := range map[settingrow.Name]int{
 				"model": 3, "quiet": 1, "assert": 0, "threshold": 1, "stats": 0,
 			} {
 				if got := registered.given.Count(name); got != want {
@@ -60,7 +62,7 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should send group rows through the recorder", run: func(t *testing.T) {
-			registered := register(settings.CommandRoot)
+			registered := register(settingrow.CommandRoot)
 			registered.parse(t, "--ask", "a=is it", "--pick", "x,y", "--box", "--sep", " ", "--threshold", "0.4")
 
 			want := []argv.Event{
@@ -76,16 +78,16 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should keep help text equal to Row.Help or the command's own", run: func(t *testing.T) {
-			registered := register(settings.CommandCalibrate)
+			registered := register(settingrow.CommandCalibrate)
 
-			for _, row := range settings.Table() {
-				flag, ok := row.FlagOn(settings.CommandCalibrate)
+			for _, row := range settingrow.Table() {
+				flag, ok := row.FlagOn(settingrow.CommandCalibrate)
 				if !ok {
 					continue
 				}
 
 				want := row.Help
-				if own := row.Flag.PerCommand[settings.CommandCalibrate].Help; own != "" {
+				if own := row.Flag.PerCommand[settingrow.CommandCalibrate].Help; own != "" {
 					want = own
 				}
 
@@ -102,9 +104,9 @@ func TestRegister(t *testing.T) {
 			set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
 			set.SortFlags = false
 			persistent := pflag.NewFlagSet("persistent", pflag.ContinueOnError)
-			rows := settings.Table()
-			settings.Register(set, persistent, rows, argv.New(), settings.CommandRoot,
-				targetsFor(rows, settings.CommandRoot))
+			rows := settingrow.Table()
+			settings.Register(set, persistent, rows, argv.New(), settingrow.CommandRoot,
+				targetsFor(rows, settingrow.CommandRoot))
 
 			var first string
 
@@ -119,7 +121,7 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should put a row persistent only on the commands that mark it", run: func(t *testing.T) {
-			root := register(settings.CommandRoot)
+			root := register(settingrow.CommandRoot)
 			if root.persistent.Lookup("provider") == nil || root.set.Lookup("provider") != nil {
 				t.Error("root --provider is not persistent")
 			}
@@ -128,7 +130,7 @@ func TestRegister(t *testing.T) {
 				t.Error("root persists the wrong flags")
 			}
 
-			create := register(settings.CommandProfileCreate)
+			create := register(settingrow.CommandProfileCreate)
 			if create.set.Lookup("provider") == nil || create.persistent.Lookup("provider") != nil {
 				t.Error("profile create --provider is not local")
 			}
@@ -143,24 +145,24 @@ func TestRegister(t *testing.T) {
 				{"--base-url", ""},
 				{"--map", ""},
 			} {
-				err := register(settings.CommandRoot).parseErr(args...)
-				if !errors.Is(err, settings.ErrEmptyValue) {
+				err := register(settingrow.CommandRoot).parseErr(args...)
+				if !errors.Is(err, settingrow.ErrEmptyValue) {
 					t.Errorf("%v error = %v, want ErrEmptyValue", args, err)
 				}
 			}
 
 			for _, args := range [][]string{{"--state", ""}, {"--delimiter", ""}, {"--sep", " "}, {"--assert", ""}} {
-				if err := register(settings.CommandRoot).parseErr(args...); err != nil {
+				if err := register(settingrow.CommandRoot).parseErr(args...); err != nil {
 					t.Errorf("%v error = %v, want none", args, err)
 				}
 			}
 
-			update := register(settings.CommandProfileUpdate)
+			update := register(settingrow.CommandProfileUpdate)
 			if err := update.parseErr("--model", "", "--base-url", "", "--account-id", ""); err != nil {
 				t.Errorf("profile update refuses an empty member: %v", err)
 			}
 
-			if err := update.parseErr("--provider", ""); !errors.Is(err, settings.ErrEmptyValue) {
+			if err := update.parseErr("--provider", ""); !errors.Is(err, settingrow.ErrEmptyValue) {
 				t.Errorf("profile update --provider '' error = %v, want ErrEmptyValue", err)
 			}
 		}},
@@ -170,22 +172,22 @@ func TestRegister(t *testing.T) {
 			calibrate := sorted(append(slices.Clone(runs), "label"))
 
 			for _, pin := range []struct {
-				command      settings.Command
+				command      settingrow.Command
 				empty, blank []string
 			}{
-				{command: settings.CommandRoot, empty: sorted(append(slices.Clone(root), "sep")), blank: root},
-				{command: settings.CommandCalibrate, empty: sorted(append(slices.Clone(calibrate), "sep")), blank: calibrate},
+				{command: settingrow.CommandRoot, empty: sorted(append(slices.Clone(root), "sep")), blank: root},
+				{command: settingrow.CommandCalibrate, empty: sorted(append(slices.Clone(calibrate), "sep")), blank: calibrate},
 				{
-					command: settings.CommandProfileCreate,
+					command: settingrow.CommandProfileCreate,
 					empty:   []string{"account-id", "base-url", "model"}, blank: []string{"account-id", "base-url", "model"},
 				},
-				{command: settings.CommandProfileUpdate, empty: []string{"name", "provider"}, blank: []string{"name", "provider"}},
+				{command: settingrow.CommandProfileUpdate, empty: []string{"name", "provider"}, blank: []string{"name", "provider"}},
 			} {
 				for value, want := range map[string][]string{"": pin.empty, " ": pin.blank} {
 					var got []string
 
 					for _, name := range register(pin.command).names() {
-						if errors.Is(register(pin.command).parseErr("--"+name+"="+value), settings.ErrEmptyValue) {
+						if errors.Is(register(pin.command).parseErr("--"+name+"="+value), settingrow.ErrEmptyValue) {
 							got = append(got, name)
 						}
 					}
@@ -197,7 +199,7 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should keep pflag's own message for a bad int", run: func(t *testing.T) {
-			err := register(settings.CommandRoot).parseErr("-j", "x")
+			err := register(settingrow.CommandRoot).parseErr("-j", "x")
 
 			var invalid *pflag.InvalidValueError
 			if !errors.As(err, &invalid) || invalid.GetFlag().Value.Type() != "int" {
@@ -209,7 +211,7 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should mark --provider given through Changed", run: func(t *testing.T) {
-			registered := register(settings.CommandRoot)
+			registered := register(settingrow.CommandRoot)
 			registered.parse(t, "--provider", "berget")
 
 			if !registered.persistent.Changed("provider") || registered.given.Count("provider") != 1 {
@@ -221,13 +223,13 @@ func TestRegister(t *testing.T) {
 			}
 		}},
 		{name: "should give the shared run flags one set of defaults and leave -i and -o out", run: func(t *testing.T) {
-			root, calibrate := register(settings.CommandRoot), register(settings.CommandCalibrate)
+			root, calibrate := register(settingrow.CommandRoot), register(settingrow.CommandCalibrate)
 
 			got := map[string]string{}
 
-			for _, row := range settings.Table() {
-				_, onRoot := row.FlagOn(settings.CommandRoot)
-				_, onCalibrate := row.FlagOn(settings.CommandCalibrate)
+			for _, row := range settingrow.Table() {
+				_, onRoot := row.FlagOn(settingrow.CommandRoot)
+				_, onCalibrate := row.FlagOn(settingrow.CommandCalibrate)
 
 				if !onRoot || !onCalibrate || row.Flag.Group || row.Name == "input" || row.Name == "output" {
 					continue
@@ -277,14 +279,14 @@ func TestRegister(t *testing.T) {
 						}
 					}()
 
-					rows := settings.Table()
+					rows := settingrow.Table()
 					settings.Register(pflag.NewFlagSet("onesie", pflag.ContinueOnError), tc.persistent, rows,
-						tc.recorder, settings.CommandRoot, targetsFor(rows, settings.CommandRoot))
+						tc.recorder, settingrow.CommandRoot, targetsFor(rows, settingrow.CommandRoot))
 				}()
 			}
 		}},
 		{name: "should mark the flags that ask nothing", run: func(t *testing.T) {
-			registered := register(settings.CommandRoot)
+			registered := register(settingrow.CommandRoot)
 
 			for _, name := range []string{"version", "print-schema", "list-models", "model"} {
 				_, marked := registered.lookup(name).Annotations[settings.AnnotationAsksNothing]
@@ -309,7 +311,7 @@ func TestGiven_Spelled(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
-		row  settings.Name
+		row  settingrow.Name
 		want []string
 	}{
 		{name: "should spell -qm a -m b as -m twice", args: []string{"-qm", "a", "-m", "b"}, row: "model", want: []string{"-m", "-m"}},
@@ -330,7 +332,7 @@ func TestGiven_Spelled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := register(settings.CommandRoot).given.Spelled(tc.args, tc.row); !slices.Equal(got, tc.want) {
+			if got := register(settingrow.CommandRoot).given.Spelled(tc.args, tc.row); !slices.Equal(got, tc.want) {
 				t.Errorf("Spelled(%v, %s) = %v, want %v", tc.args, tc.row, got, tc.want)
 			}
 		})
@@ -349,14 +351,14 @@ func TestGiven_Inherit(t *testing.T) {
 			run: func(t *testing.T) {
 				t.Helper()
 
-				root := register(settings.CommandRoot)
-				calibrate := register(settings.CommandCalibrate)
+				root := register(settingrow.CommandRoot)
+				calibrate := register(settingrow.CommandCalibrate)
 				calibrate.persistent = root.persistent
 				calibrate.given.Inherit(root.persistent)
 				calibrate.parse(t, "--profile", "work")
 
-				layers, err := settings.Read(settings.Table(), settings.Sources{
-					Given: calibrate.given, Command: settings.CommandCalibrate,
+				layers, err := settings.Read(settingrow.Table(), settings.Sources{
+					Given: calibrate.given, Command: settingrow.CommandCalibrate,
 				})
 				if err != nil {
 					t.Fatalf("Read: %v", err)
@@ -395,7 +397,7 @@ func TestGiven_Values(t *testing.T) {
 	tests := []struct {
 		name string
 		args []string
-		row  settings.Name
+		row  settingrow.Name
 		want []string
 	}{
 		{name: "should list each value typed, in order", args: []string{"-m", "a", "--model=b"}, row: "model", want: []string{"a", "b"}},
@@ -408,7 +410,7 @@ func TestGiven_Values(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			root := register(settings.CommandRoot)
+			root := register(settingrow.CommandRoot)
 			root.parse(t, tc.args...)
 
 			if got := root.given.Values(tc.row); !slices.Equal(got, tc.want) {
@@ -440,8 +442,8 @@ func TestGiven_Within(t *testing.T) {
 			run: func(t *testing.T) {
 				t.Helper()
 
-				root := register(settings.CommandRoot)
-				calibrate := register(settings.CommandCalibrate)
+				root := register(settingrow.CommandRoot)
+				calibrate := register(settingrow.CommandCalibrate)
 				calibrate.persistent = root.persistent
 				calibrate.given.Inherit(root.persistent)
 				calibrate.given.Within(root.given)
@@ -473,7 +475,7 @@ func TestGiven_Within(t *testing.T) {
 
 				var given *settings.Given
 
-				given.Within(register(settings.CommandRoot).given)
+				given.Within(register(settingrow.CommandRoot).given)
 
 				if got := given.Count("profile"); got != 0 {
 					t.Errorf("Count = %d, want 0", got)
@@ -490,8 +492,8 @@ func TestGiven_Within(t *testing.T) {
 	}
 }
 
-func register(command settings.Command) registered {
-	rows := settings.Table()
+func register(command settingrow.Command) registered {
+	rows := settingrow.Table()
 	r := registered{
 		set:        pflag.NewFlagSet(command.String(), pflag.ContinueOnError),
 		persistent: pflag.NewFlagSet("persistent", pflag.ContinueOnError),
@@ -506,7 +508,7 @@ func register(command settings.Command) registered {
 type registered struct {
 	set, persistent *pflag.FlagSet
 	recorder        *argv.Recorder
-	targets         map[settings.Name]any
+	targets         map[settingrow.Name]any
 	given           *settings.Given
 }
 
@@ -542,8 +544,8 @@ func (r registered) lookup(name string) *pflag.Flag {
 	return r.persistent.Lookup(name)
 }
 
-func targetsFor(rows []settings.Row, command settings.Command) map[settings.Name]any {
-	targets := map[settings.Name]any{}
+func targetsFor(rows []settingrow.Row, command settingrow.Command) map[settingrow.Name]any {
+	targets := map[settingrow.Name]any{}
 
 	for _, row := range rows {
 		flag, ok := row.FlagOn(command)

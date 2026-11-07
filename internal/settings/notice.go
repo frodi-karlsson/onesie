@@ -1,12 +1,16 @@
 package settings
 
-import "strconv"
+import (
+	"strconv"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+)
 
 // Notice says one source of a setting won over another. Values holds the winner's and the loser's
 // text as printed: the quoted values of a setting typed twice, or the names a provider or profile
 // choice prints. Times counts the typings of a setting typed more than twice.
 type Notice struct {
-	Setting  Name
+	Setting  settingrow.Name
 	Winner   Origin
 	Loser    Origin
 	Question string

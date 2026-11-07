@@ -19,7 +19,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
-	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestOpenOut(t *testing.T) {
@@ -1098,8 +1097,6 @@ func fingerprintWith(t *testing.T, source plan.Source, inputs answersfile.Finger
 
 func printWith(t *testing.T, source plan.Source, inputs answersfile.FingerprintInputs) answersfile.Print {
 	t.Helper()
-
-	source.Numbers = setting.PolicyNumbers()
 
 	built, err := plan.Assemble(source)
 	if err != nil {

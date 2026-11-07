@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
+
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	"github.com/frodi-karlsson/onesie/internal/settings"
@@ -15,10 +17,10 @@ func TestMerge(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should name the selector from the supplied rows", func(t *testing.T) {
-		rows := settings.Table()
+		rows := settingrow.Table()
 		for i := range rows {
 			if rows[i].Name == settings.Provider.Name() {
-				rows[i].Env = []settings.EnvSpec{{Name: "CUSTOM_PROVIDER"}}
+				rows[i].Env = []settingrow.EnvSpec{{Name: "CUSTOM_PROVIDER"}}
 			}
 		}
 		src := reading{env: map[string]string{"CUSTOM_PROVIDER": "openrouter"}, defaultProfile: "work"}.sources(t)
@@ -44,7 +46,7 @@ func TestMerge(t *testing.T) {
 		reading     reading
 		layers      []settings.Layer
 		want        values
-		wantSources map[settings.Name]settings.Source
+		wantSources map[settingrow.Name]settings.Source
 		wantNotices []string
 		check       func(t *testing.T, merged *settings.Merged)
 	}{
@@ -55,7 +57,7 @@ func TestMerge(t *testing.T) {
 				file: &settings.FileValues{Body: true, TopLevel: map[string]any{"model": "jev-1.13.0"}},
 			},
 			want:        values{"model": "jev-preview"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceFlag},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceFlag},
 			wantNotices: []string{"--model overrides the request body's model"},
 		},
 		{
@@ -64,7 +66,7 @@ func TestMerge(t *testing.T) {
 				args: []string{"--profile", "work", "--model", "x"}, profile: map[string]string{"model": "y"},
 			},
 			want:        values{"model": "x"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceFlag},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceFlag},
 			wantNotices: []string{"--model overrides the profile's model"},
 		},
 		{
@@ -75,7 +77,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"model": "p"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceChosenProfile},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceChosenProfile},
 			wantNotices: []string{"the profile's model overrides the request body's model"},
 		},
 		{
@@ -85,7 +87,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"model": "p", "profile": "work"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceChosenProfile},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceChosenProfile},
 			wantNotices: []string{"the profile's model overrides TYPESAFE_DEFAULT_MODEL"},
 		},
 		{
@@ -95,7 +97,7 @@ func TestMerge(t *testing.T) {
 				file: &settings.FileValues{Body: true, TopLevel: map[string]any{"model": "b"}},
 			},
 			want:        values{"model": "b"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceFile},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceFile},
 			wantNotices: []string{"the request body's model overrides TYPESAFE_DEFAULT_MODEL"},
 		},
 		{
@@ -106,7 +108,7 @@ func TestMerge(t *testing.T) {
 				profile:        map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"model": "b"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceFile},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceFile},
 			wantNotices: []string{"the request body's model overrides the default profile's model"},
 		},
 		{
@@ -116,7 +118,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"model": "e"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceEnv},
 			wantNotices: []string{"TYPESAFE_DEFAULT_MODEL overrides the default profile's model"},
 		},
 		{
@@ -125,26 +127,26 @@ func TestMerge(t *testing.T) {
 				defaultProfile: "work", profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"model": "p", "profile": "work", "provider": "typesafe"},
-			wantSources: map[settings.Name]settings.Source{"model": settings.SourceDefaultProfile},
+			wantSources: map[settingrow.Name]settings.Source{"model": settings.SourceDefaultProfile},
 		},
 		{
 			name:        "should let the environment beat the default, which never prints",
 			reading:     reading{env: map[string]string{"ONESIE_CACHE": "1"}},
 			want:        values{"cache": true},
-			wantSources: map[settings.Name]settings.Source{"cache": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"cache": settings.SourceEnv},
 		},
 		{
 			name:        "should let a flag beat the environment",
 			reading:     reading{args: []string{"--cache=false"}, env: map[string]string{"ONESIE_CACHE": "1"}},
 			want:        values{"cache": false},
-			wantSources: map[settings.Name]settings.Source{"cache": settings.SourceFlag},
+			wantSources: map[settingrow.Name]settings.Source{"cache": settings.SourceFlag},
 			wantNotices: []string{"--cache overrides ONESIE_CACHE"},
 		},
 		{
 			name:        "should take a row's default when no source gives it",
 			reading:     reading{},
 			want:        values{"jobs": 1, "input": "text"},
-			wantSources: map[settings.Name]settings.Source{"jobs": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"jobs": settings.SourceDefault},
 		},
 		{
 			name: "should keep a chosen profile's key over the provider key variable",
@@ -153,7 +155,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe"},
 			},
 			want:        values{"api_key": settings.HeldKey{}},
-			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceChosenProfile},
+			wantSources: map[settingrow.Name]settings.Source{"api_key": settings.SourceChosenProfile},
 			wantNotices: []string{"the profile's api_key overrides TYPESAFE_API_KEY"},
 		},
 		{
@@ -163,7 +165,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe"},
 			},
 			want:        values{"api_key": "env"},
-			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"api_key": settings.SourceEnv},
 			wantNotices: []string{"TYPESAFE_API_KEY overrides the default profile's api_key"},
 		},
 		{
@@ -183,13 +185,13 @@ func TestMerge(t *testing.T) {
 			name:        "should fall back to typesafe as the provider",
 			reading:     reading{},
 			want:        values{"provider": "typesafe"},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceDefault},
 		},
 		{
 			name:        "should fall back to typesafe as the provider on calibrate",
-			reading:     reading{command: settings.CommandCalibrate},
+			reading:     reading{command: settingrow.CommandCalibrate},
 			want:        values{"provider": "typesafe"},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceDefault},
 		},
 		{
 			name: "should fall back to typesafe under a profile that names no provider",
@@ -197,16 +199,16 @@ func TestMerge(t *testing.T) {
 				args: []string{"--profile", "work"}, profile: map[string]string{"model": "p"},
 			},
 			want:        values{"provider": "typesafe", "profile": "work"},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceDefault},
 		},
 		{
 			name: "should run the profile --profile names on calibrate",
 			reading: reading{
-				command: settings.CommandCalibrate, args: []string{"--profile", "work"},
+				command: settingrow.CommandCalibrate, args: []string{"--profile", "work"},
 				profile: map[string]string{"provider": "cloudflare", "model": "p"},
 			},
 			want: values{"profile": "work", "provider": "cloudflare", "model": "p"},
-			wantSources: map[settings.Name]settings.Source{
+			wantSources: map[settingrow.Name]settings.Source{
 				"profile": settings.SourceFlag, "provider": settings.SourceChosenProfile,
 			},
 		},
@@ -216,8 +218,8 @@ func TestMerge(t *testing.T) {
 				defaultProfile: "cf", env: map[string]string{"ONESIE_BASE_URL": "https://e.test"},
 				profile: map[string]string{"provider": "cloudflare", "account_id": account},
 			},
-			want:        values{"endpoint": settings.EndpointValue{BaseURL: "https://e.test"}},
-			wantSources: map[settings.Name]settings.Source{"endpoint": settings.SourceEnv},
+			want:        values{"endpoint": settingrow.EndpointValue{BaseURL: "https://e.test"}},
+			wantSources: map[settingrow.Name]settings.Source{"endpoint": settings.SourceEnv},
 			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's account_id"},
 		},
 		{
@@ -226,8 +228,8 @@ func TestMerge(t *testing.T) {
 				args: []string{"--profile", "cf"}, env: map[string]string{"ONESIE_BASE_URL": "https://e.test"},
 				profile: map[string]string{"provider": "cloudflare", "account_id": account},
 			},
-			want:        values{"endpoint": settings.EndpointValue{AccountID: account}},
-			wantSources: map[settings.Name]settings.Source{"endpoint": settings.SourceChosenProfile},
+			want:        values{"endpoint": settingrow.EndpointValue{AccountID: account}},
+			wantSources: map[settingrow.Name]settings.Source{"endpoint": settings.SourceChosenProfile},
 			wantNotices: []string{"the profile's account_id overrides ONESIE_BASE_URL"},
 		},
 		{
@@ -236,7 +238,7 @@ func TestMerge(t *testing.T) {
 				args:    []string{"--profile", "cf", "--base-url", "https://f.test"},
 				profile: map[string]string{"provider": "cloudflare", "account_id": account},
 			},
-			want:        values{"endpoint": settings.EndpointValue{BaseURL: "https://f.test"}},
+			want:        values{"endpoint": settingrow.EndpointValue{BaseURL: "https://f.test"}},
 			wantNotices: []string{"--base-url overrides the profile's account_id"},
 		},
 		{
@@ -254,7 +256,7 @@ func TestMerge(t *testing.T) {
 				args: []string{"--list-models"}, env: map[string]string{"ONESIE_MOCK": "m.json", "ONESIE_CACHE": "1"},
 			},
 			want:        values{"cache": false},
-			wantSources: map[settings.Name]settings.Source{"cache": settings.SourceDefault, "mock": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"cache": settings.SourceDefault, "mock": settings.SourceDefault},
 		},
 		{
 			name: "should take the file's assert as a list",
@@ -262,7 +264,7 @@ func TestMerge(t *testing.T) {
 				file: &settings.FileValues{TopLevel: map[string]any{"assert": "answer.value > 0.5"}},
 			},
 			want:        values{"assert": []string{"answer.value > 0.5"}},
-			wantSources: map[settings.Name]settings.Source{"assert": settings.SourceFile},
+			wantSources: map[settingrow.Name]settings.Source{"assert": settings.SourceFile},
 		},
 		{
 			name: "should let --assert replace the file's",
@@ -280,7 +282,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
 			},
 			want:        values{"provider": "openrouter", "profile": "", "model": ""},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceFlag, "profile": settings.SourceDefault},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceFlag, "profile": settings.SourceDefault},
 			wantNotices: []string{"--provider openrouter runs without the default profile 'work'"},
 		},
 		{
@@ -289,14 +291,14 @@ func TestMerge(t *testing.T) {
 				env: map[string]string{"ONESIE_PROVIDER": "openrouter"}, defaultProfile: "work",
 			},
 			want:        values{"provider": "openrouter"},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceEnv},
 			wantNotices: []string{"ONESIE_PROVIDER=openrouter runs without the default profile 'work'"},
 		},
 		{
 			name:        "should note nothing for a provider run with no default profile",
 			reading:     reading{args: []string{"--provider", "openrouter"}},
 			want:        values{"provider": "openrouter"},
-			wantSources: map[settings.Name]settings.Source{"provider": settings.SourceFlag},
+			wantSources: map[settingrow.Name]settings.Source{"provider": settings.SourceFlag},
 		},
 		{
 			name: "should note --profile over ONESIE_PROVIDER, and run the profile's provider",
@@ -305,7 +307,7 @@ func TestMerge(t *testing.T) {
 				profile: map[string]string{"provider": "typesafe"},
 			},
 			want: values{"profile": "work", "provider": "typesafe"},
-			wantSources: map[settings.Name]settings.Source{
+			wantSources: map[settingrow.Name]settings.Source{
 				"profile": settings.SourceFlag, "provider": settings.SourceChosenProfile,
 			},
 			wantNotices: []string{"--profile work overrides ONESIE_PROVIDER"},
@@ -324,7 +326,7 @@ func TestMerge(t *testing.T) {
 				defaultProfile: "work", profile: map[string]string{"provider": "cloudflare"},
 			},
 			want: values{"profile": "work", "provider": "cloudflare"},
-			wantSources: map[settings.Name]settings.Source{
+			wantSources: map[settingrow.Name]settings.Source{
 				"profile": settings.SourceDefaultProfile, "provider": settings.SourceDefaultProfile,
 			},
 		},
@@ -334,7 +336,7 @@ func TestMerge(t *testing.T) {
 				defaultProfile: "work", keyHeld: true, profile: map[string]string{"provider": "typesafe"},
 			},
 			want:        values{"api_key": settings.HeldKey{}},
-			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
+			wantSources: map[settingrow.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
 		},
 		{
 			name: "should keep the default profile's key with its own base_url over the key variable",
@@ -344,7 +346,7 @@ func TestMerge(t *testing.T) {
 				env:     map[string]string{"TYPESAFE_API_KEY": "secret"},
 			},
 			want: values{"api_key": settings.HeldKey{}},
-			wantSources: map[settings.Name]settings.Source{
+			wantSources: map[settingrow.Name]settings.Source{
 				"api_key": settings.SourceDefaultProfile, "endpoint": settings.SourceDefaultProfile,
 			},
 			wantNotices: []string{"the default profile's base_url overrides TYPESAFE_API_KEY, since a key goes " +
@@ -367,7 +369,7 @@ func TestMerge(t *testing.T) {
 				env: map[string]string{"TYPESAFE_BASE_URL": "https://env.example", "TYPESAFE_API_KEY": "secret"},
 			},
 			want:        values{"api_key": "secret"},
-			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"api_key": settings.SourceEnv},
 			wantNotices: []string{"TYPESAFE_BASE_URL overrides the profile's api_key, since a key goes only with " +
 				"its own endpoint"},
 		},
@@ -379,18 +381,18 @@ func TestMerge(t *testing.T) {
 				env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": strings.Repeat("b", 32)},
 			},
 			want:        values{"api_key": settings.HeldKey{}},
-			wantSources: map[settings.Name]settings.Source{"endpoint": settings.SourceEnv},
+			wantSources: map[settingrow.Name]settings.Source{"endpoint": settings.SourceEnv},
 			wantNotices: []string{"CLOUDFLARE_ACCOUNT_ID overrides the default profile's account_id"},
 		},
 		{
 			name: "should pair the key with a custom base URL that comes with an account",
 			layers: []settings.Layer{
-				{Source: settings.SourceEnv, Values: map[settings.Name]any{
-					"endpoint": settings.EndpointValue{BaseURL: "https://proxy.example", AccountID: strings.Repeat("a", 32)},
-				}, Spelled: map[settings.Name]string{"endpoint": "ONESIE_BASE_URL"}},
-				{Source: settings.SourceDefaultProfile, Values: map[settings.Name]any{
+				{Source: settings.SourceEnv, Values: map[settingrow.Name]any{
+					"endpoint": settingrow.EndpointValue{BaseURL: "https://proxy.example", AccountID: strings.Repeat("a", 32)},
+				}, Spelled: map[settingrow.Name]string{"endpoint": "ONESIE_BASE_URL"}},
+				{Source: settings.SourceDefaultProfile, Values: map[settingrow.Name]any{
 					"api_key": settings.HeldKey{}, "provider": "cloudflare",
-				}, Spelled: map[settings.Name]string{"api_key": "api_key"}},
+				}, Spelled: map[settingrow.Name]string{"api_key": "api_key"}},
 			},
 			want: values{"api_key": nil},
 			wantNotices: []string{"ONESIE_BASE_URL overrides the default profile's api_key, since a key goes only " +
@@ -429,7 +431,7 @@ func TestMerge(t *testing.T) {
 				env: map[string]string{"ONESIE_BASE_URL": "https://api.typesafe.ai/"},
 			},
 			want:        values{"api_key": settings.HeldKey{}},
-			wantSources: map[settings.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
+			wantSources: map[settingrow.Name]settings.Source{"api_key": settings.SourceDefaultProfile},
 		},
 		{
 			name: "should record the key it sets aside",
@@ -542,10 +544,10 @@ func TestMerge(t *testing.T) {
 		{
 			name: "should merge layers given in any order",
 			layers: []settings.Layer{
-				{Source: settings.SourceEnv, Values: map[settings.Name]any{"model": "e"}, Spelled: map[settings.Name]string{
+				{Source: settings.SourceEnv, Values: map[settingrow.Name]any{"model": "e"}, Spelled: map[settingrow.Name]string{
 					"model": "TYPESAFE_DEFAULT_MODEL",
 				}},
-				{Source: settings.SourceFlag, Values: map[settings.Name]any{"model": "f"}, Spelled: map[settings.Name]string{
+				{Source: settings.SourceFlag, Values: map[settingrow.Name]any{"model": "f"}, Spelled: map[settingrow.Name]string{
 					"model": "--model",
 				}},
 			},
@@ -563,12 +565,12 @@ func TestMerge(t *testing.T) {
 			if layers == nil {
 				src := tc.reading.sources(t)
 				var err error
-				chosen, err = settings.Choose(settings.Table(), src)
+				chosen, err = settings.Choose(settingrow.Table(), src)
 				if err != nil {
 					t.Fatal(err)
 				}
 				src.Choice = &chosen
-				read, err := settings.Read(settings.Table(), src)
+				read, err := settings.Read(settingrow.Table(), src)
 				if err != nil {
 					t.Fatalf("Read: %v", err)
 				}
@@ -576,7 +578,7 @@ func TestMerge(t *testing.T) {
 				layers = read
 			}
 
-			merged, notices := settings.Merge(settings.Table(), layers, chosen)
+			merged, notices := settings.Merge(settingrow.Table(), layers, chosen)
 
 			for name, want := range tc.want {
 				if got := merged.Value(name); !reflect.DeepEqual(got, want) {
@@ -903,7 +905,19 @@ func TestMergeQuestions(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			notices := settings.MergeQuestions(tc.built, tc.typed)
+			before := append([]plan.Question(nil), tc.built.Questions...)
+			var events []argv.Event
+			events = append(events, tc.built.Orphans...)
+			for _, selection := range tc.built.Selections {
+				events = append(events, argv.Event{Name: "for", Value: selection.ID})
+				events = append(events, selection.Events...)
+			}
+			built, err := plan.Assemble(plan.Source{File: before, Events: events})
+			if err != nil {
+				t.Fatal(err)
+			}
+			tc.built = built
+			notices := settings.MergeQuestions(before, tc.built, tc.typed)
 
 			got := make([]string, 0, len(notices))
 			for _, notice := range notices {
@@ -923,7 +937,7 @@ func TestMergeQuestions(t *testing.T) {
 	t.Run("should merge nothing without a plan", func(t *testing.T) {
 		t.Parallel()
 
-		if notices := settings.MergeQuestions(nil, nil); len(notices) != 0 {
+		if notices := settings.MergeQuestions(nil, nil, nil); len(notices) != 0 {
 			t.Errorf("notices = %v, want none", notices)
 		}
 	})
