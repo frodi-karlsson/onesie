@@ -62,23 +62,6 @@ var (
 	FallbackAnswer = Key[string]{name: "fallback"}
 )
 
-// Keys returns every key, so a test can check each one against its row.
-func Keys() []Keyed {
-	return []Keyed{
-		Version, Output, Raw, Quiet, Input, State, StateFile, Provider, Profile, PrintQuestions, PrintSchema,
-		ListModels, Unordered, StopOnError, StopOnAssert, NoDedup, MergeInput, MergeKey, Map, ID, Model,
-		APIEndpoint, APIKey, AllowHTTP, LongContext, File, Replace, Jobs, Timeout, Retries, MaxRetryAfter, Out, Resume,
-		Prune, SkipBlank, Delimiter, Stats, Usage, PrintRequest, Cache, Mock, Cuts, Offline, CacheTTL, ConfigDir,
-		CacheDir, Sep, Box, Threshold, MinConfidence, FallbackAnswer,
-	}
-}
-
-// Keyed is a key of any value type.
-type Keyed interface {
-	Name() settingrow.Name
-	Fits(kind settingrow.Kind) bool
-}
-
 // Get returns the value k's setting takes for the run, or the zero value of its kind when nothing
 // gives it.
 func Get[T any](m *Merged, k Key[T]) T {
@@ -124,11 +107,4 @@ type Key[T any] struct {
 // Name is the row the key reads.
 func (k Key[T]) Name() settingrow.Name {
 	return k.name
-}
-
-// Fits reports whether kind yields the key's value type.
-func (k Key[T]) Fits(kind settingrow.Kind) bool {
-	_, ok := kind.Zero().(T)
-
-	return ok
 }
