@@ -1,14 +1,17 @@
 package input_test
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
@@ -715,4 +718,155 @@ type watchedReader struct {
 	io.Reader
 
 	reads int
+}
+
+func TestReadHeader(t *testing.T) {
+	t.Run("should read a detected header while the producer waits to send data", func(t *testing.T) {
+		r, w := io.Pipe()
+		t.Cleanup(func() {
+			_ = r.Close()
+			_ = w.Close()
+		})
+		stream := input.NewStream(r, input.CSV, input.StreamOptions{Delimiter: input.Delimiter{Detect: true}})
+		written := make(chan error, 1)
+		go func() {
+			_, err := io.WriteString(w, "id;body\n")
+			written <- err
+		}()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		h, err := interrupt.Wait(ctx, stream.ReadHeader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Equal(h.Names, []string{"id", "body"}) || h.Separator != ';' {
+			t.Fatalf("header: %#v", h)
+		}
+		if writeErr := <-written; writeErr != nil {
+			t.Fatal(writeErr)
+		}
+		go func() {
+			_, writeErr := io.WriteString(w, "1;hello\n")
+			written <- writeErr
+		}()
+		rec, ok, err := stream.Next()
+		if err != nil || !ok || rec.Err != nil || rec.Line != 2 || rec.Raw != `{"id":"1","body":"hello"}` {
+			t.Fatalf("record: %#v, %v, %v", rec, ok, err)
+		}
+		if writeErr := <-written; writeErr != nil {
+			t.Fatal(writeErr)
+		}
+	})
+	tests := []struct {
+		name    string
+		mode    input.Mode
+		text    string
+		names   []string
+		comma   rune
+		wantErr string
+	}{
+		{"should cache empty input", input.CSV, "", nil, 0, "EOF"},
+		{"should read header only input", input.CSV, "id,body\n", []string{"id", "body"}, ',', ""},
+		{"should read TSV headers", input.TSV, "id\tbody\n", []string{"id", "body"}, '\t', ""},
+		{"should read multiline headers", input.CSV, "\"first\nname\",body\n", []string{"first\nname", "body"}, ',', ""},
+		{"should cache duplicate header errors", input.CSV, "id,id\nnext,row\n", nil, 0, "line 1: the header names 'id' twice"},
+		{"should cache blank header errors", input.CSV, "id, \nnext,row\n", nil, 0, "line 1: the header has a blank column name"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			stream := input.NewStream(strings.NewReader(tc.text), tc.mode, input.StreamOptions{})
+			var firstErr error
+			for i := 0; i < 3; i++ {
+				h, err := stream.ReadHeader()
+				if tc.wantErr != "" {
+					if err == nil || err.Error() != tc.wantErr {
+						t.Fatalf("error: %v", err)
+					}
+					if i > 0 && !errors.Is(err, firstErr) {
+						t.Fatal("error was not cached")
+					}
+					firstErr = err
+					continue
+				}
+				if err != nil || !slices.Equal(h.Names, tc.names) || h.Separator != tc.comma {
+					t.Fatalf("header: %#v, %v", h, err)
+				}
+				h.Names[0] = "changed"
+			}
+			rec, ok, err := stream.Next()
+			if tc.wantErr != "" && tc.wantErr != "EOF" {
+				if !errors.Is(err, firstErr) {
+					t.Fatalf("Next error: %v", err)
+				}
+				return
+			}
+			if err != nil || ok {
+				t.Fatalf("Next: %#v, %v, %v", rec, ok, err)
+			}
+		})
+	}
+	t.Run("should preserve the header after Next and leave malformed data to Next", func(t *testing.T) {
+		stream := input.NewStream(strings.NewReader("id,body\n1,hello\n2\n"), input.CSV, input.StreamOptions{})
+		_, ok, err := stream.Next()
+		if err != nil || !ok {
+			t.Fatal(err)
+		}
+		h, err := stream.ReadHeader()
+		if err != nil || !slices.Equal(h.Names, []string{"id", "body"}) {
+			t.Fatalf("header: %#v, %v", h, err)
+		}
+		rec, ok, err := stream.Next()
+		if err != nil || !ok || rec.Err == nil || rec.Line != 3 {
+			t.Fatalf("record: %#v, %v, %v", rec, ok, err)
+		}
+	})
+	t.Run("should reject other modes without consuming input", func(t *testing.T) {
+		for _, mode := range []input.Mode{input.Lines, input.JSONL, input.Request} {
+			reader := strings.NewReader("hello\n")
+			stream := input.NewStream(reader, mode, input.StreamOptions{})
+			if _, err := stream.ReadHeader(); err == nil {
+				t.Fatal("expected error")
+			}
+			if reader.Len() != len("hello\n") {
+				t.Fatal("consumed input")
+			}
+		}
+	})
+	t.Run("should allow cancellation while the producer has sent no header", func(t *testing.T) {
+		r, w := io.Pipe()
+		t.Cleanup(func() {
+			_ = r.Close()
+			_ = w.Close()
+		})
+		stream := input.NewStream(r, input.CSV, input.StreamOptions{})
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		started := make(chan struct{})
+		finished := make(chan struct{})
+		done := make(chan error, 1)
+		go func() {
+			_, err := interrupt.Wait(ctx, func() (input.Header, error) {
+				close(started)
+				defer close(finished)
+				return stream.ReadHeader()
+			})
+			done <- err
+		}()
+		<-started
+		cancel()
+		select {
+		case err := <-done:
+			if !errors.Is(err, context.Canceled) {
+				t.Fatal(err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("cancellation blocked")
+		}
+		_ = w.Close()
+		select {
+		case <-finished:
+		case <-time.After(time.Second):
+			t.Fatal("read did not finish")
+		}
+	})
 }

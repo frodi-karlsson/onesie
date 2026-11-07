@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -71,17 +72,19 @@ func lineCapOf(mode Mode) int {
 
 // Stream yields one record per input line, in input order.
 type Stream struct {
-	reader    *bufio.Reader
-	mode      Mode
-	skipBlank bool
-	lineCap   int
-	index     int
-	line      int
-	rows      *csv.Reader
-	budget    *rowBudget
-	header    []string
-	comma     rune
-	detect    bool
+	reader      *bufio.Reader
+	mode        Mode
+	skipBlank   bool
+	lineCap     int
+	index       int
+	line        int
+	rows        *csv.Reader
+	budget      *rowBudget
+	header      []string
+	headerReady bool
+	headerErr   error
+	comma       rune
+	detect      bool
 }
 
 // Next returns the next record. The second result is false at end of input. A record carrying a
@@ -125,25 +128,39 @@ func (s *Stream) Next() (Record, bool, error) {
 	}
 }
 
-// Comma is the separator a CSV stream splits on, final once Next has returned the first record.
+// Comma is the CSV separator, final after ReadHeader or the first record from Next.
 func (s *Stream) Comma() rune {
 	return s.comma
 }
 
-func (s *Stream) nextRow() (Record, bool, error) {
-	if s.detect {
-		if err := s.detectComma(); err != nil {
-			return Record{}, false, err
-		}
+// ReadHeader initializes a delimited stream and returns an independent header snapshot.
+// The stream has one owner, so callers must not read it concurrently.
+func (s *Stream) ReadHeader() (Header, error) {
+	if !s.mode.Delimited() {
+		return Header{}, errors.New("headers require csv or tsv input")
 	}
+	if err := s.ensureHeader(); err != nil {
+		return Header{}, err
+	}
+	separator := s.comma
+	if s.mode == TSV {
+		separator = '\t'
+	}
+	return Header{Names: slices.Clone(s.header), Separator: separator}, nil
+}
 
-	if s.header == nil {
-		header, err := s.readHeader()
-		if err != nil || header == nil {
-			return Record{}, false, err
+// Header holds validated column names and the effective field separator.
+type Header struct {
+	Names     []string
+	Separator rune
+}
+
+func (s *Stream) nextRow() (Record, bool, error) {
+	if err := s.ensureHeader(); err != nil {
+		if errors.Is(err, io.EOF) {
+			return Record{}, false, nil
 		}
-
-		s.header = header
+		return Record{}, false, err
 	}
 
 	fields, err := s.nextFields()
@@ -167,11 +184,29 @@ func (s *Stream) nextRow() (Record, bool, error) {
 	return s.row(fields), true, nil
 }
 
+func (s *Stream) ensureHeader() error {
+	if s.headerReady {
+		return s.headerErr
+	}
+	s.headerReady = true
+	if s.detect {
+		if err := s.detectComma(); err != nil {
+			s.headerErr = err
+			return err
+		}
+	}
+	s.header, s.headerErr = s.readHeader()
+	if s.headerErr == nil && s.header == nil {
+		s.headerErr = io.EOF
+	}
+	return s.headerErr
+}
+
 func (s *Stream) detectComma() error {
 	s.detect = false
 
-	// The lines up to the header are read here, on the goroutine that calls Next, and then handed back
-	// to the csv reader ahead of the rest of the input, which keeps its line numbers.
+	// Detection runs on the caller goroutine. Replaying the held lines ahead of the remaining
+	// input preserves the csv reader line numbers.
 	held, comma, err := s.leadingLines()
 	if err != nil {
 		return err
