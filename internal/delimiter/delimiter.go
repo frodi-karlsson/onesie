@@ -8,6 +8,9 @@ import (
 	"unicode/utf8"
 )
 
+// DefaultComma is the separator used when no delimiter is given.
+const DefaultComma rune = ','
+
 // Parse reads a delimiter setting, auto to detect it from the header row or one character
 // to split on.
 func Parse(value string) (Delimiter, error) {

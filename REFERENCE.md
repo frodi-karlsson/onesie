@@ -1,7 +1,8 @@
 # onesie reference
 
-The details behind the [README](README.md). `onesie --help` lists every flag, and `onesie -V`
-prints the built in limits.
+The details behind the [README](README.md). `onesie help all` lists every flag, and `onesie -V`
+prints the built in limits. Start with `onesie --help` for common tasks, then use a topic such as
+`onesie help asking`, `onesie help output` or `onesie help execution` for details.
 
 ## Asking
 
@@ -220,8 +221,8 @@ ONESIE_MOCK=answers.json ./gate.sh
 
 ## Calibrating
 
-`onesie calibrate --help` is the full reference, and its Labels paragraph lists what each shape
-accepts as a label.
+`onesie help calibrate all` is the full reference. `onesie help calibrate evaluation` explains
+labels, cuts, requirements and offline replay.
 
 - `calibrate` is a subcommand name, so `onesie calibrate` runs it. To ask it as a question, write
   `onesie -- calibrate`.
@@ -1003,8 +1004,8 @@ onesie --profile cf -f shell-safety -q --state "$cmd"
 | 130 | interrupted |
 
 calibrate uses 0, 2, 3, 6 and 130, and 1 only under `--require`, when a requirement did not hold.
-A consumer that stops reading, as `head` does, is not an error. `onesie --help` lists this
-table, and `onesie calibrate --help` lists the codes calibrate uses.
+A consumer that stops reading, as `head` does, is not an error. `onesie help all` lists this
+table, and `onesie help calibrate all` lists the codes calibrate uses.
 
 ## Environment
 
@@ -1134,7 +1135,7 @@ table, and `onesie calibrate --help` lists the codes calibrate uses.
   writes `"long_context":true` into a body the flag or the variable turns it on for. A provider
   that takes no long context refuses the run with exit 2, `--print-request` included, and when
   `ONESIE_LONG_CONTEXT` turned it on, the message says so. It is experimental.
-- `onesie --help` lists every flag, and `onesie -V` prints the version, the commit, the build date
+- `onesie help all` lists every flag, and `onesie -V` prints the version, the commit, the build date
   and the built in limits. `onesie -V -o json` and `onesie version -o json` print them as one JSON
   object, each limit a string as `-V` prints it. Any other `-o` beside either exits 2.
 - A flag onesie does not know exits 2, naming the closest one when one is near. A flag that belongs

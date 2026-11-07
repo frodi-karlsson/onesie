@@ -1,78 +1,62 @@
-calibrate asks the model about labelled records, compares each answer with the label a --label jq expression takes from the record, and prints cut, agreement and confusion tables to pick a gate from. It never picks the cut.
-
-Map only the text a person would read, since a --map that selects the label flatters the question.
-
-Labels: a yes or no label is true, false, yes, no, y, n, 1 or 0 in any case. A pick or rate label is an option or level name as declared, with spaces around it ignored, or a number whose text is one, so 4 matches --rate 1,2,3,4,5. null, no result or a string of only spaces leaves a record unlabelled for that question, and a record no question labels is not asked. A jsonl record reads {"id":"T-1","body":"the site is down","is_urgent":true}, and a csv one has the header id,body,is_urgent and the row T-1,the site is down,yes.
-
-A question with no --label is skipped, left out of the requests and the report, and named on stderr. At least one question needs a --label, a --label naming no question exits 2, and so does a --require that reads a skipped question. A --resume into an --out file that answers every question still asks the skipped ones, so the file stays whole.
-
-A yes or no cut row flags a record when its value is at least the cut, so the cut goes into a gate as written. A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored, since calibrate reports every cut. The same flags are refused.
-
-A pick or rate table has a row per name. found is the share of the records labelled with a name that were picked as it, and right when picked the share of the records picked as a name that carry it as their label.
-
---out keeps the answers as -o json lines, and --resume, which needs --id, asks only the records the file does not answer. Changing a label or --cuts reuses every stored answer. A plain stream run can resume the file too, given the same questions, model, -i, --map and --id, with -o json and no gate or merge.
-
---require turns the report into a check. Each one reads [lower|upper](ID.MEASURE) OP NUMBER [at CUT], where MEASURE is catches, false_alarms, right_when_flagged or auc for yes or no, agreement for pick and rate, and within_one for rate. OP is >=, >, <= or <, and NUMBER is a fraction between 0 and 1. lower and upper compare an end of the 95 percent interval instead of the value, so 16 of 16 fails lower(x.catches) >= 0.9. A yes or no measure other than auc is read at one cut: at CUT names it, at abstain takes it from the -f file's abstain_if, and otherwise the file's assert gives it when it compares ID.value < X or ID.value >= X. The report still prints, and each requirement that did not hold is named on stderr.
-
---offline, with --out and --resume, reads every answer from the file and asks nothing, so it needs no key and never rewrites the file. A record the file does not answer, a missing file or a file whose fingerprint differs exits 2.
-
-Exit codes:
-  0    every record was answered and every --require held
-  1    a --require did not hold
-  2    usage or validation error, including a bad label or record
-  3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or credentials.json is exposed. No report prints
-  6    the report holds one or more failed records, which wins over 1
-  130  interrupted. No report prints
+Compare answers with labelled examples. Calibrate never chooses a threshold.
 
 Usage:
   onesie calibrate [question] [flags]
 
 Examples:
-  onesie calibrate --ask urgent='is this urgent' -i jsonl --map '.body' \
-      --label urgent='.is_urgent' --id '.id' --out answers.jsonl --resume < labelled.jsonl
-  onesie calibrate -f triage -i jsonl --map '.body' --label urgent='.is_urgent' --id '.id' \
-      --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.95' < labelled.jsonl
+  A labelled record in labelled.jsonl:
+    {"id":"a","text":"The server is down","urgent":true}
 
-Flags:
-      --allow-http                send the request, and any API key, over a plain http base URL to a host other than this machine. Without it such a base URL exits 2 before any request
-      --ask string                NAME=QUESTION, repeatable, opens a question group
-      --base-url string           api root override. Also ONESIE_BASE_URL
-      --box                       make this a box question, answered with the left, top, right and bottom edges of what it finds in an image, each from 0 to 1. Takes no value. Experimental on TypeSafe's side
-      --cache                     store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1
-      --cuts string               comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05
-      --delimiter string          field separator for -i csv: auto, or one character. Defaults to a comma
-      --desc string               KEY=TEXT, describing one option, level, yes or no. On a question from -f it replaces that key's description alone
-  -f, --file string               question file or request body, or the name of one saved in .onesie/questions or the config dir, or of a built in starter set
-      --for string                ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep after it apply to that question
-  -h, --help                      help for calibrate
-      --id string                 jq expression run on each record, whose string or number result names it
-      --image stringArray         NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. Experimental on TypeSafe's side
-      --image-field stringArray   repeatable, a state key whose value is a path to a PNG or JPEG, read per record. Experimental on TypeSafe's side
-  -i, --input string              required, jsonl, csv or tsv
-  -j, --jobs int                  records in flight at once (default 1)
-      --label stringArray         [ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the right answer for question ID. A question with none is skipped. With one question ID= may be left out
-      --long-context              raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on TypeSafe's side
-      --map string                jq expression run on each record, whose result is the state sent. Map only the text a person would read
-      --max-retry-after int       most seconds to wait out a server Retry-After (default 60)
-      --mock string               answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json writes. A lone line that carries id, line, model, usage, assert, abstain or an error object is one record
-  -m, --model string              model override
-      --offline                   with --out and --resume, read every answer from the file and ask nothing, needing no key
-      --out string                write the answers to this file as -o json lines
-  -o, --output string             the report, table, json or auto, which means table
-      --pick string               comma separated options, making this a choice question. A repeated --pick adds to the options, and together they replace the options of a choice question from -f
-      --print-request             write api shaped request bodies to stdout and exit
-      --prune                     with --resume, drop the answered ids the input no longer has
-      --rate string               comma separated levels in ascending order, making this a score question. A repeated --rate adds levels after the earlier ones, and together they replace the levels of a score question from -f. Its score is the level index averaged over p, from 0, and norm is score over the top index, from 0 to 1
-      --replace                   --ask overrides an id from -f
-      --require stringArray       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate exits 1. Repeatable
-      --resume                    with --out and --id, skip the ids the file already answers
-      --retries int               retries after a failed attempt (default 2)
-      --sep string                separator for --pick and --rate that follow it
-      --skip-blank                drop blank lines
-      --stats                     write a one line summary of the run to stderr at exit
-      --timeout int               seconds per attempt, 60 for a request with images unless given (default 10)
-      --usage                     add the api usage object to the answers file and the json report
+  The first command creates the answer file used by the second. The requirement is
+  illustrative.
 
-Global Flags:
-      --profile string    the profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and otherwise the default profile runs, which onesie profile use sets
-      --provider string   run on this provider without a profile, typesafe, openrouter, berget, levanto or cloudflare. Overrides ONESIE_PROVIDER and the default profile. Refused beside --profile or ONESIE_PROFILE
+
+  Compare answers with labelled examples:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume < labelled.jsonl
+
+  Check the saved answers without asking again:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.9 at 0.5' < labelled.jsonl
+
+Asking:
+      --ask NAME=QUESTION       Ask a named question. Repeat for several.
+      --pick OPTIONS            Choose from comma separated options.
+      --rate LEVELS             Rate against levels from lowest to highest.
+  -f, --file FILE               Load saved questions, a request body or a built in
+                                starter set.
+
+Input:
+  -i, --input FORMAT            required, jsonl, csv or tsv
+      --map EXPR                jq expression run on each record, whose result is the
+                                state sent. Map only the text a person would read
+      --id EXPR                 jq expression run on each record, whose string or number
+                                result names it
+
+Evaluation:
+      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
+                                mapped state, whose result is the right answer for
+                                question ID. A question with none is skipped. With one
+                                question ID= may be left out
+      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
+                                defaults
+      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
+                                requirement the report must meet, or calibrate exits 1.
+                                Repeatable
+      --offline                 with --out and --resume, read every answer from the file
+                                and ask nothing, needing no key
+
+Output:
+      --out STRING              write the answers to this file as -o json lines
+  -o, --output FORMAT           the report, table, json or auto, which means table
+
+Execution:
+      --resume                  with --out and --id, skip the ids the file already
+                                answers
+
+More help:
+  onesie help calibrate asking
+  onesie help calibrate input
+  onesie help calibrate evaluation
+  onesie help calibrate output
+  onesie help calibrate connections
+  onesie help calibrate execution
+  onesie help calibrate all

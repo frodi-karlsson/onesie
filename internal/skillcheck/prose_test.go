@@ -30,6 +30,15 @@ Flags:
       --provider string      typesafe
   -q, --quiet                suppress output
       --state string         state to evaluate
+                                --description-token
+
+How they work together:
+  --not-a-flag is prose.
+
+Execution
+
+Flags:
+      --max-retry-after INT   retry wait cap
 
 Use "onesie [command] --help" for more information about a command.
 `
@@ -84,6 +93,10 @@ func TestCheckProse(t *testing.T) {
 		intro string
 		want  []string
 	}{
+		{name: "should accept an uncommon complete reference flag", intro: "Run `onesie --max-retry-after 2 --state x`."},
+		{name: "should reject a typo in an uncommon complete reference flag", intro: "Run `onesie --max-retry-aftr 2 --state x`.", want: []string{"onesie: skill 'demo' intro.md: --max-retry-aftr is not a flag in onesie help all"}},
+		{name: "should refuse a root gate flag on calibration", intro: "Run `onesie calibrate --assert true`.", want: []string{"onesie: skill 'demo' intro.md: --assert is not a flag in onesie help calibrate all"}},
+
 		{
 			name:  "should pass flags and commands every help lists",
 			intro: "Run `onesie --provider openrouter profile create --file`, then `onesie -f triage calibrate`.",
@@ -91,12 +104,12 @@ func TestCheckProse(t *testing.T) {
 		{
 			name:  "should fail a flag the root help lacks in a onesie code span, naming the skill and the fragment",
 			intro: "Run `onesie --cahce --state x`.",
-			want:  []string{"onesie: skill 'demo' intro.md: --cahce is not a flag in onesie --help"},
+			want:  []string{"onesie: skill 'demo' intro.md: --cahce is not a flag in onesie help all"},
 		},
 		{
 			name:  "should fail a flag written after a subcommand that its help lacks",
 			intro: "Run `onesie calibrate --offline --cache`.",
-			want:  []string{"onesie: skill 'demo' intro.md: --cache is not a flag in onesie calibrate --help"},
+			want:  []string{"onesie: skill 'demo' intro.md: --cache is not a flag in onesie help calibrate all"},
 		},
 		{
 			name:  "should fail a subcommand the help lacks",
@@ -107,28 +120,28 @@ func TestCheckProse(t *testing.T) {
 			name:  "should pass a bare flag of a subcommand the skill runs, and fail one no such help lists",
 			intro: "Run `onesie calibrate`, then add --offline and --ofline.",
 			want: []string{
-				"onesie: skill 'demo' intro.md: --ofline is not in onesie --help or the --help of a command this skill runs",
+				"onesie: skill 'demo' intro.md: --ofline is not in onesie help all or the complete help of a command this skill runs",
 			},
 		},
 		{
 			name:  "should fail a bare flag of a subcommand the skill never runs",
 			intro: "Add --offline and `--cache`.",
 			want: []string{
-				"onesie: skill 'demo' intro.md: --offline is not in onesie --help or the --help of a command this skill runs",
+				"onesie: skill 'demo' intro.md: --offline is not in onesie help all or the complete help of a command this skill runs",
 			},
 		},
 		{
 			name:  "should not count a subcommand the skill only asks for --help",
 			intro: "Run `onesie calibrate --help`, then add --offline.",
 			want: []string{
-				"onesie: skill 'demo' intro.md: --offline is not in onesie --help or the --help of a command this skill runs",
+				"onesie: skill 'demo' intro.md: --offline is not in onesie help all or the complete help of a command this skill runs",
 			},
 		},
 		{
 			name:  "should never count the flags of completion",
 			intro: "Run `onesie completion`, then add --no-descriptions.",
 			want: []string{
-				"onesie: skill 'demo' intro.md: --no-descriptions is not in onesie --help or the --help of a command " +
+				"onesie: skill 'demo' intro.md: --no-descriptions is not in onesie help all or the complete help of a command " +
 					"this skill runs",
 			},
 		},
@@ -136,15 +149,15 @@ func TestCheckProse(t *testing.T) {
 			name:  "should check a onesie command after a pipe, after env assignments and inside $(...)",
 			intro: "Run `tail -f log | onesie --nope1`, `ONESIE_MOCK=x A=b onesie --nope2` and `t=$(onesie --nope3 --state \"$(cat f)\")`.",
 			want: []string{
-				"onesie: skill 'demo' intro.md: --nope1 is not a flag in onesie --help",
-				"onesie: skill 'demo' intro.md: --nope2 is not a flag in onesie --help",
-				"onesie: skill 'demo' intro.md: --nope3 is not a flag in onesie --help",
+				"onesie: skill 'demo' intro.md: --nope1 is not a flag in onesie help all",
+				"onesie: skill 'demo' intro.md: --nope2 is not a flag in onesie help all",
+				"onesie: skill 'demo' intro.md: --nope3 is not a flag in onesie help all",
 			},
 		},
 		{
 			name:  "should check a fenced line that starts with onesie",
 			intro: "```sh\nonesie --state x \\\n    --nope\n```",
-			want:  []string{"onesie: skill 'demo' intro.md: --nope is not a flag in onesie --help"},
+			want:  []string{"onesie: skill 'demo' intro.md: --nope is not a flag in onesie help all"},
 		},
 	}
 
@@ -186,9 +199,9 @@ func TestCheckProse(t *testing.T) {
 		}
 
 		want := []string{
-			"onesie: skill 'demo' description: --nope is not in onesie --help or the --help of a command this skill runs",
-			"onesie: skill 'demo' rule 'r1': --bad is not in onesie --help or the --help of a command this skill runs",
-			"onesie: skill 'demo' rule 'r1': --worse is not in onesie --help or the --help of a command this skill runs",
+			"onesie: skill 'demo' description: --nope is not in onesie help all or the complete help of a command this skill runs",
+			"onesie: skill 'demo' rule 'r1': --bad is not in onesie help all or the complete help of a command this skill runs",
+			"onesie: skill 'demo' rule 'r1': --worse is not in onesie help all or the complete help of a command this skill runs",
 		}
 		if !reflect.DeepEqual(report.Failures, want) || report.Checked != 3 {
 			t.Errorf("report = %+v, want %q over 3 mentions", report, want)
@@ -233,9 +246,9 @@ func TestCheckProse(t *testing.T) {
 
 func fakeHelp(_ context.Context, _ string, args []string) (string, error) {
 	switch strings.Join(args, " ") {
-	case "--help":
+	case "help all":
 		return rootHelp, nil
-	case "calibrate --help":
+	case "help calibrate all":
 		return calibrateHelp, nil
 	case "profile --help":
 		return profileHelp, nil
@@ -362,7 +375,7 @@ func TestParseHelp(t *testing.T) {
 			want: helpPage{
 				longTakesValue: map[string]bool{
 					"assert": true, "cache": false, "file": true, "output": true, "provider": true,
-					"quiet": false, "state": true,
+					"quiet": false, "state": true, "max-retry-after": true,
 				},
 				shortTakesValue: map[string]bool{"f": true, "o": true, "q": false},
 				commands:        map[string]bool{"profile": true, "calibrate": true, "completion": true},

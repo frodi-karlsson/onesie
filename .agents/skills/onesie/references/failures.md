@@ -1,7 +1,7 @@
 ## Exit codes
 
 The [exit code table](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#exit-codes)
-gives each code by outcome, and `onesie --help` lists the same table.
+gives each code by outcome, and `onesie help all` lists the same table.
 
 Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
 means a stream finished and only the lines carrying an error failed, the rest answered normally.

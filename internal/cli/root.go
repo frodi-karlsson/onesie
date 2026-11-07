@@ -31,7 +31,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/release"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
@@ -84,7 +83,6 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask a System One model typed questions about state on stdin",
-		Long:  rootLong(),
 		Args:  rootArgs(flags),
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
@@ -104,8 +102,7 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	root.AddCommand(calibrate)
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
-	refuseUnknownHelpTopics(root)
-	helpShowsSwitches(root)
+	installHelp(root, calibrate)
 
 	// Cobra hands every subcommand the nearest parent's flag error function, so one hook covers the
 	// subcommands cobra adds itself, such as completion.
@@ -150,29 +147,6 @@ func runTargets(flags *runFlags) map[settingrow.Name]any {
 		setting.Cache.Name(): &flags.cache, setting.Jobs.Name(): &flags.jobs, setting.Timeout.Name(): &flags.timeout,
 		setting.Retries.Name(): &flags.retries, setting.MaxRetryAfter.Name(): &flags.maxRetryAfter,
 	}
-}
-
-func rootLong() string {
-	return "onesie is a Unix filter over the System One API, served by " + providers.Names() + ".\n\n" +
-		"State arrives on stdin, typed answers leave on stdout, and the exit status is " +
-		"usable in a conditional.\n\n" +
-		"A run uses a profile from profiles.json in the config dir: the one --profile or ONESIE_PROFILE " +
-		"names, or the default one. A profile holds the provider, its key, in the OS keychain or the " +
-		"file, and optionally a model and a base URL or " + providers.WithAccounts() + " account. " +
-		"onesie profile create stores one, and onesie profile use makes it the default. --provider or " +
-		"ONESIE_PROVIDER runs without a profile, with the key from the provider's variable, " +
-		providers.KeyVariables() + ", and so does a run on typesafe when there are no profiles. On " +
-		providers.WithAccounts() + " a run also needs an account, from the profile, " +
-		providers.AccountVariables() + " or a base URL that holds it. A run on a base URL other than the " +
-		"provider's own needs no key, and sends none when none resolves.\n\n" +
-		"--mock FILE, or ONESIE_MOCK=FILE, answers from a file instead of the API, with no key and no " +
-		"network, so a gate script can be tested for free.\n\n" +
-		"--cache, or ONESIE_CACHE=1, stores each successful response on disk and answers a repeated " +
-		"request from it. onesie cache reports what it holds, and onesie cache clear empties it.\n\n" +
-		"A question that begins with a dash needs -- before it, with any flags placed " +
-		"first, as in onesie -o json -- '-is this urgent'. So does a one word question close to " +
-		"a subcommand name, since onesie questoins exits 2 and names questions as the closest.\n\n" +
-		exitCodesSection(rootExitCodes)
 }
 
 func runRoot(
@@ -553,36 +527,6 @@ func rootArgs(flags *runFlags) cobra.PositionalArgs {
 		}
 
 		return atMostOneQuestion(cmd, args)
-	}
-}
-
-func refuseUnknownHelpTopics(root *cobra.Command) {
-	root.InitDefaultHelpCmd()
-
-	for _, sub := range root.Commands() {
-		if sub.Name() != "help" {
-			continue
-		}
-
-		// Cobra's own help command finds the root for any word the root accepts as a question, and
-		// prints the root help with exit 0.
-		sub.Run = nil
-		sub.RunE = func(help *cobra.Command, args []string) error {
-			topic, rest, err := root.Find(args)
-			if err != nil || len(rest) > 0 {
-				return fmt.Errorf("unknown help topic '%s'. Run onesie --help to see the subcommands",
-					strings.Join(args, " "))
-			}
-
-			if topic.Context() == nil {
-				topic.SetContext(help.Context())
-			}
-
-			topic.InitDefaultHelpFlag()
-			topic.InitDefaultVersionFlag()
-
-			return topic.Help()
-		}
 	}
 }
 

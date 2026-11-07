@@ -466,19 +466,18 @@ func TestNewCalibrateCmd(t *testing.T) {
 		},
 		{
 			name:     "should say in its help what each shape accepts as a label, with a sample record",
-			args:     []string{"calibrate", "--help"},
+			args:     []string{"help", "calibrate", "all"},
 			wantCode: ExitOK,
 			contains: []string{
-				"Labels: a yes or no label is true, false, yes, no, y, n, 1 or 0 in any case",
-				"null, no result or a string of only spaces leaves a record unlabelled",
-				`{"id":"T-1","body":"the site is down","is_urgent":true}`,
-				"T-1,the site is down,yes",
+				"A yes or no label is true, false, yes, no, y, n, 1 or 0 in any case",
+				"null, no result or a string of only spaces leaves that record unlabelled",
+				`{"id":"a","text":"The server is down","urgent":true}`,
+				"a,The server is down,yes",
 				"3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
 					"credentials.json is exposed. No report prints",
-				"found is the share of the records labelled with a name that were picked as it",
-				"the same questions, model, -i, --map and --id, with -o json and no gate or merge",
-				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored, " +
-					"since calibrate reports every cut. The same flags are refused.",
+				"found is the share labelled with a name that were picked as it",
+				"the same questions, model, input format, --map and --id, with -o json and no gate or merge",
+				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored. The corresponding root flags are refused.",
 			},
 		},
 		{
@@ -586,7 +585,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 
 			combined := out + errOut
 			for _, want := range tc.contains {
-				if !strings.Contains(combined, want) {
+				if !strings.Contains(strings.Join(strings.Fields(combined), " "), strings.Join(strings.Fields(want), " ")) {
 					t.Errorf("output missing %q\nstdout:\n%s\nstderr:\n%s", want, out, errOut)
 				}
 			}

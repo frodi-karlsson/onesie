@@ -234,12 +234,16 @@ onesie ships agent skills instead of an MCP server:
 
 - **Validation.** The CLI already checks every question, flag and assertion before any request, and
   an agent reads the same messages and exit codes a person does.
-- **Documentation.** `onesie --help`, `-V` and the error messages come from the binary, so they stay
+- **Documentation.** `onesie --help`, `onesie help all`, `-V` and the error messages come from the binary, so they stay
   in step with it.
 - **Discoverability.** Skills have room for more prose than a tool description, such as worked
   recipes and the mistakes to avoid, and CI checks their examples against the binary.
 
 ## Reference
+
+`onesie --help` starts with common tasks. Use `onesie help all` for every flag, or a topic such as
+`onesie help decisions` or `onesie help input`. `onesie help calibrate all` is the complete
+calibration reference.
 
 [REFERENCE.md](REFERENCE.md) covers asking, gating, testing a gate, calibrating, streams and
 resume, caching, profiles and providers, exit codes and the rest of the flags.
