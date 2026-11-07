@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"slices"
 	"strings"
 	"time"
 )
@@ -109,13 +110,18 @@ type DryRunResult struct {
 	Stderr   string
 }
 
-// Help returns the --help text of the onesie command that path names, such as calibrate or profile
-// create. An empty path is the root command.
+// Help returns the complete reference for root and calibrate, and ordinary command help for other paths.
 func (r *Runner) Help(ctx context.Context, path []string) (string, error) {
 	runCtx, cancel := context.WithTimeout(ctx, runTimeout)
 	defer cancel()
 
-	return r.help(runCtx, r.Binary, append(append([]string{}, path...), "--help"))
+	args := append(append([]string{}, path...), "--help")
+	if len(path) == 0 {
+		args = []string{"help", "all"}
+	} else if slices.Equal(path, []string{"calibrate"}) {
+		args = []string{"help", "calibrate", "all"}
+	}
+	return r.help(runCtx, r.Binary, args)
 }
 
 func (r *Runner) prepare(command string) (tokens, args []string, reason string, err error) {

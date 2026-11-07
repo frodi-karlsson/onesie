@@ -4,16 +4,18 @@ import (
 	"bytes"
 	"encoding/csv"
 	"fmt"
-	"github.com/frodi-karlsson/onesie/internal/delimiter"
 	"io"
 	"slices"
 	"strconv"
 	"strings"
 	"testing"
 
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	"github.com/frodi-karlsson/onesie/internal/delimiter"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func TestHelpFlags(t *testing.T) {
@@ -159,6 +161,82 @@ func TestHelpInput(t *testing.T) {
 		}
 		if !strings.Contains(helpInput(settingrow.CommandRoot), strconv.QuoteRune(delimiter.DefaultComma)) {
 			t.Fatal("missing owned delimiter")
+		}
+	})
+}
+
+func TestResolveHelp(t *testing.T) {
+	for _, tc := range []struct {
+		args        []string
+		path, topic string
+		fails       bool
+	}{
+		{[]string{"decisions"}, "onesie", "decisions", false},
+		{[]string{"calibrate", "evaluation"}, "onesie calibrate", "evaluation", false},
+		{[]string{"questions"}, "onesie questions", "", false},
+		{[]string{"profile", "create"}, "onesie profile create", "", false},
+		{[]string{"decisions", "extra"}, "", "", true},
+		{[]string{"calibrate", "decisions"}, "", "", true},
+	} {
+		t.Run("should resolve "+strings.Join(tc.args, " "), func(t *testing.T) {
+			root := helpTestCommand(t, settingrow.CommandRoot)
+			cmd, topic, err := resolveHelp(root, tc.args)
+			if tc.fails {
+				if err == nil {
+					t.Fatal("accepted invalid route")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			if cmd.CommandPath() != tc.path || topic != tc.topic {
+				t.Fatalf("resolved %s %s", cmd.CommandPath(), topic)
+			}
+		})
+	}
+}
+
+func TestCompleteHelp(t *testing.T) {
+	for _, tc := range []struct {
+		args   []string
+		prefix string
+		want   []string
+	}{
+		{nil, "", []string{"all", "asking", "cache", "calibrate", "completion", "connections", "decisions", "execution", "help", "input", "output", "profile", "questions", "version"}},
+		{[]string{"calibrate"}, "", []string{"all", "asking", "connections", "evaluation", "execution", "input", "output"}},
+		{nil, "dec", []string{"decisions"}},
+		{[]string{"decisions"}, "", nil},
+		{[]string{"profile"}, "cr", []string{"create"}},
+	} {
+		t.Run("should complete "+strings.Join(tc.args, " ")+" with "+tc.prefix, func(t *testing.T) {
+			root := helpTestCommand(t, settingrow.CommandRoot)
+			got, directive := completeHelp(root, tc.args, tc.prefix)
+			slices.Sort(got)
+			if !slices.Equal(got, tc.want) || directive != cobra.ShellCompDirectiveNoFileComp {
+				t.Fatalf("got %v directive %v", got, directive)
+			}
+		})
+	}
+}
+
+func TestWriteHelpFlag(t *testing.T) {
+	t.Run("should separate an unpunctuated description from its default", func(t *testing.T) {
+		var b bytes.Buffer
+		writeHelpFlag(&b, helpFlag{flag: &pflag.Flag{Name: "input", Usage: "read records", DefValue: "text"}, bound: settingrow.BoundFlag{Kind: settingrow.Text()}})
+		if !strings.Contains(b.String(), "read records. Default: text.") {
+			t.Fatal(b.String())
+		}
+	})
+}
+
+func TestWriteHelpText(t *testing.T) {
+	t.Run("should preserve a literal sample line", func(t *testing.T) {
+		literal := `    {"id":"a","text":"The server is down","urgent":true}`
+		var b bytes.Buffer
+		writeHelpText(&b, "A record:\n\n"+literal, "  ", "  ")
+		if !strings.Contains(b.String(), literal+"\n") {
+			t.Fatal(b.String())
 		}
 	})
 }

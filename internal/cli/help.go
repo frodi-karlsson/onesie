@@ -7,10 +7,11 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/frodi-karlsson/onesie/internal/argv"
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+
+	"github.com/frodi-karlsson/onesie/internal/argv"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topic string) error {
@@ -20,8 +21,8 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 	}
 	topics := helpTopics(command)
 	examples := helpExamples(command)
-	if err := validateHelpExamples(examples, topics); err != nil {
-		return err
+	if exampleErr := validateHelpExamples(examples, topics); exampleErr != nil {
+		return exampleErr
 	}
 	if topic != "" && topic != "all" && !slices.ContainsFunc(topics, func(t helpTopic) bool { return t.name == topic }) {
 		return fmt.Errorf("unknown help topic %s", topic)
@@ -39,34 +40,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 		}
 	}
 	if topic == "" {
-		b.WriteString("\nExamples:\n")
-		if command == settingrow.CommandCalibrate {
-			b.WriteString("  A labelled record in labelled.jsonl:\n    {\"id\":\"a\",\"text\":\"The server is down\",\"urgent\":true}\n\n")
-			writeHelpText(&b, "The first command creates the answer file used by the second. The requirement is illustrative.", "  ", "  ")
-			b.WriteString("\n")
-		}
-		writeHelpExamples(&b, examples, "overview")
-		overviewTopics := append([]helpTopic{}, topics...)
-		if command == settingrow.CommandRoot {
-			overviewTopics[2], overviewTopics[3] = overviewTopics[3], overviewTopics[2]
-		}
-		for _, section := range overviewTopics {
-			selected := selectHelpFlags(flags, section.name, true)
-			if len(selected) == 0 {
-				continue
-			}
-			fmt.Fprintf(&b, "\n%s:\n", section.title)
-			for _, flag := range selected {
-				writeHelpFlag(&b, flag)
-			}
-		}
-		writeHelpCommands(&b, cmd)
-		writeHelpNavigation(&b, cmd, topics)
-		if slices.ContainsFunc(examples, func(e helpExample) bool { return slices.Contains(e.places, "footer") }) {
-			b.WriteString("\nConnection setup:\n")
-			writeHelpExamples(&b, examples, "footer")
-			b.WriteString("  See onesie help profile create and onesie help connections.\n")
-		}
+		writeHelpOverview(&b, cmd, command, flags, topics, examples)
 	} else {
 		if topic == "all" {
 			writeHelpCommands(&b, cmd)
@@ -87,20 +61,49 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			writeHelpExamples(&b, examples, section.name)
 		}
 		if topic == "all" {
-			b.WriteString("\nExit codes:\n")
+			b.WriteString("\n")
 			codes := rootExitCodes
 			if command == settingrow.CommandCalibrate {
 				codes = calibrateExitCodes
 			}
-			for _, line := range codes {
-				writeHelpText(&b, line.meaning, fmt.Sprintf("  %-5d", line.code), "       ")
-			}
+			b.WriteString(exitCodesSection(codes) + "\n")
 		} else {
 			writeHelpNavigation(&b, cmd, topics)
 		}
 	}
 	_, err = w.Write(b.Bytes())
 	return err
+}
+
+func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.Command, flags []helpFlag, topics []helpTopic, examples []helpExample) {
+	b.WriteString("\nExamples:\n")
+	if command == settingrow.CommandCalibrate {
+		b.WriteString("  A labelled record in labelled.jsonl:\n    {\"id\":\"a\",\"text\":\"The server is down\",\"urgent\":true}\n\n")
+		writeHelpText(b, "The first command creates the answer file used by the second. The requirement is illustrative.", "  ", "  ")
+		b.WriteString("\n")
+	}
+	writeHelpExamples(b, examples, "overview")
+	overviewTopics := append([]helpTopic{}, topics...)
+	if command == settingrow.CommandRoot {
+		overviewTopics[2], overviewTopics[3] = overviewTopics[3], overviewTopics[2]
+	}
+	for _, section := range overviewTopics {
+		selected := selectHelpFlags(flags, section.name, true)
+		if len(selected) == 0 {
+			continue
+		}
+		fmt.Fprintf(b, "\n%s:\n", section.title)
+		for _, flag := range selected {
+			writeHelpFlag(b, flag)
+		}
+	}
+	writeHelpCommands(b, cmd)
+	writeHelpNavigation(b, cmd, topics)
+	if slices.ContainsFunc(examples, func(e helpExample) bool { return slices.Contains(e.places, "footer") }) {
+		b.WriteString("\nConnection setup:\n")
+		writeHelpExamples(b, examples, "footer")
+		b.WriteString("  See onesie help profile create and onesie help connections.\n")
+	}
 }
 
 func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow.Row) ([]helpFlag, error) {
@@ -186,6 +189,9 @@ func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
 	description := flag.flag.Usage
 	def := flag.flag.DefValue
 	if def != "" && def != "false" && def != "[]" && def != argv.Bare {
+		if !strings.HasSuffix(description, ".") && !strings.HasSuffix(description, "!") && !strings.HasSuffix(description, ":") {
+			description += "."
+		}
 		description += " Default: " + def + "."
 	}
 	prefix := "  " + signature
@@ -201,6 +207,10 @@ func writeHelpText(w *bytes.Buffer, text, first, next string) {
 	for index, paragraph := range strings.Split(text, "\n\n") {
 		if index > 0 {
 			w.WriteString("\n")
+		}
+		if strings.HasPrefix(paragraph, "    ") {
+			fmt.Fprintln(w, paragraph)
+			continue
 		}
 		line := first
 		used := false

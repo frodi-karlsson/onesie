@@ -1,0 +1,283 @@
+Compare answers with labelled examples. Calibrate never chooses a threshold.
+
+Usage:
+  onesie calibrate [question] [flags]
+
+Asking
+
+Flags:
+      --ask NAME=QUESTION       Ask a named question. Repeat for several.
+      --pick OPTIONS            Choose from comma separated options.
+      --rate LEVELS             Rate against levels from lowest to highest.
+  -f, --file FILE               Load saved questions, a request body or a built in
+                                starter set.
+      --for ID                  ID, repeatable, selects a question from -f, so the
+                                --pick, --rate, --desc and --sep after it apply to that
+                                question
+      --desc KEY=TEXT           Describe an option, level, yes or no.
+      --sep STRING              separator for --pick and --rate that follow it
+      --box                     make this a box question, answered with the left, top,
+                                right and bottom edges of what it finds in an image,
+                                each from 0 to 1. Takes no value. Experimental on
+                                TypeSafe's side
+      --replace                 --ask overrides an id from -f
+
+How they work together:
+  A positional question has the id answer. By default a question asks for a yes or no
+  probability. Use --pick for a choice, --rate for ordered levels, or --box for image
+  edges. A rate score is the level index averaged over p, from 0, and norm is score over
+  the top index, from 0 to 1. Box edges are left, top, right and bottom, each from 0 to
+  1. Box is experimental on TypeSafe's side. See Input for image restrictions.
+
+  Question flags apply to the preceding --ask or --for. Flags before any group apply to
+  the one question asked, whether positional, a lone --ask or a file with one question.
+  Beside several questions they need --for ID. --ask NAME=QUESTION opens a named group
+  and may repeat. --for ID selects a question from --file. Root runs issue a notice for
+  each setting overriding a selected file question. Repeated --pick adds options and
+  repeated --rate adds levels after earlier ones. Together they replace the file
+  question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
+  no description. A rate needs every level described or none. --sep changes the
+  separator for following --pick and --rate. --for may repeat and keeps the wording and
+  settings no flag names. It needs a file and an existing id and refuses --replace.
+  Flags cannot change a file question shape.
+
+  --file accepts a question file, a request body, a path or a saved name. Saved names
+  are looked up in .onesie/questions, then the config directory, then built in starter
+  sets. --ask needs --replace to replace an id from the file. This replaces the
+  question, while --for changes selected settings.
+
+  A question that begins with a dash needs -- before it, with all flags first, as in
+  onesie -o json -- '-is this urgent'. Use the same escape for a one word question close
+  to a command name, since onesie questoins exits 2 and suggests questions.
+  --print-questions exports a question file whose first line names the schema from
+  --print-schema. Exports send no requests. Calibration does not offer these export
+  flags.
+
+Input
+
+Flags:
+  -i, --input FORMAT            required, jsonl, csv or tsv
+      --map EXPR                jq expression run on each record, whose result is the
+                                state sent. Map only the text a person would read
+      --id EXPR                 jq expression run on each record, whose string or number
+                                result names it
+      --delimiter STRING        field separator for -i csv: auto, or one character.
+                                Defaults to a comma
+      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
+                                record's state under NAME. Experimental on TypeSafe's
+                                side
+      --image-field NAME        repeatable, a state key whose value is a path to a PNG
+                                or JPEG, read per record. Experimental on TypeSafe's
+                                side
+      --skip-blank              drop blank lines
+
+How they work together:
+  Calibration requires JSONL, CSV or TSV records on stdin. --map runs a jq expression on
+  each original record and sends its result as the state. Map only the text a person
+  would read. Object keys come out sorted. The result may nest max-map-depth levels deep
+  and encode to max-line-bytes, as version lists. The original record remains available
+  for labels and merged output.
+
+  --id runs one record at a time as input is read. Its result must be a string or
+  number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
+  --skip-blank drops blank lines without emitting a result. The default field separator
+  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
+  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+
+  --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
+  an image only through --state -. Text can also join it through --state or
+  --state-file. Streams read stdin and add the fixed image to every record.
+  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
+  the line itself is the path. Image and box support is experimental on TypeSafe's side.
+  Images cannot be mixed with request input. See version for image, file, token and
+  model limits.
+
+Evaluation
+
+Flags:
+      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
+                                mapped state, whose result is the right answer for
+                                question ID. A question with none is skipped. With one
+                                question ID= may be left out
+      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
+                                defaults
+      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
+                                requirement the report must meet, or calibrate exits 1.
+                                Repeatable
+      --offline                 with --out and --resume, read every answer from the file
+                                and ask nothing, needing no key
+
+How they work together:
+  Calibration compares answers with labels from the original record, not the mapped
+  state, and prints cut, agreement and confusion tables. It never picks the cut. A --map
+  selecting the label flatters the question. --label can omit ID= with one question.
+  Default cuts: 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+  0.7, 0.75, 0.8, 0.85, 0.9, 0.95.
+
+  A yes or no label is true, false, yes, no, y, n, 1 or 0 in any case. Pick and rate
+  labels are declared option or level names, with surrounding spaces ignored, or a
+  number whose text names one, so 4 matches --rate 1,2,3,4,5. null, no result or a
+  string of only spaces leaves that record unlabelled for the question. A record no
+  question labels is not asked. A JSONL record can be:
+
+    {"id":"a","text":"The server is down","urgent":true}
+
+  CSV can use:
+
+    id,text,urgent
+    a,The server is down,yes
+
+  A question with no --label is skipped, omitted from requests and the report, and named
+  on stderr. At least one question needs a label. A label naming no question or a
+  requirement reading a skipped question exits 2. Resume into a file answering every
+  question still asks skipped ones so the file stays whole. Box questions cannot be
+  calibrated. A question file's assert, abstain_if, threshold, min_confidence and
+  fallback are ignored. The corresponding root flags are refused.
+
+  A yes or no cut flags a record when value is at least the cut. Pick and rate tables
+  have a row per name. found is the share labelled with a name that were picked as it.
+  right when picked is the share picked as a name carrying it as their label.
+
+  Each --require reads [lower|upper](ID.MEASURE) OP NUMBER [at CUT]. MEASURE is catches,
+  false_alarms, right_when_flagged or auc for yes or no, agreement for pick and rate,
+  and within_one for rate. OP is >=, >, <= or <. NUMBER is a fraction from 0 to 1. lower
+  and upper compare an end of the 95 percent interval instead of the value, so 16 of 16
+  fails lower(x.catches) >= 0.9. A yes or no measure other than auc needs a cut. at CUT
+  names it, at abstain takes it from the file's abstain_if, otherwise the file's assert
+  supplies it when comparing ID.value < X or ID.value >= X. A missing cut exits 2. The
+  report still prints when requirements fail, each failure is named on stderr and the
+  run exits 1.
+
+  --offline needs --out and --resume, reads every answer from the file and asks nothing.
+  It needs no key and never rewrites the file. A missing answer, missing file or
+  fingerprint mismatch exits 2. The first example creates the answer file used by the
+  second. The example requirement is illustrative. Offline replay checks saved evidence,
+  not new live model behavior.
+
+  Compare answers with labelled examples:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume < labelled.jsonl
+
+  Check the saved answers without asking again:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.9 at 0.5' < labelled.jsonl
+
+Output
+
+Flags:
+      --out STRING              write the answers to this file as -o json lines
+  -o, --output FORMAT           the report, table, json or auto, which means table
+      --usage                   add the api usage object to the answers file and the
+                                json report
+      --stats                   write a one line summary of the run to stderr at exit
+  -h, --help                    help for calibrate
+
+How they work together:
+  --output selects the report format, table, json or auto. Auto means table. --out
+  selects a separate answer file, written as JSON lines, and does not redirect the
+  report. --usage adds API usage to both the answer file and JSON report. --stats writes
+  a one line run summary to stderr at exit. See Execution for answer file resume and
+  pruning.
+
+Connections
+
+Flags:
+      --provider STRING         run on this provider without a profile, typesafe,
+                                openrouter, berget, levanto or cloudflare. Overrides
+                                ONESIE_PROVIDER and the default profile. Refused beside
+                                --profile or ONESIE_PROFILE
+      --profile STRING          the profile a run uses, from profiles.json in the config
+                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and
+                                otherwise the default profile runs, which onesie profile
+                                use sets
+  -m, --model STRING            model override
+      --base-url STRING         api root override. Also ONESIE_BASE_URL
+      --allow-http              send the request, and any API key, over a plain http
+                                base URL to a host other than this machine. Without it
+                                such a base URL exits 2 before any request
+
+How they work together:
+  onesie is a Unix filter over the System One API, served by typesafe, openrouter,
+  berget, levanto or cloudflare. A profile in profiles.json holds a provider, a key in
+  the OS keychain or file, and optionally a model and base URL or cloudflare account.
+  onesie profile create stores one and onesie profile use makes it the default.
+
+  --profile overrides ONESIE_PROFILE and ONESIE_PROVIDER. Otherwise the default profile
+  runs. --provider runs without a profile and overrides ONESIE_PROVIDER and the default
+  profile. It is refused beside --profile or ONESIE_PROFILE. ONESIE_PROVIDER beside
+  ONESIE_PROFILE is also refused. With no profiles, typesafe runs directly. Provider
+  keys come from TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY
+  or CLOUDFLARE_API_TOKEN. A chosen profile's key and endpoint beat the environment.
+  Provider variables beat the default profile. --base-url wins over a chosen profile,
+  then ONESIE_BASE_URL, then the provider's base URL or account variable, then the
+  default profile. On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL. A key and
+  endpoint resolve as a pair from their applicable source.
+
+  On cloudflare an account comes from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL
+  holding it. --model overrides the chosen profile or request body.
+  TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the default profile's
+  model. A custom base URL needs no key and sends none when none resolves. Plain HTTP to
+  a host other than this machine needs --allow-http, which permits sending the request
+  and any API key over it. Without that flag the run exits 2 before a request. A profile
+  storing such a URL needs --allow-http on every run too.
+
+Execution
+
+Flags:
+      --resume                  with --out and --id, skip the ids the file already
+                                answers
+      --print-request           write api shaped request bodies to stdout and exit
+      --prune                   with --resume, drop the answered ids the input no longer
+                                has
+      --long-context            raise the context limits to 262k tokens, slower and less
+                                accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
+                                TypeSafe's side
+      --mock FILE               answer from this file instead of the API. Also
+                                ONESIE_MOCK. The file is an object keyed by question id,
+                                as {"answer":0.9,"team":"billing"}, or one line per
+                                record in the shape -o json writes. A lone line that
+                                carries id, line, model, usage, assert, abstain or an
+                                error object is one record
+      --cache                   store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1
+  -j, --jobs INT                records in flight at once. Default: 1.
+      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                given. Default: 10.
+      --retries INT             retries after a failed attempt. Default: 2.
+      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+                                60.
+
+How they work together:
+  --jobs bounds records in flight. --timeout is seconds per attempt. Requests with
+  images default to 60 seconds unless given. Retries happen after failed attempts,
+  bounded by --retries. --max-retry-after caps seconds spent waiting for a server
+  Retry-After. --long-context raises context limits, is slower and less accurate, and is
+  experimental on TypeSafe's side. version reports the built in limits.
+
+  --cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated
+  requests. onesie cache reports entries and onesie cache clear empties them.
+
+  --resume needs --out. Without --id, a stream continues after the last complete line.
+  With --id it skips answered ids. A record whose content changes but whose id does not
+  keeps its old answer. The file is rewritten in input order. Answered ids absent from
+  input stay after them unless --prune drops them.
+
+  --mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so
+  gate scripts can be tested for free. --print-request writes API shaped request bodies
+  and sends none. Question export writes configuration rather than answers. Mocks
+  exercise execution and policy behavior. Request previews and question export do not
+  execute those policies. Mocks are skipped beside --list-models, request input,
+  --print-request and --print-questions.
+
+  Calibration resume needs --id. Changing a label or --cuts reuses stored answers. A
+  plain stream can resume the file with the same questions, model, input format, --map
+  and --id, with -o json and no gate or merge. Offline reads the saved answers without
+  rewriting them. It validates recorded evidence and does not detect new live model
+  behavior.
+
+Exit codes:
+  0    every record was answered and every --require held
+  1    a --require did not hold
+  2    usage or validation error, including a bad label or record
+  3    the key was refused, the account is out of credits, the keychain failed, or
+       profiles.json or credentials.json is exposed. No report prints
+  6    the report holds one or more failed records, which wins over 1
+  130  interrupted. No report prints

@@ -16,12 +16,12 @@ var (
 	commandShape  = regexp.MustCompile(`^[a-z][a-z-]*$`)
 	envAssignment = regexp.MustCompile(`^[A-Za-z_]\w*=`)
 	spanFlag      = regexp.MustCompile(`^--([A-Za-z][\w-]*)`)
-	helpFlag      = regexp.MustCompile(`^\s+(?:-(\w), )?--(\w[\w-]*)(?: (\S+))?(?:\s{2,}|$)`)
+	helpFlag      = regexp.MustCompile(`^(?:  -(\w), |      )--(\w[\w-]*)(?: (\S+))?(?:\s{2,}|$)`)
 	helpCommand   = regexp.MustCompile(`^\s+(\S+)\s{2,}`)
 )
 
 // CheckProse checks every flag and subcommand the skills name outside their examples against the
-// --help output of runner's binary. CONTRIBUTING.md says what counts as a mention.
+// complete help references of runner's binary. CONTRIBUTING.md says what counts as a mention.
 func CheckProse(ctx context.Context, root string, runner *Runner) (ProseReport, error) {
 	found, err := skillgen.Skills(root)
 	if err != nil {
@@ -437,7 +437,7 @@ func (b *helpBook) check(ctx context.Context, m mention, flags map[string]bool) 
 	}
 
 	return []string{fmt.Sprintf(
-		"--%s is not in onesie --help or the --help of a command this skill runs", m.flag)}, nil
+		"--%s is not in onesie help all or the complete help of a command this skill runs", m.flag)}, nil
 }
 
 func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, []string, error) {
@@ -464,7 +464,7 @@ func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, []
 
 			takesValue, known := page.longTakesValue[name]
 			if !known {
-				problems = append(problems, fmt.Sprintf("--%s is not a flag in %s --help", name, commandName(path)))
+				problems = append(problems, fmt.Sprintf("--%s is not a flag in %s", name, helpReference(path)))
 			} else if takesValue && !joined {
 				i++
 			}
@@ -474,7 +474,7 @@ func (b *helpBook) checkCommand(ctx context.Context, words []word) ([]string, []
 			}
 		case subcommandNext && len(page.commands) > 0 && w.raw == w.text && commandShape.MatchString(w.text):
 			if !page.commands[w.text] {
-				problems = append(problems, fmt.Sprintf("%s is not a command in %s --help", w.text, commandName(path)))
+				problems = append(problems, fmt.Sprintf("%s is not a command in %s", w.text, helpReference(path)))
 				subcommandNext = false
 
 				continue
@@ -551,4 +551,14 @@ func parseHelp(text string) helpPage {
 	}
 
 	return page
+}
+
+func helpReference(path []string) string {
+	if len(path) == 0 {
+		return "onesie help all"
+	}
+	if len(path) == 1 && path[0] == "calibrate" {
+		return "onesie help calibrate all"
+	}
+	return commandName(path) + " --help"
 }

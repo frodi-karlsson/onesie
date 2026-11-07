@@ -1,0 +1,62 @@
+Asking
+
+Flags:
+      --ask NAME=QUESTION       Ask a named question. Repeat for several.
+      --pick OPTIONS            Choose from comma separated options.
+      --rate LEVELS             Rate against levels from lowest to highest.
+      --desc KEY=TEXT           Describe an option, level, yes or no.
+  -f, --file FILE               Load saved questions, a request body or a built in
+                                starter set.
+      --print-questions         write a question file to stdout and exit, its first line
+                                naming the schema --print-schema prints
+      --print-schema            write the JSON Schema for a question file to stdout and
+                                exit
+      --for ID                  ID, repeatable, selects a question from -f, so the
+                                question flags after it apply to that question, each
+                                with a notice
+      --sep STRING              separator for --pick and --rate that follow it
+      --box                     make this a box question, answered with the left, top,
+                                right and bottom edges of what it finds in an image,
+                                each from 0 to 1. Takes no value. Experimental on
+                                TypeSafe's side
+      --replace                 --ask overrides an id from -f
+
+How they work together:
+  A positional question has the id answer. By default a question asks for a yes or no
+  probability. Use --pick for a choice, --rate for ordered levels, or --box for image
+  edges. A rate score is the level index averaged over p, from 0, and norm is score over
+  the top index, from 0 to 1. Box edges are left, top, right and bottom, each from 0 to
+  1. Box is experimental on TypeSafe's side. See Input for image restrictions.
+
+  Question flags apply to the preceding --ask or --for. Flags before any group apply to
+  the one question asked, whether positional, a lone --ask or a file with one question.
+  Beside several questions they need --for ID. --ask NAME=QUESTION opens a named group
+  and may repeat. --for ID selects a question from --file. Root runs issue a notice for
+  each setting overriding a selected file question. Repeated --pick adds options and
+  repeated --rate adds levels after earlier ones. Together they replace the file
+  question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
+  no description. A rate needs every level described or none. --sep changes the
+  separator for following --pick and --rate. --for may repeat and keeps the wording and
+  settings no flag names. It needs a file and an existing id and refuses --replace.
+  Flags cannot change a file question shape.
+
+  --file accepts a question file, a request body, a path or a saved name. Saved names
+  are looked up in .onesie/questions, then the config directory, then built in starter
+  sets. --ask needs --replace to replace an id from the file. This replaces the
+  question, while --for changes selected settings.
+
+  A question that begins with a dash needs -- before it, with all flags first, as in
+  onesie -o json -- '-is this urgent'. Use the same escape for a one word question close
+  to a command name, since onesie questoins exits 2 and suggests questions.
+  --print-questions exports a question file whose first line names the schema from
+  --print-schema. Exports send no requests. Calibration does not offer these export
+  flags.
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all

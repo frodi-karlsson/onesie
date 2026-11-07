@@ -14,8 +14,10 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 		return BoundFlag{}, false
 	}
 
-	bound := BoundFlag{Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default,
-		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue}
+	bound := BoundFlag{
+		Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default,
+		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue,
+	}
 	override := r.Flag.PerCommand[command]
 
 	if override.Help != "" {

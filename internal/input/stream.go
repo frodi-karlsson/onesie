@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/frodi-karlsson/onesie/internal/delimiter"
 	"io"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/frodi-karlsson/onesie/internal/delimiter"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )

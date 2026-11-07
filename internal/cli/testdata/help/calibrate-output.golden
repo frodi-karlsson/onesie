@@ -1,0 +1,25 @@
+Output
+
+Flags:
+      --out STRING              write the answers to this file as -o json lines
+  -o, --output FORMAT           the report, table, json or auto, which means table
+      --usage                   add the api usage object to the answers file and the
+                                json report
+      --stats                   write a one line summary of the run to stderr at exit
+  -h, --help                    help for calibrate
+
+How they work together:
+  --output selects the report format, table, json or auto. Auto means table. --out
+  selects a separate answer file, written as JSON lines, and does not redirect the
+  report. --usage adds API usage to both the answer file and JSON report. --stats writes
+  a one line run summary to stderr at exit. See Execution for answer file resume and
+  pruning.
+
+More help:
+  onesie help calibrate asking
+  onesie help calibrate input
+  onesie help calibrate evaluation
+  onesie help calibrate output
+  onesie help calibrate connections
+  onesie help calibrate execution
+  onesie help calibrate all

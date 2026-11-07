@@ -196,7 +196,7 @@ func TestRunnerDryRun(t *testing.T) {
 			{
 				name:       "should fail --offline on the root, whose help does not list it",
 				command:    "onesie 'q' -i jsonl --out a.jsonl --resume --offline",
-				wantStderr: "skillcheck: --offline is not a flag in onesie --help",
+				wantStderr: "skillcheck: --offline is not a flag in onesie help all",
 			},
 			{
 				name:    "should run --offline under calibrate, whose help lists it",
@@ -220,7 +220,7 @@ func TestRunnerDryRun(t *testing.T) {
 						return 0, "", nil
 					},
 					help: func(_ context.Context, _ string, args []string) (string, error) {
-						if args[0] == "calibrate" {
+						if slices.Equal(args, []string{"help", "calibrate", "all"}) {
 							return "Flags:\n      --ask string   q\n      --id string   id\n  -i, --input string   i\n" +
 								"      --offline   o\n      --out string   f\n      --resume   r\n", nil
 						}
@@ -264,6 +264,19 @@ func TestRunnerDryRun(t *testing.T) {
 
 func TestRunnerHelp(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should request complete references for root and calibration", func(t *testing.T) {
+		for _, tc := range []struct{ path, want []string }{{nil, []string{"help", "all"}}, {[]string{"calibrate"}, []string{"help", "calibrate", "all"}}} {
+			var got []string
+			runner := &Runner{Binary: "onesie", help: func(_ context.Context, _ string, args []string) (string, error) { got = args; return "reference", nil }}
+			if _, err := runner.Help(t.Context(), tc.path); err != nil {
+				t.Fatal(err)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("args = %v, want %v", got, tc.want)
+			}
+		}
+	})
 
 	t.Run("should run the command path with --help and return its stdout", func(t *testing.T) {
 		t.Parallel()

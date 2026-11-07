@@ -88,7 +88,7 @@ func questionRows() []Row {
 		{
 			Name: "ask", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 1, CommandCalibrate: 1}, HelpValue: "NAME=QUESTION", Kind: Text(), Modes: shaping(),
 			Flag: FlagSpec{Long: "ask", Group: true, Repeat: true, Commands: onRuns()},
-			Help: "NAME=QUESTION, repeatable, opens a question group",
+			Help: "Ask a named question. Repeat for several.",
 		},
 		{
 			Name: "for", HelpTopic: "asking", HelpValue: "ID", Kind: NonEmptyText(), Modes: shaping(),
@@ -106,8 +106,7 @@ func questionRows() []Row {
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",
 			Flag:     FlagSpec{Long: "pick", Group: true, Commands: onRuns()},
-			Help: "comma separated options, making this a choice question. A repeated --pick adds to the options, " +
-				"and together they replace the options of a choice question from -f",
+			Help:     "Choose from comma separated options.",
 		},
 		{
 			Name: "rate", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 3, CommandCalibrate: 3}, HelpValue: "LEVELS", Scope: ScopeQuestion, Kind: Levels(), Modes: shaping(), Shapes: []Shape{Rate},
@@ -115,16 +114,13 @@ func questionRows() []Row {
 			FileHelp: "The levels from lowest to highest, as names, one key mappings of name to description, or " +
 				"a mapping of name to description.",
 			Flag: FlagSpec{Long: "rate", Group: true, Commands: onRuns()},
-			Help: "comma separated levels in ascending order, making this a score question. A repeated --rate " +
-				"adds levels after the earlier ones, and together they replace the levels of a score question from " +
-				"-f. Its score is the level index averaged over p, from 0, and " +
-				"norm is score over the top index, from 0 to 1",
+			Help: "Rate against levels from lowest to highest.",
 		},
 		{
 			Name: "desc", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 4}, HelpValue: "KEY=TEXT", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(),
 			Shapes: []Shape{Noul, Pick, Rate},
 			Flag:   FlagSpec{Long: "desc", Group: true, Commands: onRuns()},
-			Help:   "KEY=TEXT, describing one option, level, yes or no. On a question from -f it replaces that key's description alone",
+			Help:   "Describe an option, level, yes or no.",
 		},
 		{
 			Name: "sep", HelpTopic: "asking", Scope: ScopeQuestion, Kind: Separator(), Modes: shaping(),
@@ -151,7 +147,7 @@ func policyRows() []Row {
 			FileKey:  "threshold",
 			FileHelp: "The yes probability a yes or no answer must reach, between 0 and 1.",
 			Flag:     FlagSpec{Long: "threshold", Group: true, Commands: onRoot()},
-			Help:     "yes or no only, cut the probability at this value",
+			Help:     "Turn a yes or no probability into a boolean decision.",
 		},
 		{
 			Name: "min_confidence", HelpTopic: "decisions", HelpValue: "NUMBER", Scope: ScopeQuestion, Kind: Probability(), Modes: policing(),
@@ -174,7 +170,7 @@ func policyRows() []Row {
 			FileKey:  "assert",
 			FileHelp: "A gate over every answer, as --assert takes it.",
 			Flag:     FlagSpec{Long: "assert", Repeat: true, Commands: onRoot()},
-			Help:     "boolean expression over the record, repeatable, combined with and. Replaces the -f file's assert",
+			Help:     "Exit 1 when an answer fails this condition.",
 		},
 		{
 			Name: "abstain_if", HelpTopic: "decisions", HelpValue: "EXPR", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
@@ -197,17 +193,17 @@ func outputRows() []Row {
 					Kind: Enum([]string{"table", "json", "auto"}, nil),
 				},
 			}},
-			Help: "auto, json, values, table, raw, csv, tsv or markdown",
+			Help: inWords(outputModes().Schema().Enum),
 		},
 		{
 			Name: "raw", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 11}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "raw", Short: "r", Commands: onRoot()},
-			Help: "print the bare scalar",
+			Help: "Print only the answer value or policy decision.",
 		},
 		{
 			Name: "quiet", HelpTopic: "decisions", HelpCommon: map[Command]int{CommandRoot: 15}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "quiet", Short: "q", Commands: onRoot()},
-			Help: "suppress output, the exit code carries the answer",
+			Help: "Suppress output. Without --assert, judge one answer.",
 		},
 		{
 			Name: "out", HelpTopic: "output", HelpCommon: map[Command]int{CommandCalibrate: 12}, Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels, ModeCalibrate),
@@ -236,7 +232,7 @@ func outputRows() []Row {
 		{
 			Name: "merge", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 12}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "merge", Commands: onRoot()},
-			Help: "fold the answers into the input record",
+			Help: "Keep input fields and attach the answers.",
 		},
 		{
 			Name: "merge_key", HelpTopic: "output", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream),
@@ -303,17 +299,17 @@ func inputRows() []Row {
 					Default: "",
 				},
 			}},
-			Help: "text, json, jsonl, lines, csv, tsv or request",
+			Help: inWords(inputModes().Schema().Enum),
 		},
 		{
 			Name: "state", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 6}, HelpValue: "TEXT", Kind: Text(), Modes: Modes(ModeAsk, ModePrintRequest),
 			Flag: FlagSpec{Long: "state", Commands: onRoot()},
-			Help: "state to evaluate, or - to read stdin",
+			Help: "Read this text instead of stdin. Use - to read stdin.",
 		},
 		{
 			Name: "state_file", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 7}, HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModePrintRequest),
 			Flag: FlagSpec{Long: "state-file", Commands: onRoot()},
-			Help: "read the state from this file",
+			Help: "Read the state from a file.",
 		},
 		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
@@ -340,8 +336,7 @@ func inputRows() []Row {
 				CommandCalibrate: {Help: "jq expression run on each record, whose result is the state sent. Map only " +
 					"the text a person would read"},
 			}},
-			Help: "jq expression run on each record, whose result is the state sent. Object keys come out sorted. " +
-				"The result may nest max-map-depth levels deep and encode to max-line-bytes, as -V lists",
+			Help: "Select the content to evaluate with a jq expression.",
 		},
 		{
 			Name: "id", HelpTopic: "input", HelpCommon: map[Command]int{CommandCalibrate: 7}, HelpValue: "EXPR", Kind: NonEmptyText(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate),
@@ -397,8 +392,7 @@ func choiceRows() []Row {
 		{
 			Name: "file", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 5, CommandCalibrate: 4}, HelpValue: "FILE", Kind: NonEmptyText(), Modes: shaping(),
 			Flag: FlagSpec{Long: "file", Short: "f", Commands: onRuns()},
-			Help: "question file or request body, or the name of one saved in .onesie/questions or the config dir, " +
-				"or of a built in starter set",
+			Help: "Load saved questions, a request body or a built in starter set.",
 		},
 		{
 			Name: "replace", HelpTopic: "asking", Kind: Bool(), Modes: shaping(),
@@ -615,7 +609,7 @@ func calibrateRows() []Row {
 		{
 			Name: "cuts", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 9}, Kind: Text(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "cuts", Commands: onCalibrate()},
-			Help: "comma separated cuts between 0 and 1. Defaults to 0.05 to 0.95 in steps of 0.05",
+			Help: "comma separated cuts between 0 and 1. See Evaluation for defaults",
 		},
 		{
 			Name: "require", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 10}, HelpValue: "CONDITION", Kind: Text(), Modes: Modes(ModeCalibrate),

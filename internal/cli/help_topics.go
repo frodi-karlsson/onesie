@@ -42,15 +42,16 @@ func helpAsking() string {
 		"Use --pick for a choice, --rate for ordered levels, or --box for image edges. A rate score is the level index " +
 		"averaged over p, from 0, and norm is score over the top index, from 0 to 1. Box edges are left, top, right and bottom, each from 0 to 1. " +
 		"Box is experimental on TypeSafe's side. See Input for image restrictions.\n\n" +
-		"Question flags apply to the preceding --ask or --for. Place them before any group to configure the positional question. " +
+		"Question flags apply to the preceding --ask or --for. Flags before any group apply to the one question asked, whether positional, a lone --ask or a file with one question. Beside several questions they need --for ID. " +
 		"--ask NAME=QUESTION opens a named group and may repeat. --for ID selects a question from --file. " +
 		"Root runs issue a notice for each setting overriding a selected file question. " +
 		"Repeated --pick adds options and repeated --rate adds levels after earlier ones. Together they replace the file question's options or levels. " +
-		"--desc KEY=TEXT replaces only that option, level, yes or no description. --sep changes the separator for following --pick and --rate.\n\n" +
+		"--desc KEY=TEXT replaces only that option, level, yes or no description. A rate needs every level described or none. --sep changes the separator for following --pick and --rate. " +
+		"--for may repeat and keeps the wording and settings no flag names. It needs a file and an existing id and refuses --replace. Flags cannot change a file question shape.\n\n" +
 		"--file accepts a question file, a request body, a path or a saved name. Saved names are looked up in .onesie/questions, " +
 		"then the config directory, then built in starter sets. --ask needs --replace to replace an id from the file. " +
 		"This replaces the question, while --for changes selected settings.\n\n" +
-		"A question beginning with a dash needs -- before it, with all flags first, as in onesie -o json -- '-is this urgent'. " +
+		"A question that begins with a dash needs -- before it, with all flags first, as in onesie -o json -- '-is this urgent'. " +
 		"Use the same escape for a one word question close to a command name, since onesie questoins exits 2 and suggests questions. " +
 		"--print-questions exports a question file whose first line names the schema from --print-schema. " +
 		"Exports send no requests. Calibration does not offer these export flags."
@@ -167,7 +168,7 @@ func helpEvaluation() string {
 		"A yes or no label is true, false, yes, no, y, n, 1 or 0 in any case. Pick and rate labels are declared option or level names, " +
 		"with surrounding spaces ignored, or a number whose text names one, so 4 matches --rate 1,2,3,4,5. " +
 		"null, no result or a string of only spaces leaves that record unlabelled for the question. A record no question labels is not asked. " +
-		"A JSONL record can be {\"id\":\"a\",\"text\":\"The server is down\",\"urgent\":true}. CSV can use id,text,urgent with a row a,The server is down,yes.\n\n" +
+		"A JSONL record can be:\n\n    {\"id\":\"a\",\"text\":\"The server is down\",\"urgent\":true}\n\nCSV can use:\n\n    id,text,urgent\n    a,The server is down,yes\n\n" +
 		"A question with no --label is skipped, omitted from requests and the report, and named on stderr. At least one question needs a label. " +
 		"A label naming no question or a requirement reading a skipped question exits 2. Resume into a file answering every question still asks skipped ones so the file stays whole. " +
 		"Box questions cannot be calibrated. A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored. The corresponding root flags are refused.\n\n" +

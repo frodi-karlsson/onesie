@@ -1,0 +1,47 @@
+Input
+
+Flags:
+  -i, --input FORMAT            required, jsonl, csv or tsv
+      --map EXPR                jq expression run on each record, whose result is the
+                                state sent. Map only the text a person would read
+      --id EXPR                 jq expression run on each record, whose string or number
+                                result names it
+      --delimiter STRING        field separator for -i csv: auto, or one character.
+                                Defaults to a comma
+      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
+                                record's state under NAME. Experimental on TypeSafe's
+                                side
+      --image-field NAME        repeatable, a state key whose value is a path to a PNG
+                                or JPEG, read per record. Experimental on TypeSafe's
+                                side
+      --skip-blank              drop blank lines
+
+How they work together:
+  Calibration requires JSONL, CSV or TSV records on stdin. --map runs a jq expression on
+  each original record and sends its result as the state. Map only the text a person
+  would read. Object keys come out sorted. The result may nest max-map-depth levels deep
+  and encode to max-line-bytes, as version lists. The original record remains available
+  for labels and merged output.
+
+  --id runs one record at a time as input is read. Its result must be a string or
+  number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
+  --skip-blank drops blank lines without emitting a result. The default field separator
+  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
+  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+
+  --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
+  an image only through --state -. Text can also join it through --state or
+  --state-file. Streams read stdin and add the fixed image to every record.
+  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
+  the line itself is the path. Image and box support is experimental on TypeSafe's side.
+  Images cannot be mixed with request input. See version for image, file, token and
+  model limits.
+
+More help:
+  onesie help calibrate asking
+  onesie help calibrate input
+  onesie help calibrate evaluation
+  onesie help calibrate output
+  onesie help calibrate connections
+  onesie help calibrate execution
+  onesie help calibrate all

@@ -1,0 +1,69 @@
+Execution
+
+Flags:
+      --print-request           write api shaped request bodies to stdout and exit
+      --resume                  streaming only, with --out, carry on after the last
+                                complete line in the file. Under --id it skips the ids
+                                the file answers, so a record whose content changed but
+                                whose id did not keeps its old answer. It then rewrites
+                                the file in input order, with the answered ids the input
+                                no longer has kept after them, which --prune drops
+      --prune                   with --resume and --id, drop the answered ids the input
+                                no longer has
+      --unordered               streaming only, emit records as they complete
+      --stop-on-error           streaming only, end the run at the first failure, with
+                                its exit code, or 6 for a line onesie could not read
+      --no-dedup                streaming only, ask every record even when its request
+                                repeats an earlier one
+      --long-context            raise the context limits to 262k tokens, slower and less
+                                accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
+                                TypeSafe's side
+      --mock FILE               answer from this file instead of the API. Also
+                                ONESIE_MOCK. The file is an object keyed by question id,
+                                as {"answer":0.9,"team":"billing"}, or one line per
+                                record in the shape -o json writes. A lone line that
+                                carries id, line, model, usage, assert, abstain or an
+                                error object is one record
+      --cache                   store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1
+  -j, --jobs INT                records in flight at once. Default: 1.
+      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                given. Default: 10.
+      --retries INT             retries after a failed attempt. Default: 2.
+      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+                                60.
+
+How they work together:
+  --jobs bounds records in flight. --timeout is seconds per attempt. Requests with
+  images default to 60 seconds unless given. Retries happen after failed attempts,
+  bounded by --retries. --max-retry-after caps seconds spent waiting for a server
+  Retry-After. --long-context raises context limits, is slower and less accurate, and is
+  experimental on TypeSafe's side. version reports the built in limits.
+
+  --cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated
+  requests. onesie cache reports entries and onesie cache clear empties them. Streams
+  normally preserve input order. --unordered emits completed records immediately.
+  --no-dedup asks every record even when its request repeats, independently of the disk
+  cache. --stop-on-error ends at the first failure with its exit code, or 6 for an
+  unreadable record.
+
+  --resume needs --out. Without --id, a stream continues after the last complete line.
+  With --id it skips answered ids. A record whose content changes but whose id does not
+  keeps its old answer. The file is rewritten in input order. Answered ids absent from
+  input stay after them unless --prune drops them.
+
+  --mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so
+  gate scripts can be tested for free. --print-request writes API shaped request bodies
+  and sends none. Question export writes configuration rather than answers. Mocks
+  exercise execution and policy behavior. Request previews and question export do not
+  execute those policies. Mocks are skipped beside --list-models, request input,
+  --print-request and --print-questions.
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all

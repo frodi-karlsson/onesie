@@ -1,0 +1,58 @@
+Input
+
+Flags:
+      --state TEXT              Read this text instead of stdin. Use - to read stdin.
+      --state-file FILE         Read the state from a file.
+  -i, --input FORMAT            text, json, jsonl, lines, csv, tsv or request. Default:
+                                text.
+      --map EXPR                Select the content to evaluate with a jq expression.
+      --delimiter STRING        field separator that -i csv reads and -o csv writes:
+                                auto, which needs -i csv and writes the one it detects,
+                                or one character. Defaults to a comma
+      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in the state
+                                under NAME, experimental on TypeSafe's side. For one
+                                record stdin is read beside it only through --state -,
+                                so text joins it from --state, --state-file or --state
+                                -. A stream reads its records from stdin and adds the
+                                image to each
+      --image-field NAME        streaming only, repeatable, a state key whose value is a
+                                path to a PNG or JPEG, read per record. Under -i lines
+                                the line is the path. Experimental on TypeSafe's side
+      --id EXPR                 streaming only, jq expression run on each record, whose
+                                string or number result names it on every output line.
+                                It runs one record at a time as the input is read, so
+                                keep it cheap, such as a field lookup, and -V lists the
+                                cap on its length
+      --skip-blank              streaming only, drop blank lines with no output line
+
+How they work together:
+  Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin.
+  Request input sends API shaped bodies as written. --state supplies text instead of
+  stdin, --state-file reads a file, and --state - explicitly reads stdin. --map runs a
+  jq expression on each original record and sends its result as the state. Map only the
+  text a person would read. Object keys come out sorted. The result may nest
+  max-map-depth levels deep and encode to max-line-bytes, as version lists. The original
+  record remains available for labels and merged output.
+
+  --id runs one record at a time as input is read. Its result must be a string or
+  number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
+  --skip-blank drops blank lines without emitting a result. The default field separator
+  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
+  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+
+  --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
+  an image only through --state -. Text can also join it through --state or
+  --state-file. Streams read stdin and add the fixed image to every record.
+  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
+  the line itself is the path. Image and box support is experimental on TypeSafe's side.
+  Images cannot be mixed with request input. See version for image, file, token and
+  model limits.
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all

@@ -1,0 +1,52 @@
+Decisions
+
+Flags:
+      --threshold NUMBER        Turn a yes or no probability into a boolean decision.
+      --assert EXPR             Exit 1 when an answer fails this condition.
+  -q, --quiet                   Suppress output. Without --assert, judge one answer.
+      --min-confidence NUMBER   pick or rate only, requires --fallback. Confidence is
+                                about 1 when p sits on one answer
+      --fallback VALUE          Use this as answer.decision on low confidence or error.
+                                JSON keeps the model answer in answer.value when
+                                available.
+      --abstain-if EXPR         boolean expression that turns a no into an unsure,
+                                repeatable, combined with and, needs --assert. Replaces
+                                the -f file's abstain_if
+      --stop-on-assert          streaming only, end the run at the first false assertion
+
+How they work together:
+  --threshold adds a boolean decision to a yes or no probability. A false decision alone
+  does not change the exit code. Without --assert, quiet mode judges one question on one
+  record. Yes or no uses the threshold, defaulting to 0.5. Pick and rate need both
+  --min-confidence and --fallback. Quiet mode refuses streams.
+
+  --min-confidence applies only to pick and rate, needs --fallback and takes a value
+  between 0 and 1. Confidence is about 1 when p sits on one answer. Yes or no fallback
+  values must be boolean spellings. Pick and rate can fall back to a review destination
+  outside their options. JSON retains the model answer in answer.value when available,
+  with the policy result in answer.decision. Low confidence has fallback reason
+  low_confidence and a request failure has reason error. A fallback does not turn a
+  failed request into success.
+
+  --assert is a boolean expression over the record. Repeated assertions are combined
+  with and and replace the file's assert. Acceptance is checked first. Only when it
+  fails is --abstain-if checked. Repeated abstain expressions combine with and, need
+  --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention
+  holds, it exits 7. Quiet beside --assert only suppresses output.
+
+  Streams print rejected records too. --stop-on-assert prints the first rejected record
+  before stopping. Earlier errors still affect the aggregate exit code. See Asking for
+  question setting scope. Use onesie help calibrate to choose cuts from labelled
+  evidence. The export example uses an illustrative cut.
+
+  Inspect a policy without asking the model:
+    onesie --ask 'urgent=is this urgent' --threshold 0.5 --print-questions
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all

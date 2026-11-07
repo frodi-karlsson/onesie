@@ -1,0 +1,313 @@
+Ask questions about text and use the answers in scripts.
+
+Usage:
+  onesie [question] [flags]
+  onesie [command]
+
+Available Commands:
+  cache       Report what the response cache holds
+  calibrate   Score questions against records whose answers are known
+  completion  Generate the autocompletion script for the specified shell
+  help        Help about any command
+  profile     Create, inspect and remove the named connections a run uses
+  questions   List the question files -f finds by name
+  version     Print version, commit, build date and the built in limits
+
+Asking
+
+Flags:
+      --ask NAME=QUESTION       Ask a named question. Repeat for several.
+      --pick OPTIONS            Choose from comma separated options.
+      --rate LEVELS             Rate against levels from lowest to highest.
+      --desc KEY=TEXT           Describe an option, level, yes or no.
+  -f, --file FILE               Load saved questions, a request body or a built in
+                                starter set.
+      --print-questions         write a question file to stdout and exit, its first line
+                                naming the schema --print-schema prints
+      --print-schema            write the JSON Schema for a question file to stdout and
+                                exit
+      --for ID                  ID, repeatable, selects a question from -f, so the
+                                question flags after it apply to that question, each
+                                with a notice
+      --sep STRING              separator for --pick and --rate that follow it
+      --box                     make this a box question, answered with the left, top,
+                                right and bottom edges of what it finds in an image,
+                                each from 0 to 1. Takes no value. Experimental on
+                                TypeSafe's side
+      --replace                 --ask overrides an id from -f
+
+How they work together:
+  A positional question has the id answer. By default a question asks for a yes or no
+  probability. Use --pick for a choice, --rate for ordered levels, or --box for image
+  edges. A rate score is the level index averaged over p, from 0, and norm is score over
+  the top index, from 0 to 1. Box edges are left, top, right and bottom, each from 0 to
+  1. Box is experimental on TypeSafe's side. See Input for image restrictions.
+
+  Question flags apply to the preceding --ask or --for. Flags before any group apply to
+  the one question asked, whether positional, a lone --ask or a file with one question.
+  Beside several questions they need --for ID. --ask NAME=QUESTION opens a named group
+  and may repeat. --for ID selects a question from --file. Root runs issue a notice for
+  each setting overriding a selected file question. Repeated --pick adds options and
+  repeated --rate adds levels after earlier ones. Together they replace the file
+  question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
+  no description. A rate needs every level described or none. --sep changes the
+  separator for following --pick and --rate. --for may repeat and keeps the wording and
+  settings no flag names. It needs a file and an existing id and refuses --replace.
+  Flags cannot change a file question shape.
+
+  --file accepts a question file, a request body, a path or a saved name. Saved names
+  are looked up in .onesie/questions, then the config directory, then built in starter
+  sets. --ask needs --replace to replace an id from the file. This replaces the
+  question, while --for changes selected settings.
+
+  A question that begins with a dash needs -- before it, with all flags first, as in
+  onesie -o json -- '-is this urgent'. Use the same escape for a one word question close
+  to a command name, since onesie questoins exits 2 and suggests questions.
+  --print-questions exports a question file whose first line names the schema from
+  --print-schema. Exports send no requests. Calibration does not offer these export
+  flags.
+
+Input
+
+Flags:
+      --state TEXT              Read this text instead of stdin. Use - to read stdin.
+      --state-file FILE         Read the state from a file.
+  -i, --input FORMAT            text, json, jsonl, lines, csv, tsv or request. Default:
+                                text.
+      --map EXPR                Select the content to evaluate with a jq expression.
+      --delimiter STRING        field separator that -i csv reads and -o csv writes:
+                                auto, which needs -i csv and writes the one it detects,
+                                or one character. Defaults to a comma
+      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in the state
+                                under NAME, experimental on TypeSafe's side. For one
+                                record stdin is read beside it only through --state -,
+                                so text joins it from --state, --state-file or --state
+                                -. A stream reads its records from stdin and adds the
+                                image to each
+      --image-field NAME        streaming only, repeatable, a state key whose value is a
+                                path to a PNG or JPEG, read per record. Under -i lines
+                                the line is the path. Experimental on TypeSafe's side
+      --id EXPR                 streaming only, jq expression run on each record, whose
+                                string or number result names it on every output line.
+                                It runs one record at a time as the input is read, so
+                                keep it cheap, such as a field lookup, and -V lists the
+                                cap on its length
+      --skip-blank              streaming only, drop blank lines with no output line
+
+How they work together:
+  Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin.
+  Request input sends API shaped bodies as written. --state supplies text instead of
+  stdin, --state-file reads a file, and --state - explicitly reads stdin. --map runs a
+  jq expression on each original record and sends its result as the state. Map only the
+  text a person would read. Object keys come out sorted. The result may nest
+  max-map-depth levels deep and encode to max-line-bytes, as version lists. The original
+  record remains available for labels and merged output.
+
+  --id runs one record at a time as input is read. Its result must be a string or
+  number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
+  --skip-blank drops blank lines without emitting a result. The default field separator
+  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
+  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+
+  --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
+  an image only through --state -. Text can also join it through --state or
+  --state-file. Streams read stdin and add the fixed image to every record.
+  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
+  the line itself is the path. Image and box support is experimental on TypeSafe's side.
+  Images cannot be mixed with request input. See version for image, file, token and
+  model limits.
+
+Decisions
+
+Flags:
+      --threshold NUMBER        Turn a yes or no probability into a boolean decision.
+      --assert EXPR             Exit 1 when an answer fails this condition.
+  -q, --quiet                   Suppress output. Without --assert, judge one answer.
+      --min-confidence NUMBER   pick or rate only, requires --fallback. Confidence is
+                                about 1 when p sits on one answer
+      --fallback VALUE          Use this as answer.decision on low confidence or error.
+                                JSON keeps the model answer in answer.value when
+                                available.
+      --abstain-if EXPR         boolean expression that turns a no into an unsure,
+                                repeatable, combined with and, needs --assert. Replaces
+                                the -f file's abstain_if
+      --stop-on-assert          streaming only, end the run at the first false assertion
+
+How they work together:
+  --threshold adds a boolean decision to a yes or no probability. A false decision alone
+  does not change the exit code. Without --assert, quiet mode judges one question on one
+  record. Yes or no uses the threshold, defaulting to 0.5. Pick and rate need both
+  --min-confidence and --fallback. Quiet mode refuses streams.
+
+  --min-confidence applies only to pick and rate, needs --fallback and takes a value
+  between 0 and 1. Confidence is about 1 when p sits on one answer. Yes or no fallback
+  values must be boolean spellings. Pick and rate can fall back to a review destination
+  outside their options. JSON retains the model answer in answer.value when available,
+  with the policy result in answer.decision. Low confidence has fallback reason
+  low_confidence and a request failure has reason error. A fallback does not turn a
+  failed request into success.
+
+  --assert is a boolean expression over the record. Repeated assertions are combined
+  with and and replace the file's assert. Acceptance is checked first. Only when it
+  fails is --abstain-if checked. Repeated abstain expressions combine with and, need
+  --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention
+  holds, it exits 7. Quiet beside --assert only suppresses output.
+
+  Streams print rejected records too. --stop-on-assert prints the first rejected record
+  before stopping. Earlier errors still affect the aggregate exit code. See Asking for
+  question setting scope. Use onesie help calibrate to choose cuts from labelled
+  evidence. The export example uses an illustrative cut.
+
+  Inspect a policy without asking the model:
+    onesie --ask 'urgent=is this urgent' --threshold 0.5 --print-questions
+
+Output
+
+Flags:
+  -o, --output FORMAT           auto, json, values, table, raw, csv, tsv or markdown
+  -r, --raw                     Print only the answer value or policy decision.
+      --merge                   Keep input fields and attach the answers.
+  -V, --version                 print the version, commit, build date and the built in
+                                limits, as one JSON object under -o json
+      --out STRING              write the answers to this file rather than stdout
+      --merge-key STRING        where the answers land in the merged record, implies
+                                --merge
+      --usage                   add the api usage object to json output
+      --stats                   write a one line summary of the run to stderr at exit
+  -h, --help                    help for onesie
+
+How they work together:
+  Auto uses a table only for one result on a terminal, without --merge or --out. It uses
+  JSON when redirected, for streams, for merged records and for --out files. --raw
+  selects raw output. Raw prints the policy decision when present, otherwise the answer
+  value, and does not preserve the original record.
+
+  --merge keeps the input fields and places answer metadata under answers by default.
+  --merge-key selects another location and implies --merge. JSON preserves model values,
+  decisions and errors. A request error remains in the output even when a fallback
+  supplies a decision. --out writes answers to a file instead of stdout. See Execution
+  for resume and pruning. --usage adds API usage to JSON output. --stats writes a one
+  line run summary to stderr at exit. --version prints the version, commit, build date
+  and built in limits, as one JSON object with -o json.
+
+Connections
+
+Flags:
+      --list-models             write the available models to stdout and exit
+      --provider STRING         run on this provider without a profile, typesafe,
+                                openrouter, berget, levanto or cloudflare. Overrides
+                                ONESIE_PROVIDER and the default profile. Refused beside
+                                --profile or ONESIE_PROFILE
+      --profile STRING          the profile a run uses, from profiles.json in the config
+                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and
+                                otherwise the default profile runs, which onesie profile
+                                use sets
+  -m, --model STRING            model override
+      --base-url STRING         api root override. Also ONESIE_BASE_URL
+      --allow-http              send the request, and any API key, over a plain http
+                                base URL to a host other than this machine. Without it
+                                such a base URL exits 2 before any request
+
+How they work together:
+  onesie is a Unix filter over the System One API, served by typesafe, openrouter,
+  berget, levanto or cloudflare. A profile in profiles.json holds a provider, a key in
+  the OS keychain or file, and optionally a model and base URL or cloudflare account.
+  onesie profile create stores one and onesie profile use makes it the default.
+
+  --profile overrides ONESIE_PROFILE and ONESIE_PROVIDER. Otherwise the default profile
+  runs. --provider runs without a profile and overrides ONESIE_PROVIDER and the default
+  profile. It is refused beside --profile or ONESIE_PROFILE. ONESIE_PROVIDER beside
+  ONESIE_PROFILE is also refused. With no profiles, typesafe runs directly. Provider
+  keys come from TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY
+  or CLOUDFLARE_API_TOKEN. A chosen profile's key and endpoint beat the environment.
+  Provider variables beat the default profile. --base-url wins over a chosen profile,
+  then ONESIE_BASE_URL, then the provider's base URL or account variable, then the
+  default profile. On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL. A key and
+  endpoint resolve as a pair from their applicable source.
+
+  On cloudflare an account comes from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL
+  holding it. --model overrides the chosen profile or request body.
+  TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the default profile's
+  model. A custom base URL needs no key and sends none when none resolves. Plain HTTP to
+  a host other than this machine needs --allow-http, which permits sending the request
+  and any API key over it. Without that flag the run exits 2 before a request. A profile
+  storing such a URL needs --allow-http on every run too.
+
+  Create a connection:
+    onesie profile create NAME --provider typesafe
+
+Execution
+
+Flags:
+      --print-request           write api shaped request bodies to stdout and exit
+      --resume                  streaming only, with --out, carry on after the last
+                                complete line in the file. Under --id it skips the ids
+                                the file answers, so a record whose content changed but
+                                whose id did not keeps its old answer. It then rewrites
+                                the file in input order, with the answered ids the input
+                                no longer has kept after them, which --prune drops
+      --prune                   with --resume and --id, drop the answered ids the input
+                                no longer has
+      --unordered               streaming only, emit records as they complete
+      --stop-on-error           streaming only, end the run at the first failure, with
+                                its exit code, or 6 for a line onesie could not read
+      --no-dedup                streaming only, ask every record even when its request
+                                repeats an earlier one
+      --long-context            raise the context limits to 262k tokens, slower and less
+                                accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
+                                TypeSafe's side
+      --mock FILE               answer from this file instead of the API. Also
+                                ONESIE_MOCK. The file is an object keyed by question id,
+                                as {"answer":0.9,"team":"billing"}, or one line per
+                                record in the shape -o json writes. A lone line that
+                                carries id, line, model, usage, assert, abstain or an
+                                error object is one record
+      --cache                   store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1
+  -j, --jobs INT                records in flight at once. Default: 1.
+      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                given. Default: 10.
+      --retries INT             retries after a failed attempt. Default: 2.
+      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+                                60.
+
+How they work together:
+  --jobs bounds records in flight. --timeout is seconds per attempt. Requests with
+  images default to 60 seconds unless given. Retries happen after failed attempts,
+  bounded by --retries. --max-retry-after caps seconds spent waiting for a server
+  Retry-After. --long-context raises context limits, is slower and less accurate, and is
+  experimental on TypeSafe's side. version reports the built in limits.
+
+  --cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated
+  requests. onesie cache reports entries and onesie cache clear empties them. Streams
+  normally preserve input order. --unordered emits completed records immediately.
+  --no-dedup asks every record even when its request repeats, independently of the disk
+  cache. --stop-on-error ends at the first failure with its exit code, or 6 for an
+  unreadable record.
+
+  --resume needs --out. Without --id, a stream continues after the last complete line.
+  With --id it skips answered ids. A record whose content changes but whose id does not
+  keeps its old answer. The file is rewritten in input order. Answered ids absent from
+  input stay after them unless --prune drops them.
+
+  --mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so
+  gate scripts can be tested for free. --print-request writes API shaped request bodies
+  and sends none. Question export writes configuration rather than answers. Mocks
+  exercise execution and policy behavior. Request previews and question export do not
+  execute those policies. Mocks are skipped beside --list-models, request input,
+  --print-request and --print-questions.
+
+Exit codes:
+  0    answered
+  1    a false --assert, or under -q alone the policy did not accept the answer
+  2    usage or validation error, including a missing key on the provider's own base
+       URL, or a plain http base URL to another host without --allow-http
+  3    the key was refused, the account is out of credits, the keychain failed, or
+       profiles.json or credentials.json is exposed
+  4    the server did not answer after retries, or it answered 200 with a response
+       onesie could not use, which is never retried
+  5    transport error or timeout
+  6    a stream finished with one or more failed records, or --stop-on-error stopped it
+       at a record that never became a request
+  7    the gate could not decide: the assertion failed and --abstain-if held
+  130  interrupted

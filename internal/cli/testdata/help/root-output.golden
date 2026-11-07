@@ -1,0 +1,37 @@
+Output
+
+Flags:
+  -o, --output FORMAT           auto, json, values, table, raw, csv, tsv or markdown
+  -r, --raw                     Print only the answer value or policy decision.
+      --merge                   Keep input fields and attach the answers.
+  -V, --version                 print the version, commit, build date and the built in
+                                limits, as one JSON object under -o json
+      --out STRING              write the answers to this file rather than stdout
+      --merge-key STRING        where the answers land in the merged record, implies
+                                --merge
+      --usage                   add the api usage object to json output
+      --stats                   write a one line summary of the run to stderr at exit
+  -h, --help                    help for onesie
+
+How they work together:
+  Auto uses a table only for one result on a terminal, without --merge or --out. It uses
+  JSON when redirected, for streams, for merged records and for --out files. --raw
+  selects raw output. Raw prints the policy decision when present, otherwise the answer
+  value, and does not preserve the original record.
+
+  --merge keeps the input fields and places answer metadata under answers by default.
+  --merge-key selects another location and implies --merge. JSON preserves model values,
+  decisions and errors. A request error remains in the output even when a fallback
+  supplies a decision. --out writes answers to a file instead of stdout. See Execution
+  for resume and pruning. --usage adds API usage to JSON output. --stats writes a one
+  line run summary to stderr at exit. --version prints the version, commit, build date
+  and built in limits, as one JSON object with -o json.
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all
