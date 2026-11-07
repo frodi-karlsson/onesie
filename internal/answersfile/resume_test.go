@@ -165,6 +165,26 @@ func reversedLines(text string) string {
 func TestResumedVerdicts(t *testing.T) {
 	t.Parallel()
 
+	for _, ending := range []string{"\n", "\r\n"} {
+		t.Run(fmt.Sprintf("should preserve TSV verdicts with terminator %x", ending), func(t *testing.T) {
+			content := "answer\terror" + ending + "yes\t" + ending + "\tboom" + ending + "partial\tignored"
+			out := openTSV(t, content)
+			resume, err := ResumedVerdicts(t.Context(), out, Format{Mode: output.TSV}, false, Resume{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(resume.Stored) != 2 {
+				t.Fatalf("stored count = %d, want 2", len(resume.Stored))
+			}
+			if resume.Stored[0].Failure != nil {
+				t.Errorf("successful row = %+v", resume.Stored[0])
+			}
+			if failure := resume.Stored[1].Failure; failure == nil || failure.Message != "boom" {
+				t.Errorf("failure = %+v, want boom", failure)
+			}
+		})
+	}
+
 	tests := []struct {
 		name      string
 		delimiter input.Delimiter
@@ -198,6 +218,31 @@ func TestResumeLedger(t *testing.T) {
 	namer, err := jq.Compile(".id")
 	if err != nil {
 		t.Fatal(err)
+	}
+
+	for _, ending := range []string{"\n", "\r\n"} {
+		t.Run(fmt.Sprintf("should retain TSV spans and retry failed IDs with terminator %x", ending), func(t *testing.T) {
+			row := "A\tyes\t" + ending
+			content := "id\tanswer\terror" + ending + row + "B\t\tboom" + ending + "C\tyes\t"
+			out := openTSV(t, content)
+			book, err := ResumeLedger(t.Context(), out, Format{Mode: output.TSV, Namer: namer})
+			if err != nil {
+				t.Fatal(err)
+			}
+			at, found := book.StoredAt("A")
+			if !found {
+				t.Fatal("successful ID has no stored span")
+			}
+			if got := content[at.Start:at.End]; got != row {
+				t.Errorf("stored bytes = %q, want %q", got, row)
+			}
+			if _, _, answered := book.Admit("B"); answered {
+				t.Error("failed ID should be retried")
+			}
+			if _, found := book.StoredAt("C"); found {
+				t.Error("incomplete row should not be counted")
+			}
+		})
 	}
 
 	tests := []struct {
@@ -278,4 +323,22 @@ func TestHeaderLength(t *testing.T) {
 			}
 		})
 	}
+}
+
+func openTSV(t *testing.T, content string) *File {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "answers.tsv")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out, _, err := Open(Options{}, Config{Path: path, Resume: true, Output: "tsv"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := out.Release(); err != nil {
+			t.Error(err)
+		}
+	})
+	return out
 }

@@ -15,9 +15,9 @@ import (
 	"os"
 	"slices"
 	"strconv"
-	"strings"
 	"sync"
 
+	"github.com/frodi-karlsson/onesie/internal/delimiter"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
@@ -647,15 +647,15 @@ func eachLine(r io.Reader, visit func(at Span, text []byte) bool) error {
 	}
 }
 
-func eachRow(r io.Reader, quoted bool, delimiter input.Delimiter, visit func(at Span, cells []string) bool) error {
+func eachRow(r io.Reader, quoted bool, separator input.Delimiter, visit func(at Span, cells []string) bool) error {
 	// TSV has no quoting, so a row is a line.
 	if !quoted {
 		return eachLine(r, func(at Span, text []byte) bool {
-			return visit(at, strings.Split(strings.TrimSuffix(string(text), "\n"), "\t"))
+			return visit(at, delimiter.TSVFields(string(text)))
 		})
 	}
 
-	reader := csvRows(r, delimiter)
+	reader := csvRows(r, separator)
 
 	var start int64
 

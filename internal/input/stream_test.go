@@ -29,6 +29,18 @@ func TestStream(t *testing.T) {
 		want      []want
 	}{
 		{
+			name: "should preserve a data CR before the TSV terminator",
+			mode: input.TSV,
+			in:   "body\nx\r\r\n",
+			want: []want{{state: map[string]any{"body": "x\r"}, raw: `{"body":"x\r"}`}},
+		},
+		{
+			name: "should preserve a final CR without a following LF as data",
+			mode: input.TSV,
+			in:   "body\nx\r",
+			want: []want{{state: map[string]any{"body": "x\r"}, raw: `{"body":"x\r"}`}},
+		},
+		{
 			name: "should yield one record per line under lines",
 			mode: input.Lines,
 			in:   "first\nsecond\n",

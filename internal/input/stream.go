@@ -292,12 +292,11 @@ func (s *Stream) nextTabbed() ([]string, error) {
 			return nil, &rowError{err: errRowTooLong}
 		}
 
-		text = strings.TrimSuffix(text, "\r")
 		if text == "" {
 			continue
 		}
 
-		return strings.Split(text, "\t"), nil
+		return delimiter.TSVFields(text), nil
 	}
 }
 
