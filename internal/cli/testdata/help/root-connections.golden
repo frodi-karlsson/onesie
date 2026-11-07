@@ -1,0 +1,61 @@
+Connections
+
+Flags:
+      --list-models             write the available models to stdout and exit
+      --provider STRING         run on this provider without a profile, typesafe,
+                                openrouter, berget, levanto or cloudflare. Overrides
+                                ONESIE_PROVIDER and the default profile. Refused beside
+                                --profile or ONESIE_PROFILE
+      --profile STRING          the profile a run uses, from profiles.json in the config
+                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and
+                                otherwise the default profile runs, which onesie profile
+                                use sets
+  -m, --model STRING            model override
+      --base-url STRING         api root override. Also ONESIE_BASE_URL
+      --allow-http              send the request, and any API key, over a plain http
+                                base URL to a host other than this machine. Without it
+                                such a base URL exits 2 before any request
+
+How they work together:
+  onesie is a Unix filter over the System One API, served by typesafe, openrouter,
+  berget, levanto or cloudflare. A profile in profiles.json holds a provider, a key in
+  the OS keychain or file, and optionally a model and base URL or cloudflare account.
+  onesie profile create stores one and onesie profile use makes it the default.
+
+  A run uses the profile named by --profile, then ONESIE_PROFILE, then the default
+  profile. --profile overrides ONESIE_PROVIDER. --provider runs without a profile and
+  overrides ONESIE_PROVIDER and the default profile. It is refused beside --profile or
+  ONESIE_PROFILE. ONESIE_PROVIDER beside ONESIE_PROFILE is also refused. With no
+  profiles, typesafe runs directly. Provider keys come from TYPESAFE_API_KEY,
+  OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN. The
+  chosen profile key and endpoint beat the environment. Provider variables beat the
+  default profile. --base-url wins over a chosen profile, then ONESIE_BASE_URL, then the
+  provider base URL or account variable, then the default profile. On typesafe,
+  ONESIE_BASE_URL beats TYPESAFE_BASE_URL.
+
+  A key goes only with its own endpoint. A custom profile endpoint takes only the key
+  from that profile. A custom URL from a variable takes only the provider key variable.
+  A typed --base-url takes the chosen profile key or provider variable, never the
+  default profile key. A keyless profile reads no key variable. No provider uses another
+  provider key. The base URL and account are one setting, taken whole from the highest
+  source.
+
+  On cloudflare an account comes from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL
+  holding it. --model overrides the chosen profile or request body.
+  TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the model in the
+  default profile. A custom base URL needs no key and sends none when none resolves.
+  Plain HTTP to a host other than this machine needs --allow-http, which permits sending
+  the request and any API key over it. Without that flag the run exits 2 before a
+  request. A profile storing such a URL needs --allow-http on every run too.
+
+  Create a connection:
+    onesie profile create NAME --provider typesafe
+
+More help:
+  onesie help asking
+  onesie help input
+  onesie help decisions
+  onesie help output
+  onesie help connections
+  onesie help execution
+  onesie help all

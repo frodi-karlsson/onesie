@@ -29,6 +29,8 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
+const quietDefaultThreshold = 0.5
+
 var errWrapRepeated = errors.New("--merge wraps an input that is not an object under 'state', " +
 	"so --merge-key state would repeat that key. Pass another --merge-key")
 
@@ -1077,7 +1079,7 @@ func quietResult(question plan.Question, a *answer.Answer) error {
 	if question.Shape == plan.Noul {
 		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
 		// policy at all, unlike a pick question which has nothing to compare.
-		threshold := 0.5
+		threshold := quietDefaultThreshold
 		if question.Policy.Threshold != nil {
 			threshold = *question.Policy.Threshold
 		}

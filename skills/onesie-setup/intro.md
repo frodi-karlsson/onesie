@@ -14,5 +14,5 @@ The steps, in order:
 4. Have the user store the key in a profile, outside the conversation.
 5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
-For a flag this skill does not cover, run `onesie --help`, `onesie profile --help` or
-`onesie calibrate --help`, and `onesie -V` for the version and the built in limits.
+For a flag this skill does not cover, run `onesie help all`, `onesie profile --help` or
+`onesie help calibrate all`, and `onesie -V` for the version and the built in limits.

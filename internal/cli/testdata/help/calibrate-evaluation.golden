@@ -1,0 +1,76 @@
+Evaluation
+
+Flags:
+      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
+                                mapped state, whose result is the right answer for
+                                question ID. A question with none is skipped. With one
+                                question ID= may be left out
+      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
+                                defaults
+      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
+                                requirement the report must meet, or calibrate exits 1.
+                                Repeatable
+      --offline                 with --out and --resume, read every answer from the file
+                                and ask nothing, needing no key
+
+How they work together:
+  Calibration compares answers with labels from the original record, not the mapped
+  state, and prints cut, agreement and confusion tables. It never picks the cut. A --map
+  selecting the label flatters the question. --label can omit ID= with one question.
+  Default cuts: 0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6, 0.65,
+  0.7, 0.75, 0.8, 0.85, 0.9, 0.95.
+
+  A yes or no label is true, false, yes, no, y, n, 1 or 0 in any case. Pick and rate
+  labels are declared option or level names, with surrounding spaces ignored, or a
+  number whose text names one, so 4 matches --rate 1,2,3,4,5. null, no result or a
+  string of only spaces leaves that record unlabelled for the question. A record no
+  question labels is not asked. A JSONL record can be:
+
+    {"id":"a","text":"The server is down","urgent":true}
+
+  CSV can use:
+
+    id,text,urgent
+    a,The server is down,yes
+
+  A question with no --label is skipped, omitted from requests and the report, and named
+  on stderr. At least one question needs a label. A label naming no question or a
+  requirement reading a skipped question exits 2. Resume into a file answering every
+  question still asks skipped ones so the file stays whole. Box questions cannot be
+  calibrated. A question file's assert, abstain_if, threshold, min_confidence and
+  fallback are ignored. The corresponding root flags are refused.
+
+  A yes or no cut flags a record when value is at least the cut. Pick and rate tables
+  have a row per name. found is the share labelled with a name that were picked as it.
+  right when picked is the share picked as a name carrying it as their label.
+
+  Each --require reads [lower|upper](ID.MEASURE) OP NUMBER [at CUT]. MEASURE is catches,
+  false_alarms, right_when_flagged or auc for yes or no, agreement for pick and rate,
+  and within_one for rate. OP is >=, >, <= or <. NUMBER is a fraction from 0 to 1. lower
+  and upper compare an end of the 95 percent interval instead of the value, so 16 of 16
+  fails lower(x.catches) >= 0.9. A yes or no measure other than auc needs a cut. at CUT
+  names it, at abstain takes it from the file's abstain_if, otherwise the file's assert
+  supplies it when comparing ID.value < X or ID.value >= X. A missing cut exits 2. The
+  report still prints when requirements fail, each failure is named on stderr and the
+  run exits 1.
+
+  --offline needs --out and --resume, reads every answer from the file and asks nothing.
+  It needs no key and never rewrites the file. A missing answer, missing file or
+  fingerprint mismatch exits 2. The first example creates the answer file used by the
+  second. The example requirement is illustrative. Offline replay checks saved evidence,
+  not new live model behavior.
+
+  Compare answers with labelled examples:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume < labelled.jsonl
+
+  Check the saved answers without asking again:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.9 at 0.5' < labelled.jsonl
+
+More help:
+  onesie help calibrate asking
+  onesie help calibrate input
+  onesie help calibrate evaluation
+  onesie help calibrate output
+  onesie help calibrate connections
+  onesie help calibrate execution
+  onesie help calibrate all

@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -65,14 +66,11 @@ var calibrateExitCodes = []exitCodeLine{
 }
 
 func exitCodesSection(codes []exitCodeLine) string {
-	var out strings.Builder
-
+	var out bytes.Buffer
 	out.WriteString("Exit codes:\n")
-
 	for _, line := range codes {
-		fmt.Fprintf(&out, "  %-5d%s\n", line.code, line.meaning)
+		writeHelpText(&out, line.meaning, fmt.Sprintf("  %-5d", line.code), "       ")
 	}
-
 	return strings.TrimSuffix(out.String(), "\n")
 }
 

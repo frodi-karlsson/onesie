@@ -3,6 +3,7 @@
 package settingrow
 
 import (
+	"maps"
 	"slices"
 )
 
@@ -13,7 +14,10 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 		return BoundFlag{}, false
 	}
 
-	bound := BoundFlag{Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default}
+	bound := BoundFlag{
+		Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default,
+		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue,
+	}
 	override := r.Flag.PerCommand[command]
 
 	if override.Help != "" {
@@ -41,20 +45,23 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 // Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
 // not a question file.
 type Row struct {
-	Name     Name
-	Scope    Scope
-	Flag     FlagSpec
-	Env      []EnvSpec
-	FileKey  string
-	FileHelp string
-	InBody   bool
-	Profile  []ProfileMember
-	Kind     Kind
-	Default  any
-	Shapes   []Shape
-	Modes    ModeSet
-	Help     string
-	Check    func(any) error
+	Name       Name
+	Scope      Scope
+	Flag       FlagSpec
+	Env        []EnvSpec
+	FileKey    string
+	FileHelp   string
+	InBody     bool
+	Profile    []ProfileMember
+	Kind       Kind
+	Default    any
+	Shapes     []Shape
+	Modes      ModeSet
+	Help       string
+	HelpTopic  string
+	HelpCommon map[Command]int
+	HelpValue  string
+	Check      func(any) error
 }
 
 // BoundFlag is a row's flag on one command. Member is the profile member it writes, on a command
@@ -62,6 +69,9 @@ type Row struct {
 type BoundFlag struct {
 	Long, Short string
 	Help        string
+	HelpTopic   string
+	HelpCommon  map[Command]int
+	HelpValue   string
 	Kind        Kind
 	Default     any
 	Persistent  bool

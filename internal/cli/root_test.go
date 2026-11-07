@@ -35,6 +35,45 @@ import (
 func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should expose topics only through help and preserve ordinary command help", func(t *testing.T) {
+		for _, tc := range []struct {
+			args     []string
+			code     int
+			contains string
+		}{
+			{[]string{"help", "decisions"}, cli.ExitOK, "Decisions"},
+			{[]string{"help", "calibrate", "evaluation"}, cli.ExitOK, "Evaluation"},
+			{[]string{"help", "questions"}, cli.ExitOK, "questions lists"},
+			{[]string{"help", "profile", "create"}, cli.ExitOK, "onesie profile create"},
+			{[]string{"help", "decisions", "extra"}, cli.ExitUsage, "onesie help"},
+			{[]string{"help", "calibrate", "decisions"}, cli.ExitUsage, "onesie help calibrate"},
+			{[]string{"asking", "--print-request", "--state", "text"}, cli.ExitOK, `"instructions":"asking"`},
+		} {
+			t.Run("should route "+strings.Join(tc.args, " "), func(t *testing.T) {
+				out, code := runWithEnv(t, map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()}, tc.args)
+				if code != tc.code || !strings.Contains(out, tc.contains) {
+					t.Fatalf("exit %d, output %s", code, out)
+				}
+			})
+		}
+	})
+	t.Run("should share the overview among help entry points", func(t *testing.T) {
+		for _, paths := range [][][]string{{nil, {"--help"}, {"help"}}, {{"calibrate"}, {"calibrate", "--help"}, {"help", "calibrate"}}} {
+			var first string
+			for _, args := range paths {
+				out, code := runWithEnv(t, map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()}, args)
+				if code != cli.ExitOK {
+					t.Fatal(out)
+				}
+				if first == "" {
+					first = out
+				} else if out != first {
+					t.Fatal("overviews differ")
+				}
+			}
+		}
+	})
+
 	t.Run("should refuse every changed mode command before writing", func(t *testing.T) {
 		t.Parallel()
 
@@ -541,7 +580,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should print no empty list default for a flag that refuses an empty value",
 			args:     []string{"calibrate", "--help"},
 			wantCode: cli.ExitOK,
-			contains: []string{"--label stringArray"},
+			contains: []string{"--label [ID=]EXPR"},
 			absent:   []string{"(default [])"},
 		},
 		{
@@ -928,7 +967,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should refuse an unknown help topic",
 			args:     []string{"help", "foo"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: unknown help topic 'foo'. Run onesie --help to see the subcommands"},
+			contains: []string{"onesie: unknown help topic 'foo'. Run onesie help to see the topics and subcommands"},
 			absent:   []string{"Usage:"},
 		},
 		{
@@ -952,9 +991,9 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should say in the root help that a run uses a profile",
-			args:     []string{"--help"},
+			args:     []string{"help", "connections"},
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie profile create", "--profile string"},
+			contains: []string{"onesie profile create", "--profile STRING"},
 		},
 		{
 			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
@@ -971,13 +1010,13 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should list --mock in the root help",
-			args:     []string{"--help"},
+			args:     []string{"help", "execution"},
 			wantCode: cli.ExitOK,
-			contains: []string{"--mock string", "ONESIE_MOCK"},
+			contains: []string{"--mock FILE", "ONESIE_MOCK"},
 		},
 		{
 			name:     "should explain a rate's score and norm in the --rate help",
-			args:     []string{"--help"},
+			args:     []string{"help", "asking"},
 			wantCode: cli.ExitOK,
 			contains: []string{"score is the level index averaged over p, from 0, and norm is score over the top index"},
 		},
@@ -989,7 +1028,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should show both mock file shapes in the --mock help",
-			args:     []string{"--help"},
+			args:     []string{"help", "execution"},
 			wantCode: cli.ExitOK,
 			contains: []string{
 				`an object keyed by question id, as {"answer":0.9,"team":"billing"}, ` +
@@ -1019,14 +1058,14 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should show --box in the help as a switch that takes no value",
-			args:     []string{"--help"},
+			args:     []string{"help", "asking"},
 			wantCode: cli.ExitOK,
 			contains: []string{"      --box      "},
 			absent:   []string{"--box string", "--box[="},
 		},
 		{
 			name:     "should show --box in the calibrate help as a switch that takes no value",
-			args:     []string{"calibrate", "--help"},
+			args:     []string{"help", "calibrate", "asking"},
 			wantCode: cli.ExitOK,
 			contains: []string{"      --box      "},
 			absent:   []string{"--box string", "--box[="},
@@ -1051,9 +1090,9 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should list --mock in the calibrate help",
-			args:     []string{"calibrate", "--help"},
+			args:     []string{"help", "calibrate", "execution"},
 			wantCode: cli.ExitOK,
-			contains: []string{"--mock string", "ONESIE_MOCK"},
+			contains: []string{"--mock FILE", "ONESIE_MOCK"},
 		},
 		{
 			name:     "should print the limits for the version flag",
@@ -1072,13 +1111,13 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should warn that --id runs one record at a time",
-			args:     []string{"--help"},
+			args:     []string{"help", "input"},
 			wantCode: cli.ExitOK,
 			contains: []string{"runs one record at a time", "such as a field lookup"},
 		},
 		{
 			name:     "should word --max-retry-after the way its sibling flags are worded",
-			args:     []string{"--help"},
+			args:     []string{"help", "execution"},
 			wantCode: cli.ExitOK,
 			contains: []string{
 				"seconds per attempt", "retries after a failed attempt",
@@ -1191,7 +1230,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should document how to ask a question that begins with a dash",
-			args:     []string{"--help"},
+			args:     []string{"help", "asking"},
 			wantCode: cli.ExitOK,
 			contains: []string{"begins with a dash", "onesie -o json -- '-is this urgent'"},
 		},
@@ -2242,7 +2281,12 @@ func TestNewRootCmd(t *testing.T) {
 			}
 
 			for _, want := range tc.contains {
-				if !strings.Contains(out.String(), want) {
+				actual, expected := out.String(), want
+				if len(tc.args) > 0 && tc.args[0] == "help" {
+					actual = strings.Join(strings.Fields(actual), " ")
+					expected = strings.Join(strings.Fields(expected), " ")
+				}
+				if !strings.Contains(actual, expected) {
 					t.Errorf("output missing %q\ngot:\n%s", want, out.String())
 				}
 			}
@@ -2723,6 +2767,20 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{args: []string{"--help"}, golden: "root.golden"},
 			{args: []string{"calibrate", "--help"}, golden: "calibrate.golden"},
+			{args: []string{"help", "all"}, golden: "root-all.golden"},
+			{args: []string{"help", "asking"}, golden: "root-asking.golden"},
+			{args: []string{"help", "input"}, golden: "root-input.golden"},
+			{args: []string{"help", "decisions"}, golden: "root-decisions.golden"},
+			{args: []string{"help", "output"}, golden: "root-output.golden"},
+			{args: []string{"help", "connections"}, golden: "root-connections.golden"},
+			{args: []string{"help", "execution"}, golden: "root-execution.golden"},
+			{args: []string{"help", "calibrate", "all"}, golden: "calibrate-all.golden"},
+			{args: []string{"help", "calibrate", "asking"}, golden: "calibrate-asking.golden"},
+			{args: []string{"help", "calibrate", "input"}, golden: "calibrate-input.golden"},
+			{args: []string{"help", "calibrate", "evaluation"}, golden: "calibrate-evaluation.golden"},
+			{args: []string{"help", "calibrate", "output"}, golden: "calibrate-output.golden"},
+			{args: []string{"help", "calibrate", "connections"}, golden: "calibrate-connections.golden"},
+			{args: []string{"help", "calibrate", "execution"}, golden: "calibrate-execution.golden"},
 			{args: []string{"version", "--help"}, golden: "version.golden"},
 			{args: []string{"profile", "--help"}, golden: "profile.golden"},
 			{args: []string{"profile", "create", "--help"}, golden: "profile-create.golden"},
@@ -3227,7 +3285,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Run("should list --cache in help and the cache limits under -V", func(t *testing.T) {
 		t.Parallel()
 
-		for _, args := range [][]string{{"--help"}, {"calibrate", "--help"}, {"-V"}} {
+		for _, args := range [][]string{{"help", "all"}, {"help", "calibrate", "all"}, {"-V"}} {
 			var out bytes.Buffer
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
@@ -3241,7 +3299,7 @@ func TestNewRootCmd(t *testing.T) {
 			}
 
 			want := []string{"--cache", "ONESIE_CACHE=1"}
-			if args[0] == "--help" {
+			if len(args) == 2 && args[1] == "all" {
 				want = append(want, "  cache ")
 			}
 			if args[0] == "-V" {
@@ -3269,11 +3327,11 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{
 				name: "should list every exit code REFERENCE lists in the root help, each with its meaning",
-				args: []string{"--help"}, want: referenceExitCodes(t, reference),
+				args: []string{"help", "all"}, want: referenceExitCodes(t, reference),
 			},
 			{
 				name: "should list every exit code REFERENCE gives calibrate in the calibrate help",
-				args: []string{"calibrate", "--help"}, want: referenceCalibrateCodes(t, reference), codesOnly: true,
+				args: []string{"help", "calibrate", "all"}, want: referenceCalibrateCodes(t, reference), codesOnly: true,
 			},
 		}
 
@@ -3433,11 +3491,15 @@ func helpExitCodes(help string) []string {
 
 	for _, line := range strings.Split(section, "\n") {
 		match := regexp.MustCompile(`^  ([0-9]+) {2,}(\S.*)$`).FindStringSubmatch(line)
-		if match == nil {
-			break
+		if match != nil {
+			codes = append(codes, match[1]+" "+match[2])
+			continue
 		}
-
-		codes = append(codes, match[1]+" "+match[2])
+		if strings.HasPrefix(line, "       ") && len(codes) > 0 {
+			codes[len(codes)-1] += " " + strings.TrimSpace(line)
+			continue
+		}
+		break
 	}
 
 	return codes

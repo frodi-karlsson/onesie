@@ -11,6 +11,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/frodi-karlsson/onesie/internal/delimiter"
+
 	"github.com/frodi-karlsson/onesie/internal/limits"
 )
 
@@ -23,7 +25,7 @@ func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
 		mode:      mode,
 		skipBlank: opts.SkipBlank,
 		lineCap:   lineCapOf(mode),
-		comma:     ',',
+		comma:     delimiter.DefaultComma,
 	}
 
 	if mode == CSV {

@@ -35,7 +35,7 @@ failure as one sentence. Every other output keeps that line.
 
 On a non zero exit or a key error, read `references/failures.md`.
 
-For a flag this skill does not cover, run `onesie --help` or `onesie calibrate --help`, and
+For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
 `onesie -V` for the version and the built in limits.
 
 ## Rules
