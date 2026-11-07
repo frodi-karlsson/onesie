@@ -28,10 +28,39 @@ var (
 func TestReadme(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should route the ticket and retain its CSV columns", func(t *testing.T) {
+		t.Parallel()
+		blocks := codeBlocks(readRepoFile(t, "README.md"))
+		if len(blocks) < 4 || blocks[0].lang != "sh" || blocks[1].lang != "csv" || blocks[2].lang != "sh" || blocks[3].lang != "csv" {
+			t.Fatal("README.md needs a routing command, CSV input, a batch command and CSV output")
+		}
+
+		for _, tc := range []struct {
+			name, fixture, stdin, want string
+			block                      int
+		}{
+			{"should print the chosen team", `{"answer":"billing"}`, "I was charged twice for my order\n", "billing\n", 0},
+			{"should append team to the original columns", `{"team":"billing"}`, strings.Join(blocks[1].lines, "\n") + "\n", strings.Join(blocks[3].lines, "\n") + "\n", 2},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				mock := filepath.Join(t.TempDir(), "team.json")
+				if err := os.WriteFile(mock, []byte(tc.fixture), 0o600); err != nil {
+					t.Fatal(err)
+				}
+
+				command := readmeCommand(t, blocks[tc.block].lines)
+				out, errOut, code := runReadme(t, tc.stdin, append(command[1:], "--mock", mock)...)
+				if code != cli.ExitOK || out != tc.want {
+					t.Errorf("exit code = %d, stdout = %q, want %q, stderr = %s", code, out, tc.want, errOut)
+				}
+			})
+		}
+	})
+
 	t.Run("should print the destroys excerpt the thresholds section shows", func(t *testing.T) {
 		t.Parallel()
 
-		blocks := codeBlocks(readmeSection(t, "Thresholds from evidence"))
+		blocks := codeBlocks(readmeSection(t, "Thresholds from evidence", "examples", "README.md"))
 		command := append(readmeCommand(t, blocks[0].lines), "--offline")
 
 		out, errOut, code := runCalibrateOnCommitted(t, command)
@@ -67,7 +96,7 @@ func TestReadme(t *testing.T) {
 
 		pass, block := destroysCut(gate.Assert), destroysCut(gate.AbstainIf)
 
-		section := strings.Join(strings.Fields(readmeSection(t, "Thresholds from evidence")), " ")
+		section := strings.Join(strings.Fields(readmeSection(t, "Thresholds from evidence", "README.md")), " ")
 
 		claim := destroysClaim.FindStringSubmatch(section)
 		if claim == nil {
@@ -80,12 +109,12 @@ func TestReadme(t *testing.T) {
 		}
 	})
 
-	t.Run("should pass the offline CI check REFERENCE.md shows", func(t *testing.T) {
+	t.Run("should pass the offline CI check examples README shows", func(t *testing.T) {
 		t.Parallel()
 
-		_, offline, found := strings.Cut(readRepoFile(t, "REFERENCE.md"), "\n### Offline\n")
+		_, offline, found := strings.Cut(readRepoFile(t, "examples", "README.md"), "\n## Offline\n")
 		if !found {
-			t.Fatal("REFERENCE.md has no Offline section")
+			t.Fatal("examples README has no Offline section")
 		}
 
 		_, errOut, code := runCalibrateOnCommitted(t, readmeCommand(t, codeBlocks(offline)[0].lines))
@@ -97,7 +126,7 @@ func TestReadme(t *testing.T) {
 	t.Run("should block with the mock answers the thresholds section shows", func(t *testing.T) {
 		t.Parallel()
 
-		found := mockEcho.FindStringSubmatch(readmeSection(t, "Thresholds from evidence"))
+		found := mockEcho.FindStringSubmatch(readmeSection(t, "Testing a gate", "examples", "README.md"))
 		if found == nil {
 			t.Fatal("README.md writes no danger.json")
 		}
@@ -162,7 +191,7 @@ func TestReadme(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		_, after, found := strings.Cut(readRepoFile(t, "README.md"), "**Comment on a pull request.**")
+		_, after, found := strings.Cut(readRepoFile(t, "examples", "README.md"), "**Comment on a pull request.**")
 		if !found {
 			t.Fatal("README.md has no pull request recipe")
 		}
@@ -189,8 +218,6 @@ func TestReadme(t *testing.T) {
 		// Checked by the tests above against the committed answers, since --print-request would
 		// only check the flags.
 		checkedElsewhere := []string{"calibrate"}
-		// The README shortens the offline check to calibrate ... and REFERENCE.md holds it whole.
-		abbreviated := " ... "
 
 		catalog, err := skillcheck.NewCatalog(cli.DryRunRules())
 		if err != nil {
@@ -203,10 +230,6 @@ func TestReadme(t *testing.T) {
 		}
 
 		for _, command := range commands {
-			if strings.Contains(command.text, abbreviated) {
-				continue
-			}
-
 			tokens, reason := skillcheck.Tokenize(shellVar.ReplaceAllString(command.text, "'x'"))
 			if reason != "" {
 				t.Errorf("%s does not tokenize: %s", command.text, reason)
@@ -282,6 +305,13 @@ func intoTempDir(t *testing.T, tokens []string) []string {
 	dir := t.TempDir()
 
 	for i, token := range tokens {
+		if i > 0 && tokens[i-1] == "--state-file" {
+			tokens[i] = filepath.Join(dir, token)
+			if err := os.WriteFile(tokens[i], []byte("sample text"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+
 		if i > 0 && tokens[i-1] == "--out" {
 			tokens[i] = filepath.Join(dir, token)
 		}
@@ -290,12 +320,12 @@ func intoTempDir(t *testing.T, tokens []string) []string {
 	return tokens
 }
 
-func readmeSection(t *testing.T, title string) string {
+func readmeSection(t *testing.T, title string, path ...string) string {
 	t.Helper()
 
-	_, section, found := strings.Cut(readRepoFile(t, "README.md"), "\n## "+title+"\n")
+	_, section, found := strings.Cut(readRepoFile(t, path...), "\n## "+title+"\n")
 	if !found {
-		t.Fatalf("README.md has no %s section", title)
+		t.Fatalf("%s has no %s section", filepath.Join(path...), title)
 	}
 
 	section, _, _ = strings.Cut(section, "\n## ")
@@ -350,7 +380,7 @@ func readmeCommand(t *testing.T, lines []string) []string {
 func recipeCommand(t *testing.T, title string) []string {
 	t.Helper()
 
-	_, after, found := strings.Cut(readRepoFile(t, "README.md"), title)
+	_, after, found := strings.Cut(readRepoFile(t, "examples", "README.md"), title)
 	if !found {
 		t.Fatalf("README.md has no %s recipe", title)
 	}
@@ -363,7 +393,7 @@ func readmeCommands(t *testing.T) []readmeLine {
 
 	var commands []readmeLine
 
-	for _, block := range codeBlocks(readRepoFile(t, "README.md")) {
+	for _, block := range codeBlocks(readRepoFile(t, "README.md") + "\n" + readRepoFile(t, "examples", "README.md")) {
 		if block.lang == "sh" {
 			commands = append(commands, commandsIn(block.lines)...)
 		}
