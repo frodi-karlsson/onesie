@@ -82,7 +82,7 @@ onesie --ask urgent='is this urgent' -i jsonl --print-request
 
 ### Write -o markdown for a PR comment or a job summary, and never as a file to resume or parse.
 
-`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge`, `-r` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. The rest is under Streams in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#streams).
+`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge`, `-r` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
 
 **Bad:**
 
@@ -98,7 +98,7 @@ onesie 'is this urgent' -i jsonl --id '.id' -o markdown
 
 ### Choose the state with --map and name each record with --id.
 
-`--map EXPR` is a jq expression whose result is the state, so `--map '.body'` keeps a customer name away from the model. Drop every field that does not bear on the question, such as a timestamp or an order id, since each one adds noise to the answer. `--id EXPR` names each record on every output line, and `--resume` skips by it. Keep it a cheap field lookup that yields one string or number, unique per record. A record whose map or id fails gets an error line, and the stream carries on. The rest is under Streams in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#streams).
+`--map EXPR` is a jq expression whose result is the state, so `--map '.body'` keeps a customer name away from the model. Drop every field that does not bear on the question, such as a timestamp or an order id, since each one adds noise to the answer. `--id EXPR` names each record on every output line, and `--resume` skips by it. Keep it a cheap field lookup that yields one string or number, unique per record. A record whose map or id fails gets an error line, and the stream carries on. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
 
 **Bad:**
 
@@ -114,7 +114,7 @@ onesie 'is this urgent' -i jsonl --map '.body' --id '.id'
 
 ### Write a long stream with --out and rerun it with --resume and --id after a failure.
 
-Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, failed records included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model, `--map`, the profile, a custom base URL, the cloudflare account or `--usage`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. The rest is under Streams in [REFERENCE.md](https://github.com/frodi-karlsson/onesie/blob/main/REFERENCE.md#streams). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
+Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, failed records included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model, `--map`, the profile, a custom base URL, the cloudflare account or `--usage`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
 
 ### Dedup shares a request within one run, --cache shares it across runs, and --resume skips the ids an --out file already answers.
 

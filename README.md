@@ -1,26 +1,48 @@
 # onesie
 
-Pipe in some text, ask a question, get an answer you can script against. Asks TypeSafe's Jev,
-directly or through OpenRouter or Cloudflare, Berget's own System One models, Levanto's Sage, or
-Cloudflare's Clef.
+Use model judgments in shell scripts. Pipe in text and get a score, a choice or an exit code.
+
+Route a support ticket by naming the teams that can handle it.
 
 ```sh
-echo 'EVERYTHING IS DOWN, CALL ME NOW' | onesie 'does this convey urgency' -r
-# 0.99
+echo 'I was charged twice for my order' | onesie 'who should handle this' --pick billing,shipping,technical -r
+# billing
 ```
 
-Gate an agent's shell commands. The exit code says what to do:
+Run the same decision over a CSV export saved as `tickets.csv`. `--merge` keeps the input columns and adds the
+chosen team. The error column is empty when the row succeeds.
+
+```csv
+id,body
+1,I was charged twice for my order
+```
+
+```sh
+onesie --ask team='who should handle this' --pick billing,shipping,technical \
+    -i csv --map .body -o csv --merge < tickets.csv
+```
+
+```csv
+id,body,team,error
+1,I was charged twice for my order,billing,
+```
+
+## Thresholds from evidence
+
+The built in `shell-safety` gate passes, blocks or asks a person to review a command. Its thresholds are
+chosen from [40 labelled commands and their saved answers](examples/README.md#shell-safety).
 
 ```sh
 onesie -f shell-safety -q --state 'git status'
-# exit 0: run it
+# exit 0: pass
 onesie -f shell-safety -q --state 'rm -rf ~'
-# exit 1: block it
+# exit 1: block
 onesie -f shell-safety -q --state 'echo hello > notes.txt'
-# exit 7: not sure, ask a person
+# exit 7: hand off to a person
 ```
 
-See [Thresholds from evidence](#thresholds-from-evidence) for where that gate's numbers come from.
+For destroys, shell-safety blocks at 0.5 and passes below 0.25. The overwrite command scored 0.37,
+so it goes to a person. Use your own labelled commands to choose thresholds for your gate. [Reproduce the check offline](examples/README.md#offline) without a key.
 
 ## Install
 
@@ -60,198 +82,30 @@ In Claude Code, the plugin can come first and walk you through the rest:
 /plugin install onesie@onesie
 ```
 
-## Thresholds from evidence
+## More decisions
 
-`onesie calibrate` runs your questions over records you have already labelled, and shows what each
-cut catches and what it flags by mistake. Here's the destroys question from shell-safety over 40
-labelled commands:
+`--ask` names several questions in one request. `--rate` chooses a level on an ordered scale.
+`-f` loads saved questions, and `onesie questions` lists the four calibrated starter sets.
+[Worked recipes](examples/README.md#recipes) cover streams, resumable batches, pull request
+comments, ranking and local servers. [Mock answers](examples/README.md#testing-a-gate) exercise a
+script without calling a model.
 
-```sh
-onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
-    --label destroys=.destroys --label secrets=.secrets --label network=.network \
-    --cuts 0.25,0.5,0.65 --out answers.jsonl --resume < commands.jsonl
-```
+onesie supports TypeSafe, OpenRouter, Berget, Levanto and Cloudflare. Profiles hold provider
+settings and keys. `--cache` reuses answers, `--print-request` previews requests without a key,
+and experimental `--image` and `--box` questions work with images.
 
-```
-destroys, yes/no: labelled 40, 16 yes, 24 no, 0 failed. AUC 1.00
-flagged means destroys.value >= cut
+## Help and settings
 
-  cut   flagged  catches           false alarms   right when flagged
-  0.25       18  16/16 99% 81-99%  2/24 8% 2-26%  16/18 89% 67-97%
-  0.50       15  15/16 94% 72-99%  0/24 1% 1-14%  15/15 99% 80-99%
-  0.65        7   7/16 44% 23-67%  0/24 1% 1-14%   7/7  99% 65-99%
+`onesie --help` shows common tasks. Use `onesie help decisions` for gates and exit codes,
+`onesie help input` for streams, and `onesie help all` for the full flag reference.
+`onesie help calibrate all` covers calibration.
 
-worst misses
-  echo-overwrite  echo hello > notes.txt  labelled yes  answered 0.37
-```
-
-For destroys, shell-safety blocks at 0.5 and passes below 0.25. Anything in between goes to a
-person, like the worst miss above.
-
-Commit `answers.jsonl`, and CI runs the same command with `--offline` and requirements, which needs
-no key:
-
-```sh
-onesie calibrate ... --offline \
-    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain'
-```
-
-Exit 1 means a requirement no longer holds. Exit 2 means the questions changed, so ask again.
-
-To test a script that uses the gate, `ONESIE_MOCK` answers every onesie call from a file:
-
-```sh
-echo '{"destroys": 0.93, "secrets": 0.02, "network": 0.1}' > danger.json
-ONESIE_MOCK=danger.json ./gate.sh   # takes the blocked branch
-```
-
-## Asking
-
-A yes or no question answers with how likely the yes is. `--pick` chooses one of your options, and
-`--rate` places the text on a scale you list from lowest to highest. `-r` prints only the answer.
-
-```sh
-echo 'I was charged twice for my order' | onesie 'who should handle this' --pick billing,shipping,technical -r
-# billing
-echo 'Third time asking. Fix it or I am leaving.' | onesie 'how frustrated is the customer' --rate calm,annoyed,furious -r
-# furious
-```
-
-Give each question a name with `--ask`, and they all go out in one request:
-
-```sh
-onesie --ask urgent='is this urgent' \
-       --ask team='who should handle this' --pick billing,shipping,technical \
-       -o values < ticket.txt
-# {"urgent":0.69,"team":"billing"}
-```
-
-`--print-questions > .onesie/questions/NAME.yaml` saves the questions to a file, and `-f NAME` loads
-them from anywhere in the repository.
-
-## Recipes
-
-**Triage tickets as they come in.**
-
-```sh
-tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o json
-```
-
-**Wire the gate into a script.** Exit 0 runs the command, 1 blocks it and 7 asks a person. Any
-other exit code means there was no answer, as the [exit code table](REFERENCE.md#exit-codes) says.
-
-```sh
-onesie -f shell-safety -q --state "$cmd"
-case $? in
-    0) eval "$cmd" ;;
-    1) echo blocked ;;
-    7) ask_the_user ;;
-    *) echo 'no answer, blocked' ;;
-esac
-```
-
-**Triage a spreadsheet.** The same rows come back with a column per question.
-
-```sh
-onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
-```
-
-A spreadsheet export separated by semicolons reads with `--delimiter auto`, and `-o csv` writes
-semicolons back, merged or not.
-
-**Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
-`--resume` skips every id the file already answers and asks the rest, failed ones included.
-
-```sh
-onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
-    --out answers.jsonl --resume < tickets.jsonl
-jq -c 'select(.answer.value > 0.8)' answers.jsonl
-```
-
-**Comment on a pull request.** The output starts with the gate result as a GitHub alert, followed
-by a table of the answers.
-
-```sh
-onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6' \
-    -o markdown --state "$PR_BODY" | gh pr comment "$PR" --body-file -
-```
-
-In GitHub Actions, a failing gate fails the step only under pipefail, so name `shell: bash` or run
-`set -o pipefail` first. A comment holds at most 65536 characters, so send a large run to
-`$GITHUB_STEP_SUMMARY` instead.
-
-**Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
-weighs the answers and sorts by the sum. `.value` is the yes or no probability, and `.norm` is the
-rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
-and `select(has("error") | not)` drops the records that failed.
-
-```sh
-onesie --ask impact='does this help many users' \
-    --ask effort='how much work is this' --rate trivial,small,medium,large \
-    -i jsonl --map '.body' --id '.id' -o json < ideas.jsonl |
-    jq -s 'map(select(has("error") | not)) | map({id, score: (0.7 * .impact.value + 0.3 * (1 - .effort.norm))}) | sort_by(-.score)'
-```
-
-**Run against a local server.** onesie talks to any server that speaks a provider's API, such as
-[ollaya](https://github.com/ollaya-dev/ollaya), which serves TypeSafe's System One API on this
-machine. Point `ONESIE_BASE_URL` at it and name a model it serves:
-
-```sh
-ONESIE_BASE_URL=http://localhost:11435 onesie -m winnow:e4b 'is this urgent' < ticket.txt
-```
-
-A base URL other than the provider's own needs no key, and a run with none sends no
-`Authorization` header. `--allow-http` is needed only for plain http to a host other than this
-machine. A server that speaks another provider's API takes that `--provider`. `onesie profile show`
-names where the base URL came from, so a variable left exported is easy to spot. A profile holds the
-same setup, made with
-`onesie profile create local --provider typesafe --base-url http://localhost:11435 --model winnow:e4b`
-and the key prompt left empty.
-
-**Starter gates.** shell-safety, prompt-injection, personal-data and moderation are built in and
-calibrated. `onesie questions` lists them, and [examples/README.md](examples/README.md) has their
-tables.
-
-## Also
-
-- **Profiles and providers.** A profile names a provider, TypeSafe, OpenRouter, Berget, Levanto or
-  Cloudflare, and holds its key, as in `onesie profile create work --provider openrouter`. Two
-  profiles can hold two keys for one provider, and `--profile NAME` picks one for a run. A run with
-  no choice uses the default profile, or TypeSafe on `TYPESAFE_API_KEY` when there are no profiles.
-  `--provider NAME` runs without a profile, on the provider's key variable, which suits CI.
-  Cloudflare needs an account id beside its token.
-- **Caching.** `--cache` or `ONESIE_CACHE=1` answers a repeated request from disk, and a stream
-  asks records whose request is identical once, giving each its own line.
-- **Dry runs.** `--print-request` writes the exact request bodies without sending them, to inspect
-  or to replay later with `-i request`, and needs no key. `--mock` rehearses a whole command,
-  gates and exit codes included, from a file of answers.
-- **Images.** `--image photo=door.jpg` puts a PNG or JPEG in the state, and `--box` asks where
-  something is in it. Both are experimental on TypeSafe's side.
-
-## Why no MCP server
-
-onesie ships agent skills instead of an MCP server:
-
-- **Validation.** The CLI already checks every question, flag and assertion before any request, and
-  an agent reads the same messages and exit codes a person does.
-- **Documentation.** `onesie --help`, `onesie help all`, `-V` and the error messages come from the binary, so they stay
-  in step with it.
-- **Discoverability.** Skills have room for more prose than a tool description, such as worked
-  recipes and the mistakes to avoid, and CI checks their examples against the binary.
-
-## Reference
-
-`onesie --help` starts with common tasks. Use `onesie help all` for every flag, or a topic such as
-`onesie help decisions` or `onesie help input`. `onesie help calibrate all` is the complete
-calibration reference.
-
-[REFERENCE.md](REFERENCE.md) covers asking, gating, testing a gate, calibrating, streams and
-resume, caching, profiles and providers, exit codes and the rest of the flags.
+Look up [configuration precedence, profile fields, environment variables and question file keys](REFERENCE.md).
 
 ## Contributing
 
-See `CONTRIBUTING.md`.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT. See `LICENSE`.
+MIT. See [LICENSE](LICENSE).
