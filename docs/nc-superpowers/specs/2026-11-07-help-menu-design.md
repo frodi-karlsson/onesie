@@ -1,6 +1,6 @@
 # Help menu design
 
-Status: proposed specification, awaiting user review.
+Status: approved for implementation planning on 2026-11-07.
 
 Baseline: v0.14.0, commit `9e2f06fc3be77a94a820e34f968a6466c5b170d8`.
 
