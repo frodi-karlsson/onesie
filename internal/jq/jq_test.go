@@ -447,3 +447,37 @@ func TestIDText(t *testing.T) {
 		})
 	}
 }
+
+func TestNumberText(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name  string
+		value any
+		want  string
+		ok    bool
+	}{
+		{name: "should preserve every integer digit", value: json.Number("9007199254740993"), want: "9007199254740993", ok: true},
+		{name: "should normalize a fractional spelling", value: json.Number("1.2500"), want: "1.25", ok: true},
+		{name: "should normalize an exponent", value: json.Number("1e0"), want: "1", ok: true},
+		{name: "should accept an int", value: 2, want: "2", ok: true},
+		{name: "should accept a float", value: 2.0, want: "2", ok: true},
+		{name: "should accept a big integer", value: big.NewInt(2), want: "2", ok: true},
+		{name: "should refuse a numeric string", value: "1.0"},
+		{name: "should refuse a boolean", value: true},
+		{name: "should refuse null", value: nil},
+		{name: "should refuse an object", value: map[string]any{}},
+		{name: "should refuse an invalid number", value: json.Number("bad")},
+		{name: "should refuse an overflowing number", value: json.Number("1e999999")},
+		{name: "should refuse an underflowing fraction", value: json.Number("1e-999999")},
+		{name: "should refuse a nonfinite float", value: math.Inf(1)},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got, ok := NumberText(tc.value)
+			if got != tc.want || ok != tc.ok {
+				t.Errorf("NumberText = %q, %v, want %q, %v", got, ok, tc.want, tc.ok)
+			}
+		})
+	}
+}

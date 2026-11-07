@@ -5,7 +5,6 @@ package calibrate
 import (
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"regexp"
 	"slices"
 	"strconv"
@@ -98,7 +97,7 @@ func yesNo(value any) (bool, bool) {
 
 	text, ok := value.(string)
 	if !ok {
-		text, ok = numberText(value)
+		text, ok = jq.NumberText(value)
 	}
 
 	if !ok {
@@ -120,24 +119,7 @@ func nameText(value any) (string, bool) {
 		return text, true
 	}
 
-	return numberText(value)
-}
-
-func numberText(value any) (string, bool) {
-	switch value.(type) {
-	case int, float64, json.Number, *big.Int:
-	default:
-		return "", false
-	}
-
-	id, err := jq.ID(value)
-	if err != nil {
-		return "", false
-	}
-
-	number, ok := id.(json.Number)
-
-	return number.String(), ok
+	return jq.NumberText(value)
 }
 
 func shown(value any) string {

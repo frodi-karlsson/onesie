@@ -107,6 +107,17 @@ func Marshal(value any, limit int) ([]byte, error) {
 	return encoded, nil
 }
 
+// NumberText writes a supported finite number in its canonical form, preserving integer precision.
+// Strings and values outside the supported numeric range return false.
+func NumberText(value any) (string, bool) {
+	id, err := ID(value)
+	if err != nil {
+		return "", false
+	}
+	number, ok := id.(json.Number)
+	return number.String(), ok
+}
+
 // ID reduces a value to the string or json.Number that names a record. An integer is written out in
 // full and a fraction in its shortest form, so 7, 7.0 and 7e0 name the same record.
 func ID(value any) (any, error) {

@@ -33,6 +33,20 @@ func TestEntry(t *testing.T) {
 		p          map[string]float64
 		wantErr    string
 	}{
+		{name: "should refuse a boolean pick", file: `{"q":true}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, wantErr: "--mock: question 'q' answered true, which is not the name of an option"},
+		{name: "should list declared options for an undeclared numeric name", file: `{"q":3.0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, wantErr: "--mock: question 'q' picked '3', which is not an option. Options: 1, 2"},
+		{name: "should list declared levels for an undeclared numeric name", file: `{"q":3e0}`, question: rateQuestion("q", "1", "2"), wantErr: "--mock: question 'q' rated '3', which is not a level. Levels: 1, 2"},
+		{name: "should preserve literal pick probability keys", file: `{"q":{"value":"1.0","p":{"1":0.25,"1.0":0.75}}}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "1.0"}}}, value: "1.0", confidence: 1, p: map[string]float64{"1": 0.25, "1.0": 0.75}},
+		{name: "should preserve literal level probability keys", file: `{"q":{"value":"1.0","p":{"1":0.25,"1.0":0.75}}}`, question: rateQuestion("q", "1", "1.0"), value: "1.0", confidence: 1, score: 0.75, norm: 0.75, p: map[string]float64{"1": 0.25, "1.0": 0.75}},
+
+		{name: "should canonicalize pick number 1.0", file: `{"q":1.0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
+		{name: "should canonicalize pick number 1e0", file: `{"q":1e0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
+		{name: "should keep pick numeric naming distinct", file: `{"q":1.0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "1.0"}}}, value: "1", confidence: 1},
+		{name: "should keep pick string naming distinct", file: `{"q":"1.0"}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "1.0"}}}, value: "1.0", confidence: 1},
+		{name: "should canonicalize rate number 1.0", file: `{"q":1.0}`, question: rateQuestion("q", "1", "2"), value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
+		{name: "should canonicalize rate number 1e0", file: `{"q":1e0}`, question: rateQuestion("q", "1", "2"), value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
+		{name: "should keep rate numeric naming distinct", file: `{"q":1.0}`, question: rateQuestion("q", "1", "1.0"), value: "1", confidence: 1},
+		{name: "should keep rate string naming distinct", file: `{"q":"1.0"}`, question: rateQuestion("q", "1", "1.0"), value: "1.0", confidence: 1, score: 1, norm: 1},
 		{
 			name:       "should build a pick whose value is the name and whose confidence is as given",
 			file:       `{"t":{"value":"platform","confidence":0.6}}`,

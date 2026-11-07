@@ -141,6 +141,12 @@ func TestParseLabel(t *testing.T) {
 		unlabeled bool
 		wantErr   []string
 	}{
+		{name: "should canonicalize pick number 1.0", shape: plan.Pick, names: []string{"1", "2"}, value: json.Number("1.0"), want: calibrate.Label{Name: "1"}},
+		{name: "should canonicalize pick number 1e0", shape: plan.Pick, names: []string{"1", "2"}, value: json.Number("1e0"), want: calibrate.Label{Name: "1"}},
+		{name: "should preserve literal pick string spelling", shape: plan.Pick, names: []string{"1", "1.0"}, value: "1.0", want: calibrate.Label{Name: "1.0"}},
+		{name: "should canonicalize rate number 1.0", shape: plan.Rate, names: []string{"1", "2"}, value: json.Number("1.0"), want: calibrate.Label{Name: "1"}},
+		{name: "should canonicalize rate number 1e0", shape: plan.Rate, names: []string{"1", "2"}, value: json.Number("1e0"), want: calibrate.Label{Name: "1"}},
+		{name: "should preserve literal rate string spelling", shape: plan.Rate, names: []string{"1", "1.0"}, value: "1.0", want: calibrate.Label{Name: "1.0"}},
 		{name: "should read true as yes", shape: plan.Noul, value: true, want: yes},
 		{name: "should read false as no", shape: plan.Noul, value: false, want: no},
 		{name: "should read the int 1 as yes", shape: plan.Noul, value: 1, want: yes},

@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/num"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -520,12 +521,12 @@ func legendOf(question plan.Question, level plan.Level) string {
 }
 
 func nameOf(given any, what string) (string, error) {
-	switch typed := given.(type) {
-	case string:
-		return typed, nil
-	case json.Number:
-		// A number whose text is a name is that name, as a calibrate label is, so 4 is --rate 1,2,3,4,5.
-		return typed.String(), nil
+	if text, ok := given.(string); ok {
+		return text, nil
+	}
+
+	if text, ok := jq.NumberText(given); ok {
+		return text, nil
 	}
 
 	return "", fmt.Errorf("answered %s, which is not the name of %s", shown(given), what)
