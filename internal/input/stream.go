@@ -259,7 +259,11 @@ func (s *Stream) readHeader() ([]string, error) {
 	header[0] = strings.TrimPrefix(header[0], "\ufeff")
 	seen := make(map[string]bool, len(header))
 
-	for _, name := range header {
+	for i, name := range header {
+		if !utf8.ValidString(name) {
+			return nil, &LineError{Line: s.line, Err: fmt.Errorf("the %s header name at column %d is not valid UTF-8", s.modeName(), i+1)}
+		}
+
 		if strings.TrimSpace(name) == "" {
 			return nil, &LineError{Line: s.line, Err: errors.New("the header has a blank column name")}
 		}

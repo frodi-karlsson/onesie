@@ -25,6 +25,55 @@ import (
 func TestStream(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should reject invalid header bytes before preview or provider requests", func(t *testing.T) {
+		for _, mode := range []string{"csv", "tsv"} {
+			for _, preview := range []bool{false, true} {
+				name := "should reject " + mode + " headers during execution"
+				if preview {
+					name = "should reject " + mode + " headers during preview"
+				}
+				t.Run(name, func(t *testing.T) {
+					var requests atomic.Int32
+					srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+						requests.Add(1)
+						_, _ = io.WriteString(w, `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`)
+					}))
+					defer srv.Close()
+					separator := byte(',')
+					if mode == "tsv" {
+						separator = '\t'
+					}
+					data := []byte{0xff, separator, 0xfe, '\n', 'a', separator, 'b', '\n'}
+					var out, errOut bytes.Buffer
+					root := cli.NewRootCmd(cli.BuildInfo{},
+						cli.WithKeychain(offKeychain()),
+						cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+							return onesie.New(append([]onesie.Option{onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL)}, opts...)...)
+						}),
+						cli.WithStdin(bytes.NewReader(data)),
+						cli.WithStdinTTY(false), cli.WithStdoutTTY(false),
+						cli.WithLookupEnv(lookupOnly(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+					)
+					args := []string{"is this urgent", "-i", mode}
+					if preview {
+						args = append(args, "--print-request")
+					}
+					root.Command.SetArgs(args)
+					root.Command.SetOut(&out)
+					root.Command.SetErr(&errOut)
+					if code := root.Execute(t.Context()); code != cli.ExitUsage {
+						t.Errorf("exit code: %d, stderr: %s", code, errOut.String())
+					}
+					if out.Len() != 0 || !strings.Contains(errOut.String(), "header name at column 1 is not valid UTF-8") {
+						t.Errorf("stdout: %q, stderr: %q", out.String(), errOut.String())
+					}
+					if requests.Load() != 0 {
+						t.Errorf("provider requests: %d", requests.Load())
+					}
+				})
+			}
+		}
+	})
 	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.9}}}`
 
 	tests := []struct {

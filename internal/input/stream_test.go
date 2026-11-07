@@ -721,6 +721,45 @@ type watchedReader struct {
 }
 
 func TestReadHeader(t *testing.T) {
+	t.Run("should reject invalid header bytes before returning records", func(t *testing.T) {
+		for _, tc := range []struct {
+			name      string
+			mode      input.Mode
+			separator byte
+		}{
+			{"should reject CSV headers", input.CSV, ','},
+			{"should reject TSV headers", input.TSV, '\t'},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				text := string([]byte{0xff, tc.separator, 0xfe, '\n', 'a', tc.separator, 'b', '\n'})
+				want := "line 1: the " + tc.mode.String() + " header name at column 1 is not valid UTF-8"
+				stream := input.NewStream(strings.NewReader(text), tc.mode, input.StreamOptions{})
+				h, err := stream.ReadHeader()
+				var lineErr *input.LineError
+				if !errors.As(err, &lineErr) || err.Error() != want || h.Names != nil || h.Separator != 0 {
+					t.Fatalf("header: %#v, %v", h, err)
+				}
+				for _, reader := range []*input.Stream{stream, input.NewStream(strings.NewReader(text), tc.mode, input.StreamOptions{})} {
+					rec, ok, err := reader.Next()
+					if err == nil || err.Error() != want || ok || rec.Raw != "" || rec.State != nil {
+						t.Fatalf("record: %#v, %v, %v", rec, ok, err)
+					}
+				}
+			})
+		}
+	})
+	t.Run("should leave invalid data bytes as record errors", func(t *testing.T) {
+		for _, mode := range []input.Mode{input.CSV, input.TSV} {
+			stream := input.NewStream(strings.NewReader("body\n"+string([]byte{0xff, '\n'})), mode, input.StreamOptions{})
+			if _, err := stream.ReadHeader(); err != nil {
+				t.Fatal(err)
+			}
+			rec, ok, err := stream.Next()
+			if err != nil || !ok || rec.Err == nil || rec.Line != 2 || !strings.Contains(rec.Err.Error(), "row is not valid UTF-8") {
+				t.Fatalf("record: %#v, %v, %v", rec, ok, err)
+			}
+		}
+	})
 	t.Run("should read a detected header while the producer waits to send data", func(t *testing.T) {
 		r, w := io.Pipe()
 		t.Cleanup(func() {
@@ -767,6 +806,8 @@ func TestReadHeader(t *testing.T) {
 	}{
 		{"should cache empty input", input.CSV, "", nil, 0, "EOF"},
 		{"should read header only input", input.CSV, "id,body\n", []string{"id", "body"}, ',', ""},
+		{"should read non ASCII headers", input.CSV, "namn,ålder\n", []string{"namn", "ålder"}, ',', ""},
+		{"should strip a header BOM", input.CSV, "\ufeffid,body\n", []string{"id", "body"}, ',', ""},
 		{"should read TSV headers", input.TSV, "id\tbody\n", []string{"id", "body"}, '\t', ""},
 		{"should read multiline headers", input.CSV, "\"first\nname\",body\n", []string{"first\nname", "body"}, ',', ""},
 		{"should cache duplicate header errors", input.CSV, "id,id\nnext,row\n", nil, 0, "line 1: the header names 'id' twice"},
