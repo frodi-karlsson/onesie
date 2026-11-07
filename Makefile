@@ -11,7 +11,7 @@ LDFLAGS := -s -w \
 	-X main.date=$(DATE) \
 	-X main.tag=$(EXACT_TAG)
 
-.PHONY: help build run install test test-race test-integration cover bench lint lint-fix fmt tidy vuln check tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema settings settings-check
+.PHONY: help build run install test test-race test-integration cover bench lint lint-fix fmt tidy vuln check check-generated tools clean skills skills-check skills-eval fuzz fuzz-check release examples-answers examples-image schema settings settings-check
 
 build: ## Build the onesie binary into bin/
 	@mkdir -p bin
@@ -132,6 +132,13 @@ skills-eval: ## Measure the skills against an agent, run by hand
 	@$(MAKE) --no-print-directory build
 	claude plugin eval . --ablation with-without --keep-temp --no-publish --threshold 0 $(EVALARGS)
 	PATH="$(CURDIR)/bin:$$PATH" go run ./cmd/skilleval
+
+check-generated: skills settings ## Check generated files are current and the tree is clean
+	@status=$$(git status --porcelain) || exit $$?; \
+	if [ -n "$$status" ]; then \
+		printf '%s\n' "$$status"; \
+		exit 1; \
+	fi
 
 check: ## Run the fuzz target check, lint and tests
 	@echo "--- Fuzz targets ---"

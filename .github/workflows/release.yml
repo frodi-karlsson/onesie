@@ -45,6 +45,9 @@ jobs:
       - name: Run check
         run: make check
 
+      - name: Check generated files
+        run: make check-generated
+
   release:
     needs: check
     runs-on: ubuntu-latest
