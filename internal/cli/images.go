@@ -235,7 +235,7 @@ func longContextCause(refusal error, flags runConfig) error {
 
 	return &advisedError{
 		cause: refusal,
-		message: text(refusal) + ". " + envLongContext +
+		message: text(refusal) + ". " + settingEnv(setting.LongContext.Name()) +
 			" turned it on, so unset it or pass --long-context=false",
 	}
 }

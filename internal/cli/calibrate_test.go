@@ -29,6 +29,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestNewCalibrateCmd(t *testing.T) {
@@ -2539,7 +2540,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("first run exit %d\n%s", code, errOut)
 		}
 
-		env[envCache] = "1"
+		env[settingEnv(setting.Cache.Name())] = "1"
 
 		_, errOut, code := calibrateWithEnv(t, env, urgent("--out", answers, "--resume", "--offline"), urgentSet, stub.url)
 		if code != ExitOK {

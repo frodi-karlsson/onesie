@@ -286,49 +286,49 @@ func TestMergeRun(t *testing.T) {
 		wantErr string
 	}{
 		{name: "should read no variable as every switch off"},
-		{name: "should read empty variables as unset", env: map[string]string{envCache: "", envLongContext: "", envCacheTTL: ""}},
+		{name: "should read empty variables as unset", env: map[string]string{settingEnv(setting.Cache.Name()): "", settingEnv(setting.LongContext.Name()): "", settingEnv(setting.CacheTTL.Name()): ""}},
 		{
 			name: "should read what the flags take",
-			env:  map[string]string{envCache: "true", envLongContext: "1", envCacheTTL: "90m"},
+			env:  map[string]string{settingEnv(setting.Cache.Name()): "true", settingEnv(setting.LongContext.Name()): "1", settingEnv(setting.CacheTTL.Name()): "90m"},
 			want: switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: 90 * time.Minute},
 		},
 		{
 			name: "should accept ONESIE_CACHE and ONESIE_CACHE_TTL with spaces around them",
-			env:  map[string]string{envCache: " 1", envCacheTTL: " 90m "},
+			env:  map[string]string{settingEnv(setting.Cache.Name()): " 1", settingEnv(setting.CacheTTL.Name()): " 90m "},
 			want: switches{cache: true, cacheFrom: setting.SourceEnv, aliasTTL: 90 * time.Minute},
 		},
-		{name: "should read a blank variable as unset", env: map[string]string{envCache: "  ", envCacheTTL: "\t"}},
-		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{envCacheTTL: "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
+		{name: "should read a blank variable as unset", env: map[string]string{settingEnv(setting.Cache.Name()): "  ", settingEnv(setting.CacheTTL.Name()): "\t"}},
+		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{settingEnv(setting.CacheTTL.Name()): "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
 		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
-		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{envCache: "1"}, args: []string{"--cache=false"}, want: switches{cacheFrom: setting.SourceFlag}},
-		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{envCache: "0"}, args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache=false win over ONESIE_CACHE=1", env: map[string]string{settingEnv(setting.Cache.Name()): "1"}, args: []string{"--cache=false"}, want: switches{cacheFrom: setting.SourceFlag}},
+		{name: "should let --cache win over ONESIE_CACHE=0", env: map[string]string{settingEnv(setting.Cache.Name()): "0"}, args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
 		{
 			name: "should let --long-context=false win over ONESIE_LONG_CONTEXT=1",
-			env:  map[string]string{envLongContext: "1"}, args: []string{"--long-context=false"},
+			env:  map[string]string{settingEnv(setting.LongContext.Name()): "1"}, args: []string{"--long-context=false"},
 		},
 		{
 			name: "should skip a malformed ONESIE_CACHE under --print-request",
-			env:  map[string]string{envCache: "maybe", envCacheTTL: "soon"}, args: []string{"--print-request"},
+			env:  map[string]string{settingEnv(setting.Cache.Name()): "maybe", settingEnv(setting.CacheTTL.Name()): "soon"}, args: []string{"--print-request"},
 		},
 		{
 			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
-			env:     map[string]string{envLongContext: "garbage"},
+			env:     map[string]string{settingEnv(setting.LongContext.Name()): "garbage"},
 			wantErr: "ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
 		},
 		{
 			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
-			env:     map[string]string{envCache: "yes"},
+			env:     map[string]string{settingEnv(setting.Cache.Name()): "yes"},
 			args:    []string{"--cache"},
 			wantErr: "ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
 		},
 		{
 			name:    "should refuse a negative ONESIE_CACHE_TTL",
-			env:     map[string]string{envCacheTTL: "-1h"},
+			env:     map[string]string{settingEnv(setting.CacheTTL.Name()): "-1h"},
 			wantErr: "ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
 		},
 		{
 			name:    "should refuse an ONESIE_CACHE_TTL that is no duration",
-			env:     map[string]string{envCacheTTL: "soon"},
+			env:     map[string]string{settingEnv(setting.CacheTTL.Name()): "soon"},
 			wantErr: "ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
 		},
 	}
@@ -377,7 +377,7 @@ func TestMergeRun(t *testing.T) {
 	}
 }
 
-func TestConnectionEnv(t *testing.T) {
+func TestProfileTestModelEndpointKeyEnv(t *testing.T) {
 	t.Parallel()
 
 	env := lookupFrom(map[string]string{
@@ -404,9 +404,9 @@ func TestConnectionEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, found := connectionEnv(env)(tc.variable)
+			got, found := profileTestModelEndpointKeyEnv(env)(tc.variable)
 			if got != tc.want || found != tc.found {
-				t.Errorf("connectionEnv(%s) = %q, %t, want %q, %t", tc.variable, got, found, tc.want, tc.found)
+				t.Errorf("profileTestModelEndpointKeyEnv(%s) = %q, %t, want %q, %t", tc.variable, got, found, tc.want, tc.found)
 			}
 		})
 	}

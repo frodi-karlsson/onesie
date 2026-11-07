@@ -8,6 +8,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestNewCacheCmd(t *testing.T) {
@@ -222,7 +224,7 @@ func TestNewCacheCmd(t *testing.T) {
 		t.Parallel()
 
 		env := cacheEnv(t)
-		env[envCache] = "yes"
+		env[settingEnv(setting.Cache.Name())] = "yes"
 		env["ONESIE_MOCK"] = "absent.json"
 
 		for _, args := range [][]string{{"cache"}, {"cache", "clear"}} {
@@ -248,7 +250,7 @@ func TestNewCacheCmd(t *testing.T) {
 			t.Parallel()
 
 			env := cacheEnv(t)
-			env[envCacheTTL] = "banana"
+			env[settingEnv(setting.CacheTTL.Name())] = "banana"
 
 			out, errOut, code := runCached(t, env, args, "")
 			want := "onesie: ONESIE_CACHE_TTL=banana is not a duration of zero or more, such as 90m or 72h\n"
