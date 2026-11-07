@@ -30,7 +30,6 @@ func (w *fieldWriter) WriteRow(fields []string) error {
 	}
 	switch w.mode {
 	case CSV:
-
 		if len(fields) == 1 && fields[0] == "" {
 			if _, err := delimiter.Parse(string(w.rows.Comma)); err != nil {
 				return err

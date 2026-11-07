@@ -13,7 +13,11 @@ import (
 )
 
 func TestNewFieldWriter(t *testing.T) {
+	t.Parallel()
+
 	t.Run("should encode ordered fields without answer columns", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name  string
 			mode  Mode
@@ -31,6 +35,8 @@ func TestNewFieldWriter(t *testing.T) {
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
 				var buf bytes.Buffer
 				writer := newFieldWriter(&buf, tc.mode, tc.comma)
 				for _, row := range tc.rows {
@@ -62,6 +68,8 @@ func TestNewFieldWriter(t *testing.T) {
 		}
 	})
 	t.Run("should reject invalid rows before writing bytes", func(t *testing.T) {
+		t.Parallel()
+
 		tests := []struct {
 			name  string
 			mode  Mode
@@ -78,6 +86,8 @@ func TestNewFieldWriter(t *testing.T) {
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
 				var buf bytes.Buffer
 				if err := newFieldWriter(&buf, tc.mode, tc.comma).WriteRow(tc.row); err == nil {
 					t.Fatal("expected error")
@@ -89,6 +99,8 @@ func TestNewFieldWriter(t *testing.T) {
 		}
 	})
 	t.Run("should report write and flush failures", func(t *testing.T) {
+		t.Parallel()
+
 		failure := errors.New("destination failed")
 		for _, mode := range []Mode{CSV, TSV} {
 			for _, row := range [][]string{{"x"}, {""}} {
@@ -96,12 +108,16 @@ func TestNewFieldWriter(t *testing.T) {
 					continue
 				}
 				t.Run("should propagate destination errors "+mode.String()+strings.Join(row, ""), func(t *testing.T) {
+					t.Parallel()
+
 					err := newFieldWriter(fieldFailureWriter{err: failure}, mode, 0).WriteRow(row)
 					if !errors.Is(err, failure) {
 						t.Fatalf("got %v", err)
 					}
 				})
 				t.Run("should detect short writes "+mode.String()+strings.Join(row, ""), func(t *testing.T) {
+					t.Parallel()
+
 					err := newFieldWriter(fieldFailureWriter{}, mode, 0).WriteRow(row)
 					if !errors.Is(err, io.ErrShortWrite) {
 						t.Fatalf("got %v", err)
@@ -110,16 +126,13 @@ func TestNewFieldWriter(t *testing.T) {
 			}
 		}
 	})
-}
-
-type fieldFailureWriter struct{ err error }
-
-func (w fieldFailureWriter) Write(p []byte) (int, error) { return 0, w.err }
-
-func TestFieldWriter(t *testing.T) {
 	t.Run("should detect short string writes for large rows", func(t *testing.T) {
+		t.Parallel()
+
 		for _, mode := range []Mode{CSV, TSV} {
 			t.Run("should reject a short write in "+mode.String(), func(t *testing.T) {
+				t.Parallel()
+
 				destination := &fieldShortStringWriter{}
 				err := newFieldWriter(destination, mode, 0).WriteRow([]string{strings.Repeat("x", 8192)})
 				if !errors.Is(err, io.ErrShortWrite) {
@@ -129,6 +142,10 @@ func TestFieldWriter(t *testing.T) {
 		}
 	})
 }
+
+type fieldFailureWriter struct{ err error }
+
+func (w fieldFailureWriter) Write(p []byte) (int, error) { return 0, w.err }
 
 type fieldShortStringWriter struct{ called bool }
 
