@@ -552,7 +552,8 @@ func runInDir(t *testing.T, dir, stdin string, args ...string) (string, string, 
 func readmeGate(t *testing.T) []gatedLine {
 	t.Helper()
 
-	top, _, _ := strings.Cut(readTestFile(t, filepath.Join("..", "..", "README.md")), "\n## ")
+	_, top, _ := strings.Cut(readTestFile(t, filepath.Join("..", "..", "README.md")), "\n## Thresholds from evidence\n")
+	top, _, _ = strings.Cut(top, "\n## ")
 
 	var (
 		gated   []gatedLine

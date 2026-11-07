@@ -1,4 +1,4 @@
-# Starter question sets
+# Starter question sets and recipes
 
 Four question files that work in any organization. Each one comes with a hand labelled sample in
 `data/` and a gate chosen from a calibrate run on that sample.
@@ -311,3 +311,127 @@ Where the model disagreed: it rated sarcasm one level harsher than the labels on
 `Stop being so dramatic, it's just a typo.` scored 0.78 on `hostile`. A report that quotes an
 insult to describe what moderators see scored 0.07 on `hostile`. Five civil texts were rated curt,
 among them a polite disagreement and two scam messages. It never missed by more than one level.
+
+## Offline
+
+From the repository root, check the shell safety gate against its saved answers.
+
+`--offline`, with `--out` and `--resume`, answers every record from the answers file and asks
+nothing. It needs no key, spends nothing and never rewrites the file, so a committed answers file
+checks a gate in CI.
+
+```sh
+onesie calibrate -f shell-safety -i jsonl --map .command --id .id \
+    -m jev-1.13.0 --provider typesafe \
+    --label destroys=.destroys --label secrets=.secrets --label network=.network \
+    --out examples/data/shell-safety.answers.jsonl --resume --offline \
+    --require 'destroys.catches >= 1' --require 'destroys.false_alarms <= 0 at abstain' \
+    < examples/data/shell-safety.jsonl
+```
+
+Exit 0 means the saved answers meet both requirements. Exit 1 means a requirement failed.
+If the saved answers do not match the questions, model or provider, the command exits 2.
+See [Requirements checked in CI](#requirements-checked-in-ci) for the checks for all four sets.
+
+## Thresholds from evidence
+
+`onesie calibrate` runs your questions over records you have already labelled, and shows what each
+cut catches and what it flags by mistake. Here's the destroys question from shell-safety over 40
+labelled commands:
+
+```sh
+onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 \
+    --label destroys=.destroys --label secrets=.secrets --label network=.network \
+    --cuts 0.25,0.5,0.65 --out answers.jsonl --resume < examples/data/shell-safety.jsonl
+```
+
+```
+destroys, yes/no: labelled 40, 16 yes, 24 no, 0 failed. AUC 1.00
+flagged means destroys.value >= cut
+
+  cut   flagged  catches           false alarms   right when flagged
+  0.25       18  16/16 99% 81-99%  2/24 8% 2-26%  16/18 89% 67-97%
+  0.50       15  15/16 94% 72-99%  0/24 1% 1-14%  15/15 99% 80-99%
+  0.65        7   7/16 44% 23-67%  0/24 1% 1-14%   7/7  99% 65-99%
+
+worst misses
+  echo-overwrite  echo hello > notes.txt  labelled yes  answered 0.37
+```
+
+For destroys, shell-safety blocks at 0.5 and passes below 0.25. Anything in between goes to a
+person, like the worst miss above.
+
+## Testing a gate
+
+To test a script that uses the gate, `ONESIE_MOCK` answers every onesie call from a file:
+
+```sh
+echo '{"destroys": 0.93, "secrets": 0.02, "network": 0.1}' > danger.json
+ONESIE_MOCK=danger.json ./gate.sh   # takes the blocked branch
+```
+
+## Recipes
+
+**Triage tickets as they come in.**
+
+```sh
+tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o json
+```
+
+**Triage a spreadsheet.** The same rows come back with a column per question.
+
+```sh
+onesie --ask urgent='does `body` convey urgency' -i csv -o csv --merge < tickets.csv > triaged.csv
+```
+
+A spreadsheet export separated by semicolons reads with `--delimiter auto`, and `-o csv` writes
+semicolons back, merged or not.
+
+**Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
+`--resume` skips every id the file already answers and asks the rest, failed ones included.
+
+```sh
+onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
+    --out answers.jsonl --resume < tickets.jsonl
+jq -c 'select(.answer.value > 0.8)' answers.jsonl
+```
+
+**Comment on a pull request.** The output starts with the gate result as a GitHub alert, followed
+by a table of the answers.
+
+```sh
+onesie 'does this explain why the change is needed' --assert 'answer.value > 0.6' \
+    -o markdown --state "$PR_BODY" | gh pr comment "$PR" --body-file -
+```
+
+In GitHub Actions, a failing gate fails the step only under pipefail, so name `shell: bash` or run
+`set -o pipefail` first. A comment holds at most 65536 characters, so send a large run to
+`$GITHUB_STEP_SUMMARY` instead.
+
+**Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
+weighs the answers and sorts by the sum. `.value` is the yes or no probability, and `.norm` is the
+rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
+and `select(has("error") | not)` drops the records that failed.
+
+```sh
+onesie --ask impact='does this help many users' \
+    --ask effort='how much work is this' --rate trivial,small,medium,large \
+    -i jsonl --map '.body' --id '.id' -o json < ideas.jsonl |
+    jq -s 'map(select(has("error") | not)) | map({id, score: (0.7 * .impact.value + 0.3 * (1 - .effort.norm))}) | sort_by(-.score)'
+```
+
+**Run against a local server.** onesie talks to any server that speaks a provider's API, such as
+[ollaya](https://github.com/ollaya-dev/ollaya), which serves TypeSafe's System One API on this
+machine. Point `ONESIE_BASE_URL` at it and name a model it serves:
+
+```sh
+ONESIE_BASE_URL=http://localhost:11435 onesie -m winnow:e4b 'is this urgent' < ticket.txt
+```
+
+A base URL other than the provider's own needs no key, and a run with none sends no
+`Authorization` header. `--allow-http` is needed only for plain http to a host other than this
+machine. A server that speaks another provider's API takes that `--provider`. `onesie profile show`
+names where the base URL came from, so a variable left exported is easy to spot. A profile holds the
+same setup, made with
+`onesie profile create local --provider typesafe --base-url http://localhost:11435 --model winnow:e4b`
+and the key prompt left empty.

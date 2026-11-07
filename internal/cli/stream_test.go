@@ -1863,7 +1863,7 @@ func (f writerFunc) Write(p []byte) (int, error) {
 func rankingRecipe(t *testing.T) ([]string, string) {
 	t.Helper()
 
-	readme, err := os.ReadFile(filepath.Join("..", "..", "README.md"))
+	readme, err := os.ReadFile(filepath.Join("..", "..", "examples", "README.md"))
 	if err != nil {
 		t.Fatal(err)
 	}
