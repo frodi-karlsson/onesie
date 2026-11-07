@@ -54,7 +54,8 @@ the live suite, the calibrated gates and releases.
 `make skills-check` dry runs every example in `skills/` it can run without a shell. It skips an
 example with a pipe, a redirection or anything else only a shell resolves, such as a variable or a
 glob, though a trailing redirection to `/dev/null` is dropped and the example runs. It also checks
-each flag and subcommand the skills name outside their examples against the `--help` output.
+each flag and subcommand the skills name outside their examples against the complete help references. Root uses `onesie help all`, calibration uses
+`onesie help calibrate all`, and other commands use their ordinary `--help` output.
 It reads each skill's description, compatibility, intro, sections and references, and each rule's
 short and why.
 

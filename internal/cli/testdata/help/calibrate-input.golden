@@ -20,22 +20,19 @@ How they work together:
   Calibration requires JSONL, CSV or TSV records on stdin. --map runs a jq expression on
   each original record and sends its result as the state. Map only the text a person
   would read. Object keys come out sorted. The result may nest max-map-depth levels deep
-  and encode to max-line-bytes, as version lists. The original record remains available
-  for labels and merged output.
+  and encode to max-line-bytes, as version lists. Labels are selected from the original
+  record.
 
   --id runs one record at a time as input is read. Its result must be a string or
   number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
   --skip-blank drops blank lines without emitting a result. The default field separator
-  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
-  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+  is ','. --delimiter auto detects the separator of CSV input. An explicit delimiter
+  takes one character. TSV uses tabs.
 
-  --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
-  an image only through --state -. Text can also join it through --state or
-  --state-file. Streams read stdin and add the fixed image to every record.
-  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
-  the line itself is the path. Image and box support is experimental on TypeSafe's side.
-  Images cannot be mixed with request input. See version for image, file, token and
-  model limits.
+  --image NAME=PATH adds a PNG or JPEG under NAME. Streams read stdin and add the fixed
+  image to every record. --image-field reads a PNG or JPEG path from a state key per
+  record. Image support is experimental on the TypeSafe side. See version for image,
+  file, token and model limits.
 
 More help:
   onesie help calibrate asking

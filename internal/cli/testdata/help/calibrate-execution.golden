@@ -34,23 +34,18 @@ How they work together:
   --cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated
   requests. onesie cache reports entries and onesie cache clear empties them.
 
-  --resume needs --out. Without --id, a stream continues after the last complete line.
-  With --id it skips answered ids. A record whose content changes but whose id does not
-  keeps its old answer. The file is rewritten in input order. Answered ids absent from
-  input stay after them unless --prune drops them.
+  Calibration resume needs --out and --id, and skips answered ids. A record whose
+  content changes but whose id does not keeps its old answer. The file is rewritten in
+  input order. Answered ids absent from input stay after them unless --prune drops them.
 
   --mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so
   gate scripts can be tested for free. --print-request writes API shaped request bodies
-  and sends none. Question export writes configuration rather than answers. Mocks
-  exercise execution and policy behavior. Request previews and question export do not
-  execute those policies. Mocks are skipped beside --list-models, request input,
-  --print-request and --print-questions.
+  and sends none.
 
-  Calibration resume needs --id. Changing a label or --cuts reuses stored answers. A
-  plain stream can resume the file with the same questions, model, input format, --map
-  and --id, with -o json and no gate or merge. Offline reads the saved answers without
-  rewriting them. It validates recorded evidence and does not detect new live model
-  behavior.
+  Changing a label or --cuts reuses stored answers. A plain stream can resume the file
+  with the same questions, model, input format, --map and --id, with -o json and no gate
+  or merge. Offline reads the saved answers without rewriting them. It validates
+  recorded evidence and does not detect new live model behavior.
 
 More help:
   onesie help calibrate asking

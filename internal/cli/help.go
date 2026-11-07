@@ -78,7 +78,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.Command, flags []helpFlag, topics []helpTopic, examples []helpExample) {
 	b.WriteString("\nExamples:\n")
 	if command == settingrow.CommandCalibrate {
-		b.WriteString("  A labelled record in labelled.jsonl:\n    {\"id\":\"a\",\"text\":\"The server is down\",\"urgent\":true}\n\n")
+		b.WriteString("  A labelled record in labelled.jsonl:\n    " + helpLabelledRecord + "\n\n")
 		writeHelpText(b, "The first command creates the answer file used by the second. The requirement is illustrative.", "  ", "  ")
 		b.WriteString("\n")
 	}
@@ -145,12 +145,6 @@ func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow
 	return flags, missing
 }
 
-type helpFlag struct {
-	flag       *pflag.Flag
-	bound      settingrow.BoundFlag
-	commonRank int
-}
-
 func selectHelpFlags(flags []helpFlag, topic string, common bool) []helpFlag {
 	var selected []helpFlag
 	for _, flag := range flags {
@@ -203,6 +197,18 @@ func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
 	writeHelpText(w, description, fmt.Sprintf("%-32s", prefix), strings.Repeat(" ", 32))
 }
 
+func writeHelpCommands(w *bytes.Buffer, cmd *cobra.Command) {
+	if !cmd.HasAvailableSubCommands() {
+		return
+	}
+	w.WriteString("\nAvailable Commands:\n")
+	for _, sub := range cmd.Commands() {
+		if sub.IsAvailableCommand() || sub.Name() == "help" {
+			writeHelpText(w, sub.Short, fmt.Sprintf("  %-12s", sub.Name()), strings.Repeat(" ", 14))
+		}
+	}
+}
+
 func writeHelpText(w *bytes.Buffer, text, first, next string) {
 	for index, paragraph := range strings.Split(text, "\n\n") {
 		if index > 0 {
@@ -228,18 +234,6 @@ func writeHelpText(w *bytes.Buffer, text, first, next string) {
 			used = true
 		}
 		fmt.Fprintln(w, line)
-	}
-}
-
-func writeHelpCommands(w *bytes.Buffer, cmd *cobra.Command) {
-	if !cmd.HasAvailableSubCommands() {
-		return
-	}
-	w.WriteString("\nAvailable Commands:\n")
-	for _, sub := range cmd.Commands() {
-		if sub.IsAvailableCommand() || sub.Name() == "help" {
-			writeHelpText(w, sub.Short, fmt.Sprintf("  %-12s", sub.Name()), strings.Repeat(" ", 14))
-		}
 	}
 }
 
@@ -277,7 +271,15 @@ func helpExampleCommand(example helpExample) string {
 }
 
 func helpShellQuote(value string) string {
-	if value != "" && !strings.ContainsAny(value, " \t\n'\"$`\\;|&<>()*?[]{}!") {
+	safe := value != ""
+	for _, r := range value {
+		if r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || strings.ContainsRune("_@%+=:,./-", r) {
+			continue
+		}
+		safe = false
+		break
+	}
+	if safe {
 		return value
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
@@ -300,4 +302,10 @@ func validateHelpExamples(examples []helpExample, topics []helpTopic) error {
 		}
 	}
 	return nil
+}
+
+type helpFlag struct {
+	flag       *pflag.Flag
+	bound      settingrow.BoundFlag
+	commonRank int
 }

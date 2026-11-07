@@ -37,8 +37,8 @@ How they work together:
   question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
   no description. A rate needs every level described or none. --sep changes the
   separator for following --pick and --rate. --for may repeat and keeps the wording and
-  settings no flag names. It needs a file and an existing id and refuses --replace.
-  Flags cannot change a file question shape.
+  settings that no flag changes. It needs a file and an existing id and refuses
+  --replace. Flags cannot change a file question shape.
 
   --file accepts a question file, a request body, a path or a saved name. Saved names
   are looked up in .onesie/questions, then the config directory, then built in starter
@@ -49,8 +49,8 @@ How they work together:
   onesie -o json -- '-is this urgent'. Use the same escape for a one word question close
   to a command name, since onesie questoins exits 2 and suggests questions.
   --print-questions exports a question file whose first line names the schema from
-  --print-schema. Exports send no requests. Calibration does not offer these export
-  flags.
+  --print-schema. Exports send no requests. On a request body, --for accepts only
+  threshold, minimum confidence and fallback settings.
 
 More help:
   onesie help asking

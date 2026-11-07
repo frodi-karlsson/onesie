@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/csv"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -64,6 +65,52 @@ func TestHelpFlags(t *testing.T) {
 			}
 		})
 	}
+	t.Run("should use requested command ranks on inherited metadata", func(t *testing.T) {
+		cmd := helpTestCommand(t, settingrow.CommandCalibrate)
+		rows := settingrow.Table()
+		for i := range rows {
+			if rows[i].Name == "profile" {
+				rows[i].HelpCommon = map[settingrow.Command]int{settingrow.CommandCalibrate: 99}
+			}
+		}
+		flags, err := helpFlags(cmd, settingrow.CommandCalibrate, rows)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, flag := range flags {
+			if flag.flag.Name == "profile" {
+				if flag.commonRank != 99 {
+					t.Fatal("lost inherited rank")
+				}
+				return
+			}
+		}
+		t.Fatal("missing inherited profile")
+	})
+	t.Run("should respect local shadowing of inherited flags", func(t *testing.T) {
+		root := helpTestCommand(t, settingrow.CommandRoot)
+		var cmd *cobra.Command
+		for _, sub := range root.Commands() {
+			if sub.Name() == "calibrate" {
+				cmd = sub
+			}
+		}
+		if cmd == nil {
+			t.Fatal("missing calibrate")
+		}
+		cmd.InitDefaultHelpFlag()
+		var locals []*pflag.Flag
+		cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) { locals = append(locals, flag) })
+		cmd.ResetFlags()
+		for _, flag := range locals {
+			cmd.Flags().AddFlag(flag)
+		}
+		cmd.Flags().Bool("profile", false, "local shadow")
+		if _, err := helpFlags(cmd, settingrow.CommandCalibrate, settingrow.Table()); err == nil {
+			t.Fatal("gave root metadata to an unbound local shadow")
+		}
+	})
+
 	t.Run("should refuse an unclassified visible flag", func(t *testing.T) {
 		cmd := helpTestCommand(t, settingrow.CommandRoot)
 		cmd.Flags().Bool("unclassified", false, "extra")
@@ -104,11 +151,12 @@ func TestWriteHelp(t *testing.T) {
 			if err := writeHelp(&bytes.Buffer{}, cmd, command, "unknown"); err == nil {
 				t.Fatal("unknown topic accepted")
 			}
+		lines:
 			for _, line := range strings.Split(all.String(), "\n") {
 				if len(line) > 88 && !strings.HasPrefix(line, "    onesie") && !strings.HasPrefix(line, "    echo") {
 					for _, word := range strings.Fields(line) {
 						if len(word) > 80 {
-							return
+							continue lines
 						}
 					}
 					t.Errorf("long line %d: %s", len(line), line)
@@ -118,6 +166,10 @@ func TestWriteHelp(t *testing.T) {
 	}
 	t.Run("should leave parser state unchanged across repeated views", func(t *testing.T) {
 		cmd := helpTestCommand(t, settingrow.CommandRoot)
+		if err := cmd.Flags().Set("state", "example"); err != nil {
+			t.Fatal(err)
+		}
+		cmd.Flags().Lookup("stats").Hidden = true
 		snapshot := func() string {
 			var b strings.Builder
 			cmd.Flags().VisitAll(func(f *pflag.Flag) {
@@ -135,23 +187,62 @@ func TestWriteHelp(t *testing.T) {
 			t.Fatal("rendering changed parser state")
 		}
 	})
-}
-
-func helpTestCommand(t *testing.T, command settingrow.Command) *cobra.Command {
-	t.Helper()
-	root := NewRootCmd(BuildInfo{}, WithLookupEnv(func(string) (string, bool) { return "", false }), WithHomeDir(func() (string, error) { return t.TempDir(), nil }), WithWorkingDir(func() (string, error) { return t.TempDir(), nil }))
-	cmd := root.Command
-	if command == settingrow.CommandCalibrate {
-		var err error
-		cmd, _, err = cmd.Find([]string{"calibrate"})
-		if err != nil {
+	for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+		t.Run("should include every real flag exactly once on "+command.String(), func(t *testing.T) {
+			cmd := helpTestCommand(t, command)
+			var all, overview bytes.Buffer
+			if err := writeHelp(&all, cmd, command, "all"); err != nil {
+				t.Fatal(err)
+			}
+			if err := writeHelp(&overview, cmd, command, ""); err != nil {
+				t.Fatal(err)
+			}
+			counts := map[string]int{}
+			for _, line := range strings.Split(all.String(), "\n") {
+				signature := strings.HasPrefix(line, "      --") || strings.HasPrefix(line, "  -") && len(line) > 6 && line[4:6] == ", "
+				if !signature {
+					continue
+				}
+				_, rest, ok := strings.Cut(line, "--")
+				if !ok {
+					continue
+				}
+				name := strings.Fields(rest)[0]
+				counts[name]++
+			}
+			cmd.Flags().VisitAll(func(flag *pflag.Flag) {
+				if !flag.Hidden && counts[flag.Name] != 1 {
+					t.Errorf("--%s occurs %d times", flag.Name, counts[flag.Name])
+				}
+			})
+			flags, err := helpFlags(cmd, command, settingrow.Table())
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, flag := range flags {
+				var entry bytes.Buffer
+				writeHelpFlag(&entry, flag)
+				if !strings.Contains(all.String(), entry.String()) {
+					t.Fatalf("missing entry %s", flag.flag.Name)
+				}
+				if flag.commonRank > 0 && !strings.Contains(overview.String(), entry.String()) {
+					t.Fatalf("overview differs for %s", flag.flag.Name)
+				}
+			}
+			for _, sub := range cmd.Commands() {
+				if slices.ContainsFunc(helpTopics(command), func(topic helpTopic) bool { return topic.name == sub.Name() }) {
+					t.Fatalf("topic became command %s", sub.Name())
+				}
+			}
+		})
+	}
+	t.Run("should return the output writer failure", func(t *testing.T) {
+		want := errors.New("writer failed")
+		err := writeHelp(helpErrorWriter{want}, helpTestCommand(t, settingrow.CommandRoot), settingrow.CommandRoot, "all")
+		if !errors.Is(err, want) {
 			t.Fatal(err)
 		}
-	}
-	cmd.InitDefaultHelpFlag()
-	cmd.InheritedFlags()
-	cmd.LocalFlags()
-	return cmd
+	})
 }
 
 func TestHelpInput(t *testing.T) {
@@ -212,6 +303,12 @@ func TestCompleteHelp(t *testing.T) {
 		t.Run("should complete "+strings.Join(tc.args, " ")+" with "+tc.prefix, func(t *testing.T) {
 			root := helpTestCommand(t, settingrow.CommandRoot)
 			got, directive := completeHelp(root, tc.args, tc.prefix)
+			if slices.Equal(tc.args, []string{"profile"}) && (len(got) != 1 || !strings.Contains(got[0], "\t")) {
+				t.Fatal("lost ordinary command completion descriptions")
+			}
+			for i, item := range got {
+				got[i], _, _ = strings.Cut(item, "\t")
+			}
 			slices.Sort(got)
 			if !slices.Equal(got, tc.want) || directive != cobra.ShellCompDirectiveNoFileComp {
 				t.Fatalf("got %v directive %v", got, directive)
@@ -239,4 +336,50 @@ func TestWriteHelpText(t *testing.T) {
 			t.Fatal(b.String())
 		}
 	})
+}
+
+func TestHelpShellQuote(t *testing.T) {
+	for _, tc := range []struct{ value, want string }{
+		{"billing,support", "billing,support"}, {"", "''"}, {"#comment", "'#comment'"}, {"~/file", "'~/file'"}, {"a'b", "'a'\"'\"'b'"}, {"$(command)", "'$(command)'"},
+	} {
+		t.Run("should quote "+tc.value, func(t *testing.T) {
+			if got := helpShellQuote(tc.value); got != tc.want {
+				t.Fatalf("got %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestValidateHelpExamples(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		examples []helpExample
+	}{
+		{"should reject duplicate ids", []helpExample{{id: "one", places: []string{"overview"}}, {id: "one", places: []string{"asking"}}}},
+		{"should reject an unknown destination", []helpExample{{id: "one", places: []string{"unknown"}}}},
+		{"should reject conflicting input sources", []helpExample{{id: "one", places: []string{"overview"}, stdin: "text", inputFile: "file"}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := validateHelpExamples(tc.examples, helpTopics(settingrow.CommandRoot)); err == nil {
+				t.Fatal("invalid example accepted")
+			}
+		})
+	}
+}
+
+func helpTestCommand(t *testing.T, command settingrow.Command) *cobra.Command {
+	t.Helper()
+	root := NewRootCmd(BuildInfo{}, WithLookupEnv(func(string) (string, bool) { return "", false }), WithHomeDir(func() (string, error) { return t.TempDir(), nil }), WithWorkingDir(func() (string, error) { return t.TempDir(), nil }))
+	cmd := root.Command
+	if command == settingrow.CommandCalibrate {
+		var err error
+		cmd, _, err = cmd.Find([]string{"calibrate"})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	cmd.InitDefaultHelpFlag()
+	cmd.InheritedFlags()
+	cmd.LocalFlags()
+	return cmd
 }

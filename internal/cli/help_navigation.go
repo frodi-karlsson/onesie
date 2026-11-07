@@ -88,12 +88,7 @@ func completeHelp(cmd *cobra.Command, args []string, prefix string) ([]string, c
 			continue
 		}
 		if strings.HasPrefix(sub.Name(), prefix) {
-			suggestions = append(suggestions, sub.Name())
-		}
-		for _, alias := range sub.Aliases {
-			if strings.HasPrefix(alias, prefix) {
-				suggestions = append(suggestions, alias)
-			}
+			suggestions = append(suggestions, cobra.CompletionWithDesc(sub.Name(), sub.Short))
 		}
 	}
 	if command, custom := helpCommand(target); custom {

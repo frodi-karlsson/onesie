@@ -52,8 +52,8 @@ How they work together:
   question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
   no description. A rate needs every level described or none. --sep changes the
   separator for following --pick and --rate. --for may repeat and keeps the wording and
-  settings no flag names. It needs a file and an existing id and refuses --replace.
-  Flags cannot change a file question shape.
+  settings that no flag changes. It needs a file and an existing id and refuses
+  --replace. Flags cannot change a file question shape.
 
   --file accepts a question file, a request body, a path or a saved name. Saved names
   are looked up in .onesie/questions, then the config directory, then built in starter
@@ -64,8 +64,8 @@ How they work together:
   onesie -o json -- '-is this urgent'. Use the same escape for a one word question close
   to a command name, since onesie questoins exits 2 and suggests questions.
   --print-questions exports a question file whose first line names the schema from
-  --print-schema. Exports send no requests. Calibration does not offer these export
-  flags.
+  --print-schema. Exports send no requests. On a request body, --for accepts only
+  threshold, minimum confidence and fallback settings.
 
 Input
 
@@ -101,21 +101,21 @@ How they work together:
   jq expression on each original record and sends its result as the state. Map only the
   text a person would read. Object keys come out sorted. The result may nest
   max-map-depth levels deep and encode to max-line-bytes, as version lists. The original
-  record remains available for labels and merged output.
+  record remains available for merged output.
 
   --id runs one record at a time as input is read. Its result must be a string or
   number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
   --skip-blank drops blank lines without emitting a result. The default field separator
-  is a comma, ','. --delimiter auto needs CSV input, detects its separator and uses it
-  for CSV output. An explicit delimiter takes one character. TSV uses tabs.
+  is ','. --delimiter auto needs CSV input, detects its separator and uses it for CSV
+  output. An explicit delimiter takes one character. TSV uses tabs.
 
   --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
   an image only through --state -. Text can also join it through --state or
-  --state-file. Streams read stdin and add the fixed image to every record.
-  --image-field reads a PNG or JPEG path from a state key per record. Under lines input
-  the line itself is the path. Image and box support is experimental on TypeSafe's side.
-  Images cannot be mixed with request input. See version for image, file, token and
-  model limits.
+  --state-file. Images cannot be mixed with request input. Streams read stdin and add
+  the fixed image to every record. --image-field reads a PNG or JPEG path from a state
+  key per record. Under lines input the line itself is the path. Image support is
+  experimental on the TypeSafe side. See version for image, file, token and model
+  limits.
 
 Decisions
 
@@ -214,24 +214,31 @@ How they work together:
   the OS keychain or file, and optionally a model and base URL or cloudflare account.
   onesie profile create stores one and onesie profile use makes it the default.
 
-  --profile overrides ONESIE_PROFILE and ONESIE_PROVIDER. Otherwise the default profile
-  runs. --provider runs without a profile and overrides ONESIE_PROVIDER and the default
-  profile. It is refused beside --profile or ONESIE_PROFILE. ONESIE_PROVIDER beside
-  ONESIE_PROFILE is also refused. With no profiles, typesafe runs directly. Provider
-  keys come from TYPESAFE_API_KEY, OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY
-  or CLOUDFLARE_API_TOKEN. A chosen profile's key and endpoint beat the environment.
-  Provider variables beat the default profile. --base-url wins over a chosen profile,
-  then ONESIE_BASE_URL, then the provider's base URL or account variable, then the
-  default profile. On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL. A key and
-  endpoint resolve as a pair from their applicable source.
+  A run uses the profile named by --profile, then ONESIE_PROFILE, then the default
+  profile. --profile overrides ONESIE_PROVIDER. --provider runs without a profile and
+  overrides ONESIE_PROVIDER and the default profile. It is refused beside --profile or
+  ONESIE_PROFILE. ONESIE_PROVIDER beside ONESIE_PROFILE is also refused. With no
+  profiles, typesafe runs directly. Provider keys come from TYPESAFE_API_KEY,
+  OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN. The
+  chosen profile key and endpoint beat the environment. Provider variables beat the
+  default profile. --base-url wins over a chosen profile, then ONESIE_BASE_URL, then the
+  provider base URL or account variable, then the default profile. On typesafe,
+  ONESIE_BASE_URL beats TYPESAFE_BASE_URL.
+
+  A key goes only with its own endpoint. A custom profile endpoint takes only the key
+  from that profile. A custom URL from a variable takes only the provider key variable.
+  A typed --base-url takes the chosen profile key or provider variable, never the
+  default profile key. A keyless profile reads no key variable. No provider uses another
+  provider key. The base URL and account are one setting, taken whole from the highest
+  source.
 
   On cloudflare an account comes from the profile, CLOUDFLARE_ACCOUNT_ID or a base URL
   holding it. --model overrides the chosen profile or request body.
-  TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the default profile's
-  model. A custom base URL needs no key and sends none when none resolves. Plain HTTP to
-  a host other than this machine needs --allow-http, which permits sending the request
-  and any API key over it. Without that flag the run exits 2 before a request. A profile
-  storing such a URL needs --allow-http on every run too.
+  TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the model in the
+  default profile. A custom base URL needs no key and sends none when none resolves.
+  Plain HTTP to a host other than this machine needs --allow-http, which permits sending
+  the request and any API key over it. Without that flag the run exits 2 before a
+  request. A profile storing such a URL needs --allow-http on every run too.
 
   Create a connection:
     onesie profile create NAME --provider typesafe
