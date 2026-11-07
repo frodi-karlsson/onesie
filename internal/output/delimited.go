@@ -1,7 +1,6 @@
 package output
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -20,22 +19,13 @@ var ErrColumnTaken = errors.New("an input column has the name of an output colum
 
 // NewDelimited builds a writer for the csv and tsv modes.
 func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
-	if mode == TSV {
-		return &Delimited{tabs: w, opts: opts}
-	}
-
-	rows := csv.NewWriter(w)
-	if opts.Comma != 0 {
-		rows.Comma = opts.Comma
-	}
-
-	return &Delimited{rows: rows, opts: opts}
+	return &Delimited{rows: newFieldWriter(w, mode, opts.Comma), mode: mode, opts: opts}
 }
 
 // Delimited writes records as rows under one header row. It is stateful, so one run uses one.
 type Delimited struct {
-	rows    *csv.Writer
-	tabs    io.Writer
+	rows    *fieldWriter
+	mode    Mode
 	opts    DelimitedOptions
 	started bool
 }
@@ -144,20 +134,11 @@ func (d *Delimited) start(header []string) error {
 }
 
 func (d *Delimited) writeRow(cells []string) error {
-	if d.tabs != nil {
-		_, err := io.WriteString(d.tabs, strings.Join(tabless(cells), "\t")+"\n")
-
-		return err
+	if d.mode == TSV {
+		cells = tabless(cells)
 	}
 
-	if err := d.rows.Write(cells); err != nil {
-		return err
-	}
-
-	// Per row rather than at the end, so a stream can be read while it runs.
-	d.rows.Flush()
-
-	return d.rows.Error()
+	return d.rows.WriteRow(cells)
 }
 
 func tabless(cells []string) []string {

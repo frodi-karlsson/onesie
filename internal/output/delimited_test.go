@@ -118,6 +118,15 @@ func TestNewDelimited(t *testing.T) {
 			want: "urgent\tteam\terror\n\t\tline one \"two\" three\n",
 		},
 		{
+			name:    "should flatten tsv headers and merged source fields",
+			mode:    output.TSV,
+			opts:    output.DelimitedOptions{IDs: []string{"answer"}, Header: true},
+			header:  []string{"source\tname\r\n"},
+			fields:  []map[string]any{{"source\tname\r\n": "a\tb\r\nc\rd\ne"}},
+			records: []output.Record{{Failure: &output.Failure{Message: "x\r\ny\rz\n"}}},
+			want:    "source name \tanswer\terror\na b c d e\t\tx y z \n",
+		},
+		{
 			name:    "should put the id column first when the run names its records",
 			mode:    output.CSV,
 			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, ID: true, Assert: true, Header: true},
