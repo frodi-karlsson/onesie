@@ -242,9 +242,14 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 			continue
 		}
 
-		text := jq.IDText(fields["id"])
-		if text == "" {
+		rawID, present := fields["id"]
+		if !present {
 			return nil, fmt.Errorf("%s has no id, and --id matches the file by id", where)
+		}
+
+		text, err := idKey(rawID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", where, err)
 		}
 
 		if first, taken := answers.ids[text]; taken {
@@ -307,7 +312,12 @@ func (a *Answers) find(position int, id any) (slot, bool) {
 	case a.shared:
 		return a.every, true
 	case a.byID:
-		found, exists := a.ids[jq.IDText(id)]
+		key, err := idKey(id)
+		if err != nil {
+			return slot{}, false
+		}
+
+		found, exists := a.ids[key]
 
 		return found, exists
 	case position >= 1 && position <= len(a.lines):
@@ -315,6 +325,15 @@ func (a *Answers) find(position int, id any) (slot, bool) {
 	default:
 		return slot{}, false
 	}
+}
+
+func idKey(raw any) (string, error) {
+	id, err := jq.ID(raw)
+	if err != nil {
+		return "", err
+	}
+
+	return jq.IDText(id), nil
 }
 
 // Answers is a checked mock file, ready to answer records by position or by id.

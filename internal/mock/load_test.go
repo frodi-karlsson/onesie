@@ -9,6 +9,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answer"
+	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -88,6 +89,60 @@ func TestLoad(t *testing.T) {
 				{position: 2, id: "nothing", want: map[string]any{"u": 0.2, "t": "platform", "r": "rude"}},
 				{position: 3, missing: true},
 			},
+		},
+		{
+			name: "should preserve positional matching for invalid ids and input errors",
+			file: `{"id":null,` + full + "}\n" + `{"id":true,` + full + "}\n" +
+				`{"id":[],` + full + "}\n" + `{"id":{},` + full + "}\n" +
+				`{"id":"` + strings.Repeat("x", limits.MaxIDBytes+1) + `",` + full + "}\n" +
+				`{"error":{"kind":"input","status":null,"message":"x"}}` + "\n",
+			lookups: []lookup{
+				{position: 1, want: map[string]any{"u": 0.9}},
+				{position: 2, want: map[string]any{"u": 0.9}},
+				{position: 3, want: map[string]any{"u": 0.9}},
+				{position: 4, want: map[string]any{"u": 0.9}},
+				{position: 5, want: map[string]any{"u": 0.9}},
+				{position: 6, missing: true},
+			},
+		},
+		{
+			name: "should match an empty text id without matching invalid ids",
+			file: `{"id":"",` + full + "}\n",
+			byID: true,
+			lookups: []lookup{
+				{id: "", want: map[string]any{"u": 0.9}},
+				{missing: true},
+				{id: true, missing: true},
+				{id: []any{}, missing: true},
+				{id: map[string]any{}, missing: true},
+				{id: strings.Repeat("x", limits.MaxIDBytes+1), missing: true},
+			},
+		},
+		{
+			name: "should canonicalize numeric ids while preserving textual spelling",
+			file: `{"id":7.0,` + full + "}\n" + `{"id":"7.0","u":0.2,"t":"billing","r":"curt"}`,
+			byID: true,
+			lookups: []lookup{
+				{id: json.Number("7"), want: map[string]any{"u": 0.9}},
+				{id: json.Number("7e0"), want: map[string]any{"u": 0.9}},
+				{id: "7", want: map[string]any{"u": 0.9}},
+				{id: "7.0", want: map[string]any{"u": 0.2}},
+			},
+		},
+		{
+			name: "should preserve every digit of a large numeric id",
+			file: `{"id":9007199254740993,` + full + "}\n",
+			byID: true,
+			lookups: []lookup{
+				{id: json.Number("9007199254740993"), want: map[string]any{"u": 0.9}},
+				{id: json.Number("9007199254740992"), missing: true},
+			},
+		},
+		{
+			name:    "should reject duplicate canonical numeric ids",
+			file:    `{"id":7,` + full + "}\n" + `{"id":7e0,` + full + "}\n",
+			byID:    true,
+			wantErr: "--mock line 2: id '7' is also the id of line 1",
 		},
 		{
 			name: "should match lines by id under byID",
@@ -437,6 +492,34 @@ func TestLoad(t *testing.T) {
 		},
 	}
 
+	for _, invalid := range []struct {
+		name string
+		raw  string
+		want string
+	}{
+		{name: "null", raw: "null", want: jq.ErrNullID.Error()},
+		{name: "boolean", raw: "true", want: jq.ErrNotID.Error() + ", got boolean"},
+		{name: "array", raw: "[]", want: jq.ErrNotID.Error() + ", got array"},
+		{name: "object", raw: "{}", want: jq.ErrNotID.Error() + ", got object"},
+		{name: "overlong", raw: `"` + strings.Repeat("x", limits.MaxIDBytes+1) + `"`, want: jq.ErrIDTooLong.Error()},
+	} {
+		tests = append(tests, struct {
+			name      string
+			file      string
+			questions []plan.Question
+			byID      bool
+			spelled   string
+			asked     []string
+			lookups   []lookup
+			wantErr   string
+		}{
+			name:    "should reject a present " + invalid.name + " id with line context",
+			file:    `{"id":"ok",` + full + "}\n" + `{"id":` + invalid.raw + `,` + full + "}\n",
+			byID:    true,
+			wantErr: "--mock line 2: " + invalid.want,
+		})
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -700,6 +783,30 @@ func TestAnswersMissing(t *testing.T) {
 			line: 4,
 			want: "--mock line 2 replays a line onesie could not read, so input line 4 " +
 				"has no answer. Give it answers",
+		},
+		{
+			name: "should distinguish a missing lookup from an empty id answer",
+			file: `{"id":"",` + full + "}\n" + `{"id":"other",` + full + "}\n",
+			byID: true,
+			line: 9,
+			want: "--mock has no line with id '', so input line 9 has no answer. Add one",
+		},
+		{
+			name: "should distinguish an invalid lookup from a stored input error",
+			file: `{"id":"","error":{"kind":"input","status":null,"message":"x"}}` + "\n" +
+				`{"id":"other",` + full + "}\n",
+			byID: true,
+			id:   true,
+			line: 9,
+			want: "--mock has no line with id '', so input line 9 has no answer. Add one",
+		},
+		{
+			name: "should name a stored input error with an empty text id",
+			file: `{"id":"","error":{"kind":"input","status":null,"message":"x"}}` + "\n",
+			byID: true,
+			id:   "",
+			line: 9,
+			want: "--mock line 1 replays a line onesie could not read, so input line 9 has no answer. Give it answers",
 		},
 		{
 			name:     "should name a lone written error line that answers nothing",

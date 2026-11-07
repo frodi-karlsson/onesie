@@ -34,6 +34,24 @@ const (
 func TestMockAnswers(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should replay actual JSON output with an empty record id", func(t *testing.T) {
+		t.Parallel()
+
+		args := []string{"is it urgent", "-i", "jsonl", "--id", ".id", "-o", "json"}
+		input := `{"id":"","body":"help"}` + "\n"
+		first, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, `{"answer":0.9}`)), input, nil, nil)
+		if code != ExitOK || !strings.Contains(first, `"id":""`) || !strings.Contains(first, `"value":0.9`) {
+			t.Fatalf("first run exit %d, output %s, stderr %s", code, first, errOut)
+		}
+
+		replayed, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, first)), input, nil, nil)
+		if code != ExitOK || replayed != first {
+			t.Fatalf("replay exit %d, output %s, want %s, stderr %s", code, replayed, first, errOut)
+		}
+	})
+
 	three := []string{
 		"--ask", "u=is it urgent", "--ask", "t=which team", "--pick", "billing,platform",
 		"--ask", "r=how rude", "--rate", "calm,curt,rude",
