@@ -61,6 +61,7 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		newProfileUseCmd(settings, flags),
 		newProfileListCmd(settings, flags),
 		newProfileShowCmd(settings, flags),
+		newProfilePreflightCmd(settings, flags),
 		newProfileTestCmd(settings, flags),
 	)
 
@@ -626,41 +627,20 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 }
 
 func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, args []string) error {
-	chosen, err := shownResolution(settings, flags, args, "show")
+	inspection, err := inspectConnection(settings, flags, args)
 	if err != nil {
 		return err
 	}
+	shown, baseURL, source, invalid := inspection.shown, inspection.baseURL, inspection.source, inspection.invalid
 
-	// Merged as a run merges it, so every line reports what a run sends, the default profile ranking
-	// below the environment.
-	shown, err := testedConnection(settings, chosen)
-	if err != nil {
-		return err
-	}
-
-	// Resolved as a run resolves it, which checks a hand edited profiles.json and the base URL
-	// variables too, since neither passed through create.
-	baseURL, source, invalid := shown.provider.ResolveBaseURL(shown.baseURL, shown.accountID, noEnvironment)
-
-	var refused *onesie.BaseURLError
-	if errors.As(invalid, &refused) {
-		return baseURLRefusal(refused, baseURLFrom(source, shown), sendPlainHTTP)
-	}
-
-	// A run refuses a malformed account, so show refuses it too. A missing account prints as none
-	// and exits 2 below.
-	if invalid != nil && !errors.Is(invalid, onesie.ErrNoAccountID) {
-		return invalid
-	}
-
-	account := shown.accountSource(source, invalid)
+	account := inspection.account
 
 	baseURLLine := sourceNone
 	if invalid == nil {
 		baseURLLine = output.Printable(baseURL) + ", " + baseURLFrom(source, shown)
 	}
 
-	custom := invalid == nil && shown.provider.CustomBaseURL(baseURL)
+	custom := inspection.custom
 
 	lines := []string{
 		"profile: " + shown.rankedProfile(),
@@ -671,7 +651,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		"base_url: " + baseURLLine,
 	}
 
-	if invalid == nil && onesie.InsecureBaseURL(baseURL) {
+	if inspection.remoteHTTP {
 		lines = append(lines, "allow_http: needed, since base_url is plain http to another host")
 	}
 
@@ -683,12 +663,14 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 		return printErr
 	}
 
-	return showRefusals(cmd, settings, shown, invalid, account, custom)
+	return showRefusals(cmd, settings, inspection)
 }
 
 func showRefusals(
-	cmd *cobra.Command, settings rootSettings, shown resolution, accountErr error, account string, custom bool,
+	cmd *cobra.Command, settings rootSettings, inspection connectionInspection,
 ) error {
+	shown, accountErr, account := inspection.shown, inspection.invalid, inspection.account
+	custom, switchErr := inspection.custom, inspection.switchErr
 	var refusals []error
 
 	if shown.profile == "" && shown.keyFrom == sourceNone && !custom {
@@ -700,7 +682,7 @@ func showRefusals(
 	}
 
 	// Checked as a run checks them, after the report, so a reader of the key line still finds it.
-	if switchErr := checkEnvSettings(settings.lookupEnv, "cache", "long_context", "cache_ttl"); switchErr != nil {
+	if switchErr != nil {
 		refusals = append(refusals, switchErr)
 	}
 

@@ -13,9 +13,13 @@ import (
 )
 
 func newHolder(settings rootSettings, flags *runFlags, stderr func() io.Writer) *holder {
-	opened := sync.OnceValues(func() (creds.Opened, error) {
+	return newHolderWithOpen(settings, flags, stderr, func() (creds.Opened, error) {
 		return openProfiles(settings, stderr())
 	})
+}
+
+func newHolderWithOpen(settings rootSettings, flags *runFlags, stderr func() io.Writer, open func() (creds.Opened, error)) *holder {
+	opened := sync.OnceValues(open)
 
 	chosen := sync.OnceValues(func() (setting.Choice, error) {
 		return setting.Choose(settingrow.Table(), setting.Sources{
@@ -143,23 +147,22 @@ func defaultName(settings rootSettings) string {
 }
 
 func openProfiles(settings rootSettings, stderr io.Writer) (creds.Opened, error) {
-	dir, resolved := profilesDir(settings)
-	if !resolved {
-		// A config dir that cannot be resolved holds no file, as -f treats it, so a run on a machine
-		// with no home still runs on its environment key.
-		return creds.Opened{}, nil
-	}
-
-	opened, err := settings.credStore.OpenProfiles(dir)
+	opened, err := readProfiles(settings)
 	if err != nil {
 		return creds.Opened{}, err
 	}
-
-	if printErr := notify(stderr, conversionLines(opened, settings.lookupEnv)...); printErr != nil {
-		return creds.Opened{}, printErr
+	if err := notify(stderr, conversionLines(opened, settings.lookupEnv)...); err != nil {
+		return creds.Opened{}, err
 	}
-
 	return opened, nil
+}
+
+func readProfiles(settings rootSettings) (creds.Opened, error) {
+	dir, resolved := profilesDir(settings)
+	if !resolved {
+		return creds.Opened{}, nil
+	}
+	return settings.credStore.OpenProfiles(dir)
 }
 
 func profilesDir(settings rootSettings) (string, bool) {

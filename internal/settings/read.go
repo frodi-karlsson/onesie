@@ -537,6 +537,22 @@ func readEnv(
 }
 
 func envError(row settingrow.Row, variable settingrow.EnvSpec, raw string, err error) error {
+	return &EnvironmentError{Name: variable.Name, Cause: envErrorText(row, variable, raw, err)}
+}
+
+// EnvironmentError identifies the rejected variable without exposing its value.
+type EnvironmentError struct {
+	Name  string
+	Cause error
+}
+
+// Error preserves the ordinary environment diagnostic.
+func (e *EnvironmentError) Error() string { return e.Cause.Error() }
+
+// Unwrap returns the underlying environment diagnostic.
+func (e *EnvironmentError) Unwrap() error { return e.Cause }
+
+func envErrorText(row settingrow.Row, variable settingrow.EnvSpec, raw string, err error) error {
 	switch row.Kind.Zero().(type) {
 	case bool:
 		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", variable.Name, raw, row.Flag.Long)

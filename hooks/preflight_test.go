@@ -1,312 +1,120 @@
 package hooks_test
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
-	"strconv"
+	"strings"
+	"sync/atomic"
 	"testing"
 )
 
-const (
-	noDefault = "onesie is on PATH and has profiles, but none is the default and nothing chose one, so every " +
-		"run exits 2 until the user runs onesie profile use NAME. onesie profile list names them.\n"
-	providerNotice = "onesie: ONESIE_PROVIDER is set, so a run uses no profile and reads only the provider's key " +
-		"variable. To use a stored key, unset it and run onesie profile use NAME, or pass --profile NAME"
-	unwritten = "onesie: could not write /home/u/.config/onesie/profiles.json, so " +
-		"/home/u/.config/onesie/credentials.json is converted for this run only: creating a temporary file in " +
-		"/home/u/.config/onesie: permission denied"
-	modeWarning = "onesie: warning: could not set mode 600 on /home/u/.config/onesie/profiles.json. The key is not " +
-		"protected by the filesystem"
-	removedLink = "onesie: removed the link /home/u/.config/onesie/credentials.json, but " +
-		"/home/u/secrets/credentials.json still holds the key"
-	goodReport = "profile: work\nprovider: openrouter\nchosen by: the default\nkey: file, ends in cdef\n" +
-		"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n"
-	goodVerdict = "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: file.\n"
-	badTTL      = "onesie: ONESIE_CACHE_TTL=abc is not a duration of zero or more, such as 90m or 72h"
-)
-
 func TestPreflight(t *testing.T) {
-	t.Parallel()
-
 	if runtime.GOOS == "windows" {
-		t.Skip("the hook is a POSIX sh script, and Windows has no sh to run it")
+		t.Skip("the hook requires POSIX sh")
 	}
-
-	tests := []struct {
-		name   string
-		absent bool
-		show   string
-		code   int
-		want   string
-	}{
-		{
-			name: "should report the profile, the provider and where the key lives, without its ending",
-			show: "profile: work\nprovider: openrouter\nchosen by: the default\nkey: keychain, ends in 3f9a\n" +
-				"model: typesafe/jev, profile\nbase_url: https://openrouter.ai/api, the provider's default\n",
-			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
-		},
-		{
-			name: "should print the bare profile name when show adds its rank",
-			show: "profile: work, the default profile\nprovider: openrouter\nchosen by: the default\n" +
-				"key: keychain, ends in 3f9a\nmodel: typesafe/jev, profile\n" +
-				"base_url: https://openrouter.ai/api, the provider's default\n",
-			want: "onesie is on PATH and a key resolves, profile: work, provider: openrouter, key: keychain.\n",
-		},
-		{
-			name: "should print the bare profile name of a chosen profile that needs no key",
-			show: "profile: local, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\n" +
-				"key: none, not needed for a custom base URL\nmodel: winnow:e4b, profile\n" +
-				"base_url: http://localhost:11435, the profile's base_url\n",
-			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: local, provider: typesafe, " +
-				"base_url: http://localhost:11435.\n",
-		},
-		{
-			name: "should print the bare profile name in the account hint when show adds its rank",
-			show: "profile: cfk, the default profile\nprovider: cloudflare\nchosen by: the default\nkey: keychain\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
-			code: 2,
-			want: "onesie is on PATH and a key resolves for profile cfk, but no account does. Every request fails " +
-				"until the user runs onesie profile update cfk --account-id ACCOUNT_ID or sets CLOUDFLARE_ACCOUNT_ID. " +
-				"The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should say every run needs --allow-http when show reports it",
-			show: "profile: work\nprovider: typesafe\nchosen by: the default\nkey: file\n" +
-				"model: jev-latest, the provider's default\nbase_url: http://proxy.example, profile\n" +
-				"allow_http: needed, since base_url is plain http to another host\n",
-			want: "onesie is on PATH and a key resolves, profile: work, provider: typesafe, key: file.\n" +
-				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.\n",
-		},
-		{
-			name: "should report that no key is needed for a custom base URL",
-			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none, not needed for a custom base URL\n" +
-				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, ONESIE_BASE_URL\n",
-			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: none, provider: typesafe, " +
-				"base_url: http://localhost:11435.\n",
-		},
-		{
-			name: "should report no key for a profile whose key stays off an ONESIE_BASE_URL",
-			show: "profile: work\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
-				"model: jev-latest, the provider's default\nbase_url: https://proxy.example, ONESIE_BASE_URL\n",
-			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: work, provider: typesafe, " +
-				"base_url: https://proxy.example.\n",
-		},
-		{
-			name: "should add the plain http line for a keyless remote http base URL",
-			show: "profile: local\nprovider: typesafe\nchosen by: the default\nkey: none, not needed for a custom base URL\n" +
-				"model: winnow:e4b, profile\nbase_url: http://gpu.example:11435, the profile's base_url\n" +
-				"allow_http: needed, since base_url is plain http to another host\n",
-			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: local, provider: typesafe, " +
-				"base_url: http://gpu.example:11435.\n" +
-				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.\n",
-		},
-		{
-			name: "should name ONESIE_BASE_URL when a key goes to it",
-			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
-				"model: jev-latest, the provider's default\nbase_url: http://localhost:11435, ONESIE_BASE_URL\n",
-			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe, key: env TYPESAFE_API_KEY.\n" +
-				"Its base URL comes from ONESIE_BASE_URL, so the key goes to http://localhost:11435.\n",
-		},
-		{
-			name: "should report a key from the environment for a run without a profile",
-			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: env TYPESAFE_API_KEY\n" +
-				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
-			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe, key: env TYPESAFE_API_KEY.\n",
-		},
-		{
-			name: "should name the key variable first under ONESIE_PROVIDER, which no stored profile serves",
-			show: "profile: none\nprovider: openrouter\nchosen by: ONESIE_PROVIDER\nkey: none\n" +
-				"model: jev-latest, the provider's default\nbase_url: https://openrouter.ai/api, the provider's default\n",
-			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider openrouter. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user sets OPENROUTER_API_KEY. " +
-				"ONESIE_PROVIDER is set, so a stored profile is not used. To use one instead, the user unsets " +
-				"ONESIE_PROVIDER and runs onesie profile create NAME --provider openrouter. " +
-				"The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name the key variable of berget when no key resolves",
-			show: "profile: none\nprovider: berget\nchosen by: nothing\nkey: none\n" +
-				"model: systemone, the provider's default\nbase_url: https://api.berget.ai, the provider's default\n",
-			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider berget. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider berget or " +
-				"sets BERGET_API_KEY. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name the key variable of levanto when no key resolves",
-			show: "profile: none\nprovider: levanto\nchosen by: nothing\nkey: none\n" +
-				"model: sage-latest, the provider's default\nbase_url: https://sage.levanto.ai, the provider's default\n",
-			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider levanto. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider levanto or " +
-				"sets LEVANTO_API_KEY. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name the key variable of cloudflare when no key resolves",
-			show: "profile: none\nprovider: cloudflare\nchosen by: nothing\nkey: none\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: none\n",
-			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider cloudflare. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider cloudflare or " +
-				"sets CLOUDFLARE_API_TOKEN. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name TYPESAFE_API_KEY through the default arm when no key resolves on typesafe",
-			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
-				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n",
-			code: 2,
-			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME --provider typesafe or " +
-				"sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name profile update when a profile has no account",
-			show: "profile: cf\nprovider: cloudflare\nchosen by: ONESIE_PROFILE\nkey: file, ends in cdef\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
-			code: 2,
-			want: "onesie is on PATH and a key resolves for profile cf, but no account does. Every request fails " +
-				"until the user runs onesie profile update cf --account-id ACCOUNT_ID or sets " +
-				"CLOUDFLARE_ACCOUNT_ID. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should name the account variable and profile create when a run without a profile has no account",
-			show: "profile: none\nprovider: cloudflare\nchosen by: ONESIE_PROVIDER\nkey: env CLOUDFLARE_API_TOKEN\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
-			code: 2,
-			want: "onesie is on PATH and a key resolves for provider cloudflare, but no account does. Every " +
-				"request fails until the user sets CLOUDFLARE_ACCOUNT_ID or stores a profile with onesie " +
-				"profile create NAME --provider cloudflare --account-id ACCOUNT_ID. The onesie-setup skill " +
-				"walks them through it.\n",
-		},
-		{
-			name: "should name profile use when no profile is the default",
-			show: "onesie: no profile is the default and nothing chose one. Run onesie profile use NAME, or pass " +
-				"--profile NAME or --provider NAME\n",
-			code: 2,
-			want: noDefault,
-		},
-		{
-			name: "should pass on a conversion and still name profile use",
-			show: "onesie: converted credentials.json into profiles.json, with profile openrouter. No profile is " +
-				"the default, so run onesie profile use NAME to choose one\n" +
-				"onesie: no profile is the default and nothing chose one. Run onesie profile use NAME, or pass " +
-				"--profile NAME or --provider NAME\n",
-			code: 2,
-			want: "onesie: converted credentials.json into profiles.json, with profile openrouter. No profile is " +
-				"the default, so run onesie profile use NAME to choose one\n" + noDefault,
-		},
-		{
-			name: "should pass on a conversion for this run and its warning, and still name profile use",
-			show: "onesie: converted credentials.json for this run, with profile openrouter. No profile is the " +
-				"default, so run onesie profile use NAME to choose one\n" + unwritten + "\n" +
-				"onesie: no profile is the default and nothing chose one. Run onesie profile use NAME, or pass " +
-				"--profile NAME or --provider NAME\n",
-			code: 2,
-			want: "onesie: converted credentials.json for this run, with profile openrouter. No profile is the " +
-				"default, so run onesie profile use NAME to choose one\n" + unwritten + "\n" + noDefault,
-		},
-		{
-			name: "should pass on the conversion lines and report the failure that follows them",
-			show: "onesie: converted credentials.json into profiles.json, with profile typesafe. typesafe is the default\n" +
-				providerNotice + "\n" +
-				"onesie: unknown provider bogus. Use typesafe, openrouter, berget, levanto or cloudflare\n",
-			code: 2,
-			want: "onesie: converted credentials.json into profiles.json, with profile typesafe. typesafe is the default\n" +
-				providerNotice + "\n" +
-				"onesie is on PATH, but onesie profile show failed with: onesie: unknown provider bogus. Use " +
-				"typesafe, openrouter, berget, levanto or cloudflare\n",
-		},
-		{
-			name: "should pass on a mode warning and still report the key",
-			show: modeWarning + "\n" + goodReport,
-			want: modeWarning + "\n" + goodVerdict,
-		},
-		{
-			name: "should pass on a variable every run refuses and still report the key",
-			show: goodReport + badTTL + "\n",
-			code: 2,
-			want: badTTL + "\n" + goodVerdict,
-		},
-		{
-			name: "should pass on a variable every run refuses and still report a missing key after its hint",
-			show: "profile: none\nprovider: typesafe\nchosen by: nothing\nkey: none\n" +
-				"model: jev-latest, the provider's default\nbase_url: https://api.typesafe.ai, the provider's default\n" +
-				"onesie: no API key. Set TYPESAFE_API_KEY, or store one with onesie profile create NAME --provider typesafe\n" +
-				badTTL + "\n",
-			code: 2,
-			want: badTTL + "\nonesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, " +
-				"--print-questions, --print-schema and --mock work until the user runs onesie profile create NAME " +
-				"--provider typesafe or sets TYPESAFE_API_KEY. The onesie-setup skill walks them through it.\n",
-		},
-		{
-			name: "should pass on a removed link and still report the key",
-			show: removedLink + "\n" + goodReport,
-			want: removedLink + "\n" + goodVerdict,
-		},
-		{
-			name: "should report the first line of any other failure",
-			show: "onesie: accepts at most 1 arg(s), received 2\n",
-			code: 2,
-			want: "onesie is on PATH, but onesie profile show failed with: onesie: accepts at most 1 arg(s), received 2\n",
-		},
-		{
-			name: "should say whether a key resolves is unknown when profile show prints nothing",
-			want: "onesie is on PATH, but onesie profile show gave no answer, so whether a key resolves is unknown.\n",
-		},
-		{
-			name:   "should send the user to the setup skill when onesie is not on PATH",
-			absent: true,
-			want: "onesie is not on PATH, so the onesie skills cannot run any command yet. Load the onesie-setup " +
-				"skill and walk the user through installing it.\n",
-		},
-	}
-
-	for _, tc := range tests {
+	for _, tc := range []struct{ name, script, want string }{
+		{"should report a missing binary", "", "onesie is not on PATH"},
+		{"should display the complete helper report", "printf '%s\\n' 'safe report'", "safe report\n"},
+		{"should suppress old binary usage", "echo 'usage sentinel' >&2; exit 1", "automatic readiness is unavailable"},
+		{"should handle an empty helper response", "exit 0", "automatic readiness is unavailable"},
+	} {
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
 			bin := t.TempDir()
-			if !tc.absent {
-				writeFakeOnesie(t, bin, tc.show, tc.code)
+			if tc.script != "" {
+				script := "#!/bin/sh\nif [ \"$1 $2\" = 'profile preflight' ]; then\n" + tc.script + "\nfi\n"
+				if err := os.WriteFile(filepath.Join(bin, "onesie"), []byte(script), 0o755); err != nil {
+					t.Fatal(err)
+				}
 			}
-
-			if got := runPreflight(t, bin); got != tc.want {
-				t.Errorf("hook output:\n%s\nwant:\n%s", got, tc.want)
+			out := runPreflight(t, bin, nil)
+			if !strings.Contains(out, tc.want) || strings.Contains(out, "sentinel") {
+				t.Fatalf("unexpected output: %s", out)
 			}
 		})
 	}
 }
 
-func writeFakeOnesie(t *testing.T, bin, show string, code int) {
-	t.Helper()
+func TestPreflightCompatibility(t *testing.T) {
+	t.Run("should retain version mismatch and bounded question discovery with an old binary", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("the hook requires POSIX sh")
+		}
+		bin := t.TempDir()
+		script := `#!/bin/sh
+case "$1 $2" in
+ 'profile preflight') echo 'legacy usage sentinel' >&2; exit 1 ;;
+ '--version ') echo 'onesie v999.0.0' ;;
+ 'questions ') i=1; while [ "$i" -le 25 ]; do echo "saved$i built in"; i=$((i + 1)); done ;;
+esac
+`
+		if err := os.WriteFile(filepath.Join(bin, "onesie"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		out := runPreflight(t, bin, nil)
+		for _, want := range []string{"automatic readiness is unavailable", "onesie --version reports 999.0.0", "saved20 built in", "and 5 more"} {
+			if !strings.Contains(out, want) {
+				t.Errorf("missing %q in %s", want, out)
+			}
+		}
+		if strings.Contains(out, "sentinel") || strings.Contains(out, "saved21") {
+			t.Fatalf("unexpected output: %s", out)
+		}
+	})
+}
 
-	// Only profile show answers. --version and questions print nothing, so the hook adds no version
-	// or question file line, and the output is the profile report alone.
-	script := "#!/bin/sh\n" +
-		"if [ \"$1 $2\" = 'profile show' ]; then\n" +
-		"cat <<'EOF'\n" + show + "EOF\n" +
-		"exit " + strconv.Itoa(code) + "\n" +
-		"fi\n"
-
-	if err := os.WriteFile(filepath.Join(bin, "onesie"), []byte(script), 0o755); err != nil {
-		t.Fatal(err)
+func TestPreflightBinary(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the hook requires POSIX sh")
+	}
+	var requests atomic.Int64
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { requests.Add(1); w.WriteHeader(500) }))
+	defer server.Close()
+	t.Cleanup(func() {
+		if requests.Load() != 0 {
+			t.Errorf("provider received %d requests", requests.Load())
+		}
+	})
+	bin := t.TempDir()
+	build := exec.CommandContext(t.Context(), "go", "build", "-o", filepath.Join(bin, "onesie"), "../cmd/onesie")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v: %s", err, out)
+	}
+	for _, tc := range []struct {
+		name string
+		env  []string
+		want string
+	}{
+		{"should report no key", nil, "no API key resolves"},
+		{"should accept a keyless loopback endpoint", []string{"ONESIE_BASE_URL=" + server.URL + "/sentinel-secret"}, "needs no key"},
+		{"should require the Cloudflare account", []string{"ONESIE_PROVIDER=cloudflare", "CLOUDFLARE_API_TOKEN=sentinel-secret"}, "no account resolves"},
+		{"should safely refuse multiline switches", []string{"ONESIE_CACHE=bad\nsentinel-secret"}, "Unset or correct ONESIE_CACHE"},
+		{"should safely refuse invalid long context", []string{"ONESIE_LONG_CONTEXT=sentinel-secret"}, "Unset or correct ONESIE_LONG_CONTEXT"},
+		{"should refuse mock mode", []string{"ONESIE_MOCK=1"}, "automatic readiness is unavailable"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			out := runPreflight(t, bin, tc.env)
+			if strings.Count(out, tc.want) != 1 || strings.Contains(out, "sentinel-secret") || strings.Contains(out, "secret") {
+				t.Fatalf("unexpected output: %s", out)
+			}
+			if !strings.Contains(out, "Question files -f NAME loads:") {
+				t.Fatalf("missing questions: %s", out)
+			}
+		})
 	}
 }
 
-func runPreflight(t *testing.T, bin string) string {
+func runPreflight(t *testing.T, bin string, env []string) string {
 	t.Helper()
-
+	home := t.TempDir()
 	cmd := exec.CommandContext(t.Context(), "/bin/sh", "preflight.sh")
-	// The system directories hold sed, grep, awk and head, and never an onesie of their own.
-	cmd.Env = []string{"PATH=" + bin + ":/usr/bin:/bin", "HOME=" + t.TempDir()}
-
+	cmd.Env = append([]string{"PATH=" + bin + ":/usr/bin:/bin", "HOME=" + home, "ONESIE_CONFIG_DIR=" + filepath.Join(home, "config")}, env...)
 	out, err := cmd.Output()
 	if err != nil {
-		t.Fatalf("the hook exits 0 whatever happens, and it failed: %v\n%s", err, out)
+		t.Fatalf("hook: %v: %s", err, out)
 	}
-
 	return string(out)
 }

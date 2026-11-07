@@ -15,6 +15,9 @@ import (
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
+var errNoDefaultProfile = errors.New("no profile is the default and nothing chose one. " +
+	"Run onesie profile use NAME, or pass --profile NAME or --provider NAME")
+
 const (
 	flagProfile  = "profile"
 	flagProvider = "provider"
@@ -46,8 +49,7 @@ func profileOf(chosen setting.Choice, profiles creds.Profiles) (loadedRun, error
 	}
 
 	if name == "" && len(profiles.Profiles) > 0 {
-		return loadedRun{}, errors.New("no profile is the default and nothing chose one. " +
-			"Run onesie profile use NAME, or pass --profile NAME or --provider NAME")
+		return loadedRun{}, errNoDefaultProfile
 	}
 
 	if name == "" {

@@ -115,15 +115,27 @@ func (s Store) removeCredentials(oldPath, failure string) error {
 
 	// Another process converting at the same moment may have removed it first.
 	if err := s.remove(oldPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-		return fmt.Errorf("%s: %w", failure, err)
+		return &RetainedCredentialsWarning{Cause: fmt.Errorf("%s: %w", failure, err)}
 	}
 
 	if !isLink {
 		return nil
 	}
 
-	return fmt.Errorf("removed the link %s, but %s still holds the key", oldPath, target)
+	return &RetainedCredentialsWarning{LinkRemoved: true, Cause: fmt.Errorf("removed the link %s, but %s still holds the key", oldPath, target)}
 }
+
+// RetainedCredentialsWarning means legacy credentials remain after a conversion or removal.
+type RetainedCredentialsWarning struct {
+	LinkRemoved bool
+	Cause       error
+}
+
+// Error preserves the ordinary legacy credential warning.
+func (e *RetainedCredentialsWarning) Error() string { return e.Cause.Error() }
+
+// Unwrap returns the original removal warning.
+func (e *RetainedCredentialsWarning) Unwrap() error { return e.Cause }
 
 // Convert turns a credential file into profiles, one per provider and named after it. Keychain
 // items keep their names, and only a typesafe entry becomes the default.
