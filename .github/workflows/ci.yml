@@ -134,6 +134,14 @@ jobs:
           version: 'v2.18.2'
           args: release --snapshot --clean --skip=publish
 
+      - name: Generate the snapshot Homebrew formula
+        run: |
+          version=$(jq -er '.version' dist/metadata.json)
+          go run ./cmd/formulagen \
+            -version "$version" \
+            -checksums dist/checksums.txt \
+            -out dist/onesie.rb
+
       - name: Upload the installer snapshot
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
