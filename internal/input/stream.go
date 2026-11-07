@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/frodi-karlsson/onesie/internal/delimiter"
 	"io"
 	"strings"
 	"unicode/utf8"
@@ -23,7 +24,7 @@ func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
 		mode:      mode,
 		skipBlank: opts.SkipBlank,
 		lineCap:   lineCapOf(mode),
-		comma:     ',',
+		comma:     delimiter.DefaultComma,
 	}
 
 	if mode == CSV {
