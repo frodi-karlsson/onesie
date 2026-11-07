@@ -13,11 +13,7 @@ const lineField = "line"
 
 func singleRecordRule() Rule {
 	return Rule{
-		ID: "streaming-flags-need-a-stream",
-		Reads: []settingrow.Name{
-			Input.Name(), Unordered.Name(), StopOnError.Name(), StopOnAssert.Name(), SkipBlank.Name(), NoDedup.Name(),
-			ID.Name(), imageFieldName, imageName, State.Name(), StateFile.Name(), Jobs.Name(),
-		},
+		ID:    "streaming-flags-need-a-stream",
 		Check: singleRecordRefusal,
 	}
 }
@@ -59,8 +55,7 @@ func singleRecordRefusal(v View) error {
 
 func streamStateRule() Rule {
 	return Rule{
-		ID:    "stream-reads-its-own-state",
-		Reads: []settingrow.Name{Input.Name(), State.Name(), StateFile.Name(), imageFieldName},
+		ID: "stream-reads-its-own-state",
 		Check: func(v View) error {
 			mode := inputModeOf(v)
 			if !mode.Streaming() {
@@ -85,8 +80,7 @@ func streamStateRule() Rule {
 
 func tableOnStreamRule() Rule {
 	return Rule{
-		ID:    "table-reads-one-record",
-		Reads: []settingrow.Name{Output.Name(), Input.Name()},
+		ID: "table-reads-one-record",
 		Check: func(v View) error {
 			// A stream writes one line per input line. A table is several lines with a repeated header,
 			// and unlike raw it has no streaming form. Calibrate's -o is its report, which is one table.
@@ -101,8 +95,7 @@ func tableOnStreamRule() Rule {
 
 func lineFieldRule() Rule {
 	return Rule{
-		ID:    "line-field-reserved",
-		Reads: []settingrow.Name{Input.Name()},
+		ID: "line-field-reserved",
 		Check: func(v View) error {
 			if v.Plan == nil || inputModeOf(v) != input.Lines {
 				return nil

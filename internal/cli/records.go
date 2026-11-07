@@ -10,6 +10,8 @@ import (
 	"sync"
 	"sync/atomic"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -28,7 +30,7 @@ func records(
 	outputMode output.Mode,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
-		SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
+		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
 	})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
@@ -40,11 +42,11 @@ func records(
 		stop: stop,
 		source: &resumed{
 			source: stream, left: resume.Skip, stored: resume.Stored,
-			haltOnAssert: flags.stopOnAssert, haltOnError: flags.stopOnError, table: tableName(outputMode, flags),
+			haltOnAssert: setting.Get(flags.merged, setting.StopOnAssert), haltOnError: setting.Get(flags.merged, setting.StopOnError), table: tableName(outputMode, flags),
 		},
 		stream:   stream,
 		namer:    namer,
-		halt:     flags.stopOnAssert,
+		halt:     setting.Get(flags.merged, setting.StopOnAssert),
 		book:     book,
 		mode:     outputMode,
 		input:    inputMode,
@@ -60,7 +62,7 @@ func appendedTo(flags runConfig, resume answersfile.Resume, outputMode output.Mo
 		return nil
 	}
 
-	return &appendedCSV{path: flags.out, comma: resume.Comma}
+	return &appendedCSV{path: setting.Get(flags.merged, setting.Out), comma: resume.Comma}
 }
 
 type appendedCSV struct {
@@ -87,7 +89,7 @@ func tableName(mode output.Mode, flags runConfig) string {
 		return ""
 	}
 
-	return flags.output
+	return setting.Get(flags.merged, setting.Output)
 }
 
 func (r *resumed) Next() (input.Record, bool, error) {

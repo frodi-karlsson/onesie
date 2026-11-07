@@ -9,6 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -54,7 +56,7 @@ func answersFor(
 func caching(flags runConfig) bool {
 	// A mock replaces the answerer the cache would wrap, and a dry run builds none, so skipping the
 	// cache there costs nothing and needs no word.
-	if flags.mockPath != "" || flags.printRequest {
+	if flags.mockPath != "" || setting.Get(flags.merged, setting.PrintRequest) {
 		return false
 	}
 

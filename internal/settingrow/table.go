@@ -167,7 +167,7 @@ func policyRows() []Row {
 			FileKey:  "fallback",
 			FileHelp: "The answer that stands in for one that falls short.",
 			Flag:     FlagSpec{Long: "fallback", Group: true, Commands: onRoot()},
-			Help:     "value substituted on low confidence and on error",
+			Help:     "Use this as answer.decision on low confidence or error. JSON keeps the model answer in answer.value when available.",
 		},
 		{
 			Name: "assert", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),

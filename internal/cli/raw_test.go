@@ -984,19 +984,19 @@ func TestRequests(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		flags runFlags
+		flags map[string]any
 		want  bool
 	}{
 		{name: "should send requests on a run that asks", want: true},
-		{name: "should send none under --print-questions", flags: runFlags{printQuestions: true}},
-		{name: "should send none under --print-request", flags: runFlags{printRequest: true}},
+		{name: "should send none under --print-questions", flags: map[string]any{"print_questions": true}},
+		{name: "should send none under --print-request", flags: map[string]any{"print_request": true}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := requests(runConfig{runFlags: tc.flags}); got != tc.want {
+			if got := requests(runWith(tc.flags)); got != tc.want {
 				t.Errorf("requests = %t, want %t", got, tc.want)
 			}
 		})

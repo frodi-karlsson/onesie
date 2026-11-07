@@ -4,15 +4,12 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
-
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func quietWithMarkdownRule() Rule {
 	return Rule{
-		ID:    "quiet-without-markdown",
-		Reads: []settingrow.Name{Quiet.Name(), Output.Name()},
+		ID: "quiet-without-markdown",
 		Check: func(v View) error {
 			if Get(v.Merged, Quiet) && markdownOutput(v) {
 				return fmt.Errorf("-q suppresses output, which leaves -o %s nothing to write", outputTyped(v))
@@ -29,8 +26,7 @@ func markdownOutput(v View) bool {
 
 func quietWritesNothingRule() Rule {
 	return Rule{
-		ID:    "quiet-writes-nothing",
-		Reads: []settingrow.Name{Quiet.Name(), Raw.Name(), Output.Name(), Out.Name(), MergeInput.Name(), MergeKey.Name()},
+		ID: "quiet-writes-nothing",
 		Check: func(v View) error {
 			if !Get(v.Merged, Quiet) {
 				return nil
@@ -69,8 +65,7 @@ func outputTyped(v View) string {
 
 func quietWithUsageRule() Rule {
 	return Rule{
-		ID:    "quiet-without-usage",
-		Reads: []settingrow.Name{Quiet.Name(), Usage.Name()},
+		ID: "quiet-without-usage",
 		Check: func(v View) error {
 			if Get(v.Merged, Usage) && Get(v.Merged, Quiet) {
 				return errors.New("--usage does not apply to -q, which suppresses output")
@@ -83,8 +78,7 @@ func quietWithUsageRule() Rule {
 
 func quietOnStreamRule() Rule {
 	return Rule{
-		ID:    "quiet-reads-one-record",
-		Reads: []settingrow.Name{Quiet.Name(), Input.Name()},
+		ID: "quiet-reads-one-record",
 		Check: func(v View) error {
 			if inputModeOf(v).Streaming() && Get(v.Merged, Quiet) {
 				return fmt.Errorf("-q reads one record. Drop -i %s or use -o values and filter the stream", inputName(v))
@@ -97,8 +91,7 @@ func quietOnStreamRule() Rule {
 
 func quietNeedsAGateRule() Rule {
 	return Rule{
-		ID:    "quiet-needs-one-question",
-		Reads: []settingrow.Name{Quiet.Name(), assertName, "min_confidence", "fallback"},
+		ID: "quiet-needs-one-question",
 		Check: func(v View) error {
 			// Beside an assertion -q only silences the output, since the assertion is the gate.
 			if v.Plan == nil || !Get(v.Merged, Quiet) || hasAssert(v) {

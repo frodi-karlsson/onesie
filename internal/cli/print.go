@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -142,9 +144,9 @@ func streamRequests(
 		Source:      source,
 		Evaluate:    run.evaluate,
 		Write:       writeBodies(cmd.OutOrStdout()),
-		Jobs:        flags.jobs,
-		Unordered:   flags.unordered,
-		StopOnError: flags.stopOnError,
+		Jobs:        setting.Get(flags.merged, setting.Jobs),
+		Unordered:   setting.Get(flags.merged, setting.Unordered),
+		StopOnError: setting.Get(flags.merged, setting.StopOnError),
 		Abort:       aborting,
 	})
 	source.stop()

@@ -982,7 +982,7 @@ func TestReadLabelled(t *testing.T) {
 
 		settings := defaultSettings(BuildInfo{})
 		settings.stdin = strings.NewReader("{\"body\":\"a\",\"u\":true}\n{\"body\":\"b\"}\n\n{\"body\":\"c\",\"u\":1}\n")
-		flags := runConfig{runFlags: runFlags{skipBlank: true}}
+		flags := runWith(map[string]any{"skip_blank": true})
 		labels := []questionLabel{{id: "u", shape: plan.Noul, expr: label}}
 
 		set, err := readLabelled(t.Context(), settings, input.JSONL, flags, mapper, nil, labels)

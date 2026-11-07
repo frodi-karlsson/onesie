@@ -57,7 +57,7 @@ func TestCaching(t *testing.T) {
 		},
 		{
 			name:  "should be off under --print-request",
-			flags: runConfig{runFlags: runFlags{printRequest: true}, env: switches{cache: true}},
+			flags: runWith(map[string]any{"print_request": true, "cache": true}),
 		},
 	}
 
@@ -1004,13 +1004,13 @@ func TestAsk(t *testing.T) {
 
 	direct := []struct {
 		name     string
-		flags    runFlags
+		flags    map[string]any
 		noul     float64
 		wantOut  string
 		wantFail bool
 	}{
-		{name: "should write the record the answerer gives", flags: runFlags{output: "values"}, noul: 0.9, wantOut: "{\"answer\":0.9}\n"},
-		{name: "should write nothing under -q and reject a no", flags: runFlags{quiet: true}, noul: 0.2, wantFail: true},
+		{name: "should write the record the answerer gives", flags: map[string]any{"output": "values"}, noul: 0.9, wantOut: "{\"answer\":0.9}\n"},
+		{name: "should write nothing under -q and reject a no", flags: map[string]any{"quiet": true}, noul: 0.2, wantFail: true},
 	}
 
 	for _, tc := range direct {
@@ -1034,7 +1034,7 @@ func TestAsk(t *testing.T) {
 				return &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"answer": &onesie.NoulAnswer{Noul: tc.noul}}}
 			}}
 
-			err := ask(cmd, settings, runConfig{runFlags: tc.flags}, inv,
+			err := ask(cmd, settings, runWith(tc.flags), inv,
 				singleState{resolved: input.Resolved{Source: input.SourceState, State: "x"}, sent: "x"},
 				output.Values, &collector{}, func(context.Context, *collector) (answerer, error) {
 					return asker, nil
