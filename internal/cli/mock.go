@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"time"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/mock"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -33,7 +35,7 @@ func mockAnswers(
 	}
 
 	answers, err := mock.Load(bytes.NewReader(data), known, mock.Options{
-		ByID: flags.idSource != "", Spelled: flags.mockSpelled, Asked: asked, Provider: provider,
+		ByID: setting.Get(flags.merged, setting.ID) != "", Spelled: flags.mockSpelled, Asked: asked, Provider: provider,
 	})
 	if err != nil {
 		return nil, err
@@ -61,7 +63,7 @@ func mockClient(
 		onesie.WithBaseURL(mockBaseURL),
 		onesie.WithHTTPClient(&http.Client{Transport: settings.mockTransport(provider)}),
 		onesie.WithClock(instantClock{now: settings.now}),
-		onesie.WithRetry(retryPolicy(flags.runFlags)),
+		onesie.WithRetry(retryPolicy(setting.Get(flags.merged, setting.Retries), setting.Get(flags.merged, setting.MaxRetryAfter))),
 	}
 
 	return onesie.New(append(opts, runOptions(flags, stats)...)...)

@@ -35,12 +35,12 @@ var errWrapRepeated = errors.New("--merge wraps an input that is not an object u
 func validated(
 	cmd *cobra.Command, settings rootSettings, events []argv.Event, positional string, parsed *runFlags,
 ) (staged, error) {
-	// Only the refusal is read here. runConfig holds the values the run uses.
-	if _, err := setting.ParseRun(settingrow.Table(), parsed.given, settingrow.CommandRoot); err != nil {
+	early, err := setting.ParseRun(settingrow.Table(), parsed.given, settingrow.CommandRoot)
+	if err != nil {
 		return staged{}, err
 	}
 
-	flags, err := newRunConfig(*parsed, events, positional)
+	flags, err := newRunConfig(early, parsed.given, events, positional)
 	if err != nil {
 		return staged{}, err
 	}
@@ -49,7 +49,7 @@ func validated(
 
 	// Both modes sit ahead of the plan, since neither has a question and failing for want of one
 	// would send the user to the wrong flag. They validate with no plan.
-	if flags.listModels || flags.inputMode == input.Request {
+	if setting.Get(flags.merged, setting.ListModels) || flags.inputMode == input.Request {
 		merged, mergeErr := mergeRun(settings, flags, parsed.given, settingrow.CommandRoot, nil)
 		if mergeErr != nil {
 			return staged{}, mergeErr
@@ -108,7 +108,7 @@ func run(
 ) error {
 	flags := ready.config
 
-	if flags.listModels {
+	if setting.Get(flags.merged, setting.ListModels) {
 		return runListModels(cmd, settings, flags, out)
 	}
 
@@ -124,7 +124,7 @@ func run(
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
 	// for it. After validation, because a dry run that accepted a plan the real run would reject
 	// would be worse than useless.
-	if flags.printQuestions {
+	if setting.Get(flags.merged, setting.PrintQuestions) {
 		out.BindWithoutFingerprint()
 
 		return printQuestions(
@@ -149,7 +149,7 @@ func runRequestBodies(
 	// Each body names its own model or takes the run's, and the fingerprint holds no model, as
 	// it holds nothing else a body carries.
 	if bindErr := bindOut(out, settings, flags, nil, answersfile.FingerprintInputs{
-		Input: flags.inputMode.String(), LongContext: flags.env.longContext, Usage: flags.usage,
+		Input: flags.inputMode.String(), LongContext: flags.env.longContext, Usage: setting.Get(flags.merged, setting.Usage),
 	}); bindErr != nil {
 		return bindErr
 	}
@@ -190,7 +190,7 @@ func runPlan(
 	bindErr := bindOut(out, settings, flags, built.Questions, answersfile.FingerprintInputs{
 		Model: model, Output: outputMode.String(), Input: inputMode.String(), Assert: gate.Source(),
 		AbstainIf: abstain.Source(), Images: inv.images.fingerprint(), LongContext: built.LongContext,
-		Usage: flags.usage,
+		Usage: setting.Get(flags.merged, setting.Usage),
 	})
 	if bindErr != nil {
 		return bindErr
@@ -236,7 +236,7 @@ func runOne(
 		return err
 	}
 
-	if requests(flags) && resolved.Source == input.SourceNone && len(flags.images) == 0 {
+	if requests(flags) && resolved.Source == input.SourceNone && len(flags.list("image")) == 0 {
 		return noState(resolved)
 	}
 
@@ -253,7 +253,7 @@ func runOne(
 		return err
 	}
 
-	if len(flags.images) > 0 {
+	if len(flags.list("image")) > 0 {
 		resolved, err = imagedState(sent)
 		if err != nil {
 			return err
@@ -261,7 +261,7 @@ func runOne(
 	}
 
 	// After the state is resolved, so the body carries the state a real run would send.
-	if flags.printRequest {
+	if setting.Get(flags.merged, setting.PrintRequest) {
 		chosen, err := connected(settings, flags)
 		if err != nil {
 			return err
@@ -365,15 +365,15 @@ func resolveState(
 	}
 
 	// --image is a state source, so stdin is read only when --state asks for stdin.
-	stdinTTY := settings.stdinTTY || len(flags.images) > 0
+	stdinTTY := settings.stdinTTY || len(flags.list("image")) > 0
 
 	return input.Resolve(ctx, input.Query{
 		Mode:         flags.inputMode,
 		Stdin:        settings.stdin,
 		StdinTTY:     stdinTTY,
-		State:        flags.state,
+		State:        setting.Get(flags.merged, setting.State),
 		HasState:     flags.typed(setting.State.Name()),
-		StateFile:    flags.stateFile,
+		StateFile:    setting.Get(flags.merged, setting.StateFile),
 		HasStateFile: flags.typed(setting.StateFile.Name()),
 		ReadFile:     settings.readFile,
 		Hint:         hint,
@@ -418,8 +418,8 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	}
 
 	inputs.Provider = chosen.provider.Name()
-	inputs.MapSource = flags.mapSource
-	inputs.IDSource = flags.idSource
+	inputs.MapSource = setting.Get(flags.merged, setting.Map)
+	inputs.IDSource = setting.Get(flags.merged, setting.ID)
 
 	if merging(flags) {
 		inputs.MergeKey = mergeKey(flags)
@@ -427,7 +427,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 
 	// A resume by position skips one record per stored line, and --skip-blank changes which record
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.SkipBlank = flags.skipBlank && !resumesByID(flags.runFlags) && !delimitedInput(inputs.Input)
+	inputs.SkipBlank = setting.Get(flags.merged, setting.SkipBlank) && !resumesByID(flags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 	inputs.Delimiter = flags.parsedDelimiter
 	inputs.Profile = chosen.profile
@@ -457,8 +457,8 @@ func endpointOf(chosen resolution) (baseURL, account string) {
 	}
 }
 
-func resumesByID(flags runFlags) bool {
-	return flags.idSource != ""
+func resumesByID(flags runConfig) bool {
+	return setting.Get(flags.merged, setting.ID) != ""
 }
 
 func delimitedInput(name string) bool {
@@ -606,7 +606,7 @@ func compact(raw string) []byte {
 }
 
 func stopping(flags runConfig) func(line) bool {
-	if !flags.stopOnAssert {
+	if !setting.Get(flags.merged, setting.StopOnAssert) {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
 		return nil
@@ -719,7 +719,7 @@ func ask(
 
 	record, err := askAndRecord(
 		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
-		flags.usage, stats)
+		setting.Get(flags.merged, setting.Usage), stats)
 	if halting(err) {
 		return err
 	}
@@ -747,7 +747,7 @@ func ask(
 	// such as answer.value < 0.5 would hold for a request that never happened.
 	record = judge(gate, abstain, record, stats)
 
-	if flags.quiet {
+	if setting.Get(flags.merged, setting.Quiet) {
 		// Beside an assertion -q only silences the output. A gate of its own on top would make a
 		// safety assertion such as value < 0.5 impossible to pass.
 		if gate == nil {
@@ -813,7 +813,7 @@ func writeFailure(
 	resolved input.Resolved,
 	record output.Record,
 ) error {
-	if flags.quiet {
+	if setting.Get(flags.merged, setting.Quiet) {
 		return nil
 	}
 
@@ -822,7 +822,7 @@ func writeFailure(
 
 func rowShowsFailure(settings rootSettings, flags runConfig, mode output.Mode) bool {
 	// Under --out the row goes to a file, so the terminal shows only the stderr line.
-	return mode == output.Table && !flags.quiet && flags.out == "" && settings.stdoutTTY && settings.sharedTTY
+	return mode == output.Table && !setting.Get(flags.merged, setting.Quiet) && setting.Get(flags.merged, setting.Out) == "" && settings.stdoutTTY && settings.sharedTTY
 }
 
 func writeRecord(
@@ -927,7 +927,7 @@ func fallbackIDs(questions []plan.Question) []string {
 }
 
 func merging(flags runConfig) bool {
-	return flags.merge || flags.mergeKey != ""
+	return setting.Get(flags.merged, setting.MergeInput) || setting.Get(flags.merged, setting.MergeKey) != ""
 }
 
 func writeMerged(
@@ -941,8 +941,8 @@ func writeMerged(
 }
 
 func mergeKey(flags runConfig) string {
-	if flags.mergeKey != "" {
-		return flags.mergeKey
+	if setting.Get(flags.merged, setting.MergeKey) != "" {
+		return setting.Get(flags.merged, setting.MergeKey)
 	}
 
 	return "answers"

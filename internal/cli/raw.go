@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -28,26 +30,26 @@ func streamRaw(
 		return err
 	}
 
-	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, flags.stopOnError, resume)
+	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, setting.Get(flags.merged, setting.StopOnError), resume)
 	if err != nil {
 		return err
 	}
 
 	source := &resumed{
-		source: input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: flags.skipBlank}),
+		source: input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: setting.Get(flags.merged, setting.SkipBlank)}),
 		left:   resume.Skip,
 		stored: resume.Stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
-		haltOnError: flags.stopOnError,
+		haltOnError: setting.Get(flags.merged, setting.StopOnError),
 	}
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
 		Source:      source,
 		Evaluate:    run.evaluate,
 		Write:       writeBodies(cmd.OutOrStdout()),
-		Jobs:        flags.jobs,
-		Unordered:   flags.unordered,
-		StopOnError: flags.stopOnError,
+		Jobs:        setting.Get(flags.merged, setting.Jobs),
+		Unordered:   setting.Get(flags.merged, setting.Unordered),
+		StopOnError: setting.Get(flags.merged, setting.StopOnError),
 		Abort:       aborting,
 	})
 
@@ -168,5 +170,5 @@ func longContextOptions(on bool) []onesie.RequestOption {
 }
 
 func requests(flags runConfig) bool {
-	return !flags.printQuestions && !flags.printRequest
+	return !setting.Get(flags.merged, setting.PrintQuestions) && !setting.Get(flags.merged, setting.PrintRequest)
 }

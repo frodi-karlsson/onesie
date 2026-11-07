@@ -14,12 +14,9 @@ const requireName settingrow.Name = "require"
 
 func calibrateRules() []Rule {
 	return []Rule{
-		calibrating("calibrate-reads-records", []settingrow.Name{Input.Name(), Delimiter.Name()}, checkCalibrateInput),
-		calibrating("offline-reads-out", []settingrow.Name{
-			Offline.Name(), Mock.Name(), PrintRequest.Name(), Out.Name(),
-			Resume.Name(), Prune.Name(),
-		}, checkOffline),
-		calibrating("calibrate-needs-map", []settingrow.Name{Map.Name()}, func(v View) error {
+		calibrating("calibrate-reads-records", checkCalibrateInput),
+		calibrating("offline-reads-out", checkOffline),
+		calibrating("calibrate-needs-map", func(v View) error {
 			if typed(v, Map.Name()) {
 				return nil
 			}
@@ -27,8 +24,8 @@ func calibrateRules() []Rule {
 			return errors.New("calibrate needs --map. Without it the whole record, label included, " +
 				"would be the state, and the report would flatter the question")
 		}),
-		calibrating("calibrate-report", []settingrow.Name{Output.Name(), PrintRequest.Name()}, checkReport),
-		calibrating("cuts-parse", []settingrow.Name{Cuts.Name()}, func(v View) error {
+		calibrating("calibrate-report", checkReport),
+		calibrating("cuts-parse", func(v View) error {
 			if !typed(v, Cuts.Name()) {
 				return nil
 			}
@@ -39,7 +36,7 @@ func calibrateRules() []Rule {
 
 			return nil
 		}),
-		calibrating("calibrate-resumes-by-id", []settingrow.Name{Resume.Name(), ID.Name(), PrintRequest.Name()}, func(v View) error {
+		calibrating("calibrate-resumes-by-id", func(v View) error {
 			// A dry run is left to the resume rule, whose message drops --resume rather than asking for
 			// an --id it would then refuse as well.
 			if Get(v.Merged, Resume) && !typed(v, ID.Name()) && !Get(v.Merged, PrintRequest) {
@@ -48,7 +45,7 @@ func calibrateRules() []Rule {
 
 			return nil
 		}),
-		calibrating("calibrate-dry-run-out", []settingrow.Name{PrintRequest.Name(), Out.Name(), Resume.Name()}, func(v View) error {
+		calibrating("calibrate-dry-run-out", func(v View) error {
 			// A resume is left to the resume rule, whose message names --resume as the flag with
 			// nothing to do.
 			if Get(v.Merged, PrintRequest) && Get(v.Merged, Out) != "" && !Get(v.Merged, Resume) {
@@ -58,9 +55,8 @@ func calibrateRules() []Rule {
 
 			return nil
 		}),
-		calibrating("calibrate-usage", []settingrow.Name{Usage.Name(), PrintRequest.Name(), Out.Name(), Output.Name()},
-			checkCalibrateUsage),
-		calibrating("requires-parse", []settingrow.Name{requireName}, func(v View) error {
+		calibrating("calibrate-usage", checkCalibrateUsage),
+		calibrating("requires-parse", func(v View) error {
 			for _, text := range listOf(v, requireName) {
 				if _, err := calibrate.ParseRequirement(text); err != nil {
 					return fmt.Errorf("--require '%s' %w", text, err)
@@ -72,10 +68,9 @@ func calibrateRules() []Rule {
 	}
 }
 
-func calibrating(id string, reads []settingrow.Name, check func(View) error) Rule {
+func calibrating(id string, check func(View) error) Rule {
 	return Rule{
-		ID:    id,
-		Reads: reads,
+		ID: id,
 		Check: func(v View) error {
 			if v.Facts.Command != settingrow.CommandCalibrate {
 				return nil

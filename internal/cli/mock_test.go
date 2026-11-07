@@ -1191,7 +1191,7 @@ func TestMockAnswerer_Answer(t *testing.T) {
 		settings := defaultSettings(BuildInfo{})
 		settings.lookupEnv = lookupFrom(map[string]string{})
 
-		client, err := mockClient(settings, runConfig{runFlags: runFlags{retries: retries}}, provider, stats)
+		client, err := mockClient(settings, runWith(map[string]any{"retries": retries}), provider, stats)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}

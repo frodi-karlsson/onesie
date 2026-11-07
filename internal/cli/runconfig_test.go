@@ -29,9 +29,9 @@ func TestNewRunConfig(t *testing.T) {
 			check: func(t *testing.T, got runConfig) {
 				t.Helper()
 
-				if got.inputMode != input.JSONL || got.input != "jsonl" || got.timeout != 30 || !got.longContext {
+				if got.inputMode != input.JSONL || setting.Get(got.merged, setting.Input) != "jsonl" || setting.Get(got.merged, setting.Timeout) != 30 || !setting.Get(got.merged, setting.LongContext) {
 					t.Errorf("input = %v %q, timeout %d, long context %v, want jsonl, 30 and on",
-						got.inputMode, got.input, got.timeout, got.longContext)
+						got.inputMode, setting.Get(got.merged, setting.Input), setting.Get(got.merged, setting.Timeout), setting.Get(got.merged, setting.LongContext))
 				}
 
 				for _, name := range []settingrow.Name{
@@ -99,7 +99,11 @@ func TestNewRunConfig(t *testing.T) {
 
 			events := []argv.Event{{Name: "ask", Value: "a=x"}}
 
-			got, err := newRunConfig(*flags, events, "is it urgent")
+			parsed, err := setting.ParseRun(settingrow.Table(), flags.given, settingrow.CommandRoot)
+			var got runConfig
+			if err == nil {
+				got, err = newRunConfig(parsed, flags.given, events, "is it urgent")
+			}
 
 			if tc.wantErr != "" {
 				if err == nil || err.Error() != tc.wantErr {
@@ -116,44 +120,6 @@ func TestNewRunConfig(t *testing.T) {
 			tc.check(t, got)
 		})
 	}
-
-	t.Run("should hold the values ParseRun parses for the same flags", func(t *testing.T) {
-		t.Parallel()
-
-		for _, args := range [][]string{
-			{"-j", "4", "--timeout", "7", "-o", "md"},
-			{"-o", "values"},
-			{},
-		} {
-			flags, cmd := registeredRun()
-
-			if err := cmd.Flags().Parse(args); err != nil {
-				t.Fatal(err)
-			}
-
-			parsed, err := setting.ParseRun(settingrow.Table(), flags.given, settingrow.CommandRoot)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			config, err := newRunConfig(*flags, nil, "is it urgent")
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if got := setting.Get(parsed, setting.Jobs); got != config.jobs {
-				t.Errorf("%v: ParseRun -j = %d, runConfig = %d", args, got, config.jobs)
-			}
-
-			if got := setting.Get(parsed, setting.Timeout); got != config.timeout {
-				t.Errorf("%v: ParseRun --timeout = %d, runConfig = %d", args, got, config.timeout)
-			}
-
-			if got, want := setting.Get(parsed, setting.Output), canonicalOutput(config.output); got != want {
-				t.Errorf("%v: ParseRun -o = %q, runConfig = %q", args, got, want)
-			}
-		}
-	})
 }
 
 func registeredRun() (*runFlags, *cobra.Command) {
@@ -235,10 +201,10 @@ func TestRunConfig_withMerged(t *testing.T) {
 	}
 }
 
-func canonicalOutput(name string) string {
-	if name == "md" {
-		return "markdown"
+func runWith(values map[string]any) runConfig {
+	merged := &setting.Merged{}
+	for name, value := range values {
+		merged.Set(settingrow.Name(name), value, setting.SourceFlag)
 	}
-
-	return name
+	return runConfig{}.withMerged(merged)
 }

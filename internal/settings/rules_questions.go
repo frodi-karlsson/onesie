@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
-
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
@@ -16,8 +14,7 @@ var ErrNoQuestion = errors.New("no question given. Pass a question, --ask, or -f
 
 func noQuestionRule() Rule {
 	return Rule{
-		ID:    "needs-a-question",
-		Reads: []settingrow.Name{"ask", File.Name()},
+		ID: "needs-a-question",
 		Check: func(v View) error {
 			if v.Plan != nil && len(v.Plan.Questions) == 0 {
 				return ErrNoQuestion
@@ -30,8 +27,7 @@ func noQuestionRule() Rule {
 
 func replaceNeedsFileRule() Rule {
 	return Rule{
-		ID:    "replace-needs-file",
-		Reads: []settingrow.Name{Replace.Name(), File.Name()},
+		ID: "replace-needs-file",
 		Check: func(v View) error {
 			if Get(v.Merged, Replace) && Get(v.Merged, File) == "" {
 				return errors.New("--replace applies to -f, which was not given")
@@ -44,8 +40,7 @@ func replaceNeedsFileRule() Rule {
 
 func forSelectsRule() Rule {
 	return Rule{
-		ID:    "for-selects-a-file-question",
-		Reads: []settingrow.Name{"for", File.Name(), Replace.Name()},
+		ID: "for-selects-a-file-question",
 		Check: func(v View) error {
 			if v.Plan == nil || len(v.Plan.Selections) == 0 {
 				return nil
@@ -109,8 +104,7 @@ func fromFile(built *plan.Plan) []plan.Question {
 
 func fileQuestionShapeRule() Rule {
 	return Rule{
-		ID:    "file-question-shape",
-		Reads: []settingrow.Name{"for", "pick", "rate", "box", "desc", "sep", File.Name()},
+		ID: "file-question-shape",
 		Check: func(v View) error {
 			if v.Plan == nil {
 				return nil
@@ -172,8 +166,7 @@ func shapeNoun(shape plan.Shape) string {
 
 func policyBindingRule() Rule {
 	return Rule{
-		ID:    "policy-binding",
-		Reads: []settingrow.Name{"ask", "pick", "rate", "box", "desc", "sep", "threshold", "min_confidence", "fallback"},
+		ID: "policy-binding",
 		Check: func(v View) error {
 			if v.Plan == nil || len(v.Plan.Orphans) == 0 || len(v.Plan.Questions) == 1 {
 				return nil
@@ -234,8 +227,7 @@ func typedFlag(event argv.Event) string {
 
 func questionsValidRule() Rule {
 	return Rule{
-		ID:    "questions-valid",
-		Reads: []settingrow.Name{"ask", File.Name()},
+		ID: "questions-valid",
 		Inspect: func(v View) ([]string, error) {
 			if v.Plan == nil {
 				return nil, nil

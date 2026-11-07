@@ -100,7 +100,14 @@ func TestBuild(t *testing.T) {
 			settings.lookupEnv = lookupFrom(nil)
 			settings.readFile = func(string) ([]byte, error) { return []byte(tc.file), nil }
 			settings.holder = newHolder(settings, parsed, func() io.Writer { return io.Discard })
-			flags := runConfig{runFlags: *parsed, events: tc.events}
+			early, err := setting.ParseRun(settingrow.Table(), parsed.given, settingrow.CommandRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			flags, err := newRunConfig(early, parsed.given, tc.events, "")
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			command := settingrow.CommandRoot
 			if tc.ignoreJudged {

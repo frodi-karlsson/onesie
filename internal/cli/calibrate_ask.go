@@ -43,13 +43,13 @@ func calibrateRun(
 	cuts := cutsFor(base, bound, len(scope.scored.Questions))
 
 	if calib.offline {
-		if _, statErr := settings.stat(flags.out); errors.Is(statErr, fs.ErrNotExist) {
+		if _, statErr := settings.stat(setting.Get(flags.merged, setting.Out)); errors.Is(statErr, fs.ErrNotExist) {
 			return fmt.Errorf("%s does not exist, so --offline has nothing to read. "+
-				"Rerun without --offline to create it", flags.out)
+				"Rerun without --offline to create it", setting.Get(flags.merged, setting.Out))
 		}
 	}
 
-	out, _, err := openOut(settings, flags.runFlags, calib.offline)
+	out, _, err := openOut(settings, flags, calib.offline)
 
 	defer func() {
 		err = settings.laterFailures.keepFirst(err, out.Release())
@@ -148,7 +148,7 @@ func calibrateAnswers(
 	bindErr := bindOut(out, settings, flags, run.asked.Questions, run.inputs)
 	if stale := (*answersfile.StaleAnswersError)(nil); calib.offline && errors.As(bindErr, &stale) {
 		return &plainError{cause: bindErr, message: fmt.Sprintf("%s does not match this run, since %s, so "+
-			"--offline cannot read it. Rerun without --offline and --resume to regenerate it", flags.out, stale.Cause())}
+			"--offline cannot read it. Rerun without --offline and --resume to regenerate it", setting.Get(flags.merged, setting.Out), stale.Cause())}
 	}
 
 	if bindErr != nil {
@@ -161,13 +161,13 @@ func calibrateAnswers(
 	}
 
 	if calib.offline && len(resumed.pending) > 0 {
-		return unansweredOffline(flags.out, resumed.pending)
+		return unansweredOffline(setting.Get(flags.merged, setting.Out), resumed.pending)
 	}
 
 	if keptWhole {
 		askedOf := ""
 		if len(resumed.pending) > 0 {
-			askedOf = flags.out
+			askedOf = setting.Get(flags.merged, setting.Out)
 		}
 
 		if noteErr := writeSkipped(cmd.ErrOrStderr(), run.scope.skipped, true, askedOf); noteErr != nil {
@@ -175,7 +175,7 @@ func calibrateAnswers(
 		}
 	}
 
-	costErr := writeCost(cmd.ErrOrStderr(), set, resumed, flags.out, len(run.asked.Questions), calib.offline)
+	costErr := writeCost(cmd.ErrOrStderr(), set, resumed, setting.Get(flags.merged, setting.Out), len(run.asked.Questions), calib.offline)
 	if costErr != nil {
 		return costErr
 	}
@@ -209,7 +209,7 @@ func reportLabelled(
 	report.Mocked = flags.mockPath != ""
 	report.Require = measureRequirements(report, run.bound)
 
-	if flags.usage {
+	if setting.Get(flags.merged, setting.Usage) {
 		report.Usage = usageOf(outcomes)
 	}
 
@@ -290,7 +290,7 @@ func askLabelled(
 
 	book := resumed.book
 	labelled := &labelledRun{
-		run: run, asker: asker, questions: plan.WireAll(run.asked.Questions), usage: flags.usage, stats: stats,
+		run: run, asker: asker, questions: plan.WireAll(run.asked.Questions), usage: setting.Get(flags.merged, setting.Usage), stats: stats,
 		outcomes: slices.Clone(resumed.answered), book: book,
 	}
 
@@ -298,7 +298,7 @@ func askLabelled(
 		Source:   &labelledSource{records: resumed.pending},
 		Evaluate: labelled.evaluate,
 		Write:    labelled.write,
-		Jobs:     flags.jobs,
+		Jobs:     setting.Get(flags.merged, setting.Jobs),
 		Abort:    aborting,
 	})
 
@@ -318,7 +318,7 @@ func askLabelled(
 	// Only a run that asked every record rewrites the file. An interrupted one leaves the appended
 	// lines as they are, for the next resume to finish.
 	if book != nil && book.Complete() && !offline {
-		run.out.CompactInto(book.TakeOrder(flags.prune), output.JSON)
+		run.out.CompactInto(book.TakeOrder(setting.Get(flags.merged, setting.Prune)), output.JSON)
 	}
 
 	return labelled.outcomes, result, nil

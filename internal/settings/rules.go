@@ -57,11 +57,10 @@ func Validate(v View, rules []Rule) (warnings []string, notices []Notice, err er
 	return warnings, notices, nil
 }
 
-// Rule is one cross setting check. Reads names the rows it reads, Check refuses, Notice reports
-// without refusing, and Inspect warns and refuses in one pass.
+// Rule is one cross setting check. Check refuses, Notice reports without refusing,
+// and Inspect warns and refuses in one pass.
 type Rule struct {
 	ID      string
-	Reads   []settingrow.Name
 	Check   func(View) error
 	Notice  func(View) []Notice
 	Inspect func(View) ([]string, error)

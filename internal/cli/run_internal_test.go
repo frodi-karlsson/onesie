@@ -449,7 +449,7 @@ func TestRunInputs(t *testing.T) {
 		{
 			name:   "should leave --usage to the caller, since calibrate does not fingerprint it",
 			chosen: resolution{provider: onesie.TypeSafe()},
-			flags:  runConfig{runFlags: runFlags{usage: true}},
+			flags:  runWith(map[string]any{"usage": true}),
 			want:   answersfile.FingerprintInputs{Provider: "typesafe"},
 		},
 	}

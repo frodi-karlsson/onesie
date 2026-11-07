@@ -9,8 +9,7 @@ import (
 
 func stateAndStateFileRule() Rule {
 	return Rule{
-		ID:    "state-and-state-file",
-		Reads: []settingrow.Name{State.Name(), StateFile.Name()},
+		ID: "state-and-state-file",
 		Check: func(v View) error {
 			if typed(v, State.Name()) && typed(v, StateFile.Name()) {
 				return errors.New("--state and --state-file are mutually exclusive")
@@ -23,8 +22,7 @@ func stateAndStateFileRule() Rule {
 
 func bodyStateRule() Rule {
 	return Rule{
-		ID:    "one-state",
-		Reads: []settingrow.Name{State.Name(), StateFile.Name(), imageName, File.Name()},
+		ID: "one-state",
 		Check: func(v View) error {
 			if !v.Facts.BodyState || v.Facts.Command == settingrow.CommandCalibrate {
 				return nil

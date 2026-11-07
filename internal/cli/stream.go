@@ -21,7 +21,7 @@ import (
 )
 
 func stream(cmd *cobra.Command, in streamInputs) error {
-	if in.flags.printRequest {
+	if setting.Get(in.flags.merged, setting.PrintRequest) {
 		return streamRequests(cmd, in.settings, in.flags, in.inv, in.resume)
 	}
 
@@ -34,9 +34,9 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		Source:      run.source,
 		Evaluate:    run.evaluate,
 		Write:       run.write,
-		Jobs:        in.flags.jobs,
-		Unordered:   in.flags.unordered,
-		StopOnError: in.flags.stopOnError,
+		Jobs:        setting.Get(in.flags.merged, setting.Jobs),
+		Unordered:   setting.Get(in.flags.merged, setting.Unordered),
+		StopOnError: setting.Get(in.flags.merged, setting.StopOnError),
 		Abort:       aborting,
 		Stop:        run.stop,
 	})
@@ -78,7 +78,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, in.flags.stopOnError, in.resume)
+	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, setting.Get(in.flags.merged, setting.StopOnError), in.resume)
 	if err != nil {
 		return nil, err
 	}
@@ -94,7 +94,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		md:            markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
 	}
 
-	if !in.flags.noDedup {
+	if !setting.Get(in.flags.merged, setting.NoDedup) {
 		run.shared = newDedup(in.settings.dedupLimit, func() error {
 			return output.Notice(cmd.ErrOrStderr(), fmt.Sprintf(
 				"%d distinct requests held, so later records are deduplicated only against those",
@@ -262,7 +262,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 
 	record, call, err := askOnce(ctx, group, r.stats, req, salt,
 		func() (output.Record, error) {
-			return askAndRecord(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, r.flags.usage, r.stats)
+			return askAndRecord(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, setting.Get(r.flags.merged, setting.Usage), r.stats)
 		})
 	if err != nil {
 		// Returned before the gate is asked. A failed record reads as all zeros, so a gate such as
@@ -294,7 +294,7 @@ func (r *streamRun) write(l line) error {
 		return nil
 	}
 
-	if r.flags.usage {
+	if setting.Get(r.flags.merged, setting.Usage) {
 		billOnce(&l)
 	}
 
@@ -358,7 +358,7 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 	// Only a run that read and wrote every record rewrites the file. Anything short of that leaves
 	// the appended lines as they are, for the next resume to finish.
 	if r.book != nil && !result.Aborted && !result.Broken && !r.stopped.Load() && r.book.Complete() {
-		r.answers.CompactInto(r.book.TakeOrder(r.flags.prune), r.outputMode)
+		r.answers.CompactInto(r.book.TakeOrder(setting.Get(r.flags.merged, setting.Prune)), r.outputMode)
 	}
 
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.

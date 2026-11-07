@@ -40,7 +40,7 @@ func clientBuilder(info BuildInfo, flags *runFlags, settings rootSettings) clien
 
 		opts = append(opts, chosen.options(profileKey(settings, chosen))...)
 
-		opts = append(opts, onesie.WithRetry(retryPolicy(*flags)), onesie.WithClock(settings.clock))
+		opts = append(opts, onesie.WithRetry(retryPolicy(flags.retries, flags.maxRetryAfter)), onesie.WithClock(settings.clock))
 
 		// Last, so a caller that needs the attempt observer or any other per run option wins over
 		// what the flags asked for.
@@ -87,12 +87,12 @@ func crossing(client *onesie.Client) string {
 	return "the request"
 }
 
-func retryPolicy(flags runFlags) onesie.RetryPolicy {
+func retryPolicy(retries, maxRetryAfter int) onesie.RetryPolicy {
 	// Started from the default, because a Go struct cannot tell an unset field from a zero one and
 	// the policy carries seven fields this run does not touch.
 	policy := onesie.DefaultRetryPolicy()
-	policy.MaxRetries = flags.retries
-	policy.MaxRetryAfter = time.Duration(flags.maxRetryAfter) * time.Second
+	policy.MaxRetries = retries
+	policy.MaxRetryAfter = time.Duration(maxRetryAfter) * time.Second
 
 	return policy
 }
@@ -102,7 +102,7 @@ func runOptions(flags runConfig, stats *collector) []onesie.Option {
 
 	// Only when given, so onesie-go keeps its longer default for a request with images.
 	if flags.typed(setting.Timeout.Name()) {
-		opts = append(opts, onesie.WithAttemptTimeout(time.Duration(flags.timeout)*time.Second))
+		opts = append(opts, onesie.WithAttemptTimeout(time.Duration(setting.Get(flags.merged, setting.Timeout))*time.Second))
 	}
 
 	return opts

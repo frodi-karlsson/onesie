@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -72,7 +74,7 @@ func readLabelled(
 	defer stop()
 
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
-		SkipBlank: flags.skipBlank, Delimiter: flags.parsedDelimiter,
+		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
 	})
 	next := readAhead(ctx, stream)
 	reader := &labelReader{mapper: mapper, namer: namer, labels: labels, seen: map[[sha256.Size]byte]int{}}

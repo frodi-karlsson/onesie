@@ -49,7 +49,7 @@ func assemble(
 		Events:     flags.events,
 		Positional: flags.positional,
 		FileName:   file.name,
-		Replace:    flags.replace,
+		Replace:    setting.Get(flags.merged, setting.Replace),
 		ReadFile:   settings.readFile,
 	}
 
@@ -116,12 +116,12 @@ type assembled struct {
 }
 
 func readBuildFile(settings rootSettings, flags runConfig, ignoreFileJudgment bool) (buildFile, error) {
-	file := buildFile{name: flags.file}
-	if flags.file == "" {
+	file := buildFile{name: setting.Get(flags.merged, setting.File)}
+	if setting.Get(flags.merged, setting.File) == "" {
 		return file, nil
 	}
 
-	data, path, hides, err := readQuestionFile(settings, flags.file)
+	data, path, hides, err := readQuestionFile(settings, setting.Get(flags.merged, setting.File))
 	if err != nil {
 		return buildFile{}, err
 	}
@@ -168,12 +168,12 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 		return nil, err
 	}
 
-	mapper, err := exprOf(flags.typed(setting.Map.Name()), "--map", flags.mapSource)
+	mapper, err := exprOf(flags.typed(setting.Map.Name()), "--map", setting.Get(flags.merged, setting.Map))
 	if err != nil {
 		return nil, err
 	}
 
-	namer, err := exprOf(flags.typed(setting.ID.Name()), "--id", flags.idSource)
+	namer, err := exprOf(flags.typed(setting.ID.Name()), "--id", setting.Get(flags.merged, setting.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -184,7 +184,7 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 	}
 
 	images, err := newImaging(
-		flags.images, flags.imageFields, flags.inputMode == input.Lines, settings.readFile, bodyAssets)
+		flags.list("image"), flags.list("image_field"), flags.inputMode == input.Lines, settings.readFile, bodyAssets)
 	if err != nil {
 		return nil, err
 	}

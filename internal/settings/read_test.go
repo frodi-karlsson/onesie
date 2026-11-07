@@ -33,6 +33,27 @@ func TestRead(t *testing.T) {
 		}
 	})
 
+	t.Run("should reuse parsed flags after their bindings change", func(t *testing.T) {
+		registered := register(settingrow.CommandRoot)
+		registered.parse(t, "--timeout", "7")
+		parsed, err := settings.ParseRun(settingrow.Table(), registered.given, settingrow.CommandRoot)
+		if err != nil {
+			t.Fatal(err)
+		}
+		registered.parse(t, "--timeout", "0")
+		layers, err := settings.Read(settingrow.Table(), settings.Sources{
+			Given: registered.given, Parsed: parsed, Command: settingrow.CommandRoot,
+			Choice: &settings.Choice{},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		merged, _ := settings.Merge(settingrow.Table(), layers, settings.Choice{})
+		if got := settings.Get(merged, settings.Timeout); got != 7 {
+			t.Fatalf("timeout = %d, want 7", got)
+		}
+	})
+
 	tests := []struct {
 		name    string
 		reading reading

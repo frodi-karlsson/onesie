@@ -10,8 +10,7 @@ import (
 
 func listModelsRule() Rule {
 	return Rule{
-		ID:    "list-models-alone",
-		Reads: readsOf(append([]settingrow.Name{ListModels.Name()}, groupNames()...), modeRefusals(settingrow.ModeListModels)),
+		ID: "list-models-alone",
 		Check: func(v View) error {
 			if !Get(v.Merged, ListModels) {
 				return nil
@@ -25,8 +24,6 @@ func listModelsRule() Rule {
 func dryRunAndRequestRule() Rule {
 	return Rule{
 		ID: "dry-run-and-request",
-		Reads: readsOf([]settingrow.Name{PrintRequest.Name(), PrintQuestions.Name(), Input.Name()},
-			modeRefusals(settingrow.ModeRequest), modeRefusals(settingrow.ModePrintRequest), modeRefusals(settingrow.ModePrintQuestions)),
 		Check: func(v View) error {
 			// A dry run writes no response body and makes no request, so beside -i request it decides
 			// what the run does, and its refusals answer first. Otherwise the request mode rules lead, so
@@ -101,34 +98,6 @@ func modeWording(mode settingrow.Mode) (name, reason string) {
 }
 
 const rehearse = "Rehearse the whole command with --mock, or see the questions with --print-questions"
-
-func readsOf(reads []settingrow.Name, tables ...[]refusal) []settingrow.Name {
-	for _, table := range tables {
-		for _, rule := range table {
-			switch rule.setting {
-			case "":
-			case MergeInput.Name():
-				reads = append(reads, MergeInput.Name(), MergeKey.Name())
-			default:
-				reads = append(reads, rule.setting)
-			}
-		}
-	}
-
-	return reads
-}
-
-func groupNames() []settingrow.Name {
-	var names []settingrow.Name
-
-	for _, row := range settingrow.Table() {
-		if row.Flag.Group {
-			names = append(names, row.Name)
-		}
-	}
-
-	return names
-}
 
 func modeRefusals(mode settingrow.Mode) []refusal {
 	switch mode {

@@ -11,6 +11,8 @@ import (
 	"sync"
 	"time"
 
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -29,7 +31,7 @@ func withStats(
 
 	err := body(stats)
 
-	if !flags.stats {
+	if !setting.Get(flags.merged, setting.Stats) {
 		return err
 	}
 

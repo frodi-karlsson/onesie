@@ -3,17 +3,11 @@ package settings
 import (
 	"errors"
 	"fmt"
-
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func resumeRule() Rule {
 	return Rule{
-		ID: "resume-needs-a-stream",
-		Reads: []settingrow.Name{
-			Resume.Name(), Out.Name(), ListModels.Name(), PrintQuestions.Name(), PrintRequest.Name(), Input.Name(),
-			Unordered.Name(), ID.Name(), Raw.Name(), Output.Name(),
-		},
+		ID:    "resume-needs-a-stream",
 		Check: checkResume,
 	}
 }
@@ -51,8 +45,7 @@ func checkResume(v View) error {
 
 func pruneRule() Rule {
 	return Rule{
-		ID:    "prune-needs-resume-and-id",
-		Reads: []settingrow.Name{Prune.Name(), Resume.Name(), ID.Name()},
+		ID: "prune-needs-resume-and-id",
 		Check: func(v View) error {
 			switch {
 			case !Get(v.Merged, Prune):

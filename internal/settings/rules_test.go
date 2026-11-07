@@ -1715,20 +1715,6 @@ func TestRules(t *testing.T) {
 		check func(t *testing.T, rules []settings.Rule)
 	}{
 		{
-			name: "should name real rows in every rule's Reads",
-			check: func(t *testing.T, rules []settings.Rule) {
-				t.Helper()
-
-				for _, rule := range rules {
-					for _, name := range rule.Reads {
-						if _, found := settingrow.Lookup(name); !found {
-							t.Errorf("rule %s reads %s, which no row is", rule.ID, name)
-						}
-					}
-				}
-			},
-		},
-		{
 			name: "should run the rules in the order of the one stage",
 			check: func(t *testing.T, rules []settings.Rule) {
 				t.Helper()

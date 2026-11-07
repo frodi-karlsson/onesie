@@ -236,7 +236,7 @@ func runRoot(
 		return resolveErr
 	}
 
-	out, resume, err := openOut(settings, *flags, false)
+	out, resume, err := openOut(settings, ready.config, false)
 
 	defer func() {
 		err = settings.laterFailures.keepFirst(err, out.Release())
@@ -257,7 +257,7 @@ func runRoot(
 	return settings.laterFailures.keepFirst(runErr, out.Finish(runErr))
 }
 
-func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
+func openOut(settings rootSettings, flags runConfig, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
 	out, resume, err := answersfile.Open(answersfile.Options{
 		OpenFile: settings.openFile,
 		Stat:     settings.stat,
@@ -268,9 +268,9 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 		Lock:     settings.lock,
 		GOOS:     settings.goos,
 	}, answersfile.Config{
-		Path:      flags.out,
-		Resume:    flags.resume,
-		Output:    flags.output,
+		Path:      setting.Get(flags.merged, setting.Out),
+		Resume:    setting.Get(flags.merged, setting.Resume),
+		Output:    setting.Get(flags.merged, setting.Output),
 		ByID:      resumesByID(flags),
 		ReadOnly:  readOnly,
 		Delimiter: answersDelimiter(flags),
@@ -279,9 +279,9 @@ func openOut(settings rootSettings, flags runFlags, readOnly bool) (*answersfile
 	return out, resume, wordAnswersError(err)
 }
 
-func answersDelimiter(flags runFlags) input.Delimiter {
-	outputMode, outputErr := output.ParseMode(flags.output)
-	delimiter, delimiterErr := input.ParseDelimiter(flags.delimiter)
+func answersDelimiter(flags runConfig) input.Delimiter {
+	outputMode, outputErr := output.ParseMode(setting.Get(flags.merged, setting.Output))
+	delimiter, delimiterErr := input.ParseDelimiter(setting.Get(flags.merged, setting.Delimiter))
 
 	// Commas, for no --delimiter at all and for -o auto, which never resolves to csv.
 	if errors.Join(outputErr, delimiterErr) != nil {

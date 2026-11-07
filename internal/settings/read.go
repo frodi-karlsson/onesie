@@ -30,7 +30,7 @@ const (
 // Read reads every source of rows into one layer each, the highest first. A file, variable or profile
 // value whose row has no effect in the run's mode is left out, and a typed flag is kept.
 func Read(rows []settingrow.Row, src Sources) ([]Layer, error) {
-	flags, err := readFlags(rows, src.Given, src.Command)
+	flags, err := readFlags(rows, src.Given, src.Command, src.Parsed)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func Read(rows []settingrow.Row, src Sources) ([]Layer, error) {
 // Choose resolves the rows that pick a source rather than set a value: the question file, the
 // profile and the provider. The caller loads what it names before calling Read.
 func Choose(rows []settingrow.Row, src Sources) (Choice, error) {
-	flags, err := readFlags(rows, src.Given, src.Command)
+	flags, err := readFlags(rows, src.Given, src.Command, src.Parsed)
 	if err != nil {
 		return Choice{}, err
 	}
@@ -81,11 +81,12 @@ func Choose(rows []settingrow.Row, src Sources) (Choice, error) {
 	return choose(rows, src, flags, runMode(src.Command, flags, readDefaults(rows, src.Command)))
 }
 
-// Sources holds the inputs to Read. Choice reuses a resolved selection when supplied.
+// Sources holds the inputs to Read. Choice reuses a resolved selection, and Parsed reuses ParseRun.
 // DefaultProfile is the default member of profiles.json, empty when it cannot be read.
 type Sources struct {
 	Choice         *Choice
 	Given          *Given
+	Parsed         *Merged
 	File           *FileValues
 	LookupEnv      func(string) (string, bool)
 	Profile        *ProfileValues
@@ -132,7 +133,7 @@ type Choice struct {
 	DefaultProfile          string
 }
 
-func readFlags(rows []settingrow.Row, given *Given, command settingrow.Command) (Layer, error) {
+func readFlags(rows []settingrow.Row, given *Given, command settingrow.Command, parsed *Merged) (Layer, error) {
 	layer := Layer{Source: SourceFlag}
 	if given == nil {
 		return layer, nil
@@ -149,9 +150,15 @@ func readFlags(rows []settingrow.Row, given *Given, command settingrow.Command) 
 			continue
 		}
 
-		value, err := flagValue(row, bound, flag, command)
-		if err != nil {
-			return Layer{}, err
+		var value any
+		var err error
+		if parsed != nil && parsed.Source(row.Name) == SourceFlag {
+			value = parsed.Value(row.Name)
+		} else {
+			value, err = flagValue(row, bound, flag, command)
+			if err != nil {
+				return Layer{}, err
+			}
 		}
 
 		if text, isText := value.(string); isText && choosesSource(row.Name) {

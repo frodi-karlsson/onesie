@@ -15,6 +15,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
+	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
@@ -70,7 +71,7 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.F
 				return cmd.Help()
 			}
 
-			return runCalibrate(cmd, settings, flags, *calib, given, recorder.Events(), positional)
+			return runCalibrate(cmd, settings, *calib, given, recorder.Events(), positional)
 		},
 	}
 
@@ -134,23 +135,25 @@ func calibrateLong() string {
 }
 
 func runCalibrate(
-	cmd *cobra.Command, settings rootSettings, parsed *runFlags, calib calibrateFlags, given *setting.Given,
+	cmd *cobra.Command, settings rootSettings, calib calibrateFlags, given *setting.Given,
 	events []argv.Event, positional string,
 ) (err error) {
-	// Only the refusal is read here. runConfig holds the values the run uses.
-	if _, err = setting.ParseRun(settingrow.Table(), given, settingrow.CommandCalibrate); err != nil {
-		return err
-	}
-
-	own := *parsed
-	own.input, own.given = calib.input, given
-
-	flags, err := newRunConfig(own, events, positional)
+	early, err := setting.ParseRun(settingrow.Table(), given, settingrow.CommandCalibrate)
 	if err != nil {
 		return err
 	}
 
-	inputMode := flags.inputMode
+	inputMode, err := input.ParseMode(calib.input)
+	if err != nil {
+		return err
+	}
+
+	flags, err := newRunConfig(early, given, events, positional)
+	if err != nil {
+		return err
+	}
+	flags.inputMode = inputMode
+
 	flags.calibrate = &calib
 
 	// A file's gate and policy are ignored, since calibrate reports every cut and a gated file is
@@ -196,7 +199,7 @@ func runCalibrate(
 		return err
 	}
 
-	if refuseErr := refuseUnlabelledBody(settings, flags.file, scope.scored); refuseErr != nil {
+	if refuseErr := refuseUnlabelledBody(settings, setting.Get(flags.merged, setting.File), scope.scored); refuseErr != nil {
 		return refuseErr
 	}
 
@@ -205,7 +208,7 @@ func runCalibrate(
 		return err
 	}
 
-	if flags.printRequest {
+	if setting.Get(flags.merged, setting.PrintRequest) {
 		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
 			return noteErr
 		}

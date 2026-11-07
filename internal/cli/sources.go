@@ -15,6 +15,7 @@ func mergeRun(
 	rows := settingrow.Table()
 	src := setting.Sources{
 		Given:     given,
+		Parsed:    flags.merged,
 		File:      fileValues(loaded),
 		LookupEnv: settings.lookupEnv,
 		Command:   command,
@@ -52,7 +53,7 @@ func mergeRun(
 	merged, notices := setting.Merge(rows, layers, chosen)
 	config := flags.withMerged(merged)
 
-	return readSettings{config: config, notices: announced(notices, config.printRequest || config.mockPath != "")}, nil
+	return readSettings{config: config, notices: announced(notices, setting.Get(config.merged, setting.PrintRequest) || config.mockPath != "")}, nil
 }
 
 type readSettings struct {
@@ -74,7 +75,7 @@ func withoutChoice(rows []settingrow.Row) []settingrow.Row {
 }
 
 func loadedFor(settings rootSettings, flags runConfig) (loadedRun, error) {
-	if !flags.printQuestions {
+	if !setting.Get(flags.merged, setting.PrintQuestions) {
 		return settings.holder.loaded()
 	}
 

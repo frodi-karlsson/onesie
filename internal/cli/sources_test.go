@@ -351,7 +351,15 @@ func TestMergeRun(t *testing.T) {
 			settings.lookupEnv = lookupFrom(tc.env)
 			settings.holder = newHolder(settings, flags, func() io.Writer { return io.Discard })
 
-			merged, err := mergeRun(settings, runConfig{runFlags: *flags}, flags.given, settingrow.CommandRoot, nil)
+			early, err := setting.ParseRun(settingrow.Table(), flags.given, settingrow.CommandRoot)
+			if err != nil {
+				t.Fatal(err)
+			}
+			config, err := newRunConfig(early, flags.given, nil, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			merged, err := mergeRun(settings, config, flags.given, settingrow.CommandRoot, nil)
 			got := merged.config
 
 			if tc.wantErr != "" {
