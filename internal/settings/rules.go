@@ -72,7 +72,12 @@ type Rule struct {
 func NewView(merged *Merged, built *plan.Plan, facts Facts) View {
 	view := View{Merged: merged, Plan: built, Facts: facts}
 	if facts.Command == settingrow.CommandCalibrate {
-		view.Calibration, view.cutsError, view.requirementsError = prepareCalibration(view)
+		cuts, cutsErr := calibrationCuts(view)
+		requirements, requirementsErr := calibrationRequirements(view)
+		view.cutsError, view.requirementsError = cutsErr, requirementsErr
+		if cutsErr == nil && requirementsErr == nil {
+			view.Calibration = CalibrationArguments{Cuts: cuts, Requirements: requirements}
+		}
 	}
 	return view
 }

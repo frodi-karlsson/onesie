@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
@@ -85,6 +86,28 @@ func TestNewView(t *testing.T) {
 		view := (run{set: values{"cuts": "bad", "require": []string{"bad"}}}).view(t)
 		if view.Calibration.Cuts != nil || view.Calibration.Requirements != nil {
 			t.Fatal("prepared root arguments")
+		}
+	})
+
+	t.Run("should report the cuts failure ahead of a requirement failure", func(t *testing.T) {
+		for _, tc := range []struct {
+			cuts     string
+			requires []string
+			want     string
+		}{
+			{cuts: "bad", requires: []string{"bad"}, want: "--cuts "},
+			{cuts: "0.5", requires: []string{"urgent.catches >= 0.9", "bad"}, want: "--require 'bad' "},
+		} {
+			view := (run{
+				planned: true, positional: "is this urgent",
+				facts: settings.Facts{Command: settingrow.CommandCalibrate},
+				set:   values{"input": "jsonl", "cuts": tc.cuts, "require": tc.requires},
+				typed: []settingrow.Name{"input", "map", "cuts"},
+			}).view(t)
+			_, _, err := settings.Validate(view, settings.Rules())
+			if err == nil || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("error = %v, want one containing %q", err, tc.want)
+			}
 		}
 	})
 }
