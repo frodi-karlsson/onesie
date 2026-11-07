@@ -332,6 +332,17 @@ func TestRenderReadiness(t *testing.T) {
 				"used. The onesie-setup skill walks the user through it.",
 		},
 		{
+			name: "should cover a missing key and a missing account when --provider chose the provider",
+			facts: readinessFacts{
+				provider: "cloudflare", keySource: sourceNone, keyVariable: "CLOUDFLARE_API_TOKEN",
+				accountVariable: "CLOUDFLARE_ACCOUNT_ID", missingAccount: true,
+			},
+			want: "onesie is on PATH, but no API key resolves for provider cloudflare, and no account does either. Only " +
+				"--print-request, --print-questions, --print-schema and --mock work until the user sets " +
+				"CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID, or stores a profile with onesie profile create NAME " +
+				"--provider cloudflare --account-id ACCOUNT_ID. The onesie-setup skill walks the user through it.",
+		},
+		{
 			name:  "should name profile update with --key when a profile holds no key",
 			facts: readinessFacts{provider: "typesafe", profile: "work", keySource: sourceNone, keyVariable: "TYPESAFE_API_KEY"},
 			want: "onesie is on PATH, but no API key resolves for provider typesafe. Only --print-request, --print-questions, " +
