@@ -1118,8 +1118,8 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"help", "execution"},
 			wantCode: cli.ExitOK,
 			contains: []string{
-				"seconds per attempt", "retries after a failed attempt",
-				"most seconds to wait out a server Retry-After",
+				"Seconds per attempt", "Retries after a failed attempt.",
+				"Most seconds to wait out a server Retry-After.",
 			},
 		},
 		{
@@ -2772,6 +2772,7 @@ func TestNewRootCmd(t *testing.T) {
 			{args: []string{"help", "output"}, golden: "root-output.golden"},
 			{args: []string{"help", "connections"}, golden: "root-connections.golden"},
 			{args: []string{"help", "execution"}, golden: "root-execution.golden"},
+			{args: []string{"help", "exit-codes"}, golden: "root-exit-codes.golden"},
 			{args: []string{"help", "calibrate", "all"}, golden: "calibrate-all.golden"},
 			{args: []string{"help", "calibrate", "asking"}, golden: "calibrate-asking.golden"},
 			{args: []string{"help", "calibrate", "input"}, golden: "calibrate-input.golden"},
@@ -2779,6 +2780,7 @@ func TestNewRootCmd(t *testing.T) {
 			{args: []string{"help", "calibrate", "output"}, golden: "calibrate-output.golden"},
 			{args: []string{"help", "calibrate", "connections"}, golden: "calibrate-connections.golden"},
 			{args: []string{"help", "calibrate", "execution"}, golden: "calibrate-execution.golden"},
+			{args: []string{"help", "calibrate", "exit-codes"}, golden: "calibrate-exit-codes.golden"},
 			{args: []string{"version", "--help"}, golden: "version.golden"},
 			{args: []string{"profile", "--help"}, golden: "profile.golden"},
 			{args: []string{"profile", "create", "--help"}, golden: "profile-create.golden"},

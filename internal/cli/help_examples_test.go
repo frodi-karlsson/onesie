@@ -142,12 +142,48 @@ func TestHelpExamples(t *testing.T) {
 			}
 		}
 	})
+	for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+		t.Run("should give every "+command.String()+" example a unique id, a known destination and one input source", func(t *testing.T) {
+			topics := helpTopics(command)
+			ids := map[string]bool{}
+			for _, example := range helpExamples(command) {
+				if example.id == "" || ids[example.id] {
+					t.Errorf("example id %q is empty or repeated", example.id)
+				}
+				ids[example.id] = true
+				if example.stdin != "" && example.inputFile != "" {
+					t.Errorf("example %s reads both stdin and a file", example.id)
+				}
+				if len(example.places) == 0 {
+					t.Errorf("example %s has no destination", example.id)
+				}
+				for _, place := range example.places {
+					if place != "overview" && place != "footer" && !slices.ContainsFunc(topics, func(topic helpTopic) bool { return topic.name == place }) {
+						t.Errorf("example %s goes to unknown place %s", example.id, place)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestHelpDecisions(t *testing.T) {
 	t.Run("should describe the quiet threshold from its behavior owner", func(t *testing.T) {
 		if !strings.Contains(helpDecisions(), "defaulting to "+strconv.FormatFloat(quietDefaultThreshold, 'f', -1, 64)) {
 			t.Fatal("missing owned quiet threshold")
+		}
+	})
+	t.Run("should describe the assert grammar the gate skill teaches", func(t *testing.T) {
+		for _, want := range []string{
+			"path is a question id, a dot and a field",
+			`["needs review"].value`,
+			"min, max, sum and avg",
+			"There are no arithmetic operators",
+			"mug.confidence >= 0.6",
+		} {
+			if !strings.Contains(helpDecisions(), want) {
+				t.Errorf("help decisions lacks %q", want)
+			}
 		}
 	})
 	for _, tc := range []struct {
@@ -234,6 +270,37 @@ func TestHelpOutput(t *testing.T) {
 			}
 			if strings.HasPrefix(out, "{") != tc.json {
 				t.Fatal(out)
+			}
+		})
+	}
+}
+
+func TestHelpExecution(t *testing.T) {
+	t.Run("should describe the mock file format on both commands", func(t *testing.T) {
+		for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+			for _, want := range []string{
+				"A mock file is one JSON object keyed by question id",
+				"Lines match records by id under --id and by position otherwise",
+				`{"error":503}`, `{"error":"timeout"}`, `{"error":"connection"}`,
+			} {
+				if !strings.Contains(helpExecution(command), want) {
+					t.Errorf("%s help execution lacks %q", command, want)
+				}
+			}
+		}
+	})
+	for _, tc := range []struct {
+		entry string
+		code  int
+	}{
+		{`{"error":503}`, ExitUnavailable},
+		{`{"error":"timeout"}`, ExitTransport},
+		{`{"error":"connection"}`, ExitTransport},
+	} {
+		t.Run("should exit "+strconv.Itoa(tc.code)+" on the documented entry "+tc.entry, func(t *testing.T) {
+			args := []string{"is this urgent", "--state", "text", "--retries", "0", "--mock", writeMock(t, tc.entry)}
+			if _, errOut, code := runMocked(t, t.Context(), args, "", nil, nil); code != tc.code {
+				t.Fatalf("exit %d, want %d, stderr %s", code, tc.code, errOut)
 			}
 		})
 	}

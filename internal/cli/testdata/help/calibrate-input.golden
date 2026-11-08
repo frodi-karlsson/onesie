@@ -1,20 +1,19 @@
 Input
 
 Flags:
-  -i, --input FORMAT            required, jsonl, csv or tsv
-      --map EXPR                jq expression run on each record, whose result is the
-                                state sent. Map only the text a person would read
-      --id EXPR                 jq expression run on each record, whose string or number
-                                result names it
-      --delimiter STRING        field separator for -i csv: auto, or one character.
-                                Defaults to a comma
-      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
-                                record's state under NAME. Experimental on TypeSafe's
-                                side
-      --image-field NAME        repeatable, a state key whose value is a path to a PNG
-                                or JPEG, read per record. Experimental on TypeSafe's
-                                side
-      --skip-blank              drop blank lines
+  -i, --input FORMAT            Required. One of jsonl, csv or tsv.
+      --map EXPR                Run this jq expression on each record and send its
+                                result as the state. Map only the text a person would
+                                read.
+      --id EXPR                 Name each record with the string or number this jq
+                                expression returns.
+      --delimiter STRING        Set the field separator for -i csv: auto, or one
+                                character. Defaults to a comma.
+      --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
+                                Repeatable. Experimental on TypeSafe's side.
+      --image-field NAME        Read a PNG or JPEG per record from the path this state
+                                key holds. Repeatable. Experimental on TypeSafe's side.
+      --skip-blank              Drop blank lines.
 
 How they work together:
   Calibration requires JSONL, CSV or TSV records on stdin. --map runs a jq expression on
@@ -41,4 +40,5 @@ More help:
   onesie help calibrate output
   onesie help calibrate connections
   onesie help calibrate execution
+  onesie help calibrate exit-codes
   onesie help calibrate all

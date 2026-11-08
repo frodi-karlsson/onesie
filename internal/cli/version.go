@@ -51,7 +51,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&format, "output", "o", "", "json prints the same as one JSON object")
+	cmd.Flags().StringVarP(&format, "output", "o", "", "Print text, or under json the same as one JSON object.")
 	setting.RefuseEmpty(cmd.Flags(), "output")
 
 	return cmd

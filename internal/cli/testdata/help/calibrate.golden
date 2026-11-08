@@ -25,32 +25,33 @@ Asking:
                                 starter set.
 
 Input:
-  -i, --input FORMAT            required, jsonl, csv or tsv
-      --map EXPR                jq expression run on each record, whose result is the
-                                state sent. Map only the text a person would read
-      --id EXPR                 jq expression run on each record, whose string or number
-                                result names it
+  -i, --input FORMAT            Required. One of jsonl, csv or tsv.
+      --map EXPR                Run this jq expression on each record and send its
+                                result as the state. Map only the text a person would
+                                read.
+      --id EXPR                 Name each record with the string or number this jq
+                                expression returns.
 
 Evaluation:
-      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
-                                mapped state, whose result is the right answer for
-                                question ID. A question with none is skipped. With one
-                                question ID= may be left out
-      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
-                                defaults
-      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
-                                requirement the report must meet, or calibrate exits 1.
-                                Repeatable
-      --offline                 with --out and --resume, read every answer from the file
-                                and ask nothing, needing no key
+      --label [ID=]EXPR         Read the right answer for question ID with this jq
+                                expression, run on the record, not on the mapped state.
+                                A question with none is skipped. With one question ID=
+                                may be left out.
+      --cuts STRING             Comma separated cuts between 0 and 1. See Evaluation for
+                                defaults.
+      --require CONDITION       A requirement the report must meet, as
+                                [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or
+                                calibrate exits 1. Repeatable.
+      --offline                 Read every answer from the --out file and ask nothing,
+                                needing no key. Needs --out and --resume.
 
 Output:
-      --out STRING              write the answers to this file as -o json lines
-  -o, --output FORMAT           the report, table, json or auto, which means table
+      --out STRING              Write the answers to this file as -o json lines.
+  -o, --output FORMAT           The report format, table, json or auto, which means
+                                table.
 
 Execution:
-      --resume                  with --out and --id, skip the ids the file already
-                                answers
+      --resume                  Skip the ids the --out file already answers. Needs --id.
 
 More help:
   onesie help calibrate asking
@@ -59,4 +60,5 @@ More help:
   onesie help calibrate output
   onesie help calibrate connections
   onesie help calibrate execution
+  onesie help calibrate exit-codes
   onesie help calibrate all

@@ -1,17 +1,17 @@
 Evaluation
 
 Flags:
-      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
-                                mapped state, whose result is the right answer for
-                                question ID. A question with none is skipped. With one
-                                question ID= may be left out
-      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
-                                defaults
-      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
-                                requirement the report must meet, or calibrate exits 1.
-                                Repeatable
-      --offline                 with --out and --resume, read every answer from the file
-                                and ask nothing, needing no key
+      --label [ID=]EXPR         Read the right answer for question ID with this jq
+                                expression, run on the record, not on the mapped state.
+                                A question with none is skipped. With one question ID=
+                                may be left out.
+      --cuts STRING             Comma separated cuts between 0 and 1. See Evaluation for
+                                defaults.
+      --require CONDITION       A requirement the report must meet, as
+                                [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or
+                                calibrate exits 1. Repeatable.
+      --offline                 Read every answer from the --out file and ask nothing,
+                                needing no key. Needs --out and --resume.
 
 How they work together:
   Calibration compares answers with labels from the original record, not the mapped
@@ -73,4 +73,5 @@ More help:
   onesie help calibrate output
   onesie help calibrate connections
   onesie help calibrate execution
+  onesie help calibrate exit-codes
   onesie help calibrate all

@@ -11,16 +11,17 @@ Flags:
       --rate LEVELS             Rate against levels from lowest to highest.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
-      --for ID                  ID, repeatable, selects a question from -f, so the
-                                --pick, --rate, --desc and --sep after it apply to that
-                                question
+      --for ID                  Select a question from -f by ID, so the --pick, --rate,
+                                --desc and --sep after it apply to that question.
+                                Repeatable.
       --desc KEY=TEXT           Describe an option, level, yes or no.
-      --sep STRING              separator for --pick and --rate that follow it
-      --box                     make this a box question, answered with the left, top,
+      --sep STRING              Set the separator for the --pick and --rate that follow
+                                it.
+      --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,
                                 each from 0 to 1. Takes no value. Experimental on
-                                TypeSafe's side
-      --replace                 --ask overrides an id from -f
+                                TypeSafe's side.
+      --replace                 Let --ask override an id from -f.
 
 How they work together:
   A positional question has the id answer. By default a question asks for a yes or no
@@ -55,20 +56,19 @@ How they work together:
 Input
 
 Flags:
-  -i, --input FORMAT            required, jsonl, csv or tsv
-      --map EXPR                jq expression run on each record, whose result is the
-                                state sent. Map only the text a person would read
-      --id EXPR                 jq expression run on each record, whose string or number
-                                result names it
-      --delimiter STRING        field separator for -i csv: auto, or one character.
-                                Defaults to a comma
-      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
-                                record's state under NAME. Experimental on TypeSafe's
-                                side
-      --image-field NAME        repeatable, a state key whose value is a path to a PNG
-                                or JPEG, read per record. Experimental on TypeSafe's
-                                side
-      --skip-blank              drop blank lines
+  -i, --input FORMAT            Required. One of jsonl, csv or tsv.
+      --map EXPR                Run this jq expression on each record and send its
+                                result as the state. Map only the text a person would
+                                read.
+      --id EXPR                 Name each record with the string or number this jq
+                                expression returns.
+      --delimiter STRING        Set the field separator for -i csv: auto, or one
+                                character. Defaults to a comma.
+      --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
+                                Repeatable. Experimental on TypeSafe's side.
+      --image-field NAME        Read a PNG or JPEG per record from the path this state
+                                key holds. Repeatable. Experimental on TypeSafe's side.
+      --skip-blank              Drop blank lines.
 
 How they work together:
   Calibration requires JSONL, CSV or TSV records on stdin. --map runs a jq expression on
@@ -91,17 +91,17 @@ How they work together:
 Evaluation
 
 Flags:
-      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
-                                mapped state, whose result is the right answer for
-                                question ID. A question with none is skipped. With one
-                                question ID= may be left out
-      --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
-                                defaults
-      --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a
-                                requirement the report must meet, or calibrate exits 1.
-                                Repeatable
-      --offline                 with --out and --resume, read every answer from the file
-                                and ask nothing, needing no key
+      --label [ID=]EXPR         Read the right answer for question ID with this jq
+                                expression, run on the record, not on the mapped state.
+                                A question with none is skipped. With one question ID=
+                                may be left out.
+      --cuts STRING             Comma separated cuts between 0 and 1. See Evaluation for
+                                defaults.
+      --require CONDITION       A requirement the report must meet, as
+                                [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or
+                                calibrate exits 1. Repeatable.
+      --offline                 Read every answer from the --out file and ask nothing,
+                                needing no key. Needs --out and --resume.
 
 How they work together:
   Calibration compares answers with labels from the original record, not the mapped
@@ -159,11 +159,12 @@ How they work together:
 Output
 
 Flags:
-      --out STRING              write the answers to this file as -o json lines
-  -o, --output FORMAT           the report, table, json or auto, which means table
-      --usage                   add the api usage object to the answers file and the
-                                json report
-      --stats                   write a one line summary of the run to stderr at exit
+      --out STRING              Write the answers to this file as -o json lines.
+  -o, --output FORMAT           The report format, table, json or auto, which means
+                                table.
+      --usage                   Add the API usage object to the answers file and the
+                                JSON report.
+      --stats                   Write a one line summary of the run to stderr at exit.
   -h, --help                    help for calibrate
 
 How they work together:
@@ -176,19 +177,19 @@ How they work together:
 Connections
 
 Flags:
-      --provider STRING         run on this provider without a profile, typesafe,
+      --provider STRING         Run on this provider without a profile: typesafe,
                                 openrouter, berget, levanto or cloudflare. Overrides
                                 ONESIE_PROVIDER and the default profile. Refused beside
-                                --profile or ONESIE_PROFILE
-      --profile STRING          the profile a run uses, from profiles.json in the config
-                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and
-                                otherwise the default profile runs, which onesie profile
-                                use sets
-  -m, --model STRING            model override
-      --base-url STRING         api root override. Also ONESIE_BASE_URL
-      --allow-http              send the request, and any API key, over a plain http
+                                --profile or ONESIE_PROFILE.
+      --profile STRING          The profile a run uses, from profiles.json in the config
+                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER.
+                                Otherwise the default profile runs, which onesie profile
+                                use sets.
+  -m, --model STRING            Use this model.
+      --base-url STRING         Use this API root. Also ONESIE_BASE_URL.
+      --allow-http              Send the request, and any API key, over a plain http
                                 base URL to a host other than this machine. Without it
-                                such a base URL exits 2 before any request
+                                such a base URL exits 2 before any request.
 
 How they work together:
   onesie is a Unix filter over the System One API, served by typesafe, openrouter,
@@ -225,27 +226,26 @@ How they work together:
 Execution
 
 Flags:
-      --resume                  with --out and --id, skip the ids the file already
-                                answers
-      --print-request           write api shaped request bodies to stdout and exit
-      --prune                   with --resume, drop the answered ids the input no longer
-                                has
-      --long-context            raise the context limits to 262k tokens, slower and less
+      --resume                  Skip the ids the --out file already answers. Needs --id.
+      --print-request           Write API shaped request bodies to stdout and exit.
+      --prune                   Drop the answered ids the input no longer has. Needs
+                                --resume.
+      --long-context            Raise the context limits to 262k tokens, slower and less
                                 accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
-                                TypeSafe's side
-      --mock FILE               answer from this file instead of the API. Also
+                                TypeSafe's side.
+      --mock FILE               Answer from this file instead of the API. Also
                                 ONESIE_MOCK. The file is an object keyed by question id,
                                 as {"answer":0.9,"team":"billing"}, or one line per
                                 record in the shape -o json writes. A lone line that
                                 carries id, line, model, usage, assert, abstain or an
-                                error object is one record
-      --cache                   store responses on disk and answer a repeated request
-                                from them. Also ONESIE_CACHE=1
-  -j, --jobs INT                records in flight at once. Default: 1.
-      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                error object is one record.
+      --cache                   Store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1.
+  -j, --jobs INT                Records in flight at once. Default: 1.
+      --timeout INT             Seconds per attempt, 60 for a request with images unless
                                 given. Default: 10.
-      --retries INT             retries after a failed attempt. Default: 2.
-      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+      --retries INT             Retries after a failed attempt. Default: 2.
+      --max-retry-after INT     Most seconds to wait out a server Retry-After. Default:
                                 60.
 
 How they work together:
@@ -263,8 +263,14 @@ How they work together:
   input order. Answered ids absent from input stay after them unless --prune drops them.
 
   --mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so
-  gate scripts can be tested for free. --print-request writes API shaped request bodies
-  and sends none.
+  gate scripts can be tested for free. A mock file is one JSON object keyed by question
+  id, which answers every record, as in {"urgent":0.9}, or one line per record in the
+  shape -o json writes, so the --out file of a real run replays. Lines match records by
+  id under --id and by position otherwise. Blank lines are refused, apart from those at
+  the end. An entry {"error":503} fails a record as that status does,
+  {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection.
+  Each is retried as a live failure is, without the wait. --print-request writes API
+  shaped request bodies and sends none.
 
   Changing a label or --cuts reuses stored answers. A plain stream can resume the file
   with the same questions, model, input format, --map and --id, with -o json and no gate

@@ -462,7 +462,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 			name:     "should say in its help that -i is required and hide the default",
 			args:     []string{"calibrate", "--help"},
 			wantCode: ExitOK,
-			contains: []string{"required, jsonl, csv or tsv"},
+			contains: []string{"Required. One of jsonl, csv or tsv."},
 		},
 		{
 			name:     "should say in its help what each shape accepts as a label, with a sample record",

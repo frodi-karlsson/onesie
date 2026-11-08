@@ -13,18 +13,18 @@ import (
 )
 
 const (
-	allowHTTPHelp = "send the request, and any API key, over a plain http base URL to a host other than this " +
-		"machine. Without it such a base URL exits 2 before any request"
-	experimental    = "Experimental on TypeSafe's side"
+	allowHTTPHelp = "Send the request, and any API key, over a plain http base URL to a host other than this " +
+		"machine. Without it such a base URL exits 2 before any request."
+	experimental    = "Experimental on TypeSafe's side."
 	providerTS      = "typesafe"
 	providerCF      = "cloudflare"
 	providerEnvHelp = "runs without a profile on this provider when neither `--profile` nor `--provider` is given. " +
 		"Set beside `ONESIE_PROFILE`, it exits 2"
 	profileEnvHelp       = "the profile a run uses when `--profile` is not given. Beside `--provider`, it exits 2"
-	profileModelHelp     = "the model a run uses when it names none"
-	profileBaseURLHelp   = "the api root the profile's runs use"
-	profileAllowHTTPHelp = "store a plain http --base-url to a host other than this machine. Every run on the " +
-		"profile then needs --allow-http too"
+	profileModelHelp     = "The model a run uses when it names none."
+	profileBaseURLHelp   = "The API root the profile's runs use."
+	profileAllowHTTPHelp = "Store a plain http --base-url to a host other than this machine. Every run on the " +
+		"profile then needs --allow-http too."
 )
 
 // Table returns every setting, grouped by topic with the mode switches first, so --version is the
@@ -58,27 +58,27 @@ func modeRows() []Row {
 		{
 			Name: "version", HelpTopic: "output", Kind: Bool(), Modes: Modes(ModeVersion),
 			Flag: FlagSpec{Long: "version", Short: "V", AsksNothing: true, Commands: onRoot()},
-			Help: "print the version, commit, build date and the built in limits, as one JSON object under -o json",
+			Help: "Print the version, commit, build date and built in limits, as one JSON object under -o json.",
 		},
 		{
 			Name: "print_questions", HelpTopic: "asking", Kind: Bool(), Modes: Modes(ModePrintQuestions),
 			Flag: FlagSpec{Long: "print-questions", Commands: onRoot()},
-			Help: "write a question file to stdout and exit, its first line naming the schema --print-schema prints",
+			Help: "Write a question file to stdout and exit. Its first line names the schema --print-schema prints.",
 		},
 		{
 			Name: "print_schema", HelpTopic: "asking", Kind: Bool(), Modes: Modes(ModePrintSchema),
 			Flag: FlagSpec{Long: "print-schema", AsksNothing: true, Commands: onRoot()},
-			Help: "write the JSON Schema for a question file to stdout and exit",
+			Help: "Write the JSON Schema for a question file to stdout and exit.",
 		},
 		{
 			Name: "list_models", HelpTopic: "connections", Kind: Bool(), Modes: Modes(ModeListModels),
 			Flag: FlagSpec{Long: "list-models", AsksNothing: true, Commands: onRoot()},
-			Help: "write the available models to stdout and exit",
+			Help: "Write the available models to stdout and exit.",
 		},
 		{
 			Name: "print_request", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "print-request", Commands: onRuns()},
-			Help: "write api shaped request bodies to stdout and exit",
+			Help: "Write API shaped request bodies to stdout and exit.",
 		},
 	}
 }
@@ -94,12 +94,12 @@ func questionRows() []Row {
 			Name: "for", HelpTopic: "asking", HelpValue: "ID", Kind: NonEmptyText(), Modes: shaping(),
 			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
-					Help: "ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep " +
-						"after it apply to that question",
+					Help: "Select a question from -f by ID, so the --pick, --rate, --desc and --sep after it apply " +
+						"to that question. Repeatable.",
 				},
 			}},
-			Help: "ID, repeatable, selects a question from -f, so the question flags after it apply to that " +
-				"question, each with a notice",
+			Help: "Select a question from -f by ID, so the question flags after it apply to that question, " +
+				"each with a notice. Repeatable.",
 		},
 		{
 			Name: "pick", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 2, CommandCalibrate: 2}, HelpValue: "OPTIONS", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []Shape{Pick},
@@ -126,14 +126,14 @@ func questionRows() []Row {
 			Name: "sep", HelpTopic: "asking", Scope: ScopeQuestion, Kind: Separator(), Modes: shaping(),
 			Shapes: []Shape{Pick, Rate},
 			Flag:   FlagSpec{Long: "sep", Group: true, Commands: onRuns()},
-			Help:   "separator for --pick and --rate that follow it",
+			Help:   "Set the separator for the --pick and --rate that follow it.",
 		},
 		{
 			Name: "box", HelpTopic: "asking", Scope: ScopeQuestion, Kind: TrueOnly(), Modes: shaping(), Shapes: []Shape{Box},
 			FileKey:  "box",
 			FileHelp: "Makes this a box question, answered with the edges of what it finds in an image.",
 			Flag:     FlagSpec{Long: "box", NoOptDefVal: argv.Bare, Group: true, Commands: onRuns()},
-			Help: "make this a box question, answered with the left, top, right and bottom edges of what it " +
+			Help: "Make this a box question, answered with the left, top, right and bottom edges of what it " +
 				"finds in an image, each from 0 to 1. Takes no value. " + experimental,
 		},
 	}, policyRows()...)
@@ -155,7 +155,7 @@ func policyRows() []Row {
 			FileKey:  "min_confidence",
 			FileHelp: "The confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in.",
 			Flag:     FlagSpec{Long: "min-confidence", Group: true, Commands: onRoot()},
-			Help:     "pick or rate only, requires --fallback. Confidence is about 1 when p sits on one answer",
+			Help:     "The confidence a pick or rate answer must reach. Needs --fallback. Confidence is about 1 when p sits on one answer.",
 		},
 		{
 			Name: "fallback", HelpTopic: "decisions", HelpValue: "VALUE", Scope: ScopeQuestion, Kind: Fallback(), Modes: policing(),
@@ -177,8 +177,8 @@ func policyRows() []Row {
 			FileKey:  "abstain_if",
 			FileHelp: "An abstain expression, as --abstain-if takes it.",
 			Flag:     FlagSpec{Long: "abstain-if", Repeat: true, Commands: onRoot()},
-			Help: "boolean expression that turns a no into an unsure, repeatable, combined with and, needs " +
-				"--assert. Replaces the -f file's abstain_if",
+			Help: "Turn a no into an unsure when this condition holds. Repeatable, combined with and. Needs " +
+				"--assert and replaces the -f file's abstain_if.",
 		},
 	}
 }
@@ -189,11 +189,11 @@ func outputRows() []Row {
 			Name: "output", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 10, CommandCalibrate: 13}, HelpValue: "FORMAT", Kind: outputModes(), Modes: Modes(ModeAsk, ModeStream, ModeVersion, ModeCalibrate),
 			Flag: FlagSpec{Long: "output", Short: "o", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
-					Help: "the report, table, json or auto, which means table",
+					Help: "The report format, table, json or auto, which means table.",
 					Kind: Enum([]string{"table", "json", "auto"}, nil),
 				},
 			}},
-			Help: inWords(outputModes().Schema().Enum),
+			Help: "One of " + inWords(outputModes().Schema().Enum) + ".",
 		},
 		{
 			Name: "raw", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 11}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
@@ -208,26 +208,26 @@ func outputRows() []Row {
 		{
 			Name: "out", HelpTopic: "output", HelpCommon: map[Command]int{CommandCalibrate: 12}, Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels, ModeCalibrate),
 			Flag: FlagSpec{Long: "out", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "write the answers to this file as -o json lines"},
+				CommandCalibrate: {Help: "Write the answers to this file as -o json lines."},
 			}},
-			Help: "write the answers to this file rather than stdout",
+			Help: "Write the answers to this file rather than stdout.",
 		},
 		{
 			Name: "resume", HelpTopic: "execution", HelpCommon: map[Command]int{CommandCalibrate: 14}, Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "resume", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "with --out and --id, skip the ids the file already answers"},
+				CommandCalibrate: {Help: "Skip the ids the --out file already answers. Needs --id."},
 			}},
-			Help: "streaming only, with --out, carry on after the last complete line in the file. Under --id it " +
+			Help: "Carry on after the last complete line in the --out file. Streaming only. Under --id it " +
 				"skips the ids the file answers, so a record whose content changed but whose id did not keeps " +
 				"its old answer. It then rewrites the file in input order, with the answered ids the input no " +
-				"longer has kept after them, which --prune drops",
+				"longer has kept after them, which --prune drops.",
 		},
 		{
 			Name: "prune", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeCalibrate),
 			Flag: FlagSpec{Long: "prune", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "with --resume, drop the answered ids the input no longer has"},
+				CommandCalibrate: {Help: "Drop the answered ids the input no longer has. Needs --resume."},
 			}},
-			Help: "with --resume and --id, drop the answered ids the input no longer has",
+			Help: "Drop the answered ids the input no longer has. Needs --resume and --id.",
 		},
 		{
 			Name: "merge", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 12}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
@@ -237,7 +237,7 @@ func outputRows() []Row {
 		{
 			Name: "merge_key", HelpTopic: "output", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "merge-key", Commands: onRoot()},
-			Help: "where the answers land in the merged record, implies --merge",
+			Help: "Put the answers under this key in the merged record. Implies --merge.",
 		},
 	}, reportRows()...)
 }
@@ -254,22 +254,22 @@ func reportRows() []Row {
 		{
 			Name: "usage", HelpTopic: "output", Kind: Bool(), Modes: answering(),
 			Flag: FlagSpec{Long: "usage", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "add the api usage object to the answers file and the json report"},
+				CommandCalibrate: {Help: "Add the API usage object to the answers file and the JSON report."},
 			}},
-			Help: "add the api usage object to json output",
+			Help: "Add the API usage object to JSON output.",
 		},
 		{
 			Name: "stats", HelpTopic: "output", Kind: Bool(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModeListModels, ModeCalibrate),
 			Flag: FlagSpec{Long: "stats", Commands: onRuns()},
-			Help: "write a one line summary of the run to stderr at exit",
+			Help: "Write a one line summary of the run to stderr at exit.",
 		},
 		{
 			Name: "delimiter", HelpTopic: "input", Kind: Text(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
 			Flag: FlagSpec{Long: "delimiter", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "field separator for -i csv: auto, or one character. Defaults to a comma"},
+				CommandCalibrate: {Help: "Set the field separator for -i csv: auto, or one character. Defaults to a comma."},
 			}},
-			Help: "field separator that -i csv reads and -o csv writes: auto, which needs -i csv and writes the " +
-				"one it detects, or one character. Defaults to a comma",
+			Help: "Set the field separator -i csv reads and -o csv writes: auto, which needs -i csv and writes " +
+				"the one it detects, or one character. Defaults to a comma.",
 		},
 	}
 }
@@ -294,12 +294,12 @@ func inputRows() []Row {
 			Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "input", Short: "i", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
-					Help:    "required, jsonl, csv or tsv",
+					Help:    "Required. One of jsonl, csv or tsv.",
 					Kind:    Enum([]string{"jsonl", "csv", "tsv"}, nil),
 					Default: "",
 				},
 			}},
-			Help: inWords(inputModes().Schema().Enum),
+			Help: "One of " + inWords(inputModes().Schema().Enum) + ".",
 		},
 		{
 			Name: "state", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 6}, HelpValue: "TEXT", Kind: Text(), Modes: Modes(ModeAsk, ModePrintRequest),
@@ -314,38 +314,38 @@ func inputRows() []Row {
 		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "image", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. " +
+				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. Repeatable. " +
 					experimental},
 			}},
-			Help: "NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. " +
-				"For one record stdin is read beside it only through --state -, so text joins it from --state, " +
-				"--state-file or --state -. A stream reads its records from stdin and adds the image to each",
+			Help: "Put a PNG or JPEG in the state under NAME. Repeatable. For one record stdin is read beside it " +
+				"only through --state -, so text joins it from --state, --state-file or --state -. A stream reads " +
+				"its records from stdin and adds the image to each. " + experimental,
 		},
 		{
 			Name: "image_field", HelpTopic: "input", HelpValue: "NAME", Kind: NonEmptyText(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "image-field", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "repeatable, a state key whose value is a path to a PNG or JPEG, read per " +
-					"record. " + experimental},
+				CommandCalibrate: {Help: "Read a PNG or JPEG per record from the path this state key holds. " +
+					"Repeatable. " + experimental},
 			}},
-			Help: "streaming only, repeatable, a state key whose value is a path to a PNG or JPEG, read per record. " +
+			Help: "Read a PNG or JPEG per record from the path this state key holds. Streaming only, repeatable. " +
 				"Under -i lines the line is the path. " + experimental,
 		},
 		{
 			Name: "map", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 9, CommandCalibrate: 6}, HelpValue: "EXPR", Kind: NonEmptyText(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "map", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "jq expression run on each record, whose result is the state sent. Map only " +
-					"the text a person would read"},
+				CommandCalibrate: {Help: "Run this jq expression on each record and send its result as the state. " +
+					"Map only the text a person would read."},
 			}},
 			Help: "Select the content to evaluate with a jq expression.",
 		},
 		{
 			Name: "id", HelpTopic: "input", HelpCommon: map[Command]int{CommandCalibrate: 7}, HelpValue: "EXPR", Kind: NonEmptyText(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "id", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "jq expression run on each record, whose string or number result names it"},
+				CommandCalibrate: {Help: "Name each record with the string or number this jq expression returns."},
 			}},
-			Help: "streaming only, jq expression run on each record, whose string or number result names it on " +
-				"every output line. It runs one record at a time as the input is read, so keep it cheap, such as " +
-				"a field lookup, and -V lists the cap on its length",
+			Help: "Name each record on every output line with the string or number this jq expression returns. " +
+				"Streaming only. It runs one record at a time as the input is read, so keep it cheap, such as a " +
+				"field lookup. -V lists the cap on its length.",
 		},
 	}, streamRows()...)
 }
@@ -359,30 +359,30 @@ func streamRows() []Row {
 		{
 			Name: "skip_blank", HelpTopic: "input", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "skip-blank", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "drop blank lines"},
+				CommandCalibrate: {Help: "Drop blank lines."},
 			}},
-			Help: "streaming only, drop blank lines with no output line",
+			Help: "Drop blank lines with no output line. Streaming only.",
 		},
 		{
 			Name: "unordered", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "unordered", Commands: onRoot()},
-			Help: "streaming only, emit records as they complete",
+			Help: "Emit records as they complete. Streaming only.",
 		},
 		{
 			Name: "stop_on_error", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "stop-on-error", Commands: onRoot()},
-			Help: "streaming only, end the run at the first failure, with its exit code, or 6 for a line onesie " +
-				"could not read",
+			Help: "End the run at the first failure, with its exit code, or 6 for a line onesie could not read. " +
+				"Streaming only.",
 		},
 		{
 			Name: "stop_on_assert", HelpTopic: "decisions", Kind: Bool(), Modes: Modes(ModeStream),
 			Flag: FlagSpec{Long: "stop-on-assert", Commands: onRoot()},
-			Help: "streaming only, end the run at the first false assertion",
+			Help: "End the run at the first false assertion. Streaming only.",
 		},
 		{
 			Name: "no_dedup", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream),
 			Flag: FlagSpec{Long: "no-dedup", Commands: onRoot()},
-			Help: "streaming only, ask every record even when its request repeats an earlier one",
+			Help: "Ask every record even when its request repeats an earlier one. Streaming only.",
 		},
 	}
 }
@@ -397,7 +397,7 @@ func choiceRows() []Row {
 		{
 			Name: "replace", HelpTopic: "asking", Kind: Bool(), Modes: shaping(),
 			Flag: FlagSpec{Long: "replace", Commands: onRuns()},
-			Help: "--ask overrides an id from -f",
+			Help: "Let --ask override an id from -f.",
 		},
 		{
 			Name: "provider", HelpTopic: "connections", Kind: NonEmptyText(), Modes: choosing(),
@@ -406,12 +406,12 @@ func choiceRows() []Row {
 			Flag: FlagSpec{Long: "provider", Commands: onProfileWriters(CommandRoot), PerCommand: map[Command]CommandFlag{
 				CommandRoot: {Persistent: true},
 				CommandProfileCreate: {
-					Help: "the profile's provider, " + providers.Names() + ". Required", Kind: Text(), Member: ProfileMember{Key: "provider"},
+					Help: "The profile's provider: " + providers.Names() + ". Required.", Kind: Text(), Member: ProfileMember{Key: "provider"},
 				},
-				CommandProfileUpdate: {Help: "a new provider for the profile. On a profile that holds a key it needs --key", Member: ProfileMember{Key: "provider"}},
+				CommandProfileUpdate: {Help: "A new provider for the profile. On a profile that holds a key it needs --key.", Member: ProfileMember{Key: "provider"}},
 			}},
-			Help: "run on this provider without a profile, " + providers.Names() + ". Overrides ONESIE_PROVIDER and the " +
-				"default profile. Refused beside --profile or ONESIE_PROFILE",
+			Help: "Run on this provider without a profile: " + providers.Names() + ". Overrides ONESIE_PROVIDER and the " +
+				"default profile. Refused beside --profile or ONESIE_PROFILE.",
 		},
 		{
 			Name: "profile", HelpTopic: "connections", Kind: NonEmptyText(), Modes: choosing(),
@@ -419,8 +419,8 @@ func choiceRows() []Row {
 			Flag: FlagSpec{Long: "profile", Commands: onRoot(), PerCommand: map[Command]CommandFlag{
 				CommandRoot: {Persistent: true},
 			}},
-			Help: "the profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and " +
-				"ONESIE_PROVIDER, and otherwise the default profile runs, which onesie profile use sets",
+			Help: "The profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and " +
+				"ONESIE_PROVIDER. Otherwise the default profile runs, which onesie profile use sets.",
 		},
 	}, endpointRows()...)
 }
@@ -446,7 +446,7 @@ func endpointRows() []Row {
 					CommandProfileUpdate: {Help: profileModelHelp, Kind: Text(), NoShort: true, Member: ProfileMember{Key: "model"}},
 				},
 			},
-			Help: "model override",
+			Help: "Use this model.",
 		},
 		{
 			Name: "endpoint", HelpTopic: "connections", Kind: Endpoint(), Modes: connecting(),
@@ -466,7 +466,7 @@ func endpointRows() []Row {
 				CommandProfileCreate: {Help: profileBaseURLHelp, Kind: NonEmptyText(), Member: ProfileMember{Key: "base_url", Half: HalfBaseURL}},
 				CommandProfileUpdate: {Help: profileBaseURLHelp, Kind: Text(), Member: ProfileMember{Key: "base_url", Half: HalfBaseURL}},
 			}},
-			Help: "api root override. Also ONESIE_BASE_URL",
+			Help: "Use this API root. Also ONESIE_BASE_URL.",
 		},
 		{
 			Name: "allow_http", HelpTopic: "connections", Kind: Bool(), Modes: connecting(),
@@ -489,7 +489,7 @@ func answerSourceRows() []Row {
 			Env: []EnvSpec{{Name: "ONESIE_LONG_CONTEXT", Order: 13, Help: "`1` or `true` raises the context limits, " +
 				"as `--long-context`. It takes the values the flag takes, and anything else exits 2 where it applies"}},
 			Flag: FlagSpec{Long: "long-context", Commands: onRuns()},
-			Help: "raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. " +
+			Help: "Raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. " +
 				experimental,
 		},
 		{
@@ -497,16 +497,16 @@ func answerSourceRows() []Row {
 			Env: []EnvSpec{{Name: "ONESIE_MOCK", Order: 9, Help: "a file to answer from, as `--mock`. Skipped beside " +
 				"`--list-models`, `-i request`, `--print-request` and `--print-questions`"}},
 			Flag: FlagSpec{Long: "mock", Commands: onRuns()},
-			Help: "answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by " +
+			Help: "Answer from this file instead of the API. Also ONESIE_MOCK. The file is an object keyed by " +
 				`question id, as {"answer":0.9,"team":"billing"}, or one line per record in the shape -o json ` +
 				"writes. A lone line that carries id, line, model, usage, assert, abstain or an error object is " +
-				"one record",
+				"one record.",
 		},
 		{
 			Name: "cache", HelpTopic: "execution", Kind: Bool(), Modes: answering(),
 			Env:  []EnvSpec{{Name: "ONESIE_CACHE", Order: 10, Help: "`1` turns the response cache on, as `--cache`"}},
 			Flag: FlagSpec{Long: "cache", Commands: onRuns()},
-			Help: "store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1",
+			Help: "Store responses on disk and answer a repeated request from them. Also ONESIE_CACHE=1.",
 		},
 	}
 }
@@ -517,21 +517,21 @@ func requestRows() []Row {
 			Name: "jobs", HelpTopic: "execution", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag:  FlagSpec{Long: "jobs", Short: "j", Commands: onRuns()},
 			Check: jobsInRange,
-			Help:  "records in flight at once",
+			Help:  "Records in flight at once.",
 		},
 		{
 			Name: "timeout", HelpTopic: "execution", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultAttemptTimeout.Seconds()),
 			Modes: sending(),
 			Flag:  FlagSpec{Long: "timeout", Commands: onRuns()},
 			Check: secondsInRange("--timeout", "--timeout takes a positive number of seconds, got %d"),
-			Help: "seconds per attempt, " + strconv.Itoa(int(limits.AssetAttemptTimeout.Seconds())) +
-				" for a request with images unless given",
+			Help: "Seconds per attempt, " + strconv.Itoa(int(limits.AssetAttemptTimeout.Seconds())) +
+				" for a request with images unless given.",
 		},
 		{
 			Name: "retries", HelpTopic: "execution", Kind: Int(0, limits.MaxRetries), Default: limits.DefaultRetries, Modes: sending(),
 			Flag:  FlagSpec{Long: "retries", Commands: onRuns()},
 			Check: retriesInRange,
-			Help:  "retries after a failed attempt",
+			Help:  "Retries after a failed attempt.",
 		},
 		{
 			Name: "max_retry_after", HelpTopic: "execution", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultMaxRetryAfter.Seconds()),
@@ -541,7 +541,7 @@ func requestRows() []Row {
 				// Zero would have to mean either never honour the header or honour it without bound, so it
 				// is refused rather than given one of those meanings.
 				"--max-retry-after must be a positive number of seconds, got %d"),
-			Help: "most seconds to wait out a server Retry-After",
+			Help: "Most seconds to wait out a server Retry-After.",
 		},
 	}
 }
@@ -603,24 +603,24 @@ func calibrateRows() []Row {
 		{
 			Name: "label", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 8}, HelpValue: "[ID=]EXPR", Kind: NonEmptyText(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "label", Repeat: true, Commands: onCalibrate()},
-			Help: "[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the " +
-				"right answer for question ID. A question with none is skipped. With one question ID= may be left out",
+			Help: "Read the right answer for question ID with this jq expression, run on the record, not on the " +
+				"mapped state. A question with none is skipped. With one question ID= may be left out.",
 		},
 		{
 			Name: "cuts", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 9}, Kind: Text(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "cuts", Commands: onCalibrate()},
-			Help: "comma separated cuts between 0 and 1. See Evaluation for defaults",
+			Help: "Comma separated cuts between 0 and 1. See Evaluation for defaults.",
 		},
 		{
 			Name: "require", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 10}, HelpValue: "CONDITION", Kind: Text(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "require", Repeat: true, Commands: onCalibrate()},
-			Help: "[lower|upper](ID.MEASURE) OP NUMBER [at CUT], a requirement the report must meet, or calibrate " +
-				"exits 1. Repeatable",
+			Help: "A requirement the report must meet, as [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or " +
+				"calibrate exits 1. Repeatable.",
 		},
 		{
 			Name: "offline", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 11}, Kind: Bool(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "offline", Commands: onCalibrate()},
-			Help: "with --out and --resume, read every answer from the file and ask nothing, needing no key",
+			Help: "Read every answer from the --out file and ask nothing, needing no key. Needs --out and --resume.",
 		},
 	}
 }
@@ -633,24 +633,24 @@ func profileRows() []Row {
 				CommandProfileCreate: {Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
 				CommandProfileUpdate: {Kind: Text(), Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
 			}},
-			Help: providers.WithAccounts() + " only, the account id, 32 hexadecimal characters",
+			Help: "The account id, 32 hexadecimal characters. Only on " + providers.WithAccounts() + ".",
 		},
 		{
 			Name: "name", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "name", Commands: []Command{CommandProfileUpdate}},
-			Help: "a new name for the profile. A keychain item named after it moves with it, and the default follows it",
+			Help: "A new name for the profile. A keychain item named after it moves with it, and the default follows it.",
 		},
 		{
 			Name: "key", Kind: Bool(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "key", Commands: []Command{CommandProfileUpdate}},
-			Help: "read a new key from a prompt or stdin",
+			Help: "Read a new key from a prompt or stdin.",
 		},
 		{
 			Name: "to_file", Kind: Bool(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "file", Commands: onProfileWriters(), PerCommand: map[Command]CommandFlag{
-				CommandProfileUpdate: {Help: "with --key, store the new key in profiles.json, not the OS keychain"},
+				CommandProfileUpdate: {Help: "Store the new key in profiles.json, not the OS keychain. Needs --key."},
 			}},
-			Help: "store the key in profiles.json, not the OS keychain",
+			Help: "Store the key in profiles.json, not the OS keychain.",
 		},
 	}
 }

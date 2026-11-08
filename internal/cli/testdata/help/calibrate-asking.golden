@@ -6,16 +6,17 @@ Flags:
       --rate LEVELS             Rate against levels from lowest to highest.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
-      --for ID                  ID, repeatable, selects a question from -f, so the
-                                --pick, --rate, --desc and --sep after it apply to that
-                                question
+      --for ID                  Select a question from -f by ID, so the --pick, --rate,
+                                --desc and --sep after it apply to that question.
+                                Repeatable.
       --desc KEY=TEXT           Describe an option, level, yes or no.
-      --sep STRING              separator for --pick and --rate that follow it
-      --box                     make this a box question, answered with the left, top,
+      --sep STRING              Set the separator for the --pick and --rate that follow
+                                it.
+      --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,
                                 each from 0 to 1. Takes no value. Experimental on
-                                TypeSafe's side
-      --replace                 --ask overrides an id from -f
+                                TypeSafe's side.
+      --replace                 Let --ask override an id from -f.
 
 How they work together:
   A positional question has the id answer. By default a question asks for a yes or no
@@ -54,4 +55,5 @@ More help:
   onesie help calibrate output
   onesie help calibrate connections
   onesie help calibrate execution
+  onesie help calibrate exit-codes
   onesie help calibrate all

@@ -4,15 +4,17 @@ Flags:
       --threshold NUMBER        Turn a yes or no probability into a boolean decision.
       --assert EXPR             Exit 1 when an answer fails this condition.
   -q, --quiet                   Suppress output. Without --assert, judge one answer.
-      --min-confidence NUMBER   pick or rate only, requires --fallback. Confidence is
-                                about 1 when p sits on one answer
+      --min-confidence NUMBER   The confidence a pick or rate answer must reach. Needs
+                                --fallback. Confidence is about 1 when p sits on one
+                                answer.
       --fallback VALUE          Use this as answer.decision on low confidence or error.
                                 JSON keeps the model answer in answer.value when
                                 available.
-      --abstain-if EXPR         boolean expression that turns a no into an unsure,
-                                repeatable, combined with and, needs --assert. Replaces
-                                the -f file's abstain_if
-      --stop-on-assert          streaming only, end the run at the first false assertion
+      --abstain-if EXPR         Turn a no into an unsure when this condition holds.
+                                Repeatable, combined with and. Needs --assert and
+                                replaces the -f file's abstain_if.
+      --stop-on-assert          End the run at the first false assertion. Streaming
+                                only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone
@@ -34,6 +36,16 @@ How they work together:
   --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention
   holds, it exits 7. Quiet beside --assert only suppresses output.
 
+  An --assert path is a question id, a dot and a field, as in urgent.value. Compare with
+  ==, !=, <, <=, > and >=, test a string with in ["a", "b"], and combine with and, or,
+  not and parentheses. Strings take double quotes. An id written bare holds only
+  letters, digits and _, starts with a letter or _, and is not and, or, not, in, true or
+  false. Write any other id in brackets and double quotes, as in ["needs review"].value,
+  and an option the same way after p, as in team.p["on call"]. min, max, sum and avg
+  take numbers and nest, as in max(a.value, b.value) < 0.2. There are no arithmetic
+  operators, so weight answers with jq. A box has no value, so gate it on its edges or
+  its confidence, as in mug.confidence >= 0.6.
+
   Streams print rejected records too. --stop-on-assert prints the first rejected record
   before stopping. Earlier errors still affect the aggregate exit code. See Asking for
   question setting scope. Use onesie help calibrate to choose cuts from labelled
@@ -49,4 +61,5 @@ More help:
   onesie help output
   onesie help connections
   onesie help execution
+  onesie help exit-codes
   onesie help all

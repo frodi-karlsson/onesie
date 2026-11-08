@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -10,33 +11,37 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const helpLabelledRecord = `{"id":"a","text":"The server is down","urgent":true}`
 
 func helpTopics(command settingrow.Command) []helpTopic {
-	asking := helpAsking(command)
-	input := helpInput(command)
-	execution := helpExecution(command)
-	output := helpOutput(command)
-	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions()}
+	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions(), overview: 4}
+	output := helpTopic{name: "output", title: "Output", body: helpOutput(command), overview: 3}
+	codes := rootExitCodes
 	if command == settingrow.CommandCalibrate {
-		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation()}
+		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation(), overview: 3}
+		output.overview = 4
+		codes = calibrateExitCodes
 	}
 	return []helpTopic{
-		{name: "asking", title: "Asking", body: asking},
-		{name: "input", title: "Input", body: input},
+		{name: "asking", title: "Asking", body: helpAsking(command), overview: 1},
+		{name: "input", title: "Input", body: helpInput(command), overview: 2},
 		middle,
-		{name: "output", title: "Output", body: output},
-		{name: "connections", title: "Connections", body: helpConnections()},
-		{name: "execution", title: "Execution", body: execution},
+		output,
+		{name: "connections", title: "Connections", body: helpConnections(), overview: 5},
+		{name: "execution", title: "Execution", body: helpExecution(command), overview: 6},
+		{name: "exit-codes", codes: codes},
 	}
 }
 
 type helpTopic struct {
-	name  string
-	title string
-	body  string
+	name     string
+	title    string
+	body     string
+	overview int
+	codes    []exitCodeLine
 }
 
 func helpAsking(command settingrow.Command) string {
@@ -102,6 +107,13 @@ func helpDecisions() string {
 		"Acceptance is checked first. Only when it fails is --abstain-if checked. Repeated abstain expressions combine with and, " +
 		"need --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention holds, it exits 7. " +
 		"Quiet beside --assert only suppresses output.\n\n" +
+		"An --assert path is a question id, a dot and a field, as in urgent.value. Compare with ==, !=, <, <=, > and >=, " +
+		`test a string with in ["a", "b"], and combine with and, or, not and parentheses. Strings take double quotes. ` +
+		"An id written bare holds only letters, digits and _, starts with a letter or _, and is not and, or, not, in, true or false. " +
+		`Write any other id in brackets and double quotes, as in ["needs review"].value, and an option the same way after p, as in team.p["on call"]. ` +
+		"min, max, sum and avg take numbers and nest, as in max(a.value, b.value) < 0.2. " +
+		"There are no arithmetic operators, so weight answers with jq. " +
+		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
 		"Streams print rejected records too. --stop-on-assert prints the first rejected record before stopping. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."
@@ -125,31 +137,56 @@ func helpOutput(command settingrow.Command) string {
 }
 
 func helpConnections() string {
+	profileEnv, providerEnv := settingEnv(setting.Profile.Name()), settingEnv(setting.Provider.Name())
+	baseURLEnv, modelEnv := settingEnv(setting.APIEndpoint.Name()), settingEnv(setting.Model.Name())
 	return "onesie is a Unix filter over the System One API, served by " + providers.Names() + ". " +
 		"A profile in profiles.json holds a provider, a key in the OS keychain or file, and optionally a model and base URL or " + providers.WithAccounts() + " account. " +
 		"onesie profile create stores one and onesie profile use makes it the default.\n\n" +
-		"A run uses the profile named by --profile, then ONESIE_PROFILE, then the default profile. --profile overrides ONESIE_PROVIDER. " +
-		"--provider runs without a profile and overrides ONESIE_PROVIDER and the default profile. " +
-		"It is refused beside --profile or ONESIE_PROFILE. ONESIE_PROVIDER beside ONESIE_PROFILE is also refused. " +
+		"A run uses the profile named by --profile, then " + profileEnv + ", then the default profile. --profile overrides " + providerEnv + ". " +
+		"--provider runs without a profile and overrides " + providerEnv + " and the default profile. " +
+		"It is refused beside --profile or " + profileEnv + ". " + providerEnv + " beside " + profileEnv + " is also refused. " +
 		"With no profiles, typesafe runs directly. Provider keys come from " + providers.KeyVariables() + ". " +
 		"The chosen profile key and endpoint beat the environment. Provider variables beat the default profile. " +
-		"--base-url wins over a chosen profile, then ONESIE_BASE_URL, then the provider base URL or account variable, then the default profile. " +
-		"On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL.\n\n" +
+		"--base-url wins over a chosen profile, then " + baseURLEnv + ", then the provider base URL or account variable, then the default profile. " +
+		baseURLPrecedence(settingrow.Lookup(setting.APIEndpoint.Name())) + "\n\n" +
 		"A key goes only with its own endpoint. A custom profile endpoint takes only the key from that profile. A custom URL from a variable takes only the provider key variable. " +
 		"A typed --base-url takes the chosen profile key or provider variable, never the default profile key. A keyless profile reads no key variable. " +
 		"No provider uses another provider key. The base URL and account are one setting, taken whole from the highest source.\n\n" +
 		"On " + providers.WithAccounts() + " an account comes from the profile, " + providers.AccountVariables() + " or a base URL holding it. " +
-		"--model overrides the chosen profile or request body. TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the model in the default profile. " +
+		"--model overrides the chosen profile or request body. " + modelEnv + " applies when none names a model and beats the model in the default profile. " +
 		"A custom base URL needs no key and sends none when none resolves. Plain HTTP to a host other than this machine needs --allow-http, " +
 		"which permits sending the request and any API key over it. Without that flag the run exits 2 before a request. " +
 		"A profile storing such a URL needs --allow-http on every run too."
+}
+
+func baseURLPrecedence(endpoint settingrow.Row, found bool) string {
+	if !found {
+		return ""
+	}
+	var order []string
+	for _, variable := range endpoint.Env {
+		if variable.Half == settingrow.HalfBaseURL && variable.Provider != "" && !slices.Contains(order, variable.Provider) {
+			order = append(order, variable.Provider)
+		}
+	}
+	sentences := make([]string, 0, len(order))
+	for _, provider := range order {
+		var names []string
+		for _, variable := range endpoint.Env {
+			if variable.Half == settingrow.HalfBaseURL && (variable.Provider == "" || variable.Provider == provider) {
+				names = append(names, variable.Name)
+			}
+		}
+		sentences = append(sentences, "On "+provider+", "+strings.Join(names, " beats ")+".")
+	}
+	return strings.Join(sentences, " ")
 }
 
 func helpExecution(command settingrow.Command) string {
 	common := fmt.Sprintf("--jobs bounds records in flight. --timeout is seconds per attempt. Requests with images default to %s seconds unless given. ", strconv.FormatFloat(limits.AssetAttemptTimeout.Seconds(), 'f', -1, 64)) +
 		"Retries happen after failed attempts, bounded by --retries. --max-retry-after caps seconds spent waiting for a server Retry-After. " +
 		"--long-context raises context limits, is slower and less accurate, and is experimental on TypeSafe's side. version reports the built in limits.\n\n" +
-		"--cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated requests. onesie cache reports entries and onesie cache clear empties them. "
+		"--cache, or " + settingEnv(setting.Cache.Name()) + "=1, stores successful responses on disk and reuses repeated requests. onesie cache reports entries and onesie cache clear empties them. "
 	if command == settingrow.CommandRoot {
 		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
@@ -162,7 +199,11 @@ func helpExecution(command settingrow.Command) string {
 	common += "\n\n" + resume +
 		"A record whose content changes but whose id does not keeps its old answer. The file is rewritten in input order. " +
 		"Answered ids absent from input stay after them unless --prune drops them.\n\n" +
-		"--mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so gate scripts can be tested for free. " +
+		"--mock FILE, or " + settingEnv(setting.Mock.Name()) + "=FILE, answers from fixtures without a key or network, so gate scripts can be tested for free. " +
+		`A mock file is one JSON object keyed by question id, which answers every record, as in {"urgent":0.9}, or one line per record in the shape -o json writes, so the --out file of a real run replays. ` +
+		"Lines match records by id under --id and by position otherwise. Blank lines are refused, apart from those at the end. " +
+		`An entry {"error":503} fails a record as that status does, {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection. ` +
+		"Each is retried as a live failure is, without the wait. " +
 		"--print-request writes API shaped request bodies and sends none."
 	if command == settingrow.CommandRoot {
 		common += " Question export writes configuration rather than answers. Mocks exercise execution and policy behavior. Request previews and question export do not execute those policies. Mocks are skipped beside --list-models, request input, --print-request and --print-questions."

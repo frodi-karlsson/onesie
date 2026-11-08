@@ -21,9 +21,6 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 	}
 	topics := helpTopics(command)
 	examples := helpExamples(command)
-	if exampleErr := validateHelpExamples(examples, topics); exampleErr != nil {
-		return exampleErr
-	}
 	if topic != "" && topic != "all" && !slices.ContainsFunc(topics, func(t helpTopic) bool { return t.name == topic }) {
 		return fmt.Errorf("unknown help topic %s", topic)
 	}
@@ -52,6 +49,10 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			if b.Len() > 0 {
 				b.WriteString("\n")
 			}
+			if section.codes != nil {
+				b.WriteString(exitCodesSection(section.codes) + "\n")
+				continue
+			}
 			fmt.Fprintf(&b, "%s\n\nFlags:\n", section.title)
 			for _, flag := range selectHelpFlags(flags, section.name, false) {
 				writeHelpFlag(&b, flag)
@@ -60,14 +61,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			writeHelpText(&b, section.body, "  ", "  ")
 			writeHelpExamples(&b, examples, section.name)
 		}
-		if topic == "all" {
-			b.WriteString("\n")
-			codes := rootExitCodes
-			if command == settingrow.CommandCalibrate {
-				codes = calibrateExitCodes
-			}
-			b.WriteString(exitCodesSection(codes) + "\n")
-		} else {
+		if topic != "all" {
 			writeHelpNavigation(&b, cmd, topics)
 		}
 	}
@@ -83,11 +77,7 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 		b.WriteString("\n")
 	}
 	writeHelpExamples(b, examples, "overview")
-	overviewTopics := append([]helpTopic{}, topics...)
-	if command == settingrow.CommandRoot {
-		overviewTopics[2], overviewTopics[3] = overviewTopics[3], overviewTopics[2]
-	}
-	for _, section := range overviewTopics {
+	for _, section := range overviewOrder(topics) {
 		selected := selectHelpFlags(flags, section.name, true)
 		if len(selected) == 0 {
 			continue
@@ -106,10 +96,17 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 	}
 }
 
+func overviewOrder(topics []helpTopic) []helpTopic {
+	shown := slices.DeleteFunc(slices.Clone(topics), func(topic helpTopic) bool { return topic.overview == 0 })
+	slices.SortStableFunc(shown, func(a, b helpTopic) int { return a.overview - b.overview })
+	return shown
+}
+
 func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow.Row) ([]helpFlag, error) {
 	var flags []helpFlag
 	seen := map[*pflag.Flag]bool{}
 	local, inherited := cmd.LocalFlags(), cmd.InheritedFlags()
+	topics := helpTopics(command)
 	for _, row := range rows {
 		bound, available := row.FlagOn(command)
 		var flag *pflag.Flag
@@ -124,7 +121,7 @@ func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow
 		if flag == nil || flag.Hidden || seen[flag] {
 			continue
 		}
-		if !slices.ContainsFunc(helpTopics(command), func(topic helpTopic) bool { return topic.name == bound.HelpTopic }) {
+		if !slices.ContainsFunc(topics, func(topic helpTopic) bool { return topic.name == bound.HelpTopic }) {
 			return nil, fmt.Errorf("flag --%s has no help topic", flag.Name)
 		}
 		seen[flag] = true
@@ -283,25 +280,6 @@ func helpShellQuote(value string) string {
 		return value
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
-}
-
-func validateHelpExamples(examples []helpExample, topics []helpTopic) error {
-	ids := map[string]bool{}
-	for _, example := range examples {
-		if example.id == "" || ids[example.id] || example.stdin != "" && example.inputFile != "" {
-			return fmt.Errorf("invalid help example %s", example.id)
-		}
-		ids[example.id] = true
-		if len(example.places) == 0 {
-			return fmt.Errorf("help example %s has no destination", example.id)
-		}
-		for _, place := range example.places {
-			if place != "overview" && place != "footer" && !slices.ContainsFunc(topics, func(t helpTopic) bool { return t.name == place }) {
-				return fmt.Errorf("invalid help example destination %s", place)
-			}
-		}
-	}
-	return nil
 }
 
 type helpFlag struct {
