@@ -1379,7 +1379,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --merge-key does not apply to -o csv, which puts the answers in columns"},
 		},
 		{
-			name:     "should reject --usage with -r before any request",
+			name:     "should reject --usage with -o raw before any request",
 			args:     []string{"is this urgent", "-o", "raw", "--usage"},
 			stdin:    "the server is down",
 			status:   http.StatusInternalServerError,
@@ -1465,7 +1465,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2,"cost":0}`},
 		},
 		{
-			name:     "should print the bare value with -r",
+			name:     "should print the bare value with -o raw",
 			args:     []string{"is this urgent", "-o", "raw"},
 			stdin:    "the server is down",
 			response: answered,
@@ -1516,13 +1516,6 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: no question given. Pass a question, --ask, or -f"},
 			absent:   []string{"Usage:", "Flags:"},
-		},
-		{
-			name:     "should reject -r with two questions",
-			args:     []string{"--ask", "a=one", "--ask", "b=two", "-o", "raw"},
-			stdin:    "body",
-			wantCode: cli.ExitUsage,
-			contains: []string{"-o raw needs a single question"},
 		},
 		{
 			name:     "should reject -o raw with two questions",

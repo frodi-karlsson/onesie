@@ -111,7 +111,7 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should print the bare value under -r",
+			name:     "should print the bare value under -o raw",
 			args:     []string{"is it urgent", "-o", "raw", "--state", "x"},
 			mock:     `{"answer":0.25}`,
 			wantOut:  fileOf("0.25\n"),
