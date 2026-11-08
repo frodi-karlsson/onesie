@@ -106,6 +106,13 @@ func helpDecisions() string {
 		"Acceptance is checked first. Only when it fails is --abstain-if checked. Repeated abstain expressions combine with and, " +
 		"need --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention holds, it exits 7. " +
 		"Quiet beside --assert only suppresses output.\n\n" +
+		"An --assert path is a question id, a dot and a field, as in urgent.value. Compare with ==, !=, <, <=, > and >=, " +
+		`test a string with in ["a", "b"], and combine with and, or, not and parentheses. Strings take double quotes. ` +
+		"An id written bare holds only letters, digits and _, starts with a letter or _, and is not and, or, not, in, true or false. " +
+		`Write any other id in brackets and double quotes, as in ["needs review"].value, and an option the same way after p, as in team.p["on call"]. ` +
+		"min, max, sum and avg take numbers and nest, as in max(a.value, b.value) < 0.2. " +
+		"There are no arithmetic operators, so weight answers with jq. " +
+		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
 		"Streams print rejected records too. --stop-on-assert prints the first rejected record before stopping. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."

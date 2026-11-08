@@ -173,6 +173,19 @@ func TestHelpDecisions(t *testing.T) {
 			t.Fatal("missing owned quiet threshold")
 		}
 	})
+	t.Run("should describe the assert grammar the gate skill teaches", func(t *testing.T) {
+		for _, want := range []string{
+			"path is a question id, a dot and a field",
+			`["needs review"].value`,
+			"min, max, sum and avg",
+			"There are no arithmetic operators",
+			"mug.confidence >= 0.6",
+		} {
+			if !strings.Contains(helpDecisions(), want) {
+				t.Errorf("help decisions lacks %q", want)
+			}
+		}
+	})
 	for _, tc := range []struct {
 		name        string
 		args        []string
