@@ -16,28 +16,27 @@ import (
 const helpLabelledRecord = `{"id":"a","text":"The server is down","urgent":true}`
 
 func helpTopics(command settingrow.Command) []helpTopic {
-	asking := helpAsking(command)
-	input := helpInput(command)
-	execution := helpExecution(command)
-	output := helpOutput(command)
-	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions()}
+	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions(), overview: 4}
+	output := helpTopic{name: "output", title: "Output", body: helpOutput(command), overview: 3}
 	if command == settingrow.CommandCalibrate {
-		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation()}
+		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation(), overview: 3}
+		output.overview = 4
 	}
 	return []helpTopic{
-		{name: "asking", title: "Asking", body: asking},
-		{name: "input", title: "Input", body: input},
+		{name: "asking", title: "Asking", body: helpAsking(command), overview: 1},
+		{name: "input", title: "Input", body: helpInput(command), overview: 2},
 		middle,
-		{name: "output", title: "Output", body: output},
-		{name: "connections", title: "Connections", body: helpConnections()},
-		{name: "execution", title: "Execution", body: execution},
+		output,
+		{name: "connections", title: "Connections", body: helpConnections(), overview: 5},
+		{name: "execution", title: "Execution", body: helpExecution(command), overview: 6},
 	}
 }
 
 type helpTopic struct {
-	name  string
-	title string
-	body  string
+	name     string
+	title    string
+	body     string
+	overview int
 }
 
 func helpAsking(command settingrow.Command) string {

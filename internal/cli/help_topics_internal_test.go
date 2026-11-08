@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -46,5 +47,25 @@ func TestHelpTopics(t *testing.T) {
 				}
 			})
 		}
+	}
+
+	for _, tc := range []struct {
+		command settingrow.Command
+		want    []string
+	}{
+		{settingrow.CommandRoot, []string{"asking", "input", "output", "decisions", "connections", "execution"}},
+		{settingrow.CommandCalibrate, []string{"asking", "input", "evaluation", "output", "connections", "execution"}},
+	} {
+		t.Run("should give the "+tc.command.String()+" overview its topic order", func(t *testing.T) {
+			t.Parallel()
+
+			var got []string
+			for _, topic := range overviewOrder(helpTopics(tc.command)) {
+				got = append(got, topic.name)
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Fatalf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }

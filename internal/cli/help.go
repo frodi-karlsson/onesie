@@ -80,11 +80,7 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 		b.WriteString("\n")
 	}
 	writeHelpExamples(b, examples, "overview")
-	overviewTopics := append([]helpTopic{}, topics...)
-	if command == settingrow.CommandRoot {
-		overviewTopics[2], overviewTopics[3] = overviewTopics[3], overviewTopics[2]
-	}
-	for _, section := range overviewTopics {
+	for _, section := range overviewOrder(topics) {
 		selected := selectHelpFlags(flags, section.name, true)
 		if len(selected) == 0 {
 			continue
@@ -101,6 +97,12 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 		writeHelpExamples(b, examples, "footer")
 		b.WriteString("  See onesie help profile create and onesie help connections.\n")
 	}
+}
+
+func overviewOrder(topics []helpTopic) []helpTopic {
+	shown := slices.DeleteFunc(slices.Clone(topics), func(topic helpTopic) bool { return topic.overview == 0 })
+	slices.SortStableFunc(shown, func(a, b helpTopic) int { return a.overview - b.overview })
+	return shown
 }
 
 func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow.Row) ([]helpFlag, error) {
