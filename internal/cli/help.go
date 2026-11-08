@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -13,6 +15,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
+
+const annotationHelpValue = "onesie-help-value"
 
 func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topic string) error {
 	flags, err := helpFlags(cmd, command, settingrow.Table())
@@ -164,6 +168,91 @@ func selectHelpFlags(flags []helpFlag, topic string, common bool) []helpFlag {
 	return selected
 }
 
+func writeSubcommandHelp(w io.Writer, cmd *cobra.Command) error {
+	local, err := commandHelpFlags(cmd.LocalFlags(), rowCommand(cmd))
+	if err != nil {
+		return err
+	}
+	inherited, err := commandHelpFlags(cmd.InheritedFlags(), settingrow.CommandRoot)
+	if err != nil {
+		return err
+	}
+	var b bytes.Buffer
+	if text := cmp.Or(cmd.Long, cmd.Short); text != "" {
+		b.WriteString(strings.TrimRightFunc(text, unicode.IsSpace) + "\n\n")
+	}
+	b.WriteString("Usage:\n")
+	if cmd.Runnable() {
+		fmt.Fprintf(&b, "  %s\n", cmd.UseLine())
+	}
+	if cmd.HasAvailableSubCommands() {
+		fmt.Fprintf(&b, "  %s [command]\n", cmd.CommandPath())
+	}
+	if cmd.HasExample() {
+		fmt.Fprintf(&b, "\nExamples:\n%s\n", cmd.Example)
+	}
+	writeHelpCommands(&b, cmd)
+	for _, section := range []struct {
+		title string
+		flags []helpFlag
+	}{{"Flags", local}, {"Global Flags", inherited}} {
+		if len(section.flags) == 0 {
+			continue
+		}
+		fmt.Fprintf(&b, "\n%s:\n", section.title)
+		for _, flag := range section.flags {
+			writeHelpFlag(&b, flag)
+		}
+	}
+	if cmd.HasAvailableSubCommands() {
+		fmt.Fprintf(&b, "\nUse \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
+	}
+	_, err = w.Write(b.Bytes())
+	return err
+}
+
+func commandHelpFlags(set *pflag.FlagSet, command settingrow.Command) ([]helpFlag, error) {
+	var flags []helpFlag
+	var missing error
+	set.VisitAll(func(flag *pflag.Flag) {
+		if flag.Hidden {
+			return
+		}
+		described, found := describedFlag(flag, command)
+		if !found {
+			missing = fmt.Errorf("flag --%s has no help metadata", flag.Name)
+			return
+		}
+		flags = append(flags, described)
+	})
+	return flags, missing
+}
+
+func describedFlag(flag *pflag.Flag, command settingrow.Command) (helpFlag, bool) {
+	for _, row := range settingrow.Table() {
+		if bound, available := row.FlagOn(command); available && bound.Long == flag.Name {
+			return helpFlag{flag: flag, bound: bound}, true
+		}
+	}
+	if value, named := flag.Annotations[annotationHelpValue]; named && len(value) == 1 {
+		return helpFlag{flag: flag, bound: settingrow.BoundFlag{HelpValue: value[0]}}, true
+	}
+	if switchFlag, ok := flag.Value.(interface{ IsBoolFlag() bool }); ok && switchFlag.IsBoolFlag() {
+		return helpFlag{flag: flag, bound: settingrow.BoundFlag{Kind: settingrow.Bool()}}, true
+	}
+	return helpFlag{}, false
+}
+
+func rowCommand(cmd *cobra.Command) settingrow.Command {
+	path := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+	for _, command := range []settingrow.Command{settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate} {
+		if command.String() == path {
+			return command
+		}
+	}
+	return 0
+}
+
 func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
 	signature := "    "
 	if flag.flag.Shorthand != "" && flag.flag.ShorthandDeprecated == "" {
@@ -280,6 +369,14 @@ func helpShellQuote(value string) string {
 		return value
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func namesHelpValue(set *pflag.FlagSet, name, value string) {
+	flag := set.Lookup(name)
+	if flag.Annotations == nil {
+		flag.Annotations = map[string][]string{}
+	}
+	flag.Annotations[annotationHelpValue] = []string{value}
 }
 
 type helpFlag struct {

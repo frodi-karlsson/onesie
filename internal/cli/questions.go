@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie/internal/qfile"
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -45,6 +46,8 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "The format, table, json or auto, which means table.")
 	setting.RefuseEmpty(cmd.Flags(), "output")
+	outputRow, _ := settingrow.Lookup(setting.Output.Name())
+	namesHelpValue(cmd.Flags(), "output", outputRow.HelpValue)
 
 	return cmd
 }

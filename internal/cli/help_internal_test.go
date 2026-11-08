@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -120,6 +121,44 @@ func TestHelpFlags(t *testing.T) {
 		cmd.Flags().Lookup("unclassified").Hidden = true
 		if _, err := helpFlags(cmd, settingrow.CommandRoot, settingrow.Table()); err != nil {
 			t.Fatal(err)
+		}
+	})
+	t.Run("should render a help line for every visible flag on every command", func(t *testing.T) {
+		root := helpTestCommand(t, settingrow.CommandRoot)
+		root.InitDefaultHelpCmd()
+		root.InitDefaultCompletionCmd()
+		commands := []*cobra.Command{root}
+		for i := 0; i < len(commands); i++ {
+			cmd := commands[i]
+			commands = append(commands, cmd.Commands()...)
+			cmd.InitDefaultHelpFlag()
+			var out bytes.Buffer
+			if err := writeCommandHelp(&out, cmd, "all"); err != nil {
+				t.Fatalf("%s: %v", cmd.CommandPath(), err)
+			}
+			for _, set := range []*pflag.FlagSet{cmd.LocalFlags(), cmd.InheritedFlags()} {
+				set.VisitAll(func(flag *pflag.Flag) {
+					line := regexp.MustCompile(`(?m)^  (-[[:alnum:]], |    )--` + regexp.QuoteMeta(flag.Name) + `( |$)`)
+					if !flag.Hidden && !line.MatchString(out.String()) {
+						t.Errorf("%s has no help line for --%s", cmd.CommandPath(), flag.Name)
+					}
+				})
+			}
+		}
+		if len(commands) < 15 {
+			t.Fatalf("walked %d commands, want the whole tree", len(commands))
+		}
+	})
+	t.Run("should refuse an unclassified visible flag on a subcommand", func(t *testing.T) {
+		root := helpTestCommand(t, settingrow.CommandRoot)
+		cmd, _, err := root.Find([]string{"version"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd.InitDefaultHelpFlag()
+		cmd.Flags().String("unclassified", "", "extra")
+		if err := writeCommandHelp(io.Discard, cmd, ""); err == nil {
+			t.Fatal("accepted an unclassified flag with a value")
 		}
 	})
 }
