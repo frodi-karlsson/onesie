@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/num"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -273,25 +274,13 @@ func (t *tally) alert(whole bool) string {
 
 	var parts []string
 
-	for _, part := range []struct {
-		count int
-		label string
-	}{
-		{t.counts[Pass], Pass.String()},
-		{t.counts[Fail], Fail.String()},
-		{t.counts[Unsure], Unsure.String()},
-		{t.counts[Answered], Answered.String()},
-		{t.counts[Error], errorLabel(t.counts[Error])},
-	} {
-		if part.count > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", part.count, part.label))
+	for _, verdict := range []Verdict{Pass, Fail, Unsure, Answered, Error} {
+		if count := t.counts[verdict]; count > 0 {
+			parts = append(parts, Count(verdict, count))
 		}
 	}
 
-	counted := fmt.Sprintf("%d records", t.records)
-	if t.records == 1 {
-		counted = "1 record"
-	}
+	counted := wording.Plural(t.records, "record", "records")
 
 	if !whole {
 		counted = "stopped after " + counted
@@ -302,14 +291,6 @@ func (t *tally) alert(whole bool) string {
 	}
 
 	return alert(kind, counted+": "+strings.Join(parts, ", ")+".")
-}
-
-func errorLabel(count int) string {
-	if count == 1 {
-		return Error.String()
-	}
-
-	return Error.String() + "s"
 }
 
 func alert(kind, text string) string {

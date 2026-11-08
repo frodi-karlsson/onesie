@@ -36,7 +36,7 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		Write:       run.write,
 		Jobs:        setting.Get(in.flags.merged, setting.Jobs),
 		Unordered:   setting.Get(in.flags.merged, setting.Unordered),
-		StopOnError: stopsOf(in.flags).has(output.Error),
+		StopOnError: run.stops.has(output.Error),
 		Abort:       aborting,
 		Stop:        run.stop,
 	})
@@ -78,7 +78,9 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, stopsOf(in.flags).has(output.Error), in.resume)
+	stops := stopsOf(in.flags)
+
+	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, stops.has(output.Error), in.resume)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +89,12 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 	run := &streamRun{
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
 		abstain: inv.abstain, asker: asker, model: model, questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
-		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
+		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode, stops),
 		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
 		delimited:     in.outputMode == output.CSV || in.outputMode == output.TSV,
 		headerWritten: resume.Header,
 		md:            markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
+		stops:         stops,
 	}
 
 	if !setting.Get(in.flags.merged, setting.NoDedup) {
@@ -102,13 +105,14 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		})
 	}
 
-	run.stop = watched(stopping(stopsOf(in.flags)), &run.stopped)
+	run.stop = watched(stopping(stops), &run.stopped)
 
 	return run, nil
 }
 
 type streamRun struct {
 	flags         runConfig
+	stops         stopSet
 	built         *plan.Plan
 	mapper        *jq.Expr
 	images        *imaging

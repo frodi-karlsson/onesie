@@ -336,7 +336,7 @@ func (e *sourceError) Error() string {
 		return text(e.cause)
 	}
 
-	return fmt.Sprintf("%s, after %s", text(e.cause), plural(e.failed, "error"))
+	return fmt.Sprintf("%s, after %s", text(e.cause), output.Count(output.Error, e.failed))
 }
 
 func (e *sourceError) Unwrap() error {
@@ -370,13 +370,13 @@ func (e *stoppedError) Unwrap() error {
 type recordsError struct{}
 
 func (*recordsError) Error() string {
-	return "one or more records failed"
+	return "one or more records ended in an error"
 }
 
 type rejectedError struct{}
 
 func (*rejectedError) Error() string {
-	return "policy did not accept the answer"
+	return "the answer was judged a fail"
 }
 
 type abstainError struct{}

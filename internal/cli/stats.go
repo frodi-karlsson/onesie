@@ -18,6 +18,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 func withStats(
@@ -344,11 +345,11 @@ func (s Stats) String() string {
 
 	switch {
 	case split:
-		parts = append(parts, plural(total, "record"))
+		parts = append(parts, wording.Plural(total, "record", "records"))
 	case s.Mocked:
-		parts = append(parts, plural(s.Requests, "record")+" answered from the mock")
+		parts = append(parts, wording.Plural(s.Requests, "record", "records")+" answered from the mock")
 	default:
-		parts = append(parts, plural(s.Requests, "request"))
+		parts = append(parts, wording.Plural(s.Requests, "request", "requests"))
 	}
 
 	if s.Skipped > 0 {
@@ -364,15 +365,15 @@ func (s Stats) String() string {
 	}
 
 	if errored := s.Verdicts[output.Error]; errored > 0 {
-		parts = append(parts, plural(errored, "error"))
+		parts = append(parts, output.Count(output.Error, errored))
 	}
 
 	if fails := s.Verdicts[output.Fail]; fails > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", fails, output.Fail))
+		parts = append(parts, output.Count(output.Fail, fails))
 	}
 
 	if unsures := s.Verdicts[output.Unsure]; unsures > 0 {
-		parts = append(parts, fmt.Sprintf("%d %s", unsures, output.Unsure))
+		parts = append(parts, output.Count(output.Unsure, unsures))
 	}
 
 	if split {
@@ -380,7 +381,7 @@ func (s Stats) String() string {
 	}
 
 	parts = append(parts,
-		plural(s.Questions, "question")+" asked",
+		wording.Plural(s.Questions, "question", "questions")+" asked",
 		fmt.Sprintf("%d in / %d out tokens", s.InputTokens, s.OutputTokens))
 
 	if s.Cost != nil {
@@ -406,7 +407,7 @@ func (s Stats) requestClause() string {
 		return fmt.Sprintf("%d answered from the mock", s.Requests-s.FailedRequests)
 	}
 
-	return plural(s.Requests, "request")
+	return wording.Plural(s.Requests, "request", "requests")
 }
 
 func roundElapsed(d time.Duration) string {
@@ -440,11 +441,11 @@ func (s Stats) attemptClause() string {
 	}
 
 	if retries == 0 {
-		return plural(s.Attempts, "attempt")
+		return wording.Plural(s.Attempts, "attempt", "attempts")
 	}
 
 	return fmt.Sprintf("%s (%s: %s)",
-		plural(s.Attempts, "attempt"), plural(retries, "retry"), s.retryBreakdown())
+		wording.Plural(s.Attempts, "attempt", "attempts"), wording.Plural(retries, "retry", "retries"), s.retryBreakdown())
 }
 
 func (s Stats) retryBreakdown() string {

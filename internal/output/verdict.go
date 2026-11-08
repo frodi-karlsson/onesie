@@ -1,6 +1,10 @@
 package output
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/frodi-karlsson/onesie/internal/wording"
+)
 
 // The verdicts a record ends in, in the words onesie writes for people.
 const (
@@ -47,4 +51,14 @@ func (r Record) Verdict() Verdict {
 	}
 
 	return r.Gate
+}
+
+// Count writes n records of verdict v under the count rule: only error takes a plural, as in 2 fail
+// beside 2 errors.
+func Count(v Verdict, n int) string {
+	if v == Error {
+		return wording.Plural(n, "error", "errors")
+	}
+
+	return fmt.Sprintf("%d %s", n, v)
 }

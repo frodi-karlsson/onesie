@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 
 	"github.com/spf13/cobra"
 
@@ -334,7 +335,7 @@ func noteOverriddenBodyState(w io.Writer, loaded *qfile.File, images *imaging, q
 
 	note := ""
 	if dropped > 0 {
-		note = " and its " + plural(dropped, "asset")
+		note = " and its " + wording.Plural(dropped, "asset", "assets")
 	}
 
 	return output.Notice(w, "the input records override the request body's state"+note)
@@ -556,18 +557,6 @@ func jqValue(state, wire any) any {
 	}
 
 	return value
-}
-
-func plural(count int, noun string) string {
-	if count == 1 {
-		return fmt.Sprintf("%d %s", count, noun)
-	}
-
-	if noun == "retry" {
-		return fmt.Sprintf("%d retries", count)
-	}
-
-	return fmt.Sprintf("%d %ss", count, noun)
 }
 
 func rowLine(record output.Record, rec namedRecord) line {

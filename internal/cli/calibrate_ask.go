@@ -22,6 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 const maxCauses = 5
@@ -246,9 +247,9 @@ func writeCost(
 	w io.Writer, set labelledSet, resumed resumedSet, answers string, questions int, offline bool,
 ) error {
 	line := fmt.Sprintf("asking %d of %s, %s each",
-		len(resumed.pending), plural(len(set.records), "record"), plural(questions, "question"))
+		len(resumed.pending), wording.Plural(len(set.records), "record", "records"), wording.Plural(questions, "question", "questions"))
 	if offline {
-		line = fmt.Sprintf("reading %s from %s", plural(len(set.records), "record"), answers)
+		line = fmt.Sprintf("reading %s from %s", wording.Plural(len(set.records), "record", "records"), answers)
 	}
 
 	if set.unlabelled > 0 {
@@ -581,7 +582,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 		return nil
 	}
 
-	return output.Notice(w, "and "+plural(more, "more error"))
+	return output.Notice(w, "and "+wording.Plural(more, "more error", "more errors"))
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {

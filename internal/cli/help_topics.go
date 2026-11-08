@@ -202,7 +202,7 @@ func helpExecution(command settingrow.Command) string {
 		"--mock FILE, or " + settingEnv(setting.Mock.Name()) + "=FILE, answers from fixtures without a key or network, so gate scripts can be tested for free. " +
 		`A mock file is one JSON object keyed by question id, which answers every record, as in {"urgent":0.9}, or one line per record in the shape -o json writes, so the --out file of a real run replays. ` +
 		"Lines match records by id under --id and by position otherwise. Blank lines are refused, apart from those at the end. " +
-		`An entry {"error":503} fails a record as that status does, {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection. ` +
+		`An entry {"error":503} makes the record an error, as that status does, {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection. ` +
 		"Each is retried as a live failure is, without the wait. " +
 		"--print-request writes API shaped request bodies and sends none."
 	if command == settingrow.CommandRoot {

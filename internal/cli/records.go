@@ -28,8 +28,8 @@ func records(
 	book *answersfile.Ledger,
 	resume answersfile.Resume,
 	outputMode output.Mode,
+	stops stopSet,
 ) *naming {
-	stops := stopsOf(flags)
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
 		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
 	})
