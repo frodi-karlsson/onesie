@@ -402,6 +402,56 @@ func TestAsk(t *testing.T) {
 		}
 	})
 
+	t.Run("should count a -q judgment in --stats", func(t *testing.T) {
+		t.Parallel()
+
+		low := `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.1}}}`
+		picked := []string{"which team", "--pick", "billing,technical", "--min-confidence", "0.7", "--fallback", "human"}
+
+		tests := []struct {
+			name      string
+			args      []string
+			response  string
+			wantCode  int
+			wantStats string
+		}{
+			{
+				name: "should count a yes or no below the threshold", args: []string{"is this urgent"}, response: low,
+				wantCode: cli.ExitRejected, wantStats: "1 request, 1 false assertion, 1 question asked",
+			},
+			{
+				name: "should count nothing beside a yes or no above the threshold", args: []string{"is this urgent"}, response: urgent,
+				wantCode: cli.ExitOK, wantStats: "1 request, 1 question asked",
+			},
+			{
+				name: "should count a low confidence pick", args: picked, response: unsure,
+				wantCode: cli.ExitRejected, wantStats: "1 request, 1 false assertion, 1 question asked",
+			},
+			{
+				name: "should count nothing beside a confident pick", args: picked, response: routed,
+				wantCode: cli.ExitOK, wantStats: "1 request, 1 question asked",
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				args := append(append([]string{}, tc.args...), "-q", "--stats")
+
+				out, errOut, _ := runAsserted(t, args, 0, tc.response, tc.wantCode)
+
+				if out != "" {
+					t.Errorf("stdout = %q, want nothing under -q", out)
+				}
+
+				if !strings.HasPrefix(errOut, tc.wantStats+",") {
+					t.Errorf("stderr = %q, want it to open with %q", errOut, tc.wantStats)
+				}
+			})
+		}
+	})
+
 	t.Run("should write nothing when the run is cancelled", func(t *testing.T) {
 		t.Parallel()
 

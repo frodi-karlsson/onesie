@@ -749,17 +749,13 @@ func ask(
 		return err
 	}
 
+	quiet := setting.Get(flags.merged, setting.Quiet)
+
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(gated(gate, abstain), record, stats)
+	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record, stats)
 
-	if setting.Get(flags.merged, setting.Quiet) {
-		// Beside an assertion -q only silences the output. A gate of its own on top would make a
-		// safety assertion such as value < 0.5 impossible to pass.
-		if gate == nil {
-			return quietResult(built.Questions[0], record.Answers[0].Answer)
-		}
-
+	if quiet {
 		return verdictResult(record.Verdict())
 	}
 
@@ -798,6 +794,16 @@ func judge(decide decider, record output.Record, stats *collector) output.Record
 
 type decider func(output.Record) output.Verdict
 
+func askedDecider(gate, abstain *assert.Expr, quiet bool, first plan.Question) decider {
+	// Beside an assertion -q only silences the output. A gate of its own on top would make a
+	// safety assertion such as value < 0.5 impossible to pass.
+	if quiet && gate == nil {
+		return quietly(first)
+	}
+
+	return gated(gate, abstain)
+}
+
 func gated(gate, abstain *assert.Expr) decider {
 	return func(record output.Record) output.Verdict {
 		switch {
@@ -813,6 +819,35 @@ func gated(gate, abstain *assert.Expr) decider {
 			return output.Fail
 		}
 	}
+}
+
+func quietly(question plan.Question) decider {
+	return func(record output.Record) output.Verdict {
+		if quietAccepts(question, record.Answers[0].Answer) {
+			return output.Pass
+		}
+
+		return output.Fail
+	}
+}
+
+func quietAccepts(question plan.Question, a *answer.Answer) bool {
+	if question.Shape == plan.Noul {
+		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
+		// policy at all, unlike a pick question which has nothing to compare.
+		threshold := quietDefaultThreshold
+		if question.Policy.Threshold != nil {
+			threshold = *question.Policy.Threshold
+		}
+
+		probability, ok := a.Value.(float64)
+
+		return ok && probability >= threshold
+	}
+
+	// A low confidence fallback exits zero in every other output mode. Under -q it is the one
+	// signal the exit code has, so it reports a fail instead.
+	return a.Fallback != "low_confidence"
 }
 
 func writeFailure(
@@ -1082,32 +1117,6 @@ func describe(cause error) *output.Failure {
 	found := classify(cause)
 
 	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
-}
-
-func quietResult(question plan.Question, a *answer.Answer) error {
-	if question.Shape == plan.Noul {
-		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
-		// policy at all, unlike a pick question which has nothing to compare.
-		threshold := quietDefaultThreshold
-		if question.Policy.Threshold != nil {
-			threshold = *question.Policy.Threshold
-		}
-
-		probability, ok := a.Value.(float64)
-		if ok && probability >= threshold {
-			return nil
-		}
-
-		return &rejectedError{}
-	}
-
-	// A low confidence fallback exits zero in every other output mode. Under -q it is the one
-	// signal the exit code has, so it reports rejection instead.
-	if a.Fallback == "low_confidence" {
-		return &rejectedError{}
-	}
-
-	return nil
 }
 
 type runFlags struct {
