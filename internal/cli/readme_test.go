@@ -123,12 +123,12 @@ func TestReadme(t *testing.T) {
 		}
 	})
 
-	t.Run("should block with the mock answers the thresholds section shows", func(t *testing.T) {
+	t.Run("should block with the mock answers the examples README testing a gate section shows", func(t *testing.T) {
 		t.Parallel()
 
 		found := mockEcho.FindStringSubmatch(readmeSection(t, "Testing a gate", "examples", "README.md"))
 		if found == nil {
-			t.Fatal("README.md writes no danger.json")
+			t.Fatal("examples README writes no danger.json")
 		}
 
 		mock := filepath.Join(t.TempDir(), "danger.json")
