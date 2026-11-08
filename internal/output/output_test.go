@@ -51,15 +51,15 @@ func TestWrite(t *testing.T) {
 	}
 
 	asserted := output.Record{
-		Model:        "onesie-1.13.0",
-		Answers:      simple.Answers,
-		AssertFailed: true,
+		Model:   "onesie-1.13.0",
+		Answers: simple.Answers,
+		Gate:    output.Fail,
 	}
 
 	abstained := output.Record{
-		Model:     "onesie-1.13.0",
-		Answers:   simple.Answers,
-		Abstained: true,
+		Model:   "onesie-1.13.0",
+		Answers: simple.Answers,
+		Gate:    output.Unsure,
 	}
 
 	named := simple

@@ -19,7 +19,7 @@ func FuzzLineVerdict(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, kind, message string, status int, hasStatus bool, outcome uint8, id string, line []byte) {
 		rec := writtenRecord(kind, message, status, hasStatus, outcome, id)
-		want := Verdict{Rejected: rec.AssertFailed, Abstained: rec.Abstained, Failure: rec.Failure}
+		want := Verdict{Rejected: rec.Verdict() == output.Fail, Abstained: rec.Verdict() == output.Unsure, Failure: rec.Failure}
 
 		for _, mode := range []output.Mode{output.JSON, output.Values} {
 			var written bytes.Buffer
@@ -83,9 +83,9 @@ func writtenRecord(kind, message string, status int, hasStatus bool, outcome uin
 			rec.Failure.Status = &status
 		}
 	case 2:
-		rec.AssertFailed = true
+		rec.Gate = output.Fail
 	case 3:
-		rec.Abstained = true
+		rec.Gate = output.Unsure
 	}
 
 	return rec

@@ -104,12 +104,12 @@ func writeHeader(w io.Writer, rec Record) error {
 		}
 	}
 
-	switch {
-	case rec.AssertFailed:
+	switch rec.Verdict() {
+	case Fail:
 		_, err := fmt.Fprintln(w, "assert: false")
 
 		return err
-	case rec.Abstained:
+	case Unsure:
 		_, err := fmt.Fprintln(w, "abstain")
 
 		return err

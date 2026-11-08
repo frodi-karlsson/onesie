@@ -186,16 +186,17 @@ func fallbackCell(rec Record, id string) string {
 }
 
 func assertCell(rec Record) string {
-	// A failed record was never judged, so it claims neither outcome.
-	if rec.Failure != nil {
+	switch rec.Verdict() {
+	case Error:
+		// A failed record was never judged, so it claims neither outcome.
 		return ""
-	}
-
-	if rec.Abstained {
+	case Unsure:
 		return "abstain"
+	case Fail:
+		return "false"
+	default:
+		return "true"
 	}
-
-	return strconv.FormatBool(!rec.AssertFailed)
 }
 
 func cell(value any) string {

@@ -175,7 +175,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				AssertFailed: true,
+				Gate: output.Fail,
 			},
 			want: "model: onesie-1.13.0\nassert: false\n\nurgent: 0.92\n",
 		},
@@ -198,7 +198,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				Abstained: true,
+				Gate: output.Unsure,
 			},
 			want: "model: onesie-1.13.0\nabstain\n\nurgent: 0.92\n",
 		},
@@ -209,7 +209,7 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				AssertFailed: true,
+				Gate: output.Fail,
 			},
 			want: "assert: false\n\nurgent: 0.92\n",
 		},
