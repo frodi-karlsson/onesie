@@ -96,7 +96,7 @@ func TestRegister(t *testing.T) {
 				}
 			}
 
-			if got := registered.lookup("output").Usage; got != "the report, table, json or auto, which means table" {
+			if got := registered.lookup("output").Usage; got != "The report format, table, json or auto, which means table." {
 				t.Errorf("calibrate -o help = %q, want its own", got)
 			}
 		}},

@@ -1,11 +1,12 @@
 Output
 
 Flags:
-      --out STRING              write the answers to this file as -o json lines
-  -o, --output FORMAT           the report, table, json or auto, which means table
-      --usage                   add the api usage object to the answers file and the
-                                json report
-      --stats                   write a one line summary of the run to stderr at exit
+      --out STRING              Write the answers to this file as -o json lines.
+  -o, --output FORMAT           The report format, table, json or auto, which means
+                                table.
+      --usage                   Add the API usage object to the answers file and the
+                                JSON report.
+      --stats                   Write a one line summary of the run to stderr at exit.
   -h, --help                    help for calibrate
 
 How they work together:

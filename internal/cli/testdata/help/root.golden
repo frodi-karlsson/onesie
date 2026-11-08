@@ -26,12 +26,13 @@ Asking:
 Input:
       --state TEXT              Read this text instead of stdin. Use - to read stdin.
       --state-file FILE         Read the state from a file.
-  -i, --input FORMAT            text, json, jsonl, lines, csv, tsv or request. Default:
-                                text.
+  -i, --input FORMAT            One of text, json, jsonl, lines, csv, tsv or request.
+                                Default: text.
       --map EXPR                Select the content to evaluate with a jq expression.
 
 Output:
-  -o, --output FORMAT           auto, json, values, table, raw, csv, tsv or markdown
+  -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
+                                markdown.
   -r, --raw                     Print only the answer value or policy decision.
       --merge                   Keep input fields and attach the answers.
 

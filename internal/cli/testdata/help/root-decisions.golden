@@ -4,15 +4,17 @@ Flags:
       --threshold NUMBER        Turn a yes or no probability into a boolean decision.
       --assert EXPR             Exit 1 when an answer fails this condition.
   -q, --quiet                   Suppress output. Without --assert, judge one answer.
-      --min-confidence NUMBER   pick or rate only, requires --fallback. Confidence is
-                                about 1 when p sits on one answer
+      --min-confidence NUMBER   The confidence a pick or rate answer must reach. Needs
+                                --fallback. Confidence is about 1 when p sits on one
+                                answer.
       --fallback VALUE          Use this as answer.decision on low confidence or error.
                                 JSON keeps the model answer in answer.value when
                                 available.
-      --abstain-if EXPR         boolean expression that turns a no into an unsure,
-                                repeatable, combined with and, needs --assert. Replaces
-                                the -f file's abstain_if
-      --stop-on-assert          streaming only, end the run at the first false assertion
+      --abstain-if EXPR         Turn a no into an unsure when this condition holds.
+                                Repeatable, combined with and. Needs --assert and
+                                replaces the -f file's abstain_if.
+      --stop-on-assert          End the run at the first false assertion. Streaming
+                                only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone

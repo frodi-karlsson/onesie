@@ -22,19 +22,20 @@ Flags:
       --desc KEY=TEXT           Describe an option, level, yes or no.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
-      --print-questions         write a question file to stdout and exit, its first line
-                                naming the schema --print-schema prints
-      --print-schema            write the JSON Schema for a question file to stdout and
-                                exit
+      --print-questions         Write a question file to stdout and exit. Its first line
+                                names the schema --print-schema prints.
+      --print-schema            Write the JSON Schema for a question file to stdout and
+                                exit.
       --for ID                  Select a question from -f by ID, so the question flags
                                 after it apply to that question, each with a notice.
                                 Repeatable.
-      --sep STRING              separator for --pick and --rate that follow it
-      --box                     make this a box question, answered with the left, top,
+      --sep STRING              Set the separator for the --pick and --rate that follow
+                                it.
+      --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,
                                 each from 0 to 1. Takes no value. Experimental on
-                                TypeSafe's side
-      --replace                 --ask overrides an id from -f
+                                TypeSafe's side.
+      --replace                 Let --ask override an id from -f.
 
 How they work together:
   A positional question has the id answer. By default a question asks for a yes or no
@@ -72,26 +73,26 @@ Input
 Flags:
       --state TEXT              Read this text instead of stdin. Use - to read stdin.
       --state-file FILE         Read the state from a file.
-  -i, --input FORMAT            text, json, jsonl, lines, csv, tsv or request. Default:
-                                text.
+  -i, --input FORMAT            One of text, json, jsonl, lines, csv, tsv or request.
+                                Default: text.
       --map EXPR                Select the content to evaluate with a jq expression.
-      --delimiter STRING        field separator that -i csv reads and -o csv writes:
+      --delimiter STRING        Set the field separator -i csv reads and -o csv writes:
                                 auto, which needs -i csv and writes the one it detects,
-                                or one character. Defaults to a comma
+                                or one character. Defaults to a comma.
       --image NAME=PATH         Put a PNG or JPEG in the state under NAME. Repeatable.
                                 For one record stdin is read beside it only through
                                 --state -, so text joins it from --state, --state-file
                                 or --state -. A stream reads its records from stdin and
                                 adds the image to each. Experimental on TypeSafe's side.
-      --image-field NAME        streaming only, repeatable, a state key whose value is a
-                                path to a PNG or JPEG, read per record. Under -i lines
-                                the line is the path. Experimental on TypeSafe's side
-      --id EXPR                 streaming only, jq expression run on each record, whose
-                                string or number result names it on every output line.
-                                It runs one record at a time as the input is read, so
-                                keep it cheap, such as a field lookup, and -V lists the
-                                cap on its length
-      --skip-blank              streaming only, drop blank lines with no output line
+      --image-field NAME        Read a PNG or JPEG per record from the path this state
+                                key holds. Streaming only, repeatable. Under -i lines
+                                the line is the path. Experimental on TypeSafe's side.
+      --id EXPR                 Name each record on every output line with the string or
+                                number this jq expression returns. Streaming only. It
+                                runs one record at a time as the input is read, so keep
+                                it cheap, such as a field lookup. -V lists the cap on
+                                its length.
+      --skip-blank              Drop blank lines with no output line. Streaming only.
 
 How they work together:
   Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin.
@@ -122,15 +123,17 @@ Flags:
       --threshold NUMBER        Turn a yes or no probability into a boolean decision.
       --assert EXPR             Exit 1 when an answer fails this condition.
   -q, --quiet                   Suppress output. Without --assert, judge one answer.
-      --min-confidence NUMBER   pick or rate only, requires --fallback. Confidence is
-                                about 1 when p sits on one answer
+      --min-confidence NUMBER   The confidence a pick or rate answer must reach. Needs
+                                --fallback. Confidence is about 1 when p sits on one
+                                answer.
       --fallback VALUE          Use this as answer.decision on low confidence or error.
                                 JSON keeps the model answer in answer.value when
                                 available.
-      --abstain-if EXPR         boolean expression that turns a no into an unsure,
-                                repeatable, combined with and, needs --assert. Replaces
-                                the -f file's abstain_if
-      --stop-on-assert          streaming only, end the run at the first false assertion
+      --abstain-if EXPR         Turn a no into an unsure when this condition holds.
+                                Repeatable, combined with and. Needs --assert and
+                                replaces the -f file's abstain_if.
+      --stop-on-assert          End the run at the first false assertion. Streaming
+                                only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone
@@ -173,16 +176,17 @@ How they work together:
 Output
 
 Flags:
-  -o, --output FORMAT           auto, json, values, table, raw, csv, tsv or markdown
+  -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
+                                markdown.
   -r, --raw                     Print only the answer value or policy decision.
       --merge                   Keep input fields and attach the answers.
-  -V, --version                 print the version, commit, build date and the built in
-                                limits, as one JSON object under -o json
-      --out STRING              write the answers to this file rather than stdout
-      --merge-key STRING        where the answers land in the merged record, implies
-                                --merge
-      --usage                   add the api usage object to json output
-      --stats                   write a one line summary of the run to stderr at exit
+  -V, --version                 Print the version, commit, build date and built in
+                                limits, as one JSON object under -o json.
+      --out STRING              Write the answers to this file rather than stdout.
+      --merge-key STRING        Put the answers under this key in the merged record.
+                                Implies --merge.
+      --usage                   Add the API usage object to JSON output.
+      --stats                   Write a one line summary of the run to stderr at exit.
   -h, --help                    help for onesie
 
 How they work together:
@@ -202,20 +206,20 @@ How they work together:
 Connections
 
 Flags:
-      --list-models             write the available models to stdout and exit
-      --provider STRING         run on this provider without a profile, typesafe,
+      --list-models             Write the available models to stdout and exit.
+      --provider STRING         Run on this provider without a profile: typesafe,
                                 openrouter, berget, levanto or cloudflare. Overrides
                                 ONESIE_PROVIDER and the default profile. Refused beside
-                                --profile or ONESIE_PROFILE
-      --profile STRING          the profile a run uses, from profiles.json in the config
-                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER, and
-                                otherwise the default profile runs, which onesie profile
-                                use sets
-  -m, --model STRING            model override
-      --base-url STRING         api root override. Also ONESIE_BASE_URL
-      --allow-http              send the request, and any API key, over a plain http
+                                --profile or ONESIE_PROFILE.
+      --profile STRING          The profile a run uses, from profiles.json in the config
+                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER.
+                                Otherwise the default profile runs, which onesie profile
+                                use sets.
+  -m, --model STRING            Use this model.
+      --base-url STRING         Use this API root. Also ONESIE_BASE_URL.
+      --allow-http              Send the request, and any API key, over a plain http
                                 base URL to a host other than this machine. Without it
-                                such a base URL exits 2 before any request
+                                such a base URL exits 2 before any request.
 
 How they work together:
   onesie is a Unix filter over the System One API, served by typesafe, openrouter,
@@ -255,36 +259,36 @@ How they work together:
 Execution
 
 Flags:
-      --print-request           write api shaped request bodies to stdout and exit
-      --resume                  streaming only, with --out, carry on after the last
-                                complete line in the file. Under --id it skips the ids
-                                the file answers, so a record whose content changed but
-                                whose id did not keeps its old answer. It then rewrites
-                                the file in input order, with the answered ids the input
-                                no longer has kept after them, which --prune drops
-      --prune                   with --resume and --id, drop the answered ids the input
-                                no longer has
-      --unordered               streaming only, emit records as they complete
-      --stop-on-error           streaming only, end the run at the first failure, with
-                                its exit code, or 6 for a line onesie could not read
-      --no-dedup                streaming only, ask every record even when its request
-                                repeats an earlier one
-      --long-context            raise the context limits to 262k tokens, slower and less
+      --print-request           Write API shaped request bodies to stdout and exit.
+      --resume                  Carry on after the last complete line in the --out file.
+                                Streaming only. Under --id it skips the ids the file
+                                answers, so a record whose content changed but whose id
+                                did not keeps its old answer. It then rewrites the file
+                                in input order, with the answered ids the input no
+                                longer has kept after them, which --prune drops.
+      --prune                   Drop the answered ids the input no longer has. Needs
+                                --resume and --id.
+      --unordered               Emit records as they complete. Streaming only.
+      --stop-on-error           End the run at the first failure, with its exit code, or
+                                6 for a line onesie could not read. Streaming only.
+      --no-dedup                Ask every record even when its request repeats an
+                                earlier one. Streaming only.
+      --long-context            Raise the context limits to 262k tokens, slower and less
                                 accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
-                                TypeSafe's side
-      --mock FILE               answer from this file instead of the API. Also
+                                TypeSafe's side.
+      --mock FILE               Answer from this file instead of the API. Also
                                 ONESIE_MOCK. The file is an object keyed by question id,
                                 as {"answer":0.9,"team":"billing"}, or one line per
                                 record in the shape -o json writes. A lone line that
                                 carries id, line, model, usage, assert, abstain or an
-                                error object is one record
-      --cache                   store responses on disk and answer a repeated request
-                                from them. Also ONESIE_CACHE=1
-  -j, --jobs INT                records in flight at once. Default: 1.
-      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                error object is one record.
+      --cache                   Store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1.
+  -j, --jobs INT                Records in flight at once. Default: 1.
+      --timeout INT             Seconds per attempt, 60 for a request with images unless
                                 given. Default: 10.
-      --retries INT             retries after a failed attempt. Default: 2.
-      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+      --retries INT             Retries after a failed attempt. Default: 2.
+      --max-retry-after INT     Most seconds to wait out a server Retry-After. Default:
                                 60.
 
 How they work together:

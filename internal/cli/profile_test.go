@@ -83,7 +83,7 @@ func TestNewProfileCmd(t *testing.T) {
 		{
 			name:     "should say in the create help that --allow-http covers a host other than this machine",
 			args:     []string{"profile", "create", "--help"},
-			wantOut:  "store a plain http --base-url to a host other than this machine",
+			wantOut:  "Store a plain http --base-url to a host other than this machine",
 			wantCode: ExitOK,
 		},
 		{

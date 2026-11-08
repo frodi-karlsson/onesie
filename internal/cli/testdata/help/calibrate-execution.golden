@@ -1,27 +1,26 @@
 Execution
 
 Flags:
-      --resume                  with --out and --id, skip the ids the file already
-                                answers
-      --print-request           write api shaped request bodies to stdout and exit
-      --prune                   with --resume, drop the answered ids the input no longer
-                                has
-      --long-context            raise the context limits to 262k tokens, slower and less
+      --resume                  Skip the ids the --out file already answers. Needs --id.
+      --print-request           Write API shaped request bodies to stdout and exit.
+      --prune                   Drop the answered ids the input no longer has. Needs
+                                --resume.
+      --long-context            Raise the context limits to 262k tokens, slower and less
                                 accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
-                                TypeSafe's side
-      --mock FILE               answer from this file instead of the API. Also
+                                TypeSafe's side.
+      --mock FILE               Answer from this file instead of the API. Also
                                 ONESIE_MOCK. The file is an object keyed by question id,
                                 as {"answer":0.9,"team":"billing"}, or one line per
                                 record in the shape -o json writes. A lone line that
                                 carries id, line, model, usage, assert, abstain or an
-                                error object is one record
-      --cache                   store responses on disk and answer a repeated request
-                                from them. Also ONESIE_CACHE=1
-  -j, --jobs INT                records in flight at once. Default: 1.
-      --timeout INT             seconds per attempt, 60 for a request with images unless
+                                error object is one record.
+      --cache                   Store responses on disk and answer a repeated request
+                                from them. Also ONESIE_CACHE=1.
+  -j, --jobs INT                Records in flight at once. Default: 1.
+      --timeout INT             Seconds per attempt, 60 for a request with images unless
                                 given. Default: 10.
-      --retries INT             retries after a failed attempt. Default: 2.
-      --max-retry-after INT     most seconds to wait out a server Retry-After. Default:
+      --retries INT             Retries after a failed attempt. Default: 2.
+      --max-retry-after INT     Most seconds to wait out a server Retry-After. Default:
                                 60.
 
 How they work together:

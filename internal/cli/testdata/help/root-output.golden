@@ -1,16 +1,17 @@
 Output
 
 Flags:
-  -o, --output FORMAT           auto, json, values, table, raw, csv, tsv or markdown
+  -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
+                                markdown.
   -r, --raw                     Print only the answer value or policy decision.
       --merge                   Keep input fields and attach the answers.
-  -V, --version                 print the version, commit, build date and the built in
-                                limits, as one JSON object under -o json
-      --out STRING              write the answers to this file rather than stdout
-      --merge-key STRING        where the answers land in the merged record, implies
-                                --merge
-      --usage                   add the api usage object to json output
-      --stats                   write a one line summary of the run to stderr at exit
+  -V, --version                 Print the version, commit, build date and built in
+                                limits, as one JSON object under -o json.
+      --out STRING              Write the answers to this file rather than stdout.
+      --merge-key STRING        Put the answers under this key in the merged record.
+                                Implies --merge.
+      --usage                   Add the API usage object to JSON output.
+      --stats                   Write a one line summary of the run to stderr at exit.
   -h, --help                    help for onesie
 
 How they work together:

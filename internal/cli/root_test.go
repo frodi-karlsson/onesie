@@ -1118,8 +1118,8 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"help", "execution"},
 			wantCode: cli.ExitOK,
 			contains: []string{
-				"seconds per attempt", "retries after a failed attempt",
-				"most seconds to wait out a server Retry-After",
+				"Seconds per attempt", "Retries after a failed attempt.",
+				"Most seconds to wait out a server Retry-After.",
 			},
 		},
 		{

@@ -5,6 +5,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/cache"
@@ -288,6 +290,28 @@ func TestTable(t *testing.T) {
 						flag, ok := row.FlagOn(command)
 						if ok && flag.HelpValue != "" && strings.HasPrefix(flag.Help, flag.HelpValue) {
 							problems = append(problems, fmt.Sprintf("%s: --%s help repeats its value name %s", command, flag.Long, flag.HelpValue))
+						}
+					}
+				}
+
+				return problems
+			},
+		},
+		{
+			name: "should write every flag help as sentences that start with a capital and end with a period",
+			check: func(rows []settingrow.Row) []string {
+				var problems []string
+
+				for _, command := range commands {
+					for _, row := range rows {
+						flag, ok := row.FlagOn(command)
+						if !ok {
+							continue
+						}
+
+						first, _ := utf8.DecodeRuneInString(flag.Help)
+						if !unicode.IsUpper(first) || !strings.HasSuffix(flag.Help, ".") {
+							problems = append(problems, fmt.Sprintf("%s: --%s help %q is not a sentence", command, flag.Long, flag.Help))
 						}
 					}
 				}
