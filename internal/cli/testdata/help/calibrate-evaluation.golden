@@ -5,7 +5,7 @@ Flags:
                                 expression, run on the record, not on the mapped state.
                                 A question with none is skipped. With one question ID=
                                 may be left out.
-      --cuts STRING             Comma separated cuts between 0 and 1. See Evaluation for
+      --cuts CUTS               Comma separated cuts between 0 and 1. See Evaluation for
                                 defaults.
       --require CONDITION       A requirement the report must meet, as
                                 [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or

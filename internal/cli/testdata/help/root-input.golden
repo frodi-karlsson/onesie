@@ -6,7 +6,7 @@ Flags:
   -i, --input FORMAT            One of text, json, jsonl, lines, csv, tsv or request.
                                 Default: text.
       --map EXPR                Select the content to evaluate with a jq expression.
-      --delimiter STRING        Set the field separator -i csv reads and -o csv writes:
+      --delimiter CHAR          Set the field separator -i csv reads and -o csv writes:
                                 auto, which needs -i csv and writes the one it detects,
                                 or one character. Defaults to a comma.
       --image NAME=PATH         Put a PNG or JPEG in the state under NAME. Repeatable.

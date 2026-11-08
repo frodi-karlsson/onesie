@@ -7,12 +7,12 @@ Flags:
       --merge                   Keep input fields and attach the answers.
   -V, --version                 Print the version, commit, build date and built in
                                 limits, as one JSON object under -o json.
-      --out STRING              Write the answers to this file rather than stdout.
-      --merge-key STRING        Put the answers under this key in the merged record.
+      --out FILE                Write the answers to this file rather than stdout.
+      --merge-key KEY           Put the answers under this key in the merged record.
                                 Implies --merge.
       --usage                   Add the API usage object to JSON output.
       --stats                   Write a one line summary of the run to stderr at exit.
-  -h, --help                    help for onesie
+  -h, --help                    Show this help.
 
 How they work together:
   Auto uses a table only for one result on a terminal, without --merge or --out. It uses

@@ -14,7 +14,7 @@ Flags:
       --for ID                  Select a question from -f by ID, so the question flags
                                 after it apply to that question, each with a notice.
                                 Repeatable.
-      --sep STRING              Set the separator for the --pick and --rate that follow
+      --sep SEP                 Set the separator for the --pick and --rate that follow
                                 it.
       --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,

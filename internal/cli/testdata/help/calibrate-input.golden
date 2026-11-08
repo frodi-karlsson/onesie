@@ -7,7 +7,7 @@ Flags:
                                 read.
       --id EXPR                 Name each record with the string or number this jq
                                 expression returns.
-      --delimiter STRING        Set the field separator for -i csv: auto, or one
+      --delimiter CHAR          Set the field separator for -i csv: auto, or one
                                 character. Defaults to a comma.
       --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
                                 Repeatable. Experimental on TypeSafe's side.

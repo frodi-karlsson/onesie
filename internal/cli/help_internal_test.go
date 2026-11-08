@@ -142,6 +142,31 @@ func TestWriteCommandHelp(t *testing.T) {
 			}
 		}
 	})
+	t.Run("should name no flag value STRING or INT on any command", func(t *testing.T) {
+		generic := regexp.MustCompile(`(?m)^  (-[[:alnum:]], |    )--[[:alnum:]-]+ (STRING|INT)( |$)`)
+		for _, cmd := range helpTestTree(t) {
+			var out bytes.Buffer
+			if err := writeCommandHelp(&out, cmd, "all"); err != nil {
+				t.Fatalf("%s: %v", cmd.CommandPath(), err)
+			}
+			for _, line := range generic.FindAllString(out.String(), -1) {
+				t.Errorf("%s has a generic value name: %s", cmd.CommandPath(), strings.TrimSpace(line))
+			}
+		}
+	})
+	t.Run("should describe -h as Show this help. on every command", func(t *testing.T) {
+		help := regexp.MustCompile(`(?m)^  -h, --help +Show this help\.$`)
+		cobraDefault := regexp.MustCompile(`--help +help for `)
+		for _, cmd := range helpTestTree(t) {
+			var out bytes.Buffer
+			if err := writeCommandHelp(&out, cmd, "all"); err != nil {
+				t.Fatalf("%s: %v", cmd.CommandPath(), err)
+			}
+			if !help.MatchString(out.String()) || cobraDefault.MatchString(out.String()) {
+				t.Errorf("%s does not describe -h as Show this help.\n%s", cmd.CommandPath(), out.String())
+			}
+		}
+	})
 	t.Run("should find no command content that the help writers drop", func(t *testing.T) {
 		for _, cmd := range helpTestTree(t) {
 			if len(cmd.Aliases) > 0 || len(cmd.Groups()) > 0 || cmd.GroupID != "" || cmd.HasHelpSubCommands() {
@@ -183,8 +208,8 @@ func TestDescribedFlag(t *testing.T) {
 		{name: "should take the value name from a borrowed annotation", flag: annotated.Lookup("output"), wantFound: true, wantValue: "FORMAT"},
 		{name: "should describe a bool flag as a switch", flag: plain.Lookup("switch"), wantFound: true},
 		{name: "should refuse a valued flag with no row or annotation", flag: plain.Lookup("unclassified")},
-		{name: "should describe a flag from the row its command binds", flag: plain.Lookup("model"), command: settingrow.CommandProfileCreate, wantFound: true, wantValue: "STRING"},
-		{name: "should accept an inherited flag only from a persistent binding", flag: plain.Lookup("profile"), command: settingrow.CommandRoot, persistent: true, wantFound: true, wantValue: "STRING"},
+		{name: "should describe a flag from the row its command binds", flag: plain.Lookup("model"), command: settingrow.CommandProfileCreate, wantFound: true, wantValue: "MODEL"},
+		{name: "should accept an inherited flag only from a persistent binding", flag: plain.Lookup("profile"), command: settingrow.CommandRoot, persistent: true, wantFound: true, wantValue: "NAME"},
 		{name: "should refuse an inherited flag whose binding is not persistent", flag: plain.Lookup("model"), command: settingrow.CommandRoot, persistent: true},
 	}
 	for _, tc := range tests {
