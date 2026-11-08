@@ -230,6 +230,17 @@ Dry run the goreleaser pipeline without tagging:
 goreleaser release --snapshot --clean
 ```
 
+### setup-onesie
+
+[setup-onesie](https://github.com/frodi-karlsson/setup-onesie) runs onesie with `-f`, `-o json` and
+`--state -`, and reads exit codes 0, 1 and 7. Before a release that removes or renames one of those
+flags, or changes that output or those exit codes:
+
+1. Release a candidate such as `v0.15.0-rc.1`, and run setup-onesie's `Compatibility` workflow by
+   hand with that `version`. If it fails, release setup-onesie with `below_version` in its `lib.sh`
+   set to the new minor, such as `0.15.0`, before this release.
+2. Once setup-onesie adapts, release it again with `below_version` cleared or `min_version` raised.
+
 ### The Homebrew formula
 
 onesie ships a formula, not a cask, from this repo's own generator, since
