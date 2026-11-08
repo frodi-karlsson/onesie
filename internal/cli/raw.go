@@ -15,6 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func streamRaw(
@@ -59,7 +60,7 @@ func streamRaw(
 	}
 
 	// A request body carries no assertion, so no record can have failed one.
-	return streamResult(result, 0, 0)
+	return streamResult(result, output.Tally{})
 }
 
 func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) (*rawRun, error) {

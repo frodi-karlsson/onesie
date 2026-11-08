@@ -156,7 +156,7 @@ func streamRequests(
 	}
 
 	// A dry run asks no question, so no record can have carried an assertion.
-	return streamResult(result, 0, 0)
+	return streamResult(result, output.Tally{})
 }
 
 type requestRun struct {

@@ -32,34 +32,34 @@ func TestJudge(t *testing.T) {
 	)
 
 	tests := []struct {
-		name          string
-		gate          string
-		abstain       string
-		wantFailed    bool
-		wantAbstained bool
+		name    string
+		gate    string
+		abstain string
+		want    output.Verdict
 	}{
 		{
-			name: "should be yes when the assertion holds and the abstain expression holds too",
-			gate: holds, abstain: holds,
+			name: "should pass when the assertion holds and the abstain expression holds too",
+			gate: holds, abstain: holds, want: output.Pass,
 		},
 		{
-			name: "should be yes when the assertion holds and the abstain expression is false",
-			gate: holds, abstain: fails,
+			name: "should pass when the assertion holds and the abstain expression is false",
+			gate: holds, abstain: fails, want: output.Pass,
 		},
 		{
 			name: "should be unsure when the assertion is false and the abstain expression holds",
-			gate: fails, abstain: holds, wantAbstained: true,
+			gate: fails, abstain: holds, want: output.Unsure,
 		},
 		{
-			name: "should be no when both are false",
-			gate: fails, abstain: fails, wantFailed: true,
+			name: "should fail when both are false",
+			gate: fails, abstain: fails, want: output.Fail,
 		},
 		{
-			name: "should be no when there is no abstain expression and the assertion is false",
-			gate: fails, wantFailed: true,
+			name: "should fail when there is no abstain expression and the assertion is false",
+			gate: fails, want: output.Fail,
 		},
 		{
-			name: "should be yes when there is neither an assertion nor an abstain expression",
+			name: "should be answered when there is neither an assertion nor an abstain expression",
+			want: output.Answered,
 		},
 	}
 
@@ -73,24 +73,17 @@ func TestJudge(t *testing.T) {
 
 			stats := &collector{}
 
-			got := judge(parsed(t, tc.gate), parsed(t, tc.abstain), record, stats)
+			got := judge(gated(parsed(t, tc.gate), parsed(t, tc.abstain)), record, stats)
 
-			if got.AssertFailed != tc.wantFailed {
-				t.Errorf("AssertFailed = %v, want %v", got.AssertFailed, tc.wantFailed)
+			if got.Gate != tc.want {
+				t.Errorf("Gate = %v, want %v", got.Gate, tc.want)
 			}
 
-			if got.Abstained != tc.wantAbstained {
-				t.Errorf("Abstained = %v, want %v", got.Abstained, tc.wantAbstained)
-			}
+			var want output.Tally
+			want[tc.want] = 1
 
-			snapshot := stats.snapshot(0)
-
-			if want := count(tc.wantFailed); snapshot.FalseAsserts != want {
-				t.Errorf("FalseAsserts = %d, want %d", snapshot.FalseAsserts, want)
-			}
-
-			if want := count(tc.wantAbstained); snapshot.Abstains != want {
-				t.Errorf("Abstains = %d, want %d", snapshot.Abstains, want)
+			if counted := stats.snapshot(0).Verdicts; counted != want {
+				t.Errorf("Verdicts = %v, want %v", counted, want)
 			}
 		})
 	}
@@ -109,14 +102,6 @@ func parsed(t *testing.T, source string) *assert.Expr {
 	}
 
 	return expr
-}
-
-func count(counted bool) int {
-	if counted {
-		return 1
-	}
-
-	return 0
 }
 
 func TestNoState(t *testing.T) {
@@ -154,23 +139,31 @@ func TestStreamResult(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name         string
-		failed       int
-		falseAsserts int
-		abstains     int
-		want         int
+		name   string
+		failed int
+		judged output.Tally
+		want   int
 	}{
-		{name: "should exit six when a failed record sits beside the rest", failed: 1, falseAsserts: 1, abstains: 1, want: ExitRecords},
-		{name: "should exit one when a false assertion sits beside an abstain", falseAsserts: 1, abstains: 1, want: ExitRejected},
-		{name: "should exit seven when an abstain is all the stream holds", abstains: 2, want: ExitAbstain},
-		{name: "should exit zero when the stream holds none of these", want: ExitOK},
+		{
+			name: "should exit six when an error sits beside the rest", failed: 1,
+			judged: output.Tally{output.Fail: 1, output.Unsure: 1}, want: ExitRecords,
+		},
+		{
+			name:   "should exit one when a fail sits beside an unsure",
+			judged: output.Tally{output.Fail: 1, output.Unsure: 1}, want: ExitRejected,
+		},
+		{name: "should exit seven when an unsure is all the stream holds", judged: output.Tally{output.Unsure: 2}, want: ExitAbstain},
+		{
+			name:   "should exit zero when every record passed or answered",
+			judged: output.Tally{output.Pass: 1, output.Answered: 1}, want: ExitOK,
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := streamResult(engine.Result{Failed: tc.failed}, tc.falseAsserts, tc.abstains)
+			err := streamResult(engine.Result{Failed: tc.failed}, tc.judged)
 
 			if got := Classify(err); got != tc.want {
 				t.Errorf("exit = %d, want %d, from %v", got, tc.want, err)
@@ -230,7 +223,7 @@ func TestDescribe(t *testing.T) {
 			t.Parallel()
 
 			stored := &storedFailure{failure: *describe(tc.cause)}
-			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, 0, 0)
+			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, output.Tally{})
 
 			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
 				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)

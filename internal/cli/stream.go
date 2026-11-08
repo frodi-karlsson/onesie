@@ -277,7 +277,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 	// A false assertion or an abstain is not an engine failure: the record succeeded and the answer
 	// is complete, so the outcome is carried on the line rather than returned as an error the engine
 	// would count against result.Failed.
-	record = judge(r.gate, r.abstain, record, r.stats)
+	record = judge(gated(r.gate, r.abstain), record, r.stats)
 
 	answered := rowLine(record, rec)
 	answered.call = call
@@ -362,7 +362,7 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 	}
 
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.
-	outcome := streamResult(result, r.stats.falseAssertions(), r.stats.abstains())
+	outcome := streamResult(result, r.stats.verdicts())
 	if outcome == nil {
 		return r.shared.noticeError()
 	}

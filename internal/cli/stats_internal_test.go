@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestPlural(t *testing.T) {
@@ -113,8 +114,8 @@ func TestCollectorSnapshot(t *testing.T) {
 				t.Errorf("Requests = %d, want %d", got.Requests, 2*each)
 			}
 
-			if got.Failed != each {
-				t.Errorf("Failed = %d, want %d", got.Failed, each)
+			if got.Verdicts[output.Error] != each {
+				t.Errorf("Verdicts[Error] = %d, want %d", got.Verdicts[output.Error], each)
 			}
 
 			if got.Retries[http.StatusTooManyRequests] != each {
@@ -240,8 +241,8 @@ func TestCollectorRecordFailure(t *testing.T) {
 				t.Errorf("Requests = %d, want %d", got.Requests, tc.wantRequests)
 			}
 
-			if got.Failed != tc.wantFailed {
-				t.Errorf("Failed = %d, want %d", got.Failed, tc.wantFailed)
+			if got.Verdicts[output.Error] != tc.wantFailed {
+				t.Errorf("Verdicts[Error] = %d, want %d", got.Verdicts[output.Error], tc.wantFailed)
 			}
 		})
 	}
@@ -279,9 +280,9 @@ func TestCollectorDeduplicated(t *testing.T) {
 
 			got := c.snapshot(time.Second)
 
-			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Failed != tc.wantFailed {
+			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Verdicts[output.Error] != tc.wantFailed {
 				t.Errorf("records, dedups, failed = %d, %d, %d, want %d, %d, %d",
-					got.Records, got.Dedups, got.Failed, tc.wantRecords, tc.wantDedups, tc.wantFailed)
+					got.Records, got.Dedups, got.Verdicts[output.Error], tc.wantRecords, tc.wantDedups, tc.wantFailed)
 			}
 
 			if got.Requests != 0 || got.Questions != 0 || got.Attempts != 0 {

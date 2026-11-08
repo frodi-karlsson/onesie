@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/frodi-karlsson/onesie/internal/cli"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func TestStatsString(t *testing.T) {
@@ -31,7 +32,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render a stream with failures and two models",
 			stats: cli.Stats{
-				Records: 40, Requests: 40, Failed: 2, Questions: 80,
+				Records: 40, Requests: 40, Verdicts: output.Tally{output.Error: 2}, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0", "onesie-1.14.0"}, Attempts: 41,
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
@@ -108,7 +109,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should count abstains beside false assertions",
 			stats: cli.Stats{
-				Requests: 3, Records: 3, FalseAsserts: 1, Abstains: 1, Questions: 3,
+				Requests: 3, Records: 3, Verdicts: output.Tally{output.Fail: 1, output.Unsure: 1}, Questions: 3,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
@@ -129,7 +130,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should count a record that never reached the client",
 			stats: cli.Stats{
-				Requests: 2, Records: 3, Failed: 1, Questions: 2,
+				Requests: 2, Records: 3, Verdicts: output.Tally{output.Error: 1}, Questions: 2,
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
@@ -165,7 +166,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should render a false assertion count beside the failed count",
 			stats: cli.Stats{
-				Records: 40, Requests: 40, Failed: 2, FalseAsserts: 1, Questions: 80,
+				Records: 40, Requests: 40, Verdicts: output.Tally{output.Error: 2, output.Fail: 1}, Questions: 80,
 				InputTokens: 10000, OutputTokens: 400,
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
@@ -186,7 +187,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should omit the model clause when no model was seen",
 			stats: cli.Stats{
-				Records: 1, Requests: 1, Failed: 1, Questions: 1, Attempts: 1,
+				Records: 1, Requests: 1, Verdicts: output.Tally{output.Error: 1}, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
 			want: "1 request, 1 failed, 1 question asked, 0 in / 0 out tokens, " +
@@ -213,7 +214,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should count no record the mock failed as answered from it",
 			stats: cli.Stats{
-				Mocked: true, Records: 2, Requests: 2, Failed: 1, FailedRequests: 1, Questions: 2,
+				Mocked: true, Records: 2, Requests: 2, Verdicts: output.Tally{output.Error: 1}, FailedRequests: 1, Questions: 2,
 				Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
 			want: "2 records, 1 failed, 1 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
@@ -222,7 +223,7 @@ func TestStatsString(t *testing.T) {
 		{
 			name: "should count a mock run's records apart when a line never reached the mock",
 			stats: cli.Stats{
-				Mocked: true, Records: 3, Requests: 2, Failed: 2, Skipped: 1, FalseAsserts: 1,
+				Mocked: true, Records: 3, Requests: 2, Verdicts: output.Tally{output.Error: 2, output.Fail: 1}, Skipped: 1,
 				Questions: 2, Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},

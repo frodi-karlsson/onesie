@@ -630,7 +630,7 @@ type line struct {
 	call   *sharedCall
 }
 
-func streamResult(result engine.Result, falseAsserts, abstains int) error {
+func streamResult(result engine.Result, judged output.Tally) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -651,14 +651,14 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 		return &recordsError{}
 	}
 
-	// After the failed records and before the successful return. A stream carrying both exits 6,
-	// since a record that never answered says more than a gate that answered no.
-	if falseAsserts > 0 {
+	// After the errors and before the successful return. A stream carrying both exits 6, since a
+	// record that never answered says more than a gate that answered no.
+	if judged[output.Fail] > 0 {
 		return &rejectedError{}
 	}
 
 	// Last, since a gate that could not decide says less than one that answered no.
-	if abstains > 0 {
+	if judged[output.Unsure] > 0 {
 		return &abstainError{}
 	}
 
@@ -747,7 +747,7 @@ func ask(
 
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(gate, abstain, record, stats)
+	record = judge(gated(gate, abstain), record, stats)
 
 	if setting.Get(flags.merged, setting.Quiet) {
 		// Beside an assertion -q only silences the output. A gate of its own on top would make a
@@ -786,24 +786,32 @@ func assertResult(record output.Record) error {
 	return nil
 }
 
-func judge(gate, abstain *assert.Expr, record output.Record, stats *collector) output.Record {
-	if assert.Eval(gate, record) {
-		return record
-	}
-
-	// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
-	// missing abstain expression leaves every false assertion a no.
-	if abstain != nil && assert.Eval(abstain, record) {
-		record.Abstained = true
-		stats.abstained()
-
-		return record
-	}
-
-	record.AssertFailed = true
-	stats.assertFailed()
+func judge(decide decider, record output.Record, stats *collector) output.Record {
+	record.Gate = decide(record)
+	record.AssertFailed = record.Gate == output.Fail
+	record.Abstained = record.Gate == output.Unsure
+	stats.judged(record.Gate)
 
 	return record
+}
+
+type decider func(output.Record) output.Verdict
+
+func gated(gate, abstain *assert.Expr) decider {
+	return func(record output.Record) output.Verdict {
+		switch {
+		case gate == nil:
+			return output.Answered
+		case assert.Eval(gate, record):
+			return output.Pass
+		// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
+		// missing abstain expression leaves every false assertion a no.
+		case abstain != nil && assert.Eval(abstain, record):
+			return output.Unsure
+		default:
+			return output.Fail
+		}
+	}
 }
 
 func writeFailure(
