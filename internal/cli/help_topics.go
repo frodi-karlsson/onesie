@@ -101,11 +101,11 @@ func helpDecisions() string {
 		"--min-confidence applies only to pick and rate, needs --fallback and takes a value between 0 and 1. " +
 		"Confidence is about 1 when p sits on one answer. Yes or no fallback values must be boolean spellings. " +
 		"Pick and rate can fall back to a review destination outside their options. JSON retains the model answer in answer.value when available, " +
-		"with the policy result in answer.decision. Low confidence has fallback reason low_confidence and a request failure has reason error. " +
-		"A fallback does not turn a failed request into success.\n\n" +
-		"--assert is a boolean expression over the record. Repeated assertions are combined with and and replace the file's assert. " +
+		"with the policy result in answer.decision. Low confidence has fallback reason low_confidence and an error has reason error. " +
+		"A fallback does not turn an error into an answer.\n\n" +
+		"Each record ends in one verdict: answered with no gate, pass, fail, unsure or error. --assert is a boolean expression over the record. Repeated assertions are combined with and and replace the file's assert. " +
 		"Acceptance is checked first. Only when it fails is --abstain-if checked. Repeated abstain expressions combine with and, " +
-		"need --assert and replace the file's abstain_if. A failed assertion exits 1. If abstention holds, it exits 7. " +
+		"need --assert and replace the file's abstain_if. A false assertion is a fail and exits 1. When --abstain-if holds instead, the record is unsure and exits 7. " +
 		"Quiet beside --assert only suppresses output.\n\n" +
 		"An --assert path is a question id, a dot and a field, as in urgent.value. Compare with ==, !=, <, <=, > and >=, " +
 		`test a string with in ["a", "b"], and combine with and, or, not and parentheses. Strings take double quotes. ` +
@@ -114,7 +114,7 @@ func helpDecisions() string {
 		"min, max, sum and avg take numbers and nest, as in max(a.value, b.value) < 0.2. " +
 		"There are no arithmetic operators, so weight answers with jq. " +
 		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
-		"Streams print rejected records too. --stop-on-assert prints the first rejected record before stopping. " +
+		"Streams print every fail too. --stop-on-assert prints the first fail before stopping. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."
 }
@@ -190,7 +190,7 @@ func helpExecution(command settingrow.Command) string {
 	if command == settingrow.CommandRoot {
 		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
-			"--stop-on-error ends at the first failure with its exit code, or 6 for an unreadable record. "
+			"--stop-on-error ends at the first error with its exit code, or 6 for an unreadable record. "
 	}
 	resume := "--resume needs --out. Without --id, a stream continues after the last complete line. With --id it skips answered ids. "
 	if command == settingrow.CommandCalibrate {
