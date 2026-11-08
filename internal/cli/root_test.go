@@ -479,7 +479,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "{\"a\":\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+			contains: []string{"onesie: line 1: --merge-key state cannot write this record's error, since its line " +
 				"wraps under state: line is not one complete JSON value"},
 			absent: []string{`"state":{"error"`},
 		},
@@ -489,7 +489,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "\"hello\"\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: line 1: --merge-key state cannot write this failed record, since its line " +
+			contains: []string{"onesie: line 1: --merge-key state cannot write this record's error, since its line " +
 				"wraps under state: --id fails: expected an object"},
 			absent: []string{`"state":{"error"`},
 		},
@@ -499,7 +499,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    "a,b\n\"1,2\n",
 			response: answered,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: line 2: --merge-key state cannot write this failed record, since its line " +
+			contains: []string{"onesie: line 2: --merge-key state cannot write this record's error, since its line " +
 				"wraps under state: row is not valid csv"},
 			absent: []string{`"state":{"error"`},
 		},

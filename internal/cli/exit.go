@@ -19,7 +19,7 @@ import (
 const (
 	// ExitOK means the question was answered.
 	ExitOK = 0
-	// ExitRejected means an assertion was false, or -q ran and the policy did not accept the answer.
+	// ExitRejected means a fail: an assertion was false and no abstain expression held, or -q alone judged no.
 	ExitRejected = 1
 	// ExitUsage means a usage or validation error, or a 4xx response no other exit code claims.
 	ExitUsage = 2
@@ -29,11 +29,11 @@ const (
 	ExitUnavailable = 4
 	// ExitTransport means a transport error or a timeout.
 	ExitTransport = 5
-	// ExitRecords means a stream finished with one or more failed records, or --stop-on-error stopped
-	// it at a record that never became a request.
+	// ExitRecords means a stream finished with one or more errors, or --stop-on-error stopped it at a
+	// record that never became a request.
 	ExitRecords = 6
-	// ExitAbstain means the assertion did not hold and the abstain expression did, from --abstain-if
-	// or a file's abstain_if, so the gate could not decide.
+	// ExitAbstain means unsure: the assertion did not hold and the abstain expression did, from
+	// --abstain-if or a file's abstain_if.
 	ExitAbstain = 7
 	// ExitInterrupt means the run was interrupted by a signal.
 	ExitInterrupt = 130
@@ -41,7 +41,7 @@ const (
 
 var rootExitCodes = []exitCodeLine{
 	{ExitOK, "answered"},
-	{ExitRejected, "a false --assert, or under -q alone the policy did not accept the answer"},
+	{ExitRejected, "fail: an --assert was false and no --abstain-if held, or under -q alone the answer was judged no"},
 	{ExitUsage, "usage or validation error, including a missing key on the provider's own base URL, or a " +
 		"plain http base URL to another host without --allow-http"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
@@ -49,9 +49,9 @@ var rootExitCodes = []exitCodeLine{
 	{ExitUnavailable, "the server did not answer after retries, or it answered 200 with a response onesie " +
 		"could not use, which is never retried"},
 	{ExitTransport, "transport error or timeout"},
-	{ExitRecords, "a stream finished with one or more failed records, or --stop-on-error stopped it at " +
+	{ExitRecords, "a stream finished with one or more errors, or --stop-on-error stopped it at " +
 		"a record that never became a request"},
-	{ExitAbstain, "the gate could not decide: the assertion failed and --abstain-if held"},
+	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide"},
 	{ExitInterrupt, "interrupted"},
 }
 
@@ -61,7 +61,7 @@ var calibrateExitCodes = []exitCodeLine{
 	{ExitUsage, "usage or validation error, including a bad label or record"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
 		"credentials.json is exposed. No report prints"},
-	{ExitRecords, "the report holds one or more failed records, which wins over 1"},
+	{ExitRecords, "the report holds one or more errors, which wins over 1"},
 	{ExitInterrupt, "interrupted. No report prints"},
 }
 
@@ -280,7 +280,7 @@ type storedFailure struct {
 }
 
 func (e *storedFailure) Error() string {
-	return fmt.Sprintf("%s. The stored failure for record %d is followed by more lines, so a run without "+
+	return fmt.Sprintf("%s. The stored error for record %d is followed by more lines, so a run without "+
 		"--stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
 		strings.TrimSuffix(e.failure.Message, "."), e.record)
 }
@@ -336,7 +336,7 @@ func (e *sourceError) Error() string {
 		return text(e.cause)
 	}
 
-	return fmt.Sprintf("%s, after %s failed", text(e.cause), plural(e.failed, "record"))
+	return fmt.Sprintf("%s, after %s", text(e.cause), plural(e.failed, "error"))
 }
 
 func (e *sourceError) Unwrap() error {

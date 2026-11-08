@@ -243,7 +243,7 @@ func wrapRepeated(rec namedRecord) error {
 		return errWrapRepeated
 	}
 
-	return fmt.Errorf("--merge-key %s cannot write this failed record, since its line wraps under %s: %w",
+	return fmt.Errorf("--merge-key %s cannot write this record's error, since its line wraps under %s: %w",
 		setting.WrapKey, setting.WrapKey, cause)
 }
 

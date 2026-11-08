@@ -188,7 +188,7 @@ func TestResumed(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUnavailable,
 					wantFile: "{\"answer\":0.5}\n" + unavailableBody + "{\"answer\":0.5}\n",
-					wantStderr: "onesie: 503 bad key. The stored failure for record 2 is followed by more lines, " +
+					wantStderr: "onesie: 503 bad key. The stored error for record 2 is followed by more lines, " +
 						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
 				},
 			},
@@ -209,7 +209,7 @@ func TestResumed(t *testing.T) {
 					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode:   ExitUsage,
 					wantFile:   "{\"answer\":0.5}\n" + failedBody + failedBody,
-					wantStderr: "The stored failure for record 2 is followed by more lines",
+					wantStderr: "The stored error for record 2 is followed by more lines",
 				},
 			},
 		},
@@ -281,7 +281,7 @@ func TestResumed(t *testing.T) {
 					bare:     true,
 					wantCode: ExitUsage,
 					wantFile: answeredBody + failedBody + answeredBody,
-					wantStderr: "onesie: 400 bad key. The stored failure for record 2 is followed by more lines, " +
+					wantStderr: "onesie: 400 bad key. The stored error for record 2 is followed by more lines, " +
 						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
 				},
 			},
@@ -358,7 +358,7 @@ func TestResumed(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUsage,
 					wantFile: "answer,error\n0.5,\n,503 bad key\n0.5,\n",
-					wantStderr: "onesie: the stored failure for record 2 is followed by more rows, so a run without " +
+					wantStderr: "onesie: the stored error for record 2 is followed by more rows, so a run without " +
 						"--stop-on-error wrote it, and a csv row keeps only its message, not the code to stop with. " +
 						"Pass --id or drop --stop-on-error to carry on",
 				},
@@ -507,7 +507,7 @@ func TestResumed(t *testing.T) {
 				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on-error", "--assert", "answer.value > 0.9"},
 				wantCode:   ExitUnavailable,
 				wantFile:   contradictory + "{\"answer\":0.5}\n",
-				wantStderr: "The stored failure for record 1 is followed by more lines",
+				wantStderr: "The stored error for record 1 is followed by more lines",
 			}},
 		},
 		{

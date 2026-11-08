@@ -1183,7 +1183,7 @@ func TestStream(t *testing.T) {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 			}
 
-			if !strings.Contains(errOut.String(), "1 record failed") {
+			if !strings.Contains(errOut.String(), "1 error") {
 				t.Errorf("stderr = %q, want it to name the failed record", errOut.String())
 			}
 

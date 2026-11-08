@@ -308,7 +308,7 @@ func pinnedStreamRuns() []pinnedRun {
 				{
 					args:  lines("-o", "json", "--out", pinnedOut, "--resume", "--stop-on-error"),
 					stdin: "a\n\nc\nd\n", mock: `{"answer":0.4}`,
-					stderr: "onesie: line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines. The stored failure for record 2 is followed by more lines, so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on\n",
+					stderr: "onesie: line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines. The stored error for record 2 is followed by more lines, so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on\n",
 					code:   ExitRecords,
 				},
 			},
