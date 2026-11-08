@@ -295,10 +295,10 @@ func runOne(
 
 func noState(resolved input.Resolved) error {
 	if resolved.EmptyStdin {
-		return errors.New("no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file")
+		return errors.New("no state given, since stdin was empty. Pipe one to stdin, or pass --state")
 	}
 
-	return errors.New("no state given. Pipe one to stdin, or pass --state or --state-file")
+	return errors.New("no state given. Pipe one to stdin, or pass --state")
 }
 
 func sentOrNil(resolved input.Resolved, sent any) any {
@@ -371,16 +371,13 @@ func resolveState(
 	stdinTTY := settings.stdinTTY || len(flags.list("image")) > 0
 
 	return input.Resolve(ctx, input.Query{
-		Mode:         flags.inputMode,
-		Stdin:        settings.stdin,
-		StdinTTY:     stdinTTY,
-		State:        setting.Get(flags.merged, setting.State),
-		HasState:     flags.typed(setting.State.Name()),
-		StateFile:    setting.Get(flags.merged, setting.StateFile),
-		HasStateFile: flags.typed(setting.StateFile.Name()),
-		ReadFile:     settings.readFile,
-		Hint:         hint,
-		Clock:        settings.stdinClock,
+		Mode:     flags.inputMode,
+		Stdin:    settings.stdin,
+		StdinTTY: stdinTTY,
+		State:    setting.Get(flags.merged, setting.State),
+		HasState: flags.typed(setting.State.Name()),
+		Hint:     hint,
+		Clock:    settings.stdinClock,
 	})
 }
 
@@ -1121,7 +1118,6 @@ type runFlags struct {
 	usage     bool
 	input     string
 	state     string
-	stateFile string
 	model     string
 	baseURL   string
 	allowHTTP bool

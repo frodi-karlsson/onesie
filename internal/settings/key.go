@@ -14,7 +14,6 @@ var (
 	Quiet          = Key[bool]{name: "quiet"}
 	Input          = Key[string]{name: "input"}
 	State          = Key[string]{name: "state"}
-	StateFile      = Key[string]{name: "state_file"}
 	Provider       = Key[string]{name: "provider"}
 	Profile        = Key[string]{name: "profile"}
 	PrintQuestions = Key[bool]{name: "print_questions"}

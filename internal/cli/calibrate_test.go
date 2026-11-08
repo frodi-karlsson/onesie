@@ -511,14 +511,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should refuse --state-file, since each state comes from the input",
-			args:     with("--state-file", "x.txt"),
-			wantCode: ExitUsage,
-			contains: []string{
-				"onesie: calibrate reads each state from its input through --map, so --state-file does not apply. Drop it",
-			},
-		},
-		{
 			name:     "should let --ask replace a question from -f under --replace",
 			args:     with("-f", replaceFile, "--replace"),
 			wantCode: ExitUsage,

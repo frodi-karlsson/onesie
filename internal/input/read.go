@@ -13,7 +13,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/interrupt"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/patherr"
 )
 
 const (
@@ -29,18 +28,9 @@ var ErrEmptyState = errors.New("an empty state is a request the model cannot ans
 // stdin at most once and stops waiting on it when ctx ends.
 func Resolve(ctx context.Context, req Query) (Resolved, error) {
 	switch {
-	case req.HasStateFile:
-		body, err := req.ReadFile(req.StateFile)
-		if err != nil {
-			return Resolved{}, fmt.Errorf("reading %s: %w", req.StateFile, patherr.Inner(err))
-		}
-
-		label := fmt.Sprintf("--state-file '%s'", req.StateFile)
-
-		return fromText(SourceStateFile, label, string(body), req.Mode, true)
 	case req.HasState && req.State != "-":
-		// No newline is stripped here. One is stripped from stdin and from a file, where a
-		// trailing newline is an artefact of how the bytes arrived. A --state argument has no such
+		// No newline is stripped here. One is stripped from stdin, where a trailing
+		// newline is an artefact of how the bytes arrived. A --state argument has no such
 		// artefact.
 		return fromText(SourceState, "--state", req.State, req.Mode, false)
 	case req.HasState, !req.StdinTTY:
@@ -123,17 +113,14 @@ func (r *arrivalReader) Read(p []byte) (int, error) {
 	return n, err
 }
 
-// Query is everything Resolve needs. Stdin, the tty answer and the file reader are injected so a
-// test controls all three without a real terminal or a fixture on disk.
+// Query is everything Resolve needs. Stdin and the tty answer are injected so a test controls both
+// without a real terminal.
 type Query struct {
-	Mode         Mode
-	Stdin        io.Reader
-	StdinTTY     bool
-	State        string
-	HasState     bool
-	StateFile    string
-	HasStateFile bool
-	ReadFile     func(string) ([]byte, error)
+	Mode     Mode
+	Stdin    io.Reader
+	StdinTTY bool
+	State    string
+	HasState bool
 
 	// Hint receives a note when stdin stays silent, and nil prints none.
 	Hint  io.Writer

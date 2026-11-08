@@ -148,7 +148,7 @@ user did not ask for. Each question counts only what the text itself attempts, s
 quotes, describes or teaches about an injection is not one.
 
 ```sh
-onesie -f prompt-injection -q --state-file page.txt
+onesie -f prompt-injection -q --state - <page.txt
 ```
 
 The file carries this gate:
@@ -199,7 +199,7 @@ holds a person's name with a way to contact them, a personal email address or ph
 address, or a credential.
 
 ```sh
-onesie -f personal-data -q --state-file message.txt
+onesie -f personal-data -q --state - <message.txt
 ```
 
 The file carries this gate:

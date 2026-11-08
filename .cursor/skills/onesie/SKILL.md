@@ -8,13 +8,13 @@ allowed-tools: Bash(onesie:*)
 ---
 
 onesie asks a System One model one typed question about a piece of text from the command line.
-State goes in on stdin, `--state TEXT` or `--state-file PATH`, and `--state -` reads stdin. An
-empty or all whitespace string, an empty object or an empty array as state exits 2 before any
-request, from any of these or the `state` of a `-f` file. When stdin is not a terminal and nothing
-arrives on it for 2 seconds, one record prints `onesie: waiting for text on stdin. Pass --state, or
-close stdin.` to stderr once and keeps waiting, or under `--state -` a hint to close stdin when the
-text is complete. A typed answer comes out on stdout, and the exit
-status is usable in a conditional.
+State goes in on stdin or `--state TEXT`, and `--state -` reads stdin, so `--state - <FILE` reads a
+file. An empty or all whitespace string, an empty object or an empty array as state exits 2 before
+any request, from any of these or the `state` of a `-f` file. When stdin is not a terminal and
+nothing arrives on it for 2 seconds, one record prints `onesie: waiting for text on stdin. Pass
+--state, or close stdin.` to stderr once and keeps waiting, or under `--state -` a hint to close
+stdin when the text is complete. A typed answer comes out on stdout, and the exit status is usable
+in a conditional.
 
 There are three question shapes, and the shape decides what you get back:
 
@@ -142,7 +142,7 @@ onesie 'is this ticket urgent' --state 'the server is down'
 
 ### Attach an image with --image NAME=PATH and name it in backticks, and pair a --box with a yes or no question.
 
-For one record, onesie reads stdin beside --image only through --state -, so text joins the image only from --state, --state-file or --state -. A stream, -i jsonl, lines, csv or tsv, still reads its records from stdin and adds the image to each. Images and Box are experimental on TypeSafe's side, so expect them to be less reliable than text. A Box always returns a box, even when the target is not in the image, so ask a yes or no question about whether it is there in the same call and read the box only when it says yes. -o raw prints a box as left, top, right and bottom, each a fraction of the image from its top left corner. TypeSafe and OpenRouter read images and Box. Levanto and Berget refuse both before any request.
+For one record, onesie reads stdin beside --image only through --state -, so text joins the image only from --state or --state -. A stream, -i jsonl, lines, csv or tsv, still reads its records from stdin and adds the image to each. Images and Box are experimental on TypeSafe's side, so expect them to be less reliable than text. A Box always returns a box, even when the target is not in the image, so ask a yes or no question about whether it is there in the same call and read the box only when it says yes. -o raw prints a box as left, top, right and bottom, each a fraction of the image from its top left corner. TypeSafe and OpenRouter read images and Box. Levanto and Berget refuse both before any request.
 
 **Bad:**
 

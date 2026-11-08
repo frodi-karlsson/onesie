@@ -415,13 +415,6 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
 		},
 		{
-			name:     "should refuse an empty --state-file rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--state-file", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --state-file is empty. Name one, or leave the flag out"},
-		},
-		{
 			name:     "should refuse an empty --merge-key rather than run",
 			args:     []string{"is this urgent", "--state", "site down", "--merge-key", ""},
 			response: answered,
@@ -1146,6 +1139,21 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: there is no flag --raw\n"},
 		},
 		{
+			name:     "should refuse --state-file as an unknown flag",
+			args:     []string{"is this urgent", "--state-file", "x.txt"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --state-file\n"},
+		},
+		{
+			name:     "should let a later --state - win over --state with a notice",
+			args:     []string{"is this urgent", "--state", "typed", "--state", "-"},
+			stdin:    "site down\n",
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: --state is given twice, '-' overrides 'typed'\n"},
+			absent:   []string{"mutually exclusive"},
+		},
+		{
 			name:     "should let a later -o win over -o raw with a notice",
 			args:     []string{"is this urgent", "--state", "x", "-o", "raw", "-o", "json"},
 			response: answered,
@@ -1483,7 +1491,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+				"onesie: no state given, since stdin was empty. Pipe one to stdin, or pass --state",
 			},
 		},
 		{
@@ -1724,15 +1732,14 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
 		},
 		{
-			name: "should refuse --state-file beside a body's state, naming both",
-			args: []string{"-f", "body.json", "--state-file", "state.txt"},
+			name: "should refuse --state - beside a body's state, naming both",
+			args: []string{"-f", "body.json", "--state", "-"},
 			files: map[string]string{
 				"body.json": `{"state":"from the body","questions":` +
 					`{"a":{"type":"noul","instructions":"q"}}}`,
-				"state.txt": "from the file",
 			},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --state-file and the state in body.json both give a state. Drop one"},
+			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
 		},
 		{
 			name:  "should read stdin beside a body with no state",
@@ -3141,7 +3148,6 @@ func TestNewRootCmd(t *testing.T) {
 			name string
 			args []string
 		}{
-			{name: "should name a missing --state-file once", args: []string{"q", "--state-file", missing, "--print-request"}},
 			{name: "should name a missing -f once", args: []string{"-f", missing, "--print-request"}},
 			{name: "should name a missing @FILE once", args: []string{"--ask", "a=@" + missing, "--print-request"}},
 		}

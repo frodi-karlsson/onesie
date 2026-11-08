@@ -70,10 +70,10 @@ func helpAsking(command settingrow.Command) string {
 
 func helpInput(command settingrow.Command) string {
 	intro := "Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin. Request input sends API shaped bodies as written. " +
-		"--state supplies text instead of stdin, --state-file reads a file, and --state - explicitly reads stdin. "
+		"--state supplies text instead of stdin, and --state - explicitly reads stdin, so --state - <FILE reads a file. "
 	original := "The original record remains available for merged output."
 	separator := "--delimiter auto needs CSV input, detects its separator and uses it for CSV output. "
-	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state or --state-file. Images cannot be mixed with request input. "
+	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state. Images cannot be mixed with request input. "
 	lineImage := "Under lines input the line itself is the path. "
 	if command == settingrow.CommandCalibrate {
 		intro = "Calibration requires JSONL, CSV or TSV records on stdin. "

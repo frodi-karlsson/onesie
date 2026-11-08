@@ -180,7 +180,7 @@
 {"args":["--ask","s=q","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -212,7 +212,7 @@
 {"args":["--ask","s=q","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -228,8 +228,8 @@
 {"args":["--ask","s=q","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--state-file","MISSING","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -446,7 +446,7 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -478,7 +478,7 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -494,8 +494,8 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--state-file","MISSING","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -561,7 +561,7 @@
 {"args":["-i","request","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -592,7 +592,7 @@
 {"args":["-i","request","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -607,8 +607,8 @@
 {"args":["-i","request","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--state-file","MISSING","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}

@@ -72,7 +72,6 @@ Input
 
 Flags:
       --state TEXT              Read this text instead of stdin. Use - to read stdin.
-      --state-file FILE         Read the state from a file.
   -i, --input FORMAT            One of text, json, jsonl, lines, csv, tsv or request.
                                 Default: text.
       --map EXPR                Select the content to evaluate with a jq expression.
@@ -81,9 +80,9 @@ Flags:
                                 or one character. Defaults to a comma.
       --image NAME=PATH         Put a PNG or JPEG in the state under NAME. Repeatable.
                                 For one record stdin is read beside it only through
-                                --state -, so text joins it from --state, --state-file
-                                or --state -. A stream reads its records from stdin and
-                                adds the image to each. Experimental on TypeSafe's side.
+                                --state -, so text joins it from --state or --state -. A
+                                stream reads its records from stdin and adds the image
+                                to each. Experimental on TypeSafe's side.
       --image-field NAME        Read a PNG or JPEG per record from the path this state
                                 key holds. Streaming only, repeatable. Under -i lines
                                 the line is the path. Experimental on TypeSafe's side.
@@ -97,9 +96,9 @@ Flags:
 How they work together:
   Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin.
   Request input sends API shaped bodies as written. --state supplies text instead of
-  stdin, --state-file reads a file, and --state - explicitly reads stdin. --map runs a
-  jq expression on each original record and sends its result as the state. Map only the
-  text a person would read. Object keys come out sorted. The result may nest
+  stdin, and --state - explicitly reads stdin, so --state - <FILE reads a file. --map
+  runs a jq expression on each original record and sends its result as the state. Map
+  only the text a person would read. Object keys come out sorted. The result may nest
   max-map-depth levels deep and encode to max-line-bytes, as version lists. The original
   record remains available for merged output.
 
@@ -110,12 +109,11 @@ How they work together:
   output. An explicit delimiter takes one character. TSV uses tabs.
 
   --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
-  an image only through --state -. Text can also join it through --state or
-  --state-file. Images cannot be mixed with request input. Streams read stdin and add
-  the fixed image to every record. --image-field reads a PNG or JPEG path from a state
-  key per record. Under lines input the line itself is the path. Image support is
-  experimental on the TypeSafe side. See version for image, file, token and model
-  limits.
+  an image only through --state -. Text can also join it through --state. Images cannot
+  be mixed with request input. Streams read stdin and add the fixed image to every
+  record. --image-field reads a PNG or JPEG path from a state key per record. Under
+  lines input the line itself is the path. Image support is experimental on the TypeSafe
+  side. See version for image, file, token and model limits.
 
 Decisions
 

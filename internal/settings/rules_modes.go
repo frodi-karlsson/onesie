@@ -141,7 +141,7 @@ func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 
 	return []settingrow.Name{
 		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
-		"min_confidence", "fallback", "state", "state_file", "input", "image", "image_field", "map", "id",
+		"min_confidence", "fallback", "state", "input", "image", "image_field", "map", "id",
 		"output", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
 		"stop_on", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
 	}

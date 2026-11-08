@@ -49,7 +49,7 @@ func TestHelpFlags(t *testing.T) {
 			for i, f := range common {
 				names[i] = f.flag.Name
 			}
-			want := strings.Fields("ask pick rate desc file state state-file input map output merge threshold assert quiet")
+			want := strings.Fields("ask pick rate desc file state input map output merge threshold assert quiet")
 			if command == settingrow.CommandCalibrate {
 				want = strings.Fields("ask pick rate file input map id label cuts require offline out output resume")
 				if !got["provider"] || !got["profile"] || got["assert"] {

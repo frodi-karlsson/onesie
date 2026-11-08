@@ -100,12 +100,6 @@ func TestValidate(t *testing.T) {
 			set: values{"assert": []string{"answer.value > 0.5"}, "quiet": true},
 		},
 		{
-			name:       "should reject both state flags together",
-			positional: "is this urgent",
-			typed:      []settingrow.Name{"state", "state_file"},
-			wantErr:    "--state and --state-file are mutually exclusive",
-		},
-		{
 			name:    "should refuse --for without -f",
 			events:  []argv.Event{{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "0.9"}},
 			wantErr: "--for selects a question from -f, which was not given",
@@ -232,13 +226,6 @@ func TestValidate(t *testing.T) {
 			set:        values{"input": "jsonl"},
 			typed:      []settingrow.Name{"state"},
 			wantErr:    "--state cannot be combined with -i jsonl",
-		},
-		{
-			name:       "should reject state-file with a streaming mode naming the flag used",
-			positional: "is this urgent",
-			set:        values{"input": "lines"},
-			typed:      []settingrow.Name{"state_file"},
-			wantErr:    "--state-file cannot be combined with -i lines",
 		},
 		{
 			name:       "should reject merge with raw output",
@@ -939,12 +926,6 @@ func TestValidate(t *testing.T) {
 				set:     values{"input": "request", "jobs": 1},
 				typed:   []settingrow.Name{"state"},
 				wantErr: "--state does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
-				name:    "should reject --state-file with -i request",
-				set:     values{"input": "request", "jobs": 1},
-				typed:   []settingrow.Name{"state_file"},
-				wantErr: "--state-file does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --map with -i request",
@@ -1662,7 +1643,7 @@ func TestRules(t *testing.T) {
 					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "cache-beside-mock", "delimiter-needs-csv", "abstain-needs-assert",
-					"quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"quiet-without-markdown", "replace-needs-file",
 					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
@@ -1838,12 +1819,6 @@ func ruleCases() []ruleCase {
 			refused: run{set: values{"quiet": true, "output": "markdown"}},
 			passed:  run{set: values{"quiet": true}},
 			wantErr: "-q suppresses output, which leaves -o markdown nothing to write",
-		},
-		{
-			rule:    "state-and-state-file",
-			refused: run{typed: []settingrow.Name{"state", "state_file"}},
-			passed:  run{typed: []settingrow.Name{"state"}},
-			wantErr: "--state and --state-file are mutually exclusive",
 		},
 		{
 			rule:    "replace-needs-file",

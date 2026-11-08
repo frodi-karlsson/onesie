@@ -176,11 +176,6 @@ func TestGraderGrade(t *testing.T) {
 			wantSkip: "runs the profile subcommand",
 		},
 		{
-			name:     "should skip --state-file with a variable value",
-			script:   `onesie 'is this urgent' --state-file "$f"`,
-			wantSkip: "reads a file through --state-file",
-		},
-		{
 			name:     "should skip -f with a literal value",
 			script:   "onesie -f questions.json",
 			wantSkip: "reads a file through --file",

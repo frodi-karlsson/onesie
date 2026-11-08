@@ -94,11 +94,6 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: --state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --state-file with -i request",
-				args:    []string{"-i", "request", "--state-file", "x"},
-				wantErr: "onesie: --state-file does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
 				name:    "should reject -o with -i request",
 				args:    []string{"-i", "request", "-o", "json"},
 				wantErr: "onesie: -o does not apply to -i request, which sends each body as written and prints each raw response",
@@ -251,11 +246,6 @@ func TestValidateRun(t *testing.T) {
 				name:    "should reject --state with --list-models",
 				args:    []string{"--list-models", "--state", "x"},
 				wantErr: "onesie: --state does not apply to --list-models, which only lists the models a provider serves",
-			},
-			{
-				name:    "should reject --state-file with --list-models",
-				args:    []string{"--list-models", "--state-file", "x"},
-				wantErr: "onesie: --state-file does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				// --input's default is text, so a rejection here can only come from Changed, not from

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -117,31 +116,6 @@ func TestResolve(t *testing.T) {
 			wantState:  "kept\n",
 		},
 		{
-			name: "should read the state from a file",
-			req: input.Query{
-				Mode:         input.Text,
-				StateFile:    "ticket.txt",
-				HasStateFile: true,
-				ReadFile: func(string) ([]byte, error) {
-					return []byte("a ticket body\n"), nil
-				},
-			},
-			wantSource: input.SourceStateFile,
-			wantState:  "a ticket body",
-		},
-		{
-			name: "should report a missing state file",
-			req: input.Query{
-				Mode:         input.Text,
-				StateFile:    "gone.txt",
-				HasStateFile: true,
-				ReadFile: func(string) ([]byte, error) {
-					return nil, os.ErrNotExist
-				},
-			},
-			wantErr: true,
-		},
-		{
 			name: "should parse json mode into a value",
 			req: input.Query{
 				Mode:  input.JSON,
@@ -196,19 +170,6 @@ func TestResolve(t *testing.T) {
 			wantMessage: "empty object, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject an empty array in a state file under json",
-			req: input.Query{
-				Mode:         input.JSON,
-				StateFile:    "empty.json",
-				HasStateFile: true,
-				ReadFile: func(string) ([]byte, error) {
-					return []byte("[ ]\n"), nil
-				},
-			},
-			wantErr:     true,
-			wantMessage: "empty array, an empty state is a request the model cannot answer",
-		},
-		{
 			name: "should reject a boolean under json",
 			req: input.Query{
 				Mode:  input.JSON,
@@ -253,20 +214,6 @@ func TestResolve(t *testing.T) {
 			},
 			wantErr:     true,
 			wantMessage: "--state is blank, an empty state is a request the model cannot answer",
-		},
-		{
-			name: "should reject an empty state file under text",
-			req: input.Query{
-				Mode:         input.Text,
-				StateFile:    "empty.txt",
-				HasStateFile: true,
-				ReadFile: func(string) ([]byte, error) {
-					return nil, nil
-				},
-			},
-			wantErr: true,
-			wantMessage: "--state-file 'empty.txt' is blank, " +
-				"an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should reject a stdin holding only a newline under text",

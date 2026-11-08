@@ -19,7 +19,7 @@ func TestDryRunRules(t *testing.T) {
 				"output", "quiet", "usage", "merge", "merge-key", "stats", "stop-on", "mock", "cache",
 			},
 			wantQuestionsOnly: []string{
-				"input", "jobs", "model", "state", "state-file", "unordered", "skip-blank", "map", "id",
+				"input", "jobs", "model", "state", "unordered", "skip-blank", "map", "id",
 			},
 		},
 	}

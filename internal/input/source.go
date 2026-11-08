@@ -14,8 +14,6 @@ const (
 	SourceStdin
 	// SourceState means the state came from --state.
 	SourceState
-	// SourceStateFile means the state came from --state-file.
-	SourceStateFile
 	// SourceBody means a request body carried its own state.
 	SourceBody
 	// SourceImages means --image gave the state, with no text beside it.

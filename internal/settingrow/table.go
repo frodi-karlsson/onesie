@@ -309,18 +309,13 @@ func inputRows() []Row {
 			Help: "Read this text instead of stdin. Use - to read stdin.",
 		},
 		{
-			Name: "state_file", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 7}, HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModePrintRequest),
-			Flag: FlagSpec{Long: "state-file", Commands: onRoot()},
-			Help: "Read the state from a file.",
-		},
-		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "image", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. Repeatable. " +
 					experimental},
 			}},
 			Help: "Put a PNG or JPEG in the state under NAME. Repeatable. For one record stdin is read beside it " +
-				"only through --state -, so text joins it from --state, --state-file or --state -. A stream reads " +
+				"only through --state -, so text joins it from --state or --state -. A stream reads " +
 				"its records from stdin and adds the image to each. " + experimental,
 		},
 		{

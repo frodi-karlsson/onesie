@@ -60,9 +60,9 @@ Exit 3 also covers these:
 | `is not a subcommand. The closest is` | a one word question is close to a subcommand name, such as `questoins`. Fix the typo, or put the word after `--` to ask it |
 | a complaint about a flag you never typed, or `was read as flags` | a question beginning with a dash was read as flags. Put the flags first, then `--`, then the question |
 | `flags go before --` | a flag was typed after `--`, where every word is the question. Move it before `--` |
-| `no state given` | nothing arrived on stdin and neither `--state` nor `--state-file` was passed. `since stdin was empty` means stdin, or `--state -`, was read and held nothing |
-| `both give a state` | `--state` or `--state-file` was passed beside a `-f` request body that holds its own `state`. Drop one |
-| `an empty state is a request the model cannot answer` | `--state`, `--state-file`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
+| `no state given` | nothing arrived on stdin and no `--state` was passed. `since stdin was empty` means stdin, or `--state -`, was read and held nothing |
+| `both give a state` | `--state` was passed beside a `-f` request body that holds its own `state`. Drop one |
+| `an empty state is a request the model cannot answer` | `--state`, stdin, the `state` of a `-f` file, a stream line or `--map` gave an empty or all whitespace string, an empty object or an empty array. In a stream it is an error line instead, and `--skip-blank` does not drop it. An `-i request` body is forwarded as it is and not checked |
 | `an empty question is one the model cannot answer` | the positional question, an `--ask`, a question file's `ask` or a `-f` body's `instructions` is empty, all whitespace or null |
 | `applies to one question, and` | a question flag typed before any `--ask` or `--for` meets several questions, such as `--threshold` beside a `-f` file of two. Put it after `--for ID` to set one question from the file, or after the `--ask` it belongs to |
 | `names no question in` | `--for ID` names an ID the `-f` file does not hold. The message lists the file's questions. `--ask ID=QUESTION` defines a new one |

@@ -41,7 +41,7 @@ func TestFlagOn(t *testing.T) {
 				ranks[command][rank] = row.Name
 			}
 		}
-		if len(ranks[CommandRoot]) != 14 || len(ranks[CommandCalibrate]) != 14 {
+		if len(ranks[CommandRoot]) != 13 || len(ranks[CommandCalibrate]) != 14 {
 			t.Fatalf("common ranks = %v", ranks)
 		}
 	})

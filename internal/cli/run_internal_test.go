@@ -115,12 +115,12 @@ func TestNoState(t *testing.T) {
 		{
 			name:     "should ask for a state when nothing was read",
 			resolved: input.Resolved{Source: input.SourceNone},
-			want:     "no state given. Pipe one to stdin, or pass --state or --state-file",
+			want:     "no state given. Pipe one to stdin, or pass --state",
 		},
 		{
 			name:     "should say stdin was empty when it was read and held nothing",
 			resolved: input.Resolved{Source: input.SourceNone, EmptyStdin: true},
-			want:     "no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+			want:     "no state given, since stdin was empty. Pipe one to stdin, or pass --state",
 		},
 	}
 

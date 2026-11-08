@@ -35,7 +35,6 @@ var refusedReasons = map[string]string{
 	"unordered":       "calibrate prints its report once every record is answered",
 	"print-questions": "a question file carries no labels",
 	flagState:         "calibrate reads each state from its input through --map",
-	flagStateFile:     "calibrate reads each state from its input through --map",
 }
 
 func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.FlagSet) *cobra.Command {

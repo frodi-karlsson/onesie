@@ -40,7 +40,6 @@ var pastTag = regexp.MustCompile(`-[0-9]+-g[0-9a-f]+$`)
 // A flag name the code spells in more than one place is held once here, so a rename reaches each one.
 const (
 	flagState       = "state"
-	flagStateFile   = "state-file"
 	flagLongContext = "long-context"
 	flagModel       = "model"
 	flagInput       = "input"
@@ -134,8 +133,8 @@ func runTargets(flags *runFlags) map[settingrow.Name]any {
 		setting.MergeInput.Name(): &flags.merge, setting.MergeKey.Name(): &flags.mergeKey,
 		setting.Usage.Name(): &flags.usage, setting.Stats.Name(): &flags.stats,
 		setting.Delimiter.Name(): &flags.delimiter, setting.Input.Name(): &flags.input,
-		setting.State.Name(): &flags.state, setting.StateFile.Name(): &flags.stateFile,
-		"image": &flags.images, "image_field": &flags.imageFields,
+		setting.State.Name(): &flags.state,
+		"image":              &flags.images, "image_field": &flags.imageFields,
 		setting.Map.Name(): &flags.mapSource, setting.ID.Name(): &flags.idSource,
 		setting.SkipBlank.Name(): &flags.skipBlank, setting.Unordered.Name(): &flags.unordered,
 		setting.StopOn.Name():  &flags.stopOn,
@@ -618,7 +617,7 @@ func WithClock(clock onesie.Clock) RootOption {
 	}
 }
 
-// WithReadFile replaces how @FILE references, -f and --state-file are resolved.
+// WithReadFile replaces how @FILE references and -f are resolved.
 func WithReadFile(read func(string) ([]byte, error)) RootOption {
 	return func(s *rootSettings) {
 		s.readFile = read
