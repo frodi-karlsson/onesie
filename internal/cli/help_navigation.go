@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"slices"
@@ -8,13 +9,20 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func installHelp(root, calibrate *cobra.Command) {
 	root.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
+		var page bytes.Buffer
+		if err := writeCommandHelp(&page, cmd, ""); err != nil {
+			//nolint:errcheck // Cobra help callbacks cannot return an error, so stderr is the only report.
+			_ = output.Notice(cmd.ErrOrStderr(), err.Error())
+			return
+		}
 		//nolint:errcheck // Cobra help callbacks cannot return writer failures, as with the default handler.
-		_ = writeCommandHelp(cmd.OutOrStdout(), cmd, "")
+		_, _ = cmd.OutOrStdout().Write(page.Bytes())
 	})
 	root.InitDefaultHelpCmd()
 	for _, cmd := range []*cobra.Command{root, calibrate} {
