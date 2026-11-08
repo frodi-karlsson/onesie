@@ -288,6 +288,13 @@ func TestRun(t *testing.T) {
 			emptyOut: true,
 		},
 		{
+			name:         "should send the image alone when --state - reads an empty stdin",
+			args:         []string{"--state", "-", "--image", "photo=" + square, "q", "-o", "json"},
+			wantCode:     ExitOK,
+			wantRequests: 1,
+			wantBody:     []string{`"state":{"photo":"` + ref + `"}`},
+		},
+		{
 			name:         "should read a json state from stdin beside the image under --state -",
 			args:         []string{"-i", "json", "--state", "-", "--image", "photo=" + square, "q", "-o", "json"},
 			stdin:        `{"a":1}`,
