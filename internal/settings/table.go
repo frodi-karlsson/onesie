@@ -6,9 +6,6 @@ import "time"
 const NoAliasTTL time.Duration = -1
 
 func autoOutput(v View) (any, bool) {
-	if Get(v.Merged, Raw) {
-		return "raw", true
-	}
 	if name := Get(v.Merged, Output); name != "" && name != "auto" {
 		return nil, false
 	}

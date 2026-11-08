@@ -179,7 +179,6 @@ Output
 Flags:
   -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
                                 markdown.
-  -r, --raw                     Print only the answer value or policy decision.
       --merge                   Keep input fields and attach the answers.
   -V, --version                 Print the version, commit, build date and built in
                                 limits, as one JSON object under -o json.
@@ -192,9 +191,9 @@ Flags:
 
 How they work together:
   Auto uses a table only for one result on a terminal, without --merge or --out. It uses
-  JSON when redirected, for streams, for merged records and for --out files. --raw
-  selects raw output. Raw prints the policy decision when present, otherwise the answer
-  value, and does not preserve the original record.
+  JSON when redirected, for streams, for merged records and for --out files. -o raw
+  prints the policy decision when present, otherwise the answer value, and does not
+  preserve the original record.
 
   --merge keeps the input fields and places answer metadata under answers by default.
   --merge-key selects another location and implies --merge. JSON preserves model values,

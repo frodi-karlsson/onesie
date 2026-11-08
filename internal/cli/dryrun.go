@@ -8,7 +8,7 @@ import (
 // run and the ones it strips only before --print-questions.
 func DryRunRules() (root *cobra.Command, always, questionsOnly []string) {
 	always = []string{
-		"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on", "mock", flagCache,
+		"output", "quiet", "usage", "merge", "merge-key", "stats", "stop-on", "mock", flagCache,
 	}
 	questionsOnly = []string{
 		flagInput, flagJobs, flagModel, flagState, flagStateFile, "unordered", "skip-blank",

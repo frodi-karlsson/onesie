@@ -82,7 +82,7 @@ onesie --ask urgent='is this urgent' -i jsonl --print-request
 
 ### Write -o markdown for a PR comment or a job summary, and never as a file to resume or parse.
 
-`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge`, `-r` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
+`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
 
 **Bad:**
 

@@ -32,7 +32,7 @@ func checkResume(v View) error {
 	case Get(v.Merged, Unordered) && !typed(v, ID.Name()):
 		return errors.New("--resume relies on input order, which --unordered gives up. " +
 			"Pass --id to resume by id")
-	case Get(v.Merged, Raw) || Get(v.Merged, Output) == "raw":
+	case Get(v.Merged, Output) == "raw":
 		return errors.New("--resume needs output that keeps each record's outcome, " +
 			"which raw lines do not. Use -o values or -o json")
 	case markdownOutput(v):

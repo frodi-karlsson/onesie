@@ -5,7 +5,7 @@ import "github.com/frodi-karlsson/onesie/internal/settingrow"
 // Keys returns every key, so a test can check each one against its row.
 func Keys() []Keyed {
 	return []Keyed{
-		Version, Output, Raw, Quiet, Input, State, StateFile, Provider, Profile, PrintQuestions, PrintSchema,
+		Version, Output, Quiet, Input, State, StateFile, Provider, Profile, PrintQuestions, PrintSchema,
 		ListModels, Unordered, StopOn, NoDedup, MergeInput, MergeKey, Map, ID, Model,
 		APIEndpoint, APIKey, AllowHTTP, LongContext, File, Replace, Jobs, Timeout, Retries, MaxRetryAfter, Out, Resume,
 		Prune, SkipBlank, Delimiter, Stats, Usage, PrintRequest, Cache, Mock, Cuts, Offline, CacheTTL, ConfigDir,

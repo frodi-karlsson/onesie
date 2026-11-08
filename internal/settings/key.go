@@ -11,7 +11,6 @@ import (
 var (
 	Version        = Key[bool]{name: "version"}
 	Output         = Key[string]{name: "output"}
-	Raw            = Key[bool]{name: "raw"}
 	Quiet          = Key[bool]{name: "quiet"}
 	Input          = Key[string]{name: "input"}
 	State          = Key[string]{name: "state"}

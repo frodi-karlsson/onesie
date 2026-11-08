@@ -45,7 +45,7 @@
     {
       "id": "markdown-for-people",
       "short": "Write -o markdown for a PR comment or a job summary, and never as a file to resume or parse.",
-      "why": "`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge`, `-r` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).",
+      "why": "`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).",
       "bad": "onesie 'is this urgent' -i jsonl --id '.id' -o markdown --out answers.md --resume",
       "bad_unverifiable": "the checker strips -o, --out and --resume before every dry run, so it cannot observe this refusal",
       "good": "onesie 'is this urgent' -i jsonl --id '.id' -o markdown"

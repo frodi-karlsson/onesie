@@ -1563,7 +1563,7 @@ func TestStream(t *testing.T) {
 							"which raw lines do not. Use -o values or -o json",
 					},
 					{
-						args:     []string{"-i", "jsonl", "-r", "--resume"},
+						args:     []string{"-i", "jsonl", "-o", "raw", "--resume"},
 						wantCode: ExitUsage,
 						wantFile: "0.5\n\n",
 						wantStderr: "onesie: --resume needs output that keeps each record's outcome, " +

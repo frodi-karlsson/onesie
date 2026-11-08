@@ -873,7 +873,7 @@ func TestWithKeyHint(t *testing.T) {
 			name: "should name profile update --key when the server refuses a profile's key",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{url}"}}}`,
-			args:     []string{"is this urgent", "--state", "x", "-r"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
@@ -891,7 +891,7 @@ func TestWithKeyHint(t *testing.T) {
 		},
 		{
 			name:     "should name the key variable when the server refuses a key from the environment",
-			args:     []string{"is this urgent", "--state", "x", "-r", "--provider", "openrouter", "--base-url", "{url}"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw", "--provider", "openrouter", "--base-url", "{url}"},
 			env:      map[string]string{"OPENROUTER_API_KEY": "SECRET-OR"},
 			status:   http.StatusForbidden,
 			wantCode: ExitAuth,
@@ -910,7 +910,7 @@ func TestWithKeyHint(t *testing.T) {
 		},
 		{
 			name:     "should pass the keyless note through",
-			args:     []string{"is this urgent", "--state", "x", "-r", "--base-url", "{url}"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw", "--base-url", "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr: "onesie: 401 the key was refused. No key was sent, since none resolves and the base URL is " +
@@ -919,7 +919,7 @@ func TestWithKeyHint(t *testing.T) {
 		{
 			name:     "should say the default profile's key stayed home when ONESIE_BASE_URL took the run",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`,
-			args:     []string{"is this urgent", "--state", "x", "-r"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw"},
 			env:      map[string]string{"ONESIE_BASE_URL": "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
@@ -931,7 +931,7 @@ func TestWithKeyHint(t *testing.T) {
 		{
 			name:     "should say the default profile's key stayed home under --base-url",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK"}}}`,
-			args:     []string{"is this urgent", "--state", "x", "-r", "--base-url", "{url}"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw", "--base-url", "{url}"},
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr: "No key was sent, since the profile's key goes only with its own endpoint, and the base URL " +
@@ -942,7 +942,7 @@ func TestWithKeyHint(t *testing.T) {
 			name: "should leave a 402 without the key hint",
 			profiles: `{"default":"work","profiles":{"work":{"provider":"typesafe","api_key":"SECRET-WORK",` +
 				`"base_url":"{url}"}}}`,
-			args:     []string{"is this urgent", "--state", "x", "-r"},
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw"},
 			status:   http.StatusPaymentRequired,
 			wantCode: ExitAuth,
 			notErr:   "profile update",

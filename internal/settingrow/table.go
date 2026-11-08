@@ -203,11 +203,6 @@ func outputRows() []Row {
 			Help: "One of " + inWords(outputModes().Schema().Enum) + ".",
 		},
 		{
-			Name: "raw", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 11}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
-			Flag: FlagSpec{Long: "raw", Short: "r", Commands: onRoot()},
-			Help: "Print only the answer value or policy decision.",
-		},
-		{
 			Name: "quiet", HelpTopic: "decisions", HelpCommon: map[Command]int{CommandRoot: 15}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "quiet", Short: "q", Commands: onRoot()},
 			Help: "Suppress output. Without --assert, judge one answer.",

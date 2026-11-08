@@ -128,8 +128,8 @@ func helpOutput(command settingrow.Command) string {
 			"See Execution for answer file resume and pruning."
 	}
 	return "Auto uses a table only for one result on a terminal, without --merge or --out. " +
-		"It uses JSON when redirected, for streams, for merged records and for --out files. --raw selects raw output. " +
-		"Raw prints the policy decision when present, otherwise the answer value, and does not preserve the original record.\n\n" +
+		"It uses JSON when redirected, for streams, for merged records and for --out files. " +
+		"-o raw prints the policy decision when present, otherwise the answer value, and does not preserve the original record.\n\n" +
 		"--merge keeps the input fields and places answer metadata under answers by default. --merge-key selects another location and implies --merge. " +
 		"JSON preserves model values, decisions and errors. A request error remains in the output even when a fallback supplies a decision. " +
 		"--out writes answers to a file instead of stdout. See Execution for resume and pruning. " +

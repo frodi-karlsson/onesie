@@ -315,13 +315,6 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --merge needs -o json, values, csv or tsv"},
 		},
 		{
-			name:     "should refuse -r beside -o markdown",
-			args:     []string{"is this urgent", "-o", "markdown", "-r"},
-			stdin:    "site down",
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -r and -o are mutually exclusive"},
-		},
-		{
 			name:     "should refuse --resume under -o markdown",
 			args:     []string{"is this urgent", "-i", "jsonl", "-o", "markdown", "--out", markdownOut, "--resume"},
 			stdin:    "{}\n",
@@ -813,13 +806,13 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should say a dash question read as flags needs -- before it",
-			args:     []string{"-rm is this bad"},
+			args:     []string{"-qm is this bad"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
 			contains: []string{
-				"onesie: no question given. Pass a question, --ask, or -f. '-rm is this bad' was read as flags. " +
+				"onesie: no question given. Pass a question, --ask, or -f. '-qm is this bad' was read as flags. " +
 					"A question that starts with - needs -- before it, with the flags placed first, " +
-					"as in onesie -- '-rm is this bad'",
+					"as in onesie -- '-qm is this bad'",
 			},
 		},
 		{
@@ -838,14 +831,14 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should leave a dash value given to a flag alone",
-			args:     []string{"--state", "-rm is this bad"},
+			args:     []string{"--state", "-qm is this bad"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"no question given"},
 			absent:   []string{"was read as flags"},
 		},
 		{
 			name:     "should leave a dash value given to a shorthand alone",
-			args:     []string{"-rm", "-x is it"},
+			args:     []string{"-qm", "-x is it"},
 			stdin:    "x",
 			wantCode: cli.ExitUsage,
 			contains: []string{"no question given"},
@@ -1141,6 +1134,26 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: there is no flag --stop-on-assert\n"},
 		},
 		{
+			name:     "should refuse -r as an unknown flag",
+			args:     []string{"is this urgent", "--state", "x", "-r"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -r\n"},
+		},
+		{
+			name:     "should refuse --raw as an unknown flag",
+			args:     []string{"is this urgent", "--state", "x", "--raw"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --raw\n"},
+		},
+		{
+			name:     "should let a later -o win over -o raw with a notice",
+			args:     []string{"is this urgent", "--state", "x", "-o", "raw", "-o", "json"},
+			response: answered,
+			wantCode: cli.ExitOK,
+			contains: []string{"onesie: -o is given twice, 'json' overrides 'raw'\n", `"answer":`},
+			absent:   []string{"mutually exclusive"},
+		},
+		{
 			name:     "should refuse a verdict --stop-on does not know",
 			args:     []string{"is this urgent", "-i", "lines", "--stop-on=warn"},
 			wantCode: cli.ExitUsage,
@@ -1350,11 +1363,11 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should reject --usage with -r before any request",
-			args:     []string{"is this urgent", "-r", "--usage"},
+			args:     []string{"is this urgent", "-o", "raw", "--usage"},
 			stdin:    "the server is down",
 			status:   http.StatusInternalServerError,
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --usage does not apply to -r, which writes only the answers. Use -o json"},
+			contains: []string{"onesie: --usage does not apply to -o raw, which writes only the answers. Use -o json"},
 		},
 		{
 			name:     "should reject --usage with -o raw over a stream before any request",
@@ -1436,7 +1449,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should print the bare value with -r",
-			args:     []string{"is this urgent", "-r"},
+			args:     []string{"is this urgent", "-o", "raw"},
 			stdin:    "the server is down",
 			response: answered,
 			wantCode: cli.ExitOK,
@@ -1444,7 +1457,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should answer a pick question",
-			args:     []string{"which team", "--pick", "billing,technical", "-r"},
+			args:     []string{"which team", "--pick", "billing,technical", "-o", "raw"},
 			stdin:    "i was charged twice",
 			response: picked,
 			wantCode: cli.ExitOK,
@@ -1489,10 +1502,10 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should reject -r with two questions",
-			args:     []string{"--ask", "a=one", "--ask", "b=two", "-r"},
+			args:     []string{"--ask", "a=one", "--ask", "b=two", "-o", "raw"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
-			contains: []string{"-r needs a single question"},
+			contains: []string{"-o raw needs a single question"},
 		},
 		{
 			name:     "should reject -o raw with two questions",
@@ -1518,7 +1531,7 @@ func TestNewRootCmd(t *testing.T) {
 		{
 			name: "should warn about a partly described option set",
 			args: []string{
-				"which team", "--pick", "billing,technical", "--desc", "billing=payments", "-r",
+				"which team", "--pick", "billing,technical", "--desc", "billing=payments", "-o", "raw",
 			},
 			stdin:    "i was charged twice",
 			response: picked,
@@ -1536,7 +1549,7 @@ func TestNewRootCmd(t *testing.T) {
 			name: "should print the fallback word when the request fails",
 			args: []string{
 				"is this safe", "--pick", "safe,refuse",
-				"--min-confidence", "0.7", "--fallback", "refuse", "-r",
+				"--min-confidence", "0.7", "--fallback", "refuse", "-o", "raw",
 			},
 			stdin:    "rm -rf /",
 			status:   http.StatusInternalServerError,
@@ -1546,7 +1559,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should print an empty line when a failed question has no fallback",
-			args:     []string{"is this urgent", "-r"},
+			args:     []string{"is this urgent", "-o", "raw"},
 			stdin:    "body",
 			status:   http.StatusInternalServerError,
 			response: `{"error":{"message":"boom"}}`,
@@ -1636,7 +1649,7 @@ func TestNewRootCmd(t *testing.T) {
 		},
 		{
 			name:     "should let --replace override a file question",
-			args:     []string{"-f", "q.yaml", "--ask", "urgent=different", "--replace", "-r"},
+			args:     []string{"-f", "q.yaml", "--ask", "urgent=different", "--replace", "-o", "raw"},
 			stdin:    "body",
 			files:    map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
 			response: `{"model":"onesie-1.13.0","answers":{"urgent":{"type":"noul","noul":0.5}}}`,
@@ -3512,7 +3525,7 @@ func TestClientBuilder(t *testing.T) {
 			root.Command.SetOut(&out)
 			root.Command.SetErr(&out)
 			root.Command.SetArgs([]string{
-				"is this urgent", "-r", "--base-url", srv.URL,
+				"is this urgent", "-o", "raw", "--base-url", srv.URL,
 			})
 
 			if code := root.Execute(t.Context()); code != cli.ExitOK {
@@ -3715,7 +3728,7 @@ func TestClientBuilder(t *testing.T) {
 				onesie.TypeSafe().EnvBaseURL(): srv.URL,
 			}
 
-			out, code := runWithEnv(t, env, []string{"is this urgent", "-r"})
+			out, code := runWithEnv(t, env, []string{"is this urgent", "-o", "raw"})
 
 			if code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out)
@@ -3743,7 +3756,7 @@ func TestClientBuilder(t *testing.T) {
 			}
 
 			out, code := runWithEnv(t, env,
-				[]string{"is this urgent", "-r", "--base-url", flagged.URL})
+				[]string{"is this urgent", "-o", "raw", "--base-url", flagged.URL})
 
 			if code != cli.ExitOK {
 				t.Fatalf("exit code = %d, output:\n%s", code, out)

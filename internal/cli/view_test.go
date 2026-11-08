@@ -104,11 +104,6 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: -o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -r with -i request",
-				args:    []string{"-i", "request", "-r"},
-				wantErr: "onesie: -r does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
 				name:    "should reject -q with -i request",
 				args:    []string{"-i", "request", "-q"},
 				wantErr: "onesie: -q does not apply to -i request, which sends each body as written and prints each raw response",
@@ -303,12 +298,6 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: -o does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				// Its own rule rather than the -o one, since run leaves Output empty for a bare -r.
-				name:    "should reject -r with --list-models",
-				args:    []string{"--list-models", "-r"},
-				wantErr: "onesie: -r does not apply to --list-models, which only lists the models a provider serves",
-			},
-			{
 				name:    "should reject -q with --list-models",
 				args:    []string{"--list-models", "-q"},
 				wantErr: "onesie: -q does not apply to --list-models, which only lists the models a provider serves",
@@ -444,11 +433,6 @@ func TestValidateRun(t *testing.T) {
 				name: "should reject an output mode with print-request",
 				args: []string{"--ask", "urgent=is this urgent", "--print-request", "-o", "json"},
 				want: "onesie: -o does not apply to --print-request, which writes the request bodies and sends none",
-			},
-			{
-				name: "should reject the raw shorthand with print-request",
-				args: []string{"--ask", "urgent=is this urgent", "--print-request", "-r"},
-				want: "onesie: -r does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name: "should reject quiet with print-questions",

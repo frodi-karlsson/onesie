@@ -1117,7 +1117,6 @@ type runFlags struct {
 	resume    bool
 	prune     bool
 	output    string
-	raw       bool
 	quiet     bool
 	usage     bool
 	input     string

@@ -33,7 +33,6 @@ Input:
 Output:
   -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
                                 markdown.
-  -r, --raw                     Print only the answer value or policy decision.
       --merge                   Keep input fields and attach the answers.
 
 Decisions:

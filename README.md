@@ -5,7 +5,7 @@ Use model judgments in shell scripts. Pipe in text and get a score, a choice or 
 Route a support ticket by naming the teams that can handle it.
 
 ```sh
-echo 'I was charged twice for my order' | onesie 'who should handle this' --pick billing,shipping,technical -r
+echo 'I was charged twice for my order' | onesie 'who should handle this' --pick billing,shipping,technical -o raw
 # billing
 ```
 

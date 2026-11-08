@@ -228,7 +228,7 @@ func TestResolveRun(t *testing.T) {
 		},
 		{
 			name: "should exit 2 for a bare run after converting a lone levanto entry",
-			old:  `{"providers":{"levanto":{"api_key":"SECRET-LV"}}}`, args: asking("-r"), wantCode: ExitUsage,
+			old:  `{"providers":{"levanto":{"api_key":"SECRET-LV"}}}`, args: asking("-o", "raw"), wantCode: ExitUsage,
 			wantFile: true,
 			wantErr: []string{
 				"onesie: converted credentials.json into profiles.json, with profile 'levanto'. No profile is the default",
@@ -259,12 +259,12 @@ func TestResolveRun(t *testing.T) {
 		},
 		{
 			name: "should keep the missing key error when profiles.json cannot be read for the hint",
-			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--provider", "openrouter", "-r"),
+			file: openrouterWork, mode: 0o644, unixOnly: true, args: asking("--provider", "openrouter", "-o", "raw"),
 			wantCode: ExitUsage, wantErr: []string{"no API key. Set OPENROUTER_API_KEY"},
 			notErr: []string{"--profile work", "is readable or writable by its group or others"},
 		},
 		{
-			name: "should name profile create for a run with no key and no profiles", args: asking("-r"),
+			name: "should name profile create for a run with no key and no profiles", args: asking("-o", "raw"),
 			wantCode: ExitUsage,
 			wantErr: []string{"onesie: no API key. Set TYPESAFE_API_KEY, or store one with onesie profile create NAME " +
 				"--provider typesafe"},
@@ -280,7 +280,7 @@ func TestResolveRun(t *testing.T) {
 		},
 		{
 			name: "should name the converted profile when --provider finds no key", old: oldKeychain,
-			args: asking("--provider", "openrouter", "-r"), wantCode: ExitUsage, wantFile: true,
+			args: asking("--provider", "openrouter", "-o", "raw"), wantCode: ExitUsage, wantFile: true,
 			wantErr: []string{
 				"onesie: converted credentials.json into profiles.json, with profile 'openrouter'",
 				"no API key. Set OPENROUTER_API_KEY, or drop --provider and pass --profile 'openrouter'",
@@ -288,7 +288,7 @@ func TestResolveRun(t *testing.T) {
 		},
 		{
 			name: "should name the converted profile when ONESIE_PROVIDER finds no key", old: oldKeychain,
-			env: map[string]string{"ONESIE_PROVIDER": "openrouter"}, args: asking("-r"), wantCode: ExitUsage,
+			env: map[string]string{"ONESIE_PROVIDER": "openrouter"}, args: asking("-o", "raw"), wantCode: ExitUsage,
 			wantFile: true,
 			wantErr: []string{
 				"onesie: ONESIE_PROVIDER is set, so a run uses no profile",
@@ -368,7 +368,7 @@ func TestResolveRun(t *testing.T) {
 			maps.Copy(env, naming.env)
 
 			args := append(append([]string{}, naming.args...),
-				"is this urgent", "-r", "--state", "the server is down", "--base-url", srv.URL)
+				"is this urgent", "-o", "raw", "--state", "the server is down", "--base-url", srv.URL)
 
 			out, errOut, code := runInConfig(t, t.TempDir(), args, "", env, withCredentialStore(refusing))
 

@@ -45,19 +45,6 @@ func delimiterlessReason(mode input.Mode) string {
 	return "has no delimiter"
 }
 
-func rawAndOutputRule() Rule {
-	return Rule{
-		ID: "raw-and-output",
-		Check: func(v View) error {
-			if Get(v.Merged, Raw) && Get(v.Merged, Output) != "" {
-				return errors.New("-r and -o are mutually exclusive")
-			}
-
-			return nil
-		},
-	}
-}
-
 func mergeOutputRule() Rule {
 	return Rule{
 		ID: "merge-needs-mergeable-output",
@@ -72,10 +59,6 @@ func mergeOutputRule() Rule {
 }
 
 func mergeable(v View) bool {
-	if Get(v.Merged, Raw) {
-		return false
-	}
-
 	// auto resolves to json under a merge, so an explicit auto is as mergeable as an absent flag.
 	// The other -o refusals deliberately fire on auto, since a mode they ignore does nothing there.
 	switch Get(v.Merged, Output) {
@@ -134,8 +117,6 @@ func usageWritesAnswersRule() Rule {
 			switch output := Get(v.Merged, Output); {
 			case !Get(v.Merged, Usage):
 				return nil
-			case Get(v.Merged, Raw):
-				mode = "-r"
 			case output == "values", output == "raw":
 				mode = "-o " + output
 			default:
@@ -200,19 +181,11 @@ func rawNeedsOneQuestionRule() Rule {
 	return Rule{
 		ID: "raw-needs-one-question",
 		Check: func(v View) error {
-			// Both spellings of the raw mode take a single question. Only the -r spelling is exclusive
-			// with -o, so the two stay separate settings.
-			raw := Get(v.Merged, Raw)
-			if v.Plan == nil || (!raw && Get(v.Merged, Output) != "raw") || len(v.Plan.Questions) == 1 {
+			if v.Plan == nil || Get(v.Merged, Output) != "raw" || len(v.Plan.Questions) == 1 {
 				return nil
 			}
 
-			flag := "-o raw"
-			if raw {
-				flag = "-r"
-			}
-
-			return fmt.Errorf("%s needs a single question. %s were asked", flag, quotedIDs(v.Plan.Questions))
+			return fmt.Errorf("-o raw needs a single question. %s were asked", quotedIDs(v.Plan.Questions))
 		},
 	}
 }

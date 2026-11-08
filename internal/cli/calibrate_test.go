@@ -208,18 +208,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
-			name:     "should refuse --raw naming both spellings",
-			args:     with("--raw"),
+			name:     "should refuse -o raw",
+			args:     with("-o", "raw"),
 			wantCode: ExitUsage,
-			contains: []string{
-				"onesie: calibrate prints its report as a table or as json, so -r/--raw does not apply. Drop it\n",
-			},
-		},
-		{
-			name:     "should refuse -r naming both spellings",
-			args:     with("-r"),
-			wantCode: ExitUsage,
-			contains: []string{"so -r/--raw does not apply. Drop it"},
+			contains: []string{"onesie: calibrate -o takes table, json or auto, got raw\n"},
 		},
 		{
 			name:     "should refuse -q inside a cluster of short flags",

@@ -134,7 +134,7 @@ func modeRefusals(mode settingrow.Mode) []refusal {
 func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 	if mode == settingrow.ModePrintRequest {
 		return []settingrow.Name{
-			"mock", "print_questions", "output", "raw", "quiet", "assert", "abstain_if",
+			"mock", "print_questions", "output", "quiet", "assert", "abstain_if",
 			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on", "stats",
 		}
 	}
@@ -142,7 +142,7 @@ func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 	return []settingrow.Name{
 		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
 		"min_confidence", "fallback", "state", "state_file", "input", "image", "image_field", "map", "id",
-		"output", "raw", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
+		"output", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
 		"stop_on", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
 	}
 }
@@ -187,7 +187,7 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 	switch row.Name {
 	case File.Name(), Output.Name(), StopOn.Name():
 		return func(v View) bool { return Get(v.Merged, Key[string]{name: row.Name}) != "" }, name
-	case Replace.Name(), Raw.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(),
+	case Replace.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(),
 		SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
 		return func(v View) bool { return Get(v.Merged, Key[bool]{name: row.Name}) }, name
 	case assertName, abstainIfName:

@@ -525,7 +525,7 @@ func TestCachedAnswers(t *testing.T) {
 		// machine, even one that ignores the profile.
 		env := cacheEnv(t)
 		env[onesie.TypeSafe().EnvBaseURL()] = stray.URL
-		args := []string{"is this urgent", "-r", "--cache", "--state", "the server is down", "--profile", "p"}
+		args := []string{"is this urgent", "-o", "raw", "--cache", "--state", "the server is down", "--profile", "p"}
 
 		profileAt := func(base string) {
 			writeConfig(t, env["ONESIE_CONFIG_DIR"], "profiles.json",

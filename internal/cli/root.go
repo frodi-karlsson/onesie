@@ -129,7 +129,7 @@ func runTargets(flags *runFlags) map[settingrow.Name]any {
 		setting.PrintSchema.Name(): &flags.printSchema, setting.ListModels.Name(): &flags.listModels,
 		setting.PrintRequest.Name(): &flags.printRequest,
 		"assert":                    &flags.assert, "abstain_if": &flags.abstainIf,
-		setting.Output.Name(): &flags.output, setting.Raw.Name(): &flags.raw, setting.Quiet.Name(): &flags.quiet,
+		setting.Output.Name(): &flags.output, setting.Quiet.Name(): &flags.quiet,
 		setting.Out.Name(): &flags.out, setting.Resume.Name(): &flags.resume, setting.Prune.Name(): &flags.prune,
 		setting.MergeInput.Name(): &flags.merge, setting.MergeKey.Name(): &flags.mergeKey,
 		setting.Usage.Name(): &flags.usage, setting.Stats.Name(): &flags.stats,

@@ -84,7 +84,7 @@ func TestFilterIntegration(t *testing.T) {
 				"--desc", "billing=payments, invoicing and refunds",
 				"--desc", "technical=bugs, outages and integrations",
 				"--desc", "sales=pricing and new contracts",
-				"-r",
+				"-o", "raw",
 			},
 			stdin: "I was charged twice for last month and want one of them refunded.",
 			check: func(t *testing.T, out string) {
@@ -345,7 +345,7 @@ func TestFilterIntegration(t *testing.T) {
 	t.Run("should box the red square on jev-preview", func(t *testing.T) {
 		out, errOut, code := runLive(t, []string{
 			"--image", "photo=" + liveImage(t, true), "--ask", "sq=the red square in `photo`", "--box",
-			"-m", "jev-preview", "-r",
+			"-m", "jev-preview", "-o", "raw",
 		}, "")
 		if code != cli.ExitOK {
 			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)

@@ -215,7 +215,7 @@ func TestClientBuilder(t *testing.T) {
 		}
 	})
 
-	question := []string{"is this urgent", "-r", "--state", "the server is down"}
+	question := []string{"is this urgent", "-o", "raw", "--state", "the server is down"}
 	asking := func(extra ...string) []string {
 		return append(append([]string{}, question...), extra...)
 	}

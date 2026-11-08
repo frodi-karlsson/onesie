@@ -101,7 +101,6 @@ func TestDerived(t *testing.T) {
 			name: "should default to json on a terminal when --out takes the answers",
 			set:  values{"out": "answers.jsonl"}, tty: true, want: "json",
 		},
-		{name: "should take raw from -r", set: values{"raw": true}, tty: true, want: "raw"},
 		{name: "should keep an explicit mode", set: values{"output": "values"}, tty: true, want: "values"},
 	}
 

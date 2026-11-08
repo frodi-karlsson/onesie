@@ -68,15 +68,6 @@ func TestValidate(t *testing.T) {
 			set: values{"output": "json", "input": "text"},
 		},
 		{
-			name: "should reject raw with more than one question",
-			events: []argv.Event{
-				{Name: "ask", Value: "a=one"},
-				{Name: "ask", Value: "b=two"},
-			},
-			set:     values{"raw": true},
-			wantErr: "-r needs a single question. 'a', 'b' were asked",
-		},
-		{
 			name: "should reject -o raw with more than one question",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=one"},
@@ -107,12 +98,6 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			set: values{"assert": []string{"answer.value > 0.5"}, "quiet": true},
-		},
-		{
-			name:       "should reject raw combined with output",
-			positional: "is this urgent",
-			set:        values{"raw": true, "output": "json"},
-			wantErr:    "-r and -o are mutually exclusive",
 		},
 		{
 			name:       "should reject both state flags together",
@@ -274,9 +259,9 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--merge-key needs -o json, values, csv or tsv",
 		},
 		{
-			name:       "should reject merge with the -r spelling of raw",
+			name:       "should reject merge with -o raw",
 			positional: "is this urgent",
-			set:        values{"merge": true, "raw": true, "input": "text"},
+			set:        values{"merge": true, "output": "raw", "input": "text"},
 			wantErr:    "--merge needs -o json, values, csv or tsv",
 		},
 		{
@@ -516,9 +501,9 @@ func TestValidate(t *testing.T) {
 		{
 			name:       "should report the dry run before --delimiter",
 			positional: "is this urgent",
-			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "raw": true},
+			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "output": "raw"},
 			typed:      []settingrow.Name{"input", "delimiter"},
-			wantExact:  "-r does not apply to --print-request, which writes the request bodies and sends none",
+			wantExact:  "-o does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			name:       "should report --delimiter before --abstain-if without an assertion",
@@ -528,22 +513,16 @@ func TestValidate(t *testing.T) {
 			wantExact:  "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
 		},
 		{
-			name:       "should report the dry run before the output rules",
-			positional: "is this urgent",
-			set:        values{"print_request": true, "raw": true, "output": "json"},
-			wantExact:  "-o does not apply to --print-request, which writes the request bodies and sends none",
-		},
-		{
 			name:      "should report a streaming -q before the plan rules",
 			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
 			set:       values{"quiet": true, "input": "jsonl"},
 			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
 		},
 		{
-			name:       "should refuse -q with -r",
+			name:       "should refuse -q with -o raw",
 			positional: "is this urgent",
-			set:        values{"quiet": true, "raw": true},
-			wantExact:  "-q suppresses output, which leaves -r nothing to write",
+			set:        values{"quiet": true, "output": "raw"},
+			wantExact:  "-q suppresses output, which leaves -o raw nothing to write",
 		},
 		{
 			name:       "should refuse -q with -o json",
@@ -1019,11 +998,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "-o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -r with -i request",
-				set:     values{"input": "request", "jobs": 1, "raw": true},
-				wantErr: "-r does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
 				name:    "should reject --usage with -i request",
 				set:     values{"input": "request", "jobs": 1, "usage": true},
 				wantErr: "--usage does not apply to -i request, which sends each body as written and prints each raw response",
@@ -1063,11 +1037,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject -o with --print-questions",
 				set:     values{"print_questions": true, "output": "json", "input": "text"},
 				wantErr: "-o does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-			{
-				name:    "should reject -r with --print-request",
-				set:     values{"print_request": true, "raw": true, "input": "text"},
-				wantErr: "-r does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should name --merge-key when that is the spelling given",
@@ -1329,11 +1298,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "--usage does not apply to -o raw, which writes only the answers. Use -o json",
 			},
 			{
-				name:    "should reject --usage with -r",
-				set:     values{"input": "text", "raw": true, "usage": true, "jobs": 1},
-				wantErr: "--usage does not apply to -r, which writes only the answers. Use -o json",
-			},
-			{
 				name: "should accept --usage with -o json",
 				set:  values{"input": "text", "output": "json", "usage": true, "jobs": 1},
 			},
@@ -1356,11 +1320,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject --merge-key with -o md",
 				set:     values{"merge_key": "verdict", "input": "jsonl", "output": "markdown", "jobs": 1},
 				wantErr: "--merge-key needs -o json, values, csv or tsv",
-			},
-			{
-				name:    "should reject -r with -o markdown",
-				set:     values{"input": "text", "raw": true, "output": "markdown", "jobs": 1},
-				wantErr: "-r and -o are mutually exclusive",
 			},
 			{
 				name:    "should reject -q with -o markdown on one record",
@@ -1398,20 +1357,9 @@ func TestValidate(t *testing.T) {
 				typed: []settingrow.Name{"id"},
 			},
 			{
-				name:    "should reject --resume with --id and -r, which writes no id",
-				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "raw": true},
-				typed:   []settingrow.Name{"id"},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
-			},
-			{
 				name:    "should reject --resume with --id and -o raw, which writes no id",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
 				typed:   []settingrow.Name{"id"},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
-			},
-			{
-				name:    "should reject a resume by position with -r and --assert, since a raw line keeps no outcome",
-				set:     values{"assert": []string{"answer.value > 0.5"}, "input": "jsonl", "resume": true, "out": "a.txt", "raw": true},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
@@ -1429,11 +1377,6 @@ func TestValidate(t *testing.T) {
 			{
 				name:    "should reject a resume by position with -o raw and no gate, since a raw line keeps no failure",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "output": "raw", "jobs": 1},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
-			},
-			{
-				name:    "should reject a resume by position with -r and no gate",
-				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "raw": true, "jobs": 1},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
@@ -1492,11 +1435,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject -q with -i request",
 				set:     values{"input": "request", "jobs": 1, "quiet": true},
 				wantErr: "-q does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
-				name:    "should reject -r with -o outside request mode",
-				set:     values{"raw": true, "output": "json", "input": "text"},
-				wantErr: "-r and -o are mutually exclusive",
 			},
 			{
 				name:    "should reject --abstain-if without an assertion",
@@ -1724,7 +1662,7 @@ func TestRules(t *testing.T) {
 					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "cache-beside-mock", "delimiter-needs-csv", "abstain-needs-assert",
-					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"quiet-without-markdown", "state-and-state-file", "replace-needs-file",
 					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
@@ -1896,12 +1834,6 @@ func ruleCases() []ruleCase {
 			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 		},
 		{
-			rule:    "raw-and-output",
-			refused: run{set: values{"raw": true, "output": "json"}},
-			passed:  run{set: values{"raw": true}},
-			wantErr: "-r and -o are mutually exclusive",
-		},
-		{
 			rule:    "quiet-without-markdown",
 			refused: run{set: values{"quiet": true, "output": "markdown"}},
 			passed:  run{set: values{"quiet": true}},
@@ -2045,9 +1977,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "raw-needs-one-question",
-			refused: run{planned: true, set: values{"raw": true}, events: two},
-			passed:  run{planned: true, set: values{"raw": true}, positional: "is this urgent"},
-			wantErr: "-r needs a single question. 'a', 'b' were asked",
+			refused: run{planned: true, set: values{"output": "raw"}, events: two},
+			passed:  run{planned: true, set: values{"output": "raw"}, positional: "is this urgent"},
+			wantErr: "-o raw needs a single question. 'a', 'b' were asked",
 		},
 		{
 			rule: "one-state",
@@ -2059,9 +1991,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "quiet-writes-nothing",
-			refused: run{set: values{"quiet": true, "raw": true}},
+			refused: run{set: values{"quiet": true, "output": "raw"}},
 			passed:  run{set: values{"quiet": true}},
-			wantErr: "-q suppresses output, which leaves -r nothing to write",
+			wantErr: "-q suppresses output, which leaves -o raw nothing to write",
 		},
 	}
 }
