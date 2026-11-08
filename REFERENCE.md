@@ -77,6 +77,26 @@ to see which profile, model and endpoint a command will use.
 | `long_context` | a request body | raises the context limits of the request body. Only true has an effect |
 <!-- settings:question_keys end -->
 
+## Servers and CI
+
+A profile keeps its key in the OS keychain unless `--file` stores it in `profiles.json`. A runner
+often has no keychain, so give the job a config dir of its own and store each key with `--file`:
+
+```sh
+export ONESIE_CONFIG_DIR="$RUNNER_TEMP/onesie"
+printf '%s\n' "$OPENROUTER_API_KEY" | onesie profile create prod --provider openrouter --file
+printf '%s\n' "$CLOUDFLARE_API_TOKEN" | onesie profile create cf --provider cloudflare --account-id "$CLOUDFLARE_ACCOUNT_ID" --file
+onesie --profile cf -f shell-safety -q --state "$cmd"
+```
+
+One connection needs no file. Set the provider's key variable and pass `--provider`, or set
+`ONESIE_PROVIDER`. A server mounts a `profiles.json` that holds `api_key`, at a mode such as `0400`,
+and points `ONESIE_CONFIG_DIR` at its directory.
+
+## Provider notes
+
+The Cloudflare token needs the `Account` > `Workers AI` > `Read` permission.
+
 <a id="streams"></a>
 <a id="caching"></a>
 <a id="more"></a>

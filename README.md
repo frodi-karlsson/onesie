@@ -59,6 +59,9 @@ when `gh` is logged in:
 curl -fsSL https://raw.githubusercontent.com/frodi-karlsson/onesie/main/install.sh | sh
 ```
 
+The script installs to `~/.local/bin`. Set `ONESIE_INSTALL_DIR` for another directory, or
+`ONESIE_VERSION` for a release other than the latest, such as `0.14.0`.
+
 With Go:
 
 ```sh
@@ -81,6 +84,17 @@ In Claude Code, the plugin can come first and walk you through the rest:
 /plugin marketplace add frodi-karlsson/onesie
 /plugin install onesie@onesie
 ```
+
+### Uninstall
+
+While the binary is still installed, run `onesie profile list`, then `onesie profile delete NAME`
+for each profile, which also removes its key from the OS keychain. Then remove:
+
+1. The binary, from `~/.local/bin` or `$ONESIE_INSTALL_DIR`.
+2. The config dir, which also holds saved question files: `$ONESIE_CONFIG_DIR` if set, else
+   `$XDG_CONFIG_HOME/onesie`, else `%APPDATA%\onesie` on Windows and `~/.config/onesie` elsewhere.
+3. The cache dir: `$ONESIE_CACHE_DIR` if set, else `$XDG_CACHE_HOME/onesie`, else
+   `~/Library/Caches/onesie` on macOS, `%LOCALAPPDATA%\onesie` on Windows and `~/.cache/onesie` on Linux.
 
 ## More decisions
 
