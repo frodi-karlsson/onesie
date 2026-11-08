@@ -204,7 +204,7 @@ type Resume struct {
 	Skip   int
 	Header bool
 	Comma  rune
-	Stored []Verdict
+	Stored []Stored
 }
 
 // NotRegularError refuses to resume from a device or a pipe, which holds no answers to read back.

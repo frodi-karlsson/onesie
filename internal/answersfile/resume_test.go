@@ -32,8 +32,8 @@ func TestLedger_TakeOrder(t *testing.T) {
 			t.Parallel()
 
 			book := &Ledger{answered: map[ledgerKey]answeredLine{}}
-			book.note("9", Span{Start: 0, End: 10}, Verdict{})
-			book.note("1", Span{Start: 10, End: 20}, Verdict{})
+			book.note("9", Span{Start: 0, End: 10}, Stored{})
+			book.note("1", Span{Start: 10, End: 20}, Stored{})
 
 			for _, id := range []string{"1", "2"} {
 				book.Admit(id)
@@ -341,4 +341,93 @@ func openTSV(t *testing.T, content string) *File {
 		}
 	})
 	return out
+}
+
+func TestFormat_eachVerdict(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		format  Format
+		written string
+		want    []output.Verdict
+	}{
+		{
+			name:   "should read one verdict per json line, an error first, then a fail, then an unsure",
+			format: Format{Mode: output.JSON, Gated: true},
+			written: `{"error":{"kind":"http","status":503,"message":"x"},"assert":false,"abstain":true}` + "\n" +
+				`{"assert":false,"abstain":true,"u":0.1}` + "\n" +
+				`{"abstain":true,"u":0.4}` + "\n" +
+				`{"u":0.9}` + "\n",
+			want: []output.Verdict{output.Error, output.Fail, output.Unsure, output.Pass},
+		},
+		{
+			name:    "should read every line but an error as answered when the run has no gate",
+			format:  Format{Mode: output.JSON},
+			written: `{"assert":false,"u":0.1}` + "\n" + `{"error":{"kind":"input","status":null,"message":"x"}}` + "\n",
+			want:    []output.Verdict{output.Answered, output.Error},
+		},
+		{
+			name:    "should read an error row before its assert cell",
+			format:  Format{Mode: output.CSV, Gated: true},
+			written: "u,assert,error\n0.1,false,boom\n0.4,abstain,\n0.9,true,\n0.2,false,\n",
+			want:    []output.Verdict{output.Error, output.Unsure, output.Pass, output.Fail},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got []output.Verdict
+
+			err := tc.format.eachVerdict(strings.NewReader(tc.written), func(_ Span, stored Stored) {
+				got = append(got, stored.Verdict)
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("verdicts = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestTally_Count(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		stored []Stored
+		want   Tally
+	}{
+		{
+			name: "should count each record under its one verdict",
+			stored: []Stored{
+				{Verdict: output.Error, Failure: &output.Failure{Message: "x"}},
+				{Verdict: output.Fail},
+				{Verdict: output.Unsure},
+				{Verdict: output.Pass},
+			},
+			want: Tally{Records: 4, Verdicts: output.Tally{output.Pass: 1, output.Fail: 1, output.Unsure: 1, output.Error: 1}},
+		},
+		{name: "should count nothing for no records"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var got Tally
+			for _, stored := range tc.stored {
+				got.Count(stored)
+			}
+
+			if got != tc.want {
+				t.Errorf("tally = %+v, want %+v", got, tc.want)
+			}
+		})
+	}
 }

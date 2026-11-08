@@ -52,12 +52,12 @@ func ResumedVerdicts(
 	}
 
 	var (
-		judged []Verdict
+		judged []Stored
 		last   Span
 	)
 
 	err := readAnswers(ctx, answers, func(r io.Reader) error {
-		return format.eachVerdict(r, func(at Span, stored Verdict) {
+		return format.eachVerdict(r, func(at Span, stored Stored) {
 			judged = append(judged, stored)
 			last = at
 		})
@@ -69,7 +69,7 @@ func ResumedVerdicts(
 	// A run stopped by --stop-on-error writes nothing after the record it stopped at, so a stored
 	// failure on the last line is where it stopped, and that record is asked again. The line is
 	// trimmed with the partial one, under the lock, on the first write.
-	if stopOnError && len(judged) > 0 && judged[len(judged)-1].Failure != nil {
+	if stopOnError && len(judged) > 0 && judged[len(judged)-1].Verdict == output.Error {
 		answers.resumeAt(last.Start)
 		resume.Skip--
 		resume.Stored = judged[:len(judged)-1]
@@ -165,7 +165,7 @@ type Format struct {
 func (f Format) eachAnswer(
 	ctx context.Context,
 	r io.Reader,
-	note func(id string, at Span, judged Verdict),
+	note func(id string, at Span, judged Stored),
 ) error {
 	return f.eachStored(r,
 		func(at Span, text []byte) {
@@ -180,7 +180,7 @@ func (f Format) eachAnswer(
 		})
 }
 
-func (f Format) eachVerdict(r io.Reader, note func(at Span, judged Verdict)) error {
+func (f Format) eachVerdict(r io.Reader, note func(at Span, judged Stored)) error {
 	// Every stored line is noted, a failed one included, since a resume by position skips one
 	// record per line.
 	return f.eachStored(r,
@@ -192,12 +192,12 @@ func (f Format) eachVerdict(r io.Reader, note func(at Span, judged Verdict)) err
 		})
 }
 
-func (f Format) kept(judged Verdict) Verdict {
+func (f Format) kept(judged Stored) Stored {
 	// A run with no gate wrote no verdict, so an assert it reads is an input field. Under a merge
 	// only a gated run keeps an input column from taking that name. The error key and column are
 	// reserved in every run, so a failure still stands.
-	if !f.Gated {
-		return Verdict{Failure: judged.Failure}
+	if !f.Gated && judged.Verdict != output.Error {
+		return Stored{Verdict: output.Answered}
 	}
 
 	return judged
@@ -243,14 +243,18 @@ func rowOf(columns, cells []string) map[string]any {
 	return row
 }
 
-func (f Format) lineVerdict(text []byte) Verdict {
+func (f Format) lineVerdict(text []byte) Stored {
 	if f.Forwarded {
-		return Verdict{Failure: ownFailure(text)}
+		if failure := ownFailure(text); failure != nil {
+			return Stored{Verdict: output.Error, Failure: failure}
+		}
+
+		return Stored{}
 	}
 
 	_, object, ok := decodeLine(text)
 	if !ok {
-		return Verdict{}
+		return Stored{}
 	}
 
 	if !f.Merge {
@@ -259,7 +263,7 @@ func (f Format) lineVerdict(text []byte) Verdict {
 
 	folded, isObject := object[f.MergeKey].(map[string]any)
 	if !isObject {
-		return Verdict{}
+		return Stored{}
 	}
 
 	return verdictOf(folded)
@@ -286,17 +290,17 @@ func ownFailure(text []byte) *output.Failure {
 	return line.Error
 }
 
-func (f Format) lineAnswer(ctx context.Context, text []byte) (string, Verdict, bool) {
+func (f Format) lineAnswer(ctx context.Context, text []byte) (string, Stored, bool) {
 	value, object, decoded := decodeLine(text)
 	if !decoded {
-		return "", Verdict{}, false
+		return "", Stored{}, false
 	}
 
 	// Only an answered line is noted. A failed line answers nothing, and under --merge a
 	// duplicate's error line carries the same fields as the record it repeats.
 	if !f.Merge {
 		if _, failed := object["error"]; failed {
-			return "", Verdict{}, false
+			return "", Stored{}, false
 		}
 
 		id, ok := answerID(object["id"])
@@ -306,11 +310,11 @@ func (f Format) lineAnswer(ctx context.Context, text []byte) (string, Verdict, b
 
 	folded, isObject := object[f.MergeKey].(map[string]any)
 	if !isObject {
-		return "", Verdict{}, false
+		return "", Stored{}, false
 	}
 
 	if _, failed := folded["error"]; failed {
-		return "", Verdict{}, false
+		return "", Stored{}, false
 	}
 
 	// A record that is not an object merges into a wrapper around it. An object whose only key is
@@ -340,21 +344,27 @@ func decodeLine(text []byte) (any, map[string]any, bool) {
 	return value, object, isObject
 }
 
-func verdictOf(answers map[string]any) Verdict {
-	judged := Verdict{Rejected: answers["assert"] == false, Abstained: answers["abstain"] == true}
-
+func verdictOf(answers map[string]any) Stored {
+	// One verdict per line, ranked as a fresh run ranks them, so a line edited to claim several is
+	// counted once: an error, then a fail, then an unsure.
 	if stored, failed := answers["error"]; failed {
-		judged.Failure = failureOf(stored)
+		return Stored{Verdict: output.Error, Failure: failureOf(stored)}
 	}
 
-	return judged
+	switch {
+	case answers["assert"] == false:
+		return Stored{Verdict: output.Fail}
+	case answers["abstain"] == true:
+		return Stored{Verdict: output.Unsure}
+	default:
+		return Stored{Verdict: output.Pass}
+	}
 }
 
-// Verdict is a stored line's outcome: rejected by the gate, abstained or failed.
-type Verdict struct {
-	Rejected  bool
-	Abstained bool
-	Failure   *output.Failure
+// Stored is a stored line's verdict, with the failure an error line carries.
+type Stored struct {
+	Verdict output.Verdict
+	Failure *output.Failure
 }
 
 func failureOf(stored any) *output.Failure {
@@ -390,9 +400,9 @@ func wrappedState(line map[string]any, mergeKey string) (any, bool) {
 	return state, len(line) == 2 && hasState && hasAnswers && !stateIsObject
 }
 
-func (f Format) rowAnswer(ctx context.Context, row map[string]any) (string, Verdict, bool) {
+func (f Format) rowAnswer(ctx context.Context, row map[string]any) (string, Stored, bool) {
 	if failure, ok := row["error"].(string); ok && failure != "" {
-		return "", Verdict{}, false
+		return "", Stored{}, false
 	}
 
 	judged := rowVerdict(row)
@@ -408,15 +418,20 @@ func (f Format) rowAnswer(ctx context.Context, row map[string]any) (string, Verd
 	return id, judged, ok
 }
 
-func rowVerdict(row map[string]any) Verdict {
-	judged := Verdict{Rejected: row["assert"] == "false", Abstained: row["assert"] == "abstain"}
-
+func rowVerdict(row map[string]any) Stored {
 	// A row keeps only the message, so its kind and status are unknown.
 	if message, isText := row["error"].(string); isText && message != "" {
-		judged.Failure = &output.Failure{Message: message}
+		return Stored{Verdict: output.Error, Failure: &output.Failure{Message: message}}
 	}
 
-	return judged
+	switch row["assert"] {
+	case "false":
+		return Stored{Verdict: output.Fail}
+	case "abstain":
+		return Stored{Verdict: output.Unsure}
+	default:
+		return Stored{Verdict: output.Pass}
+	}
 }
 
 func (f Format) named(ctx context.Context, value any) (string, bool) {
@@ -457,10 +472,10 @@ type Ledger struct {
 
 type answeredLine struct {
 	at     Span
-	judged Verdict
+	judged Stored
 }
 
-func (l *Ledger) note(id string, at Span, judged Verdict) {
+func (l *Ledger) note(id string, at Span, judged Stored) {
 	// The newest line wins, since a resume appends after what the file held before.
 	l.answered[keyOf(id)] = answeredLine{at: at, judged: judged}
 }
@@ -474,7 +489,7 @@ func keyOf(id string) ledgerKey {
 }
 
 // Admit gives a record its slot in the order, and its stored verdict when the file answers it.
-func (l *Ledger) Admit(id any) (slot int, judged Verdict, answered bool) {
+func (l *Ledger) Admit(id any) (slot int, judged Stored, answered bool) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -494,7 +509,7 @@ func (l *Ledger) Admit(id any) (slot int, judged Verdict, answered bool) {
 	l.lines = append(l.lines, Span{})
 	l.pending++
 
-	return slot, Verdict{}, false
+	return slot, Stored{}, false
 }
 
 // StoredAt is where the file answers id, when it does.
@@ -594,33 +609,19 @@ func (l *Ledger) Skipped() Tally {
 	return l.skips
 }
 
-// Tally counts records, and among them the failed, rejected and abstained ones, which a gate
-// reads to choose its exit code.
+// Tally counts records by their stored verdicts, which a gate reads to choose its exit code.
 type Tally struct {
-	Records   int
-	Failed    int
-	Rejected  int
-	Abstained int
+	Records  int
+	Verdicts output.Tally
 }
 
 // Count adds one record with this verdict.
-func (t *Tally) Count(judged Verdict) {
-	t.Records++
-
+func (t *Tally) Count(judged Stored) {
 	// Counted as if judged this run, so a resumed gate exits on every answer in the file and not
-	// only on the ones it asked for. A stored failure counts the same way, since a resume by
-	// position skips it rather than asking again.
-	if judged.Failure != nil {
-		t.Failed++
-	}
-
-	if judged.Rejected {
-		t.Rejected++
-	}
-
-	if judged.Abstained {
-		t.Abstained++
-	}
+	// only on the ones it asked for. A stored error counts the same way, since a resume by position
+	// skips it rather than asking again.
+	t.Records++
+	t.Verdicts[judged.Verdict]++
 }
 
 func eachLine(r io.Reader, visit func(at Span, text []byte) bool) error {

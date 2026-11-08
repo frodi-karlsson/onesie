@@ -74,7 +74,7 @@ type resumed struct {
 	mu              sync.Mutex
 	source          engine.Source[input.Record]
 	left            int
-	stored          []answersfile.Verdict
+	stored          []answersfile.Stored
 	skips           answersfile.Tally
 	haltOnAssert    bool
 	haltOnError     bool
@@ -103,8 +103,8 @@ func (r *resumed) Next() (input.Record, bool, error) {
 		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
 		// so nothing after it is read.
 		judged := r.count()
-		stopsOnError := judged.Failure != nil && r.haltOnError
-		r.halted = (judged.Rejected && r.haltOnAssert) || stopsOnError
+		stopsOnError := judged.Verdict == output.Error && r.haltOnError
+		r.halted = (judged.Verdict == output.Fail && r.haltOnAssert) || stopsOnError
 
 		if stopsOnError {
 			r.stop(judged.Failure)
@@ -118,11 +118,11 @@ func (r *resumed) Next() (input.Record, bool, error) {
 	return r.source.Next()
 }
 
-func (r *resumed) count() answersfile.Verdict {
+func (r *resumed) count() answersfile.Stored {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	var judged answersfile.Verdict
+	var judged answersfile.Stored
 	if at := r.skips.Records; at < len(r.stored) {
 		judged = r.stored[at]
 	}
@@ -221,7 +221,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// The ledger is left unended, so a stopped run is not compacted, as a fresh one is not.
-		n.halted = judged.Rejected && n.halt
+		n.halted = judged.Verdict == output.Fail && n.halt
 	}
 
 	return namedRecord{}, false, nil

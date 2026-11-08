@@ -399,7 +399,7 @@ func finishStream(
 	}
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.Failed
+	result.Failed += skips.Verdicts[output.Error]
 
 	if freshAbort := source.freshRunAbort(); freshAbort != nil {
 		return result, freshAbort

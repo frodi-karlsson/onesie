@@ -17,6 +17,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -846,4 +847,38 @@ type brokenWriter struct{}
 
 func (brokenWriter) Write([]byte) (int, error) {
 	return 0, errBroken
+}
+
+func TestCollectorSkip(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		skips answersfile.Tally
+	}{
+		{
+			name:  "should count a skipped error line once",
+			skips: answersfile.Tally{Records: 1, Verdicts: output.Tally{output.Error: 1}},
+		},
+		{
+			name:  "should count skipped fails and unsures under their own verdicts",
+			skips: answersfile.Tally{Records: 3, Verdicts: output.Tally{output.Pass: 1, output.Fail: 1, output.Unsure: 1}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c collector
+
+			c.skip(tc.skips)
+
+			got := c.snapshot(0)
+
+			if got.Skipped != tc.skips.Records || got.Verdicts != tc.skips.Verdicts {
+				t.Errorf("skipped, verdicts = %d, %v, want %d, %v", got.Skipped, got.Verdicts, tc.skips.Records, tc.skips.Verdicts)
+			}
+		})
+	}
 }

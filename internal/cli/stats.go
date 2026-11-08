@@ -250,9 +250,10 @@ func (c *collector) skip(skips answersfile.Tally) {
 	defer c.mu.Unlock()
 
 	c.skipped += skips.Records
-	c.tally[output.Error] += skips.Failed
-	c.tally[output.Fail] += skips.Rejected
-	c.tally[output.Unsure] += skips.Abstained
+
+	for verdict, count := range skips.Verdicts {
+		c.tally[verdict] += count
+	}
 }
 
 func (c *collector) judged(verdict output.Verdict) {
