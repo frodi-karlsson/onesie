@@ -142,6 +142,29 @@ func TestHelpExamples(t *testing.T) {
 			}
 		}
 	})
+	for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+		t.Run("should give every "+command.String()+" example a unique id, a known destination and one input source", func(t *testing.T) {
+			topics := helpTopics(command)
+			ids := map[string]bool{}
+			for _, example := range helpExamples(command) {
+				if example.id == "" || ids[example.id] {
+					t.Errorf("example id %q is empty or repeated", example.id)
+				}
+				ids[example.id] = true
+				if example.stdin != "" && example.inputFile != "" {
+					t.Errorf("example %s reads both stdin and a file", example.id)
+				}
+				if len(example.places) == 0 {
+					t.Errorf("example %s has no destination", example.id)
+				}
+				for _, place := range example.places {
+					if place != "overview" && place != "footer" && !slices.ContainsFunc(topics, func(topic helpTopic) bool { return topic.name == place }) {
+						t.Errorf("example %s goes to unknown place %s", example.id, place)
+					}
+				}
+			}
+		})
+	}
 }
 
 func TestHelpDecisions(t *testing.T) {

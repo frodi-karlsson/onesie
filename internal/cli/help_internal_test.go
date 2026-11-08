@@ -350,23 +350,6 @@ func TestHelpShellQuote(t *testing.T) {
 	}
 }
 
-func TestValidateHelpExamples(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		examples []helpExample
-	}{
-		{"should reject duplicate ids", []helpExample{{id: "one", places: []string{"overview"}}, {id: "one", places: []string{"asking"}}}},
-		{"should reject an unknown destination", []helpExample{{id: "one", places: []string{"unknown"}}}},
-		{"should reject conflicting input sources", []helpExample{{id: "one", places: []string{"overview"}, stdin: "text", inputFile: "file"}}},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			if err := validateHelpExamples(tc.examples, helpTopics(settingrow.CommandRoot)); err == nil {
-				t.Fatal("invalid example accepted")
-			}
-		})
-	}
-}
-
 func helpTestCommand(t *testing.T, command settingrow.Command) *cobra.Command {
 	t.Helper()
 	root := NewRootCmd(BuildInfo{}, WithLookupEnv(func(string) (string, bool) { return "", false }), WithHomeDir(func() (string, error) { return t.TempDir(), nil }), WithWorkingDir(func() (string, error) { return t.TempDir(), nil }))

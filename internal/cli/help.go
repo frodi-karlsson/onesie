@@ -21,9 +21,6 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 	}
 	topics := helpTopics(command)
 	examples := helpExamples(command)
-	if exampleErr := validateHelpExamples(examples, topics); exampleErr != nil {
-		return exampleErr
-	}
 	if topic != "" && topic != "all" && !slices.ContainsFunc(topics, func(t helpTopic) bool { return t.name == topic }) {
 		return fmt.Errorf("unknown help topic %s", topic)
 	}
@@ -284,25 +281,6 @@ func helpShellQuote(value string) string {
 		return value
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
-}
-
-func validateHelpExamples(examples []helpExample, topics []helpTopic) error {
-	ids := map[string]bool{}
-	for _, example := range examples {
-		if example.id == "" || ids[example.id] || example.stdin != "" && example.inputFile != "" {
-			return fmt.Errorf("invalid help example %s", example.id)
-		}
-		ids[example.id] = true
-		if len(example.places) == 0 {
-			return fmt.Errorf("help example %s has no destination", example.id)
-		}
-		for _, place := range example.places {
-			if place != "overview" && place != "footer" && !slices.ContainsFunc(topics, func(t helpTopic) bool { return t.name == place }) {
-				return fmt.Errorf("invalid help example destination %s", place)
-			}
-		}
-	}
-	return nil
 }
 
 type helpFlag struct {
