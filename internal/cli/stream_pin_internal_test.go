@@ -144,13 +144,13 @@ func pinnedStreamRuns() []pinnedRun {
 				args: byID("-o", "markdown", "--assert", "answer.value < 0.5"), stdin: pinnedRecords, mock: pinnedByID,
 				stdout: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
-					"| `1` | 0.1 | passed | |\n" +
-					"| `2` | 0.8 | failed | |\n" +
-					"| `3` | 0.3 | passed | |\n" +
-					"| `4` | 0.9 | failed | |\n" +
+					"| `1` | 0.1 | pass | |\n" +
+					"| `2` | 0.8 | fail | |\n" +
+					"| `3` | 0.3 | pass | |\n" +
+					"| `4` | 0.9 | fail | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> 4 records: 2 passed, 2 failed.\n" +
+					"> 4 records: 2 pass, 2 fail.\n" +
 					"\n" +
 					"_`jev-latest`_\n",
 				code: ExitRejected,
@@ -163,11 +163,11 @@ func pinnedStreamRuns() []pinnedRun {
 				stdin: pinnedRecords, mock: pinnedByID,
 				stdout: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
-					"| `1` | 0.1 | passed | |\n" +
-					"| `2` | 0.8 | failed | |\n" +
+					"| `1` | 0.1 | pass | |\n" +
+					"| `2` | 0.8 | fail | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> stopped after 2 records: 1 passed, 1 failed.\n" +
+					"> stopped after 2 records: 1 pass, 1 fail.\n" +
 					"\n" +
 					"_`jev-latest`_\n",
 				code: ExitRejected,

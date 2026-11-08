@@ -21,7 +21,7 @@ func WriteMarkdown(w io.Writer, rec Record, opts MarkdownOptions) error {
 
 	switch {
 	case rec.Verdict() == Error:
-		sections = append(sections, alert("CAUTION", "**No answer:** "+codeSpan(rec.Failure.Message, false)))
+		sections = append(sections, alert("CAUTION", "**Error:** "+codeSpan(rec.Failure.Message, false)))
 	case opts.Assert != "":
 		sections = append(sections, verdictAlert(rec, opts))
 	}
@@ -54,12 +54,12 @@ func verdictAlert(rec Record, opts MarkdownOptions) string {
 
 	switch rec.Verdict() {
 	case Fail:
-		return alert("CAUTION", "**Failed:** "+gate+" did not hold.")
+		return alert("CAUTION", "**Fail:** "+gate+" did not hold.")
 	case Unsure:
 		return alert("WARNING", "**Unsure:** "+gate+" did not hold and "+
 			codeSpan(opts.Abstain, false)+" did, so a person should decide.")
 	default:
-		return alert("TIP", "**Passed:** "+gate+" held.")
+		return alert("TIP", "**Pass:** "+gate+" held.")
 	}
 }
 
@@ -114,7 +114,7 @@ type MarkdownTableOptions struct {
 	IDs []string
 	// ID adds an id column ahead of the answers, for a run that names its records with --id.
 	ID bool
-	// Gate adds a gate column, passed, failed or unsure per row, when the run carries an assertion.
+	// Gate adds a gate column, pass, fail or unsure per row, when the run carries an assertion.
 	Gate bool
 }
 
@@ -241,15 +241,13 @@ func streamAnswer(rec Record, id string) string {
 }
 
 func gateText(rec Record) string {
-	switch rec.Verdict() {
+	switch verdict := rec.Verdict(); verdict {
 	case Error:
 		return ""
-	case Fail:
-		return "failed"
-	case Unsure:
-		return "unsure"
+	case Fail, Unsure:
+		return verdict.String()
 	default:
-		return "passed"
+		return Pass.String()
 	}
 }
 
@@ -279,11 +277,11 @@ func (t *tally) alert(whole bool) string {
 		count int
 		label string
 	}{
-		{t.counts[Pass], "passed"},
-		{t.counts[Fail], "failed"},
-		{t.counts[Unsure], "unsure"},
-		{t.counts[Answered], "answered"},
-		{t.counts[Error], "with no answer"},
+		{t.counts[Pass], Pass.String()},
+		{t.counts[Fail], Fail.String()},
+		{t.counts[Unsure], Unsure.String()},
+		{t.counts[Answered], Answered.String()},
+		{t.counts[Error], errorLabel(t.counts[Error])},
 	} {
 		if part.count > 0 {
 			parts = append(parts, fmt.Sprintf("%d %s", part.count, part.label))
@@ -304,6 +302,14 @@ func (t *tally) alert(whole bool) string {
 	}
 
 	return alert(kind, counted+": "+strings.Join(parts, ", ")+".")
+}
+
+func errorLabel(count int) string {
+	if count == 1 {
+		return Error.String()
+	}
+
+	return Error.String() + "s"
 }
 
 func alert(kind, text string) string {

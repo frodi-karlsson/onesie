@@ -1415,12 +1415,12 @@ func TestStream(t *testing.T) {
 				wantCode: cli.ExitRecords,
 				want: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
-					"| `T-1` | 0.5 | passed | |\n" +
+					"| `T-1` | 0.5 | pass | |\n" +
 					"| | | | `line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')` |\n" +
-					"| `@T-2` | 0.5 | passed | |\n" +
+					"| `@T-2` | 0.5 | pass | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> 3 records: 2 passed, 1 with no answer.\n" +
+					"> 3 records: 2 pass, 1 error.\n" +
 					"\n" +
 					"_`m`_\n",
 			},
@@ -1465,10 +1465,10 @@ func TestStream(t *testing.T) {
 				wantCode: cli.ExitRejected,
 				want: "| `answer` | gate | error |\n" +
 					"|---|---|---|\n" +
-					"| 0.5 | failed | |\n" +
+					"| 0.5 | fail | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> stopped after 1 record: 1 failed.\n" +
+					"> stopped after 1 record: 1 fail.\n" +
 					"\n" +
 					"_`m`_\n",
 			},
@@ -1478,7 +1478,7 @@ func TestStream(t *testing.T) {
 				stdin:    "site down\nslow\nfine\n",
 				status:   http.StatusUnauthorized,
 				wantCode: cli.ExitAuth,
-				contains: []string{"| `answer` | error |\n", "> [!CAUTION]\n> stopped after 1 record: 1 with no answer.\n"},
+				contains: []string{"| `answer` | error |\n", "> [!CAUTION]\n> stopped after 1 record: 1 error.\n"},
 			},
 			{
 				name:  "should write the summary for a stream with no records",

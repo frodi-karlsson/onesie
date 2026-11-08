@@ -33,7 +33,7 @@ func TestWriteRecord(t *testing.T) {
 			args:     []string{"is this urgent", "-o", "md", "--assert", "answer.value > 0.9"},
 			wantCode: ExitRejected,
 			want: "> [!CAUTION]\n" +
-				"> **Failed:** `answer.value > 0.9` did not hold.\n" +
+				"> **Fail:** `answer.value > 0.9` did not hold.\n" +
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
@@ -72,7 +72,7 @@ func TestWriteRecord(t *testing.T) {
 			args:     []string{"is this urgent", "-o", "markdown", "--assert", "answer.value > 0.9"},
 			failing:  true,
 			wantCode: ExitUsage,
-			want:     "> [!CAUTION]\n> **No answer:** `",
+			want:     "> [!CAUTION]\n> **Error:** `",
 		},
 	}
 
