@@ -581,7 +581,7 @@ func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
 		return nil
 	}
 
-	return output.Notice(w, "and "+plural(more, "more failed record"))
+	return output.Notice(w, "and "+plural(more, "more error"))
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {

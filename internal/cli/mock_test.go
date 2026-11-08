@@ -573,7 +573,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     calibrating("--label", "urgent=.u"),
 			stdin:    threeStdin,
 			mock:     threeMock,
-			contains: []string{"urgent, yes/no: labelled 4, 2 yes, 2 no, 0 failed"},
+			contains: []string{"urgent, yes/no: labelled 4, 2 yes, 2 no, 0 errors"},
 			absent:   []string{"team,", "tone,"},
 			stderr:   []string{"onesie: skipping 'team' and 'tone', which have no --label\n"},
 			wantCode: ExitOK,

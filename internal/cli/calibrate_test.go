@@ -1149,8 +1149,13 @@ func TestCalibrateRun(t *testing.T) {
 `
 
 	urgentTable := func(failed int) string {
+		counted := strconv.Itoa(failed) + " errors"
+		if failed == 1 {
+			counted = "1 error"
+		}
+
 		return strings.Join([]string{
-			"urgent, yes/no: labelled 6, 3 yes, 3 no, " + strconv.Itoa(failed) + " failed. AUC 0.89",
+			"urgent, yes/no: labelled 6, 3 yes, 3 no, " + counted + ". AUC 0.89",
 			"flagged means urgent.value >= cut",
 			"",
 			"  cut   flagged  catches         false alarms   right when flagged",
@@ -1276,8 +1281,8 @@ func TestCalibrateRun(t *testing.T) {
 			check: func(t *testing.T, out, _ string) {
 				t.Helper()
 
-				first := strings.Index(out, "urgent, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 1.00")
-				second := strings.Index(out, "\n\npressing, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 1.00")
+				first := strings.Index(out, "urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00")
+				second := strings.Index(out, "\n\npressing, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00")
 
 				if first != 0 || second < 0 {
 					t.Errorf("stdout = %s, want an urgent section then a pressing section", out)
@@ -1308,8 +1313,8 @@ func TestCalibrateRun(t *testing.T) {
 				t.Helper()
 
 				for _, want := range []string{
-					"urgent, yes/no: labelled 1, 1 yes, 0 no, 0 failed.",
-					"team, pick: labelled 2, 0 failed. agreement 50%",
+					"urgent, yes/no: labelled 1, 1 yes, 0 no, 0 errors.",
+					"team, pick: labelled 2, 0 errors. agreement 50%",
 					`  b  {"team":["billing",0.8],"urgent":0.2}  labelled shipping  picked billing  confidence 0.80`,
 				} {
 					if !strings.Contains(out, want) {
@@ -1333,7 +1338,7 @@ func TestCalibrateRun(t *testing.T) {
 				t.Helper()
 
 				for _, want := range []string{
-					"stars, rate: labelled 2, 0 failed. agreement 50%",
+					"stars, rate: labelled 2, 0 errors. agreement 50%",
 					"mean distance 1.00 levels",
 					`  b  {"stars":[0,0.6]}  labelled high  picked low  confidence 0.60`,
 				} {
@@ -1487,7 +1492,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Fatalf("exit code = %d, want %d\nstderr:\n%s", code, ExitRecords, errOut)
 		}
 
-		if !strings.HasPrefix(out, "urgent, yes/no: labelled 6, 3 yes, 3 no, 2 failed.") {
+		if !strings.HasPrefix(out, "urgent, yes/no: labelled 6, 3 yes, 3 no, 2 errors.") {
 			t.Errorf("stdout =\n%s\nwant the report to count two failed records", out)
 		}
 
@@ -1549,7 +1554,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if lines[6] != "onesie: and 2 more failed records" {
+		if lines[6] != "onesie: and 2 more errors" {
 			t.Errorf("last stderr line = %q, want the rest counted", lines[6])
 		}
 	})
@@ -1989,7 +1994,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("the resume made %d requests, want none", stub.count())
 		}
 
-		if !strings.HasPrefix(out, "urgent, yes/no: labelled 6, 2 yes, 4 no, 0 failed.") {
+		if !strings.HasPrefix(out, "urgent, yes/no: labelled 6, 2 yes, 4 no, 0 errors.") {
 			t.Errorf("stdout =\n%s\nwant the fixed label counted as no", out)
 		}
 	})
@@ -2017,7 +2022,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("sent %v, want only the newly labelled record", sent)
 		}
 
-		if !strings.HasPrefix(out, "urgent, yes/no: labelled 7, 4 yes, 3 no, 0 failed.") {
+		if !strings.HasPrefix(out, "urgent, yes/no: labelled 7, 4 yes, 3 no, 0 errors.") {
 			t.Errorf("stdout =\n%s\nwant the new record counted", out)
 		}
 	})
@@ -2400,7 +2405,7 @@ func TestCalibrateRun(t *testing.T) {
 					prune, code, stub.count(), errOut)
 			}
 
-			if !strings.HasPrefix(out, "urgent, yes/no: labelled 4, 3 yes, 1 no, 0 failed.") {
+			if !strings.HasPrefix(out, "urgent, yes/no: labelled 4, 3 yes, 1 no, 0 errors.") {
 				t.Errorf("prune %t: stdout =\n%s\nwant the unlabelled record left out of the report", prune, out)
 			}
 

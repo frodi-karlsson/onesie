@@ -19,7 +19,7 @@ func TestWriteTable(t *testing.T) {
 			name:      "should render a yes/no question with its cut rows and worst misses",
 			questions: []QuestionReport{urgentReport([]float64{0.5, 0.7})},
 			want: []string{
-				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 failed. AUC 0.89",
+				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 error. AUC 0.89",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches         false alarms   right when flagged",
@@ -41,7 +41,7 @@ func TestWriteTable(t *testing.T) {
 				), 0, []float64{0.5, 0.95},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 17, 17 yes, 0 no, 0 failed. AUC needs both yes and no labels",
+				"urgent, yes/no: labelled 17, 17 yes, 0 no, 0 errors. AUC needs both yes and no labels",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches           false alarms  right when flagged",
@@ -60,7 +60,7 @@ func TestWriteTable(t *testing.T) {
 			name:      "should print a cut in its shortest form with at least two places",
 			questions: []QuestionReport{urgentReport([]float64{0.9, 0.995, 1})},
 			want: []string{
-				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 failed. AUC 0.89",
+				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 error. AUC 0.89",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut    flagged  catches        false alarms  right when flagged",
@@ -77,7 +77,7 @@ func TestWriteTable(t *testing.T) {
 			name:      "should render a pick question with its options, grid and confidence table",
 			questions: []QuestionReport{teamReport()},
 			want: []string{
-				"team, pick: labelled 6, 2 failed. agreement 67% 30-90%",
+				"team, pick: labelled 6, 2 errors. agreement 67% 30-90%",
 				"",
 				"  option     labelled  picked  found           right when picked",
 				"  billing           3       3  2/3 67% 21-94%  2/3 67% 21-94%",
@@ -105,7 +105,7 @@ func TestWriteTable(t *testing.T) {
 				[]string{"billing", "shipping"}, 0, []float64{0.5},
 			))},
 			want: []string{
-				"team, pick: labelled 2, 0 failed. agreement 50% 9-91%",
+				"team, pick: labelled 2, 0 errors. agreement 50% 9-91%",
 				"",
 				"  option    labelled  picked  found          right when picked",
 				"  billing          2       1  1/2 50% 9-91%  1/1 99% 21-99%",
@@ -126,7 +126,7 @@ func TestWriteTable(t *testing.T) {
 			name:      "should render a rate question with within one level and mean distance, in level order",
 			questions: []QuestionReport{starsReport()},
 			want: []string{
-				"stars, rate: labelled 4, 0 failed. agreement 50% 15-85%",
+				"stars, rate: labelled 4, 0 errors. agreement 50% 15-85%",
 				"within one level 3/4 75% 30-95%",
 				"mean distance 0.75 levels",
 				"",
@@ -154,7 +154,7 @@ func TestWriteTable(t *testing.T) {
 				namedYesNo("yes", 0.9, "no", 0.5), 0, []float64{0.5},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 1.00",
+				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches         false alarms    right when flagged",
@@ -173,7 +173,7 @@ func TestWriteTable(t *testing.T) {
 				[]string{"café", "技术", "other"}, 0, []float64{0.5},
 			))},
 			want: []string{
-				"team, pick: labelled 4, 0 failed. agreement 50% 15-85%",
+				"team, pick: labelled 4, 0 errors. agreement 50% 15-85%",
 				"",
 				"  option  labelled  picked  found           right when picked",
 				"  café           1       2  1/1 99% 21-99%  1/2 50%  9-91%",
@@ -200,7 +200,7 @@ func TestWriteTable(t *testing.T) {
 				[]string{"billing", "other"}, 0, []float64{0.5},
 			))},
 			want: []string{
-				"team, pick: labelled 2, 0 failed. agreement 50% 9-91%",
+				"team, pick: labelled 2, 0 errors. agreement 50% 9-91%",
 				"",
 				"  option   labelled  picked  found           right when picked",
 				"  billing         1       1  1/1 99% 21-99%  1/1 99% 21-99%",
@@ -224,7 +224,7 @@ func TestWriteTable(t *testing.T) {
 				[]string{"billing", "other answers"}, 0, []float64{0.5},
 			))},
 			want: []string{
-				"team, pick: labelled 1, 0 failed. agreement 1% 1-79%",
+				"team, pick: labelled 1, 0 errors. agreement 1% 1-79%",
 				"",
 				"  option         labelled  picked  found         right when picked",
 				"  billing               1       0  0/1 1% 1-79%  0/0 -",
@@ -251,7 +251,7 @@ func TestWriteTable(t *testing.T) {
 				0, []float64{0.5},
 			))},
 			want: []string{
-				`"urgent\nfake", yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 0.00`,
+				`"urgent\nfake", yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00`,
 				`flagged means "urgent\nfake".value >= cut`,
 				"",
 				"  cut   flagged  catches       false alarms    right when flagged",
@@ -269,7 +269,7 @@ func TestWriteTable(t *testing.T) {
 				[]string{"a\nb"}, 0, []float64{0.5},
 			))},
 			want: []string{
-				"team, pick: labelled 1, 0 failed. agreement 99% 21-99%",
+				"team, pick: labelled 1, 0 errors. agreement 99% 21-99%",
 				"",
 				"  option  labelled  picked  found           right when picked",
 				`  "a\nb"         1       1  1/1 99% 21-99%  1/1 99% 21-99%`,
@@ -298,7 +298,7 @@ func TestWriteTable(t *testing.T) {
 				Misses: []YesNoCase{},
 			})},
 			want: []string{
-				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 failed. AUC 0.50",
+				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 errors. AUC 0.50",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches              false alarms    right when flagged",
@@ -313,9 +313,9 @@ func TestWriteTable(t *testing.T) {
 				pickReport("second", ScorePick(nil, []string{"a", "b"}, 1, []float64{0.5})),
 			},
 			want: []string{
-				"first, yes/no: labelled 0, 0 yes, 0 no, 3 failed. AUC needs both yes and no labels",
+				"first, yes/no: labelled 0, 0 yes, 0 no, 3 errors. AUC needs both yes and no labels",
 				"",
-				"second, pick: labelled 0, 1 failed. agreement -",
+				"second, pick: labelled 0, 1 error. agreement -",
 			},
 		},
 		{
@@ -324,7 +324,7 @@ func TestWriteTable(t *testing.T) {
 				nil, []string{"low", "high"}, 2, []float64{0.5},
 			))},
 			want: []string{
-				"stars, rate: labelled 0, 2 failed. agreement -",
+				"stars, rate: labelled 0, 2 errors. agreement -",
 			},
 		},
 		{
@@ -334,7 +334,7 @@ func TestWriteTable(t *testing.T) {
 				0, []float64{0.5},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 failed. AUC 0.00",
+				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches       false alarms    right when flagged",

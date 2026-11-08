@@ -58,8 +58,8 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 }
 
 func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
-	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %d failed. %s\n",
-		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
+	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %s. %s\n",
+		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, errorCount(s.Failed), aucText(s))
 
 	if s.Labelled == 0 {
 		return
@@ -131,8 +131,8 @@ func rateLines(s RateScore) []string {
 }
 
 func writeChoice(b *strings.Builder, id string, shape plan.Shape, noun string, s PickScore, extra []string) {
-	fmt.Fprintf(b, "%s, %s: labelled %d, %d failed. agreement %s\n",
-		printable(id), ShapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
+	fmt.Fprintf(b, "%s, %s: labelled %d, %s. agreement %s\n",
+		printable(id), ShapeName(shape), s.Labelled, errorCount(s.Failed), inlineShare(s.Agreement))
 
 	if s.Labelled == 0 {
 		return
@@ -149,6 +149,14 @@ func writeChoice(b *strings.Builder, id string, shape plan.Shape, noun string, s
 	b.WriteString("\n")
 	writeConfidence(b, s.Confidence)
 	writeChoiceMisses(b, s.Misses)
+}
+
+func errorCount(count int) string {
+	if count == 1 {
+		return "1 error"
+	}
+
+	return fmt.Sprintf("%d errors", count)
 }
 
 func writeNames(b *strings.Builder, noun string, rows []PickRow) {
