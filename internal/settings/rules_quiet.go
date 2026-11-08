@@ -43,8 +43,6 @@ func quietWritesNothingRule() Rule {
 
 func droppedByQuiet(v View) string {
 	switch {
-	case Get(v.Merged, Raw):
-		return "-r"
 	case Get(v.Merged, Output) != "":
 		return "-o " + outputTyped(v)
 	case Get(v.Merged, Out) != "":

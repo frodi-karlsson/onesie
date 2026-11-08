@@ -27,8 +27,14 @@ const (
 		"profile then needs --allow-http too."
 )
 
-// Table returns every setting, grouped by topic with the mode switches first, so --version is the
-// first flag root registers.
+// The verdicts --stop-on takes, named as onesie writes them.
+const (
+	StopOnError  = "error"
+	StopOnFail   = "fail"
+	StopOnUnsure = "unsure"
+)
+
+// Table returns every setting, grouped by topic with the mode switches first.
 func Table() []Row {
 	var rows []Row
 
@@ -55,11 +61,6 @@ func Lookup(name Name) (Row, bool) {
 
 func modeRows() []Row {
 	return []Row{
-		{
-			Name: "version", HelpTopic: "output", Kind: Bool(), Modes: Modes(ModeVersion),
-			Flag: FlagSpec{Long: "version", Short: "V", AsksNothing: true, Commands: onRoot()},
-			Help: "Print the version, commit, build date and built in limits, as one JSON object under -o json.",
-		},
 		{
 			Name: "print_questions", HelpTopic: "asking", Kind: Bool(), Modes: Modes(ModePrintQuestions),
 			Flag: FlagSpec{Long: "print-questions", Commands: onRoot()},
@@ -186,7 +187,7 @@ func policyRows() []Row {
 func outputRows() []Row {
 	return append([]Row{
 		{
-			Name: "output", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 10, CommandCalibrate: 13}, HelpValue: "FORMAT", Kind: outputModes(), Modes: Modes(ModeAsk, ModeStream, ModeVersion, ModeCalibrate),
+			Name: "output", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 10, CommandCalibrate: 13}, HelpValue: "FORMAT", Kind: outputModes(), Modes: Modes(ModeAsk, ModeStream, ModeCalibrate),
 			Flag: FlagSpec{Long: "output", Short: "o", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
 					Help: "The report format, table, json or auto, which means table.",
@@ -194,11 +195,6 @@ func outputRows() []Row {
 				},
 			}},
 			Help: "One of " + inWords(outputModes().Schema().Enum) + ".",
-		},
-		{
-			Name: "raw", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 11}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
-			Flag: FlagSpec{Long: "raw", Short: "r", Commands: onRoot()},
-			Help: "Print only the answer value or policy decision.",
 		},
 		{
 			Name: "quiet", HelpTopic: "decisions", HelpCommon: map[Command]int{CommandRoot: 15}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
@@ -307,18 +303,13 @@ func inputRows() []Row {
 			Help: "Read this text instead of stdin. Use - to read stdin.",
 		},
 		{
-			Name: "state_file", HelpTopic: "input", HelpCommon: map[Command]int{CommandRoot: 7}, HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModePrintRequest),
-			Flag: FlagSpec{Long: "state-file", Commands: onRoot()},
-			Help: "Read the state from a file.",
-		},
-		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "image", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. Repeatable. " +
 					experimental},
 			}},
 			Help: "Put a PNG or JPEG in the state under NAME. Repeatable. For one record stdin is read beside it " +
-				"only through --state -, so text joins it from --state, --state-file or --state -. A stream reads " +
+				"only through --state -, so text joins it from --state or --state -. A stream reads " +
 				"its records from stdin and adds the image to each. " + experimental,
 		},
 		{
@@ -345,7 +336,7 @@ func inputRows() []Row {
 			}},
 			Help: "Name each record on every output line with the string or number this jq expression returns. " +
 				"Streaming only. It runs one record at a time as the input is read, so keep it cheap, such as a " +
-				"field lookup. -V lists the cap on its length.",
+				"field lookup. onesie version lists the cap on its length.",
 		},
 	}, streamRows()...)
 }
@@ -369,15 +360,12 @@ func streamRows() []Row {
 			Help: "Emit records as they complete. Streaming only.",
 		},
 		{
-			Name: "stop_on_error", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
-			Flag: FlagSpec{Long: "stop-on-error", Commands: onRoot()},
-			Help: "End the run at the first error, with its exit code, or 6 for a line onesie could not read. " +
-				"Streaming only.",
-		},
-		{
-			Name: "stop_on_assert", HelpTopic: "decisions", Kind: Bool(), Modes: Modes(ModeStream),
-			Flag: FlagSpec{Long: "stop-on-assert", Commands: onRoot()},
-			Help: "End the run at the first fail. Streaming only.",
+			Name: "stop_on", HelpTopic: "execution", HelpValue: "VERDICTS",
+			Kind:  EnumList([]string{StopOnError, StopOnFail, StopOnUnsure}),
+			Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
+			Flag:  FlagSpec{Long: "stop-on", Commands: onRoot()},
+			Help: "End the run at the first record with one of these verdicts: error, fail or unsure, comma " +
+				"separated. An error exits with its own code. Streaming only.",
 		},
 		{
 			Name: "no_dedup", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream),

@@ -34,7 +34,7 @@ type Config[R, T any] struct {
 	Abort func(error) bool
 
 	// Stop reports whether a written line ends the run without counting it failed. It is how
-	// --stop-on-assert ends a stream at the first false assertion.
+	// --stop-on=fail and --stop-on=unsure end a stream at the first record with that verdict.
 	Stop func(T) bool
 }
 

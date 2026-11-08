@@ -28,8 +28,7 @@ func singleRecordRefusal(v View) error {
 		set  bool
 	}{
 		{"--unordered", Get(v.Merged, Unordered)},
-		{"--stop-on-error", Get(v.Merged, StopOnError)},
-		{"--stop-on-assert", Get(v.Merged, StopOnAssert)},
+		{"--stop-on", Get(v.Merged, StopOn) != ""},
 		{"--skip-blank", Get(v.Merged, SkipBlank)},
 		{"--no-dedup", Get(v.Merged, NoDedup)},
 		{"--id", typed(v, ID.Name())},
@@ -45,7 +44,7 @@ func singleRecordRefusal(v View) error {
 			"Pass -i jsonl, -i lines, -i csv or -i tsv, or drop -j", inputName(v))
 	}
 
-	if typed(v, Input.Name()) && len(listOf(v, imageName)) > 0 && !typed(v, State.Name()) && !typed(v, StateFile.Name()) {
+	if typed(v, Input.Name()) && len(listOf(v, imageName)) > 0 && !typed(v, State.Name()) {
 		return fmt.Errorf("-i %s holds one record, which beside --image reads stdin only through "+
 			"--state -. Pass --state - to read the state from stdin", inputName(v))
 	}
@@ -62,13 +61,10 @@ func streamStateRule() Rule {
 				return nil
 			}
 
-			// The flag the user typed and the mode they gave. Naming --state for a --state-file mistake
-			// sends them to the wrong flag, and naming jsonl for a lines run sends them to the wrong mode.
+			// The flag the user typed and the mode they gave. Naming jsonl for a lines run sends them to the wrong mode.
 			switch {
 			case typed(v, State.Name()):
 				return fmt.Errorf("--state cannot be combined with -i %s", inputName(v))
-			case typed(v, StateFile.Name()):
-				return fmt.Errorf("--state-file cannot be combined with -i %s", inputName(v))
 			case mode == input.Lines && len(listOf(v, imageFieldName)) > 1:
 				return errors.New("-i lines takes one --image-field, since a line holds one path")
 			default:

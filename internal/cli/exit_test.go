@@ -45,7 +45,7 @@ func TestClassify(t *testing.T) {
 			err:  stored("input", nil), want: ExitRecords,
 		},
 		{
-			name: "should report records for a record --stop-on-error stopped at",
+			name: "should report records for a record --stop-on=error stopped at",
 			err:  &stoppedError{cause: &input.LineError{Line: 2, Err: errors.New("not json")}}, want: ExitRecords,
 		},
 		{
@@ -288,7 +288,7 @@ func TestWorthReporting(t *testing.T) {
 			name: "should stay quiet when the consumer stopped reading",
 			err:  &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE},
 		},
-		{name: "should stay quiet for a record --stop-on-error stopped at", err: &stoppedError{cause: errors.New("bad")}},
+		{name: "should stay quiet for a record --stop-on=error stopped at", err: &stoppedError{cause: errors.New("bad")}},
 		{name: "should stay quiet for a command that printed its whole result", err: &silentError{code: ExitAuth}},
 		{name: "should stay quiet for an interrupt inside a wrapped error", err: fmt.Errorf("waiting: %w", context.Canceled)},
 		{

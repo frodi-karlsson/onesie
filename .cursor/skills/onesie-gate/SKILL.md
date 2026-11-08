@@ -25,7 +25,7 @@ See the onesie skill's failures reference for the exit code table and the key fl
 Before you pick the cut for a `--threshold` or an `--assert`, load the onesie-calibrate skill.
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.
 
 ## Rules
 
@@ -57,7 +57,7 @@ onesie --ask danger='is this dangerous' --ask creds='does this send credentials'
 
 ### Treat every non zero exit as no, not just exit 1.
 
-Exit 1 means a fail: the gate said no. Exits 2 through 5 mean an error, so no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one error, or `--stop-on-error` stopped it at a record that never became a request, so a gate over a stream still has to fail closed on it. Exit 7 means unsure: `--abstain-if` turned a fail into an unsure, which `&&` also blocks. Exit 130 means the run was interrupted, so no decision was made. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; 130) stop ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; onesie ... || status=$?; case $status in 0) ;; 1) echo 'fail: the gate said no'; exit 1 ;; 7) echo 'unsure: needs a human'; exit 1 ;; *) echo "error: onesie gave no answer, exit $status"; exit 1 ;; esac`.
+Exit 1 means a fail: the gate said no. Exits 2 through 5 mean an error, so no answer arrived at all, from a usage error, a bad key, an exhausted retry or a transport failure. Exit 6 means a stream finished with at least one error, or `--stop-on=error` stopped it at a record that never became a request, so a gate over a stream still has to fail closed on it. Exit 7 means unsure: `--abstain-if` turned a fail into an unsure, which `&&` also blocks. Exit 130 means the run was interrupted, so no decision was made. Chaining with `&&` fails closed on all of them as a minimal gate, which is correct. Branching on exit 1 alone treats an outage and a typo as an answer. To tell them apart: `case $? in 0) go ;; 1) block ;; 130) stop ;; *) alert and block ;; esac`. In CI, tell them apart, so a red build says whether to fix the input or rerun. GitHub Actions runs bash with `-e`, so capture the exit first: `status=0; onesie ... || status=$?; case $status in 0) ;; 1) echo 'fail: the gate said no'; exit 1 ;; 7) echo 'unsure: needs a human'; exit 1 ;; *) echo "error: onesie gave no answer, exit $status"; exit 1 ;; esac`.
 
 **Bad:**
 
@@ -191,7 +191,7 @@ onesie --ask 'needs review'='is review needed' --assert '["needs review"].value 
 | `-q` | a yes or no question | nothing else. It exits 0 when the probability is at least `--threshold`, 0.5 by default |
 | `-q` | a pick or rate question | `--min-confidence` with `--fallback`, or an `--assert` |
 
-`-q` writes nothing, so beside `-r`, any `-o`, `--out`, `--merge` or `--merge-key` it exits 2.
+`-q` writes nothing, so beside any `-o`, `--out`, `--merge` or `--merge-key` it exits 2.
 
 A request that fails after retries still prints the record under a fallback, with `.error` beside
 the answer, `.fallback` set to `error` and `.decision` set to the fallback. The exit code stays

@@ -106,11 +106,11 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should ask a trailing stored error line again under --stop-on-error and carry on",
+			name:  "should ask a trailing stored error line again under --stop-on=error and carry on",
 			stdin: idRecords(1, 4),
 			runs: []resumeRun{
 				{
-					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on=error"},
 					failFrom:   2,
 					failOnce:   true,
 					failStatus: http.StatusServiceUnavailable,
@@ -120,7 +120,7 @@ func TestResumed(t *testing.T) {
 				},
 				{
 					args: []string{
-						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error", "--stats",
+						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on=error", "--stats",
 					},
 					wantFile:   strings.Repeat("{\"answer\":0.5}\n", 4),
 					wantSent:   []string{`{"id":2}`, `{"id":3}`, `{"id":4}`},
@@ -129,11 +129,11 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should write the error line once again when the record asked again fails again under --stop-on-error",
+			name:  "should write the error line once again when the record asked again fails again under --stop-on=error",
 			stdin: idRecords(1, 4),
 			runs: []resumeRun{
 				{
-					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "values", "--retries", "0", "--stop-on=error"},
 					failFrom:   2,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
@@ -141,7 +141,7 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
-					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on=error"},
 					failFrom:   1,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
@@ -152,7 +152,7 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should ask a trailing stored json error line again under --stop-on-error",
+			name:  "should ask a trailing stored json error line again under --stop-on=error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -165,14 +165,14 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "json", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "json", "--resume", "--retries", "0", "--stop-on=error"},
 					wantFile: strings.Repeat("{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n", 3),
 					wantSent: []string{`{"id":2}`, `{"id":3}`},
 				},
 			},
 		},
 		{
-			name:  "should stop at a stored error line followed by more lines under --stop-on-error with the code a fresh run gave",
+			name:  "should stop at a stored error line followed by more lines under --stop-on=error with the code a fresh run gave",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -185,16 +185,16 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on=error"},
 					wantCode: ExitUnavailable,
 					wantFile: "{\"answer\":0.5}\n" + unavailableBody + "{\"answer\":0.5}\n",
 					wantStderr: "onesie: 503 bad key. The stored error for record 2 is followed by more lines, " +
-						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+						"so a run without --stop-on=error wrote it. Pass --id or drop --stop-on=error to carry on",
 				},
 			},
 		},
 		{
-			name:  "should stop at the first of two trailing stored error lines under --stop-on-error",
+			name:  "should stop at the first of two trailing stored error lines under --stop-on=error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -206,7 +206,7 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
-					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on=error"},
 					wantCode:   ExitUsage,
 					wantFile:   "{\"answer\":0.5}\n" + failedBody + failedBody,
 					wantStderr: "The stored error for record 2 is followed by more lines",
@@ -214,7 +214,7 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should ask a trailing stored error under the merge key again under --stop-on-error",
+			name:  "should ask a trailing stored error under the merge key again under --stop-on=error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -232,7 +232,7 @@ func TestResumed(t *testing.T) {
 				{
 					args: []string{
 						"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--merge", "--merge-key", "verdict",
-						"--stop-on-error",
+						"--stop-on=error",
 					},
 					wantFile: "{\"id\":1,\"verdict\":{\"answer\":0.5}}\n{\"id\":2,\"verdict\":{\"answer\":0.5}}\n" +
 						"{\"id\":3,\"verdict\":{\"answer\":0.5}}\n",
@@ -241,7 +241,7 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should ask a trailing stored error line again under --stop-on-error under -i request",
+			name:  "should ask a trailing stored error line again under --stop-on=error under -i request",
 			stdin: requestRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -255,7 +255,7 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
-					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on=error"},
 					bare:     true,
 					wantFile: strings.Repeat(answeredBody, 3),
 					wantSent: []string{`{"id":2}`, `{"id":3}`},
@@ -263,7 +263,7 @@ func TestResumed(t *testing.T) {
 			},
 		},
 		{
-			name:  "should stop at a stored error line followed by more lines under --stop-on-error under -i request",
+			name:  "should stop at a stored error line followed by more lines under --stop-on=error under -i request",
 			stdin: requestRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -277,21 +277,21 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
-					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "request", "--resume", "--retries", "0", "--stop-on=error"},
 					bare:     true,
 					wantCode: ExitUsage,
 					wantFile: answeredBody + failedBody + answeredBody,
 					wantStderr: "onesie: 400 bad key. The stored error for record 2 is followed by more lines, " +
-						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+						"so a run without --stop-on=error wrote it. Pass --id or drop --stop-on=error to carry on",
 				},
 			},
 		},
 		{
-			name:  "should ask a trailing stored csv error row again under --stop-on-error",
+			name:  "should ask a trailing stored csv error row again under --stop-on=error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
-					args:       []string{"-i", "jsonl", "-o", "csv", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "csv", "--retries", "0", "--stop-on=error"},
 					failFrom:   2,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
@@ -299,18 +299,18 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on=error"},
 					wantFile: "answer,error\n0.5,\n0.5,\n0.5,\n",
 					wantSent: []string{`{"id":2}`, `{"id":3}`},
 				},
 			},
 		},
 		{
-			name:  "should keep the header when the only stored tsv row is an error asked again under --stop-on-error",
+			name:  "should keep the header when the only stored tsv row is an error asked again under --stop-on=error",
 			stdin: idRecords(1, 2),
 			runs: []resumeRun{
 				{
-					args:       []string{"-i", "jsonl", "-o", "tsv", "--retries", "0", "--stop-on-error"},
+					args:       []string{"-i", "jsonl", "-o", "tsv", "--retries", "0", "--stop-on=error"},
 					failFrom:   1,
 					failStatus: http.StatusServiceUnavailable,
 					wantCode:   ExitUnavailable,
@@ -318,14 +318,14 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "tsv", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "tsv", "--resume", "--retries", "0", "--stop-on=error"},
 					wantFile: "answer\terror\n0.5\t\n0.5\t\n",
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 			},
 		},
 		{
-			name:  "should resume a csv file holding no error row under --stop-on-error",
+			name:  "should resume a csv file holding no error row under --stop-on=error",
 			stdin: idRecords(1, 2),
 			runs: []resumeRun{
 				{
@@ -335,14 +335,14 @@ func TestResumed(t *testing.T) {
 					wantSent: []string{`{"id":1}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--stop-on=error"},
 					wantFile: "answer,error\n0.5,\n0.5,\n",
 					wantSent: []string{`{"id":2}`},
 				},
 			},
 		},
 		{
-			name:  "should refuse a stored csv error row followed by more rows under --stop-on-error",
+			name:  "should refuse a stored csv error row followed by more rows under --stop-on=error",
 			stdin: idRecords(1, 3),
 			runs: []resumeRun{
 				{
@@ -355,12 +355,12 @@ func TestResumed(t *testing.T) {
 					wantSent:   []string{`{"id":1}`, `{"id":2}`, `{"id":3}`},
 				},
 				{
-					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
+					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on=error"},
 					wantCode: ExitUsage,
 					wantFile: "answer,error\n0.5,\n,503 bad key\n0.5,\n",
 					wantStderr: "onesie: the stored error for record 2 is followed by more rows, so a run without " +
-						"--stop-on-error wrote it, and a csv row keeps only its message, not the code to stop with. " +
-						"Pass --id or drop --stop-on-error to carry on",
+						"--stop-on=error wrote it, and a csv row keeps only its message, not the code to stop with. " +
+						"Pass --id or drop --stop-on=error to carry on",
 				},
 			},
 		},
@@ -416,16 +416,30 @@ func TestResumed(t *testing.T) {
 			}},
 		},
 		{
-			name:     "should stop at a skipped false assertion under --stop-on-assert and ask nothing after it",
+			name:     "should stop at a skipped false assertion under --stop-on=fail and ask nothing after it",
 			existing: fileOf(stored),
 			sidecar:  byPositionAbstaining,
 			stdin:    idRecords(1, 4),
 			runs: []resumeRun{{
 				args: []string{
-					"-i", "jsonl", "-o", "values", "--resume", "--stop-on-assert",
+					"-i", "jsonl", "-o", "values", "--resume", "--stop-on=fail",
 					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
 				},
 				wantCode: ExitRejected,
+				wantFile: stored,
+			}},
+		},
+		{
+			name:     "should stop at a skipped unsure under --stop-on=unsure and ask nothing after it",
+			existing: fileOf(stored),
+			sidecar:  byPositionAbstaining,
+			stdin:    idRecords(1, 4),
+			runs: []resumeRun{{
+				args: []string{
+					"-i", "jsonl", "-o", "values", "--resume", "--stop-on=unsure",
+					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
+				},
+				wantCode: ExitAbstain,
 				wantFile: stored,
 			}},
 		},
@@ -487,24 +501,24 @@ func TestResumed(t *testing.T) {
 			}},
 		},
 		{
-			name:     "should read past a stored line that claims an error and a fail under --stop-on-assert",
+			name:     "should read past a stored line that claims an error and a fail under --stop-on=fail",
 			existing: fileOf(contradictory + "{\"answer\":0.5}\n"),
 			sidecar:  byPositionGated,
 			stdin:    idRecords(1, 3),
 			runs: []resumeRun{{
-				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on-assert", "--assert", "answer.value > 0.9"},
+				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on=fail", "--assert", "answer.value > 0.9"},
 				wantCode: ExitRecords,
 				wantFile: contradictory + "{\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
 				wantSent: []string{`{"id":3}`},
 			}},
 		},
 		{
-			name:     "should stop at a stored line that claims an error and a fail under --stop-on-error",
+			name:     "should stop at a stored line that claims an error and a fail under --stop-on=error",
 			existing: fileOf(contradictory + "{\"answer\":0.5}\n"),
 			sidecar:  byPositionGated,
 			stdin:    idRecords(1, 3),
 			runs: []resumeRun{{
-				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on-error", "--assert", "answer.value > 0.9"},
+				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on=error", "--assert", "answer.value > 0.9"},
 				wantCode:   ExitUnavailable,
 				wantFile:   contradictory + "{\"answer\":0.5}\n",
 				wantStderr: "The stored error for record 1 is followed by more lines",

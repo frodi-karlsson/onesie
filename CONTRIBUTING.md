@@ -6,7 +6,7 @@ Search the open and closed issues first.
 
 A bug report needs:
 
-- the output of `onesie --version`, and your system, such as macOS on arm64
+- the output of `onesie version`, and your system, such as macOS on arm64
 - the command you ran, and the input when it matters. `--print-request` prints the exact request
   without sending it or needing a key, so paste that in place of private data.
 - what you expected, what happened, and the exit code

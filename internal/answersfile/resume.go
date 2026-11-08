@@ -66,7 +66,7 @@ func ResumedVerdicts(
 		return Resume{}, err
 	}
 
-	// A run stopped by --stop-on-error writes nothing after the record it stopped at, so a stored
+	// A run stopped by --stop-on=error writes nothing after the record it stopped at, so a stored
 	// failure on the last line is where it stopped, and that record is asked again. The line is
 	// trimmed with the partial one, under the lock, on the first write.
 	if stopOnError && len(judged) > 0 && judged[len(judged)-1].Verdict == output.Error {

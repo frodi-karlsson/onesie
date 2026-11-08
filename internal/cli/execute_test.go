@@ -193,12 +193,6 @@ func TestRootExecute(t *testing.T) {
 		want     string
 	}{
 		{
-			name:     "should print a plan error with one onesie prefix",
-			args:     []string{"-r", "-o", "json", "--state", "x", "is it urgent"},
-			wantCode: ExitUsage,
-			want:     "onesie: -r and -o are mutually exclusive\n",
-		},
-		{
 			name:     "should print an input error with one onesie prefix",
 			args:     []string{"-i", "bogus", "is it urgent"},
 			wantCode: ExitUsage,
@@ -423,13 +417,13 @@ func TestRootExecute(t *testing.T) {
 		},
 		{
 			name:     "should report a missing question ahead of the flag rules",
-			args:     []string{"--pick", "a,b", "-r", "-o", "json"},
+			args:     []string{"--pick", "a,b", "-o", "json"},
 			wantCode: ExitUsage,
 			want:     "onesie: no question given. Pass a question, --ask, or -f\n",
 		},
 		{
 			name:     "should report a question file it cannot load ahead of the flag rules",
-			args:     []string{"-f", "{dir}{/}unknown.yaml", "-r", "-o", "json"},
+			args:     []string{"-f", "{dir}{/}unknown.yaml", "-o", "json"},
 			files:    map[string]string{"unknown.yaml": "urgent:\n  ask: x\n  bogus: 1\n"},
 			wantCode: ExitUsage,
 			want:     "onesie: {dir}{/}unknown.yaml: question 'urgent' has an unknown key 'bogus'\n",
@@ -446,11 +440,6 @@ func TestRootExecute(t *testing.T) {
 			wantCode: ExitUsage,
 			want: "onesie: question id 'line' is reserved under -i lines, " +
 				"which writes the input line number as line\n",
-		},
-		{
-			name: "should print the version whatever ONESIE_CACHE holds",
-			args: []string{"-V"},
-			env:  map[string]string{"ONESIE_CACHE": "maybe"},
 		},
 		{
 			name:     "should refuse an ONESIE_CACHE value it cannot read",

@@ -295,10 +295,10 @@ func runOne(
 
 func noState(resolved input.Resolved) error {
 	if resolved.EmptyStdin {
-		return errors.New("no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file")
+		return errors.New("no state given, since stdin was empty. Pipe one to stdin, or pass --state")
 	}
 
-	return errors.New("no state given. Pipe one to stdin, or pass --state or --state-file")
+	return errors.New("no state given. Pipe one to stdin, or pass --state")
 }
 
 func sentOrNil(resolved input.Resolved, sent any) any {
@@ -371,16 +371,13 @@ func resolveState(
 	stdinTTY := settings.stdinTTY || len(flags.list("image")) > 0
 
 	return input.Resolve(ctx, input.Query{
-		Mode:         flags.inputMode,
-		Stdin:        settings.stdin,
-		StdinTTY:     stdinTTY,
-		State:        setting.Get(flags.merged, setting.State),
-		HasState:     flags.typed(setting.State.Name()),
-		StateFile:    setting.Get(flags.merged, setting.StateFile),
-		HasStateFile: flags.typed(setting.StateFile.Name()),
-		ReadFile:     settings.readFile,
-		Hint:         hint,
-		Clock:        settings.stdinClock,
+		Mode:     flags.inputMode,
+		Stdin:    settings.stdin,
+		StdinTTY: stdinTTY,
+		State:    setting.Get(flags.merged, setting.State),
+		HasState: flags.typed(setting.State.Name()),
+		Hint:     hint,
+		Clock:    settings.stdinClock,
 	})
 }
 
@@ -659,7 +656,7 @@ func streamResult(result engine.Result, judged output.Tally) error {
 }
 
 func stoppedAtInput(cause error) bool {
-	// --stop-on-error ended the run at a record that never became a request. The exit code table
+	// --stop-on=error ended the run at a record that never became a request. The exit code table
 	// has no code of its own for that, so it exits 6 as the same record does without the flag.
 	return !aborting(cause) && !errors.Is(cause, context.Canceled) && classify(cause).kind == output.KindInput
 }
@@ -742,7 +739,8 @@ func ask(
 
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record, stats)
+	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record)
+	stats.judged(record.Gate)
 
 	if quiet {
 		return verdictResult(record.Verdict())
@@ -774,9 +772,8 @@ func verdictResult(verdict output.Verdict) error {
 	}
 }
 
-func judge(decide decider, record output.Record, stats *collector) output.Record {
+func judge(decide decider, record output.Record) output.Record {
 	record.Gate = decide(record)
-	stats.judged(record.Gate)
 
 	return record
 }
@@ -1109,7 +1106,6 @@ func describe(cause error) *output.Failure {
 }
 
 type runFlags struct {
-	version   bool
 	provider  string
 	profile   string
 	mock      string
@@ -1117,12 +1113,10 @@ type runFlags struct {
 	resume    bool
 	prune     bool
 	output    string
-	raw       bool
 	quiet     bool
 	usage     bool
 	input     string
 	state     string
-	stateFile string
 	model     string
 	baseURL   string
 	allowHTTP bool
@@ -1144,8 +1138,7 @@ type runFlags struct {
 	retries       int
 	maxRetryAfter int
 	unordered     bool
-	stopOnError   bool
-	stopOnAssert  bool
+	stopOn        string
 	skipBlank     bool
 	noDedup       bool
 	merge         bool

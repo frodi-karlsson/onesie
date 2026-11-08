@@ -23,7 +23,7 @@ import (
 var (
 	subcommands = []string{"completion", "help", "profile", "version"}
 
-	fileFlags = []string{"file", "state-file"}
+	fileFlags = []string{"file"}
 
 	apiKey = regexp.MustCompile(`sk-[A-Za-z0-9_-]{8,}`)
 )

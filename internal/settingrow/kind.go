@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -62,6 +63,12 @@ func Probability() Kind {
 // Enum is a setting that takes one of values, or an alias that stands for one of them.
 func Enum(values []string, aliases map[string]string) Kind {
 	return enumKind{values: values, aliases: aliases}
+}
+
+// EnumList is a setting that takes one or more of values, comma separated, held in the order of
+// values.
+func EnumList(values []string) Kind {
+	return enumListKind{values: values}
 }
 
 // Expr is a setting that takes a boolean expression over the record, as --assert takes it. The
@@ -354,6 +361,62 @@ func (k enumKind) Schema() jsonschema.Node {
 
 func (enumKind) ValueName() string {
 	return "string"
+}
+
+type enumListKind struct {
+	values []string
+}
+
+func (k enumListKind) Parse(raw string) (any, error) {
+	if k.emptyPolicy().Refuses(raw) {
+		return "", ErrEmptyValue
+	}
+
+	given := map[string]bool{}
+
+	for _, item := range strings.Split(raw, ",") {
+		item = strings.TrimSpace(item)
+		if !slices.Contains(k.values, item) {
+			return "", fmt.Errorf("takes %s, comma separated, got '%s'", inWords(k.values), item)
+		}
+
+		given[item] = true
+	}
+
+	held := make([]string, 0, len(given))
+
+	for _, value := range k.values {
+		if given[value] {
+			held = append(held, value)
+		}
+	}
+
+	return strings.Join(held, ","), nil
+}
+
+func (enumListKind) emptyPolicy() EmptyPolicy {
+	return RefuseBlank
+}
+
+func (k enumListKind) FromFile(raw any) (any, error) {
+	text, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("takes %s, comma separated", inWords(k.values))
+	}
+
+	return k.Parse(text)
+}
+
+func (enumListKind) Zero() any {
+	return ""
+}
+
+func (enumListKind) Schema() jsonschema.Node {
+	return jsonschema.Node{Type: "string"}
+}
+
+func (enumListKind) ValueName() string {
+	return "list"
 }
 
 type exprKind struct{}

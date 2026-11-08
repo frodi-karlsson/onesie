@@ -83,7 +83,7 @@ func (p parser) readLines(r io.Reader) ([][]byte, error) {
 	for number := 1; ; number++ {
 		line, err := readLine(reader)
 		if errors.Is(err, errTooLong) {
-			return nil, fmt.Errorf("%s line %d is longer than %d bytes, the max-line-bytes cap -V lists",
+			return nil, fmt.Errorf("%s line %d is longer than %d bytes, the max-line-bytes cap onesie version lists",
 				p.opts.Spelled, number, limits.MaxLineBytes)
 		}
 

@@ -71,19 +71,10 @@ func TestJudge(t *testing.T) {
 				{ID: "answer", Answer: &answer.Answer{Value: 0.9}},
 			}}
 
-			stats := &collector{}
-
-			got := judge(gated(parsed(t, tc.gate), parsed(t, tc.abstain)), record, stats)
+			got := judge(gated(parsed(t, tc.gate), parsed(t, tc.abstain)), record)
 
 			if got.Gate != tc.want {
 				t.Errorf("Gate = %v, want %v", got.Gate, tc.want)
-			}
-
-			var want output.Tally
-			want[tc.want] = 1
-
-			if counted := stats.snapshot(0).Verdicts; counted != want {
-				t.Errorf("Verdicts = %v, want %v", counted, want)
 			}
 		})
 	}
@@ -115,12 +106,12 @@ func TestNoState(t *testing.T) {
 		{
 			name:     "should ask for a state when nothing was read",
 			resolved: input.Resolved{Source: input.SourceNone},
-			want:     "no state given. Pipe one to stdin, or pass --state or --state-file",
+			want:     "no state given. Pipe one to stdin, or pass --state",
 		},
 		{
 			name:     "should say stdin was empty when it was read and held nothing",
 			resolved: input.Resolved{Source: input.SourceNone, EmptyStdin: true},
-			want:     "no state given, since stdin was empty. Pipe one to stdin, or pass --state or --state-file",
+			want:     "no state given, since stdin was empty. Pipe one to stdin, or pass --state",
 		},
 	}
 
@@ -226,7 +217,7 @@ func TestDescribe(t *testing.T) {
 			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, output.Tally{})
 
 			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
-				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)
+				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on=error does", stored.failure, got, want)
 			}
 
 			if strings.HasPrefix(stored.failure.Message, "onesie: ") {

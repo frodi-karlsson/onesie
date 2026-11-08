@@ -70,10 +70,10 @@ func helpAsking(command settingrow.Command) string {
 
 func helpInput(command settingrow.Command) string {
 	intro := "Text and JSON read one state. JSONL, lines, CSV and TSV stream records from stdin. Request input sends API shaped bodies as written. " +
-		"--state supplies text instead of stdin, --state-file reads a file, and --state - explicitly reads stdin. "
+		"--state supplies text instead of stdin, and --state - explicitly reads stdin, so --state - <FILE reads a file. "
 	original := "The original record remains available for merged output."
 	separator := "--delimiter auto needs CSV input, detects its separator and uses it for CSV output. "
-	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state or --state-file. Images cannot be mixed with request input. "
+	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state. Images cannot be mixed with request input. "
 	lineImage := "Under lines input the line itself is the path. "
 	if command == settingrow.CommandCalibrate {
 		intro = "Calibration requires JSONL, CSV or TSV records on stdin. "
@@ -114,7 +114,8 @@ func helpDecisions() string {
 		"min, max, sum and avg take numbers and nest, as in max(a.value, b.value) < 0.2. " +
 		"There are no arithmetic operators, so weight answers with jq. " +
 		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
-		"Streams print every fail too. --stop-on-assert prints the first fail before stopping. " +
+		"Streams print every fail and unsure too. --stop-on=fail prints the first fail before stopping, and --stop-on=unsure the first unsure. " +
+		"Both need --assert, and unsure also needs --abstain-if. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."
 }
@@ -127,13 +128,12 @@ func helpOutput(command settingrow.Command) string {
 			"See Execution for answer file resume and pruning."
 	}
 	return "Auto uses a table only for one result on a terminal, without --merge or --out. " +
-		"It uses JSON when redirected, for streams, for merged records and for --out files. --raw selects raw output. " +
-		"Raw prints the policy decision when present, otherwise the answer value, and does not preserve the original record.\n\n" +
+		"It uses JSON when redirected, for streams, for merged records and for --out files. " +
+		"-o raw prints the policy decision when present, otherwise the answer value, and does not preserve the original record.\n\n" +
 		"--merge keeps the input fields and places answer metadata under answers by default. --merge-key selects another location and implies --merge. " +
 		"JSON preserves model values, decisions and errors. A request error remains in the output even when a fallback supplies a decision. " +
 		"--out writes answers to a file instead of stdout. See Execution for resume and pruning. " +
-		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit. " +
-		"--version prints the version, commit, build date and built in limits, as one JSON object with -o json."
+		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit."
 }
 
 func helpConnections() string {
@@ -190,7 +190,7 @@ func helpExecution(command settingrow.Command) string {
 	if command == settingrow.CommandRoot {
 		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
-			"--stop-on-error ends at the first error with its exit code, or 6 for an unreadable record. "
+			"--stop-on=error ends at the first error with its exit code, or 6 for an unreadable record. "
 	}
 	resume := "--resume needs --out. Without --id, a stream continues after the last complete line. With --id it skips answered ids. "
 	if command == settingrow.CommandCalibrate {

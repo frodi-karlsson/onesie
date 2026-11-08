@@ -2188,7 +2188,7 @@ func TestProfileShow(t *testing.T) {
 			}
 		}
 
-		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-r", "--state", "the server is down"}, "", env)
+		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-o", "raw", "--state", "the server is down"}, "", env)
 		if code != ExitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)
 		}
@@ -2232,7 +2232,7 @@ func TestProfileShow(t *testing.T) {
 
 		srv, sent := modelTLSServer(t)
 
-		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-r", "--state", "the server is down"}, "", env,
+		_, errOut, code = runInConfig(t, dir, []string{"is this urgent", "-o", "raw", "--state", "the server is down"}, "", env,
 			withTLSDialTo(srv))
 		if code != ExitOK {
 			t.Fatalf("run exit code = %d, want %d\nstderr:\n%s", code, ExitOK, errOut)

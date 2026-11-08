@@ -24,7 +24,7 @@ The steps, in order:
 5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
 For a flag this skill does not cover, run `onesie help all`, `onesie profile --help` or
-`onesie help calibrate all`, and `onesie -V` for the version and the built in limits.
+`onesie help calibrate all`, and `onesie version` for the version and the built in limits.
 
 ## Rules
 
@@ -62,7 +62,7 @@ Three ways work. Prefer Homebrew when the user has it.
 Prefer these three to a download from the releases page, which leaves the user to unpack the archive
 and put the binary on PATH by hand.
 
-Confirm the install with `onesie -V`, which prints the version, the commit, the build date and the
+Confirm the install with `onesie version`, which prints the version, the commit, the build date and the
 built in limits.
 
 ## Storing the key
@@ -122,5 +122,5 @@ In Claude Code:
 ```
 
 The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH,
-whether a key resolves, whether `onesie --version` differs from the release the skills describe, and
+whether a key resolves, whether `onesie version` differs from the release the skills describe, and
 which question files `-f` finds. It never blocks a command.

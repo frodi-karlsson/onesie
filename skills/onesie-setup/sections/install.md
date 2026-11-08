@@ -16,7 +16,7 @@ Three ways work. Prefer Homebrew when the user has it.
 Prefer these three to a download from the releases page, which leaves the user to unpack the archive
 and put the binary on PATH by hand.
 
-Confirm the install with `onesie -V`, which prints the version, the commit, the build date and the
+Confirm the install with `onesie version`, which prints the version, the commit, the build date and the
 built in limits.
 
 ## Storing the key
@@ -76,5 +76,5 @@ In Claude Code:
 ```
 
 The plugin adds the onesie skills and a session start line that reports whether onesie is on PATH,
-whether a key resolves, whether `onesie --version` differs from the release the skills describe, and
+whether a key resolves, whether `onesie version` differs from the release the skills describe, and
 which question files `-f` finds. It never blocks a command.

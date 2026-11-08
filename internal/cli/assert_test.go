@@ -74,7 +74,7 @@ func TestAsk(t *testing.T) {
 			},
 			{
 				name:     "should print the bare scalar and nothing else in raw mode",
-				args:     []string{"is this urgent", "-r", "--assert", "answer.value > 0.95"},
+				args:     []string{"is this urgent", "-o", "raw", "--assert", "answer.value > 0.95"},
 				response: urgent,
 				wantCode: cli.ExitRejected,
 				wantOut:  "0.9\n",
@@ -1041,7 +1041,7 @@ func runStoppedStream(t *testing.T) string {
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs([]string{
 		"is this urgent", "-i", "lines", "-j", "2",
-		"--assert", "answer.value < 0.5", "--stop-on-assert", "--stats",
+		"--assert", "answer.value < 0.5", "--stop-on=fail", "--stats",
 	})
 
 	if code := root.Execute(t.Context()); code != cli.ExitRejected {

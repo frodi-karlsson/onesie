@@ -134,21 +134,28 @@ func modeRefusals(mode settingrow.Mode) []refusal {
 func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 	if mode == settingrow.ModePrintRequest {
 		return []settingrow.Name{
-			"mock", "print_questions", "output", "raw", "quiet", "assert", "abstain_if",
-			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on_assert", "stats",
+			"mock", "print_questions", "output", "quiet", "assert", "abstain_if",
+			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on", "stats",
 		}
 	}
 
 	return []settingrow.Name{
 		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
-		"min_confidence", "fallback", "state", "state_file", "input", "image", "image_field", "map", "id",
-		"output", "raw", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
-		"stop_on_error", "stop_on_assert", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
+		"min_confidence", "fallback", "state", "input", "image", "image_field", "map", "id",
+		"output", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
+		"stop_on", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
 	}
 }
 
 func appendModeRefusal(rules []refusal, row settingrow.Row, mode settingrow.Mode) []refusal {
 	bound, registered := row.FlagOn(settingrow.CommandRoot)
+
+	// --stop-on=error works under -i request and --print-request, but neither asks a gate, so no record
+	// there can fail or be unsure.
+	if registered && row.Name == StopOn.Name() && row.Modes.Has(mode) {
+		return append(rules, refusal{row.Name, stopsOnGate, gateStopSpelled})
+	}
+
 	if !registered || row.Modes.Has(mode) && (mode != settingrow.ModeRequest || row.Name != Model.Name()) {
 		return rules
 	}
@@ -159,6 +166,18 @@ func appendModeRefusal(rules []refusal, row settingrow.Row, mode settingrow.Mode
 	}, name})
 }
 
+func stopsOnGate(v View) bool {
+	return StopsOn(v.Merged, settingrow.StopOnFail) || StopsOn(v.Merged, settingrow.StopOnUnsure)
+}
+
+func gateStopSpelled(v View) string {
+	if StopsOn(v.Merged, settingrow.StopOnFail) {
+		return "--stop-on=" + settingrow.StopOnFail
+	}
+
+	return "--stop-on=" + settingrow.StopOnUnsure
+}
+
 func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingrow.Mode) (func(View) bool, func(View) string) {
 	name := spelled(spelling(bound))
 	if row.Flag.Group {
@@ -166,10 +185,10 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 	}
 
 	switch row.Name {
-	case File.Name(), Output.Name():
+	case File.Name(), Output.Name(), StopOn.Name():
 		return func(v View) bool { return Get(v.Merged, Key[string]{name: row.Name}) != "" }, name
-	case Replace.Name(), Raw.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(), StopOnError.Name(),
-		StopOnAssert.Name(), SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
+	case Replace.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(),
+		SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
 		return func(v View) bool { return Get(v.Merged, Key[bool]{name: row.Name}) }, name
 	case assertName, abstainIfName:
 		if mode == settingrow.ModePrintRequest {

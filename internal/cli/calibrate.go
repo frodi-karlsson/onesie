@@ -31,13 +31,10 @@ var refusedReasons = map[string]string{
 	"merge":           "calibrate prints a report, not the records",
 	"merge-key":       "calibrate prints a report, not the records",
 	"quiet":           "calibrate prints a report, and its exit code judges nothing",
-	"raw":             "calibrate prints its report as a table or as json",
-	"stop-on-error":   "calibrate scores every record it can",
-	"stop-on-assert":  "calibrate judges no assertion",
+	"stop-on":         "calibrate scores every record it can and judges no assertion",
 	"unordered":       "calibrate prints its report once every record is answered",
 	"print-questions": "a question file carries no labels",
 	flagState:         "calibrate reads each state from its input through --map",
-	flagStateFile:     "calibrate reads each state from its input through --map",
 }
 
 func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.FlagSet) *cobra.Command {

@@ -529,7 +529,7 @@ type Record struct {
 }
 
 // LineError is a line onesie could not read. It is reported per record and counted, and under
-// --stop-on-error it exits 2 rather than taking a transport code.
+// --stop-on=error it exits 2 rather than taking a transport code.
 type LineError struct {
 	Line int
 	Err  error

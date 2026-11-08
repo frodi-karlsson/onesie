@@ -49,7 +49,7 @@ func TestHelpFlags(t *testing.T) {
 			for i, f := range common {
 				names[i] = f.flag.Name
 			}
-			want := strings.Fields("ask pick rate desc file state state-file input map output raw merge threshold assert quiet")
+			want := strings.Fields("ask pick rate desc file state input map output merge threshold assert quiet")
 			if command == settingrow.CommandCalibrate {
 				want = strings.Fields("ask pick rate file input map id label cuts require offline out output resume")
 				if !got["provider"] || !got["profile"] || got["assert"] {
@@ -238,7 +238,7 @@ func TestBorrowHelpValue(t *testing.T) {
 	}{
 		{name: "should panic on a flag the set lacks", flag: "missing", row: "output"},
 		{name: "should panic on a row that does not exist", flag: "output", row: "no_such_row"},
-		{name: "should panic on a row with no help value", flag: "output", row: "raw"},
+		{name: "should panic on a row with no help value", flag: "output", row: "quiet"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,4 +1,4 @@
-// Package limits holds the constants --version reports.
+// Package limits holds the constants onesie version reports.
 package limits
 
 import (
@@ -68,7 +68,7 @@ const (
 	DefaultCacheTTL = 24 * time.Hour
 )
 
-// Report lists every constant in this package, for the --version dump.
+// Report lists every constant in this package, for onesie version.
 func Report() []Entry {
 	return []Entry{
 		{Name: "min-choice-options", Value: strconv.Itoa(MinChoiceOptions)},

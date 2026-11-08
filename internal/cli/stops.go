@@ -9,12 +9,10 @@ import (
 func stopsOf(flags runConfig) stopSet {
 	var stops stopSet
 
-	if setting.Get(flags.merged, setting.StopOnError) {
-		stops = stops.with(output.Error)
-	}
-
-	if setting.Get(flags.merged, setting.StopOnAssert) {
-		stops = stops.with(output.Fail)
+	for _, verdict := range []output.Verdict{output.Fail, output.Unsure, output.Error} {
+		if setting.StopsOn(flags.merged, verdict.String()) {
+			stops = stops.with(verdict)
+		}
 	}
 
 	return stops

@@ -29,7 +29,7 @@ const (
 	ExitUnavailable = 4
 	// ExitTransport means a transport error or a timeout.
 	ExitTransport = 5
-	// ExitRecords means a stream finished with one or more errors, or --stop-on-error stopped it at a
+	// ExitRecords means a stream finished with one or more errors, or --stop-on=error stopped it at a
 	// record that never became a request.
 	ExitRecords = 6
 	// ExitAbstain means unsure: the assertion did not hold and the abstain expression did, from
@@ -49,7 +49,7 @@ var rootExitCodes = []exitCodeLine{
 	{ExitUnavailable, "the server did not answer after retries, or it answered 200 with a response onesie " +
 		"could not use, which is never retried"},
 	{ExitTransport, "transport error or timeout"},
-	{ExitRecords, "a stream finished with one or more errors, or --stop-on-error stopped it at " +
+	{ExitRecords, "a stream finished with one or more errors, or --stop-on=error stopped it at " +
 		"a record that never became a request"},
 	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide"},
 	{ExitInterrupt, "interrupted"},
@@ -281,7 +281,7 @@ type storedFailure struct {
 
 func (e *storedFailure) Error() string {
 	return fmt.Sprintf("%s. The stored error for record %d is followed by more lines, so a run without "+
-		"--stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
+		"--stop-on=error wrote it. Pass --id or drop --stop-on=error to carry on",
 		strings.TrimSuffix(e.failure.Message, "."), e.record)
 }
 

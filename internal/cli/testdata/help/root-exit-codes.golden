@@ -9,7 +9,7 @@ Exit codes:
   4    the server did not answer after retries, or it answered 200 with a response
        onesie could not use, which is never retried
   5    transport error or timeout
-  6    a stream finished with one or more errors, or --stop-on-error stopped it at a
+  6    a stream finished with one or more errors, or --stop-on=error stopped it at a
        record that never became a request
   7    unsure: an --assert was false and --abstain-if held, so the gate could not decide
   130  interrupted

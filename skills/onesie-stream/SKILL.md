@@ -12,7 +12,7 @@ one record per line or row in and one answer per line out.
 
 A record with an error usually does not stop the run. It prints an error record in its place and
 the run keeps going, so a consumer has to check which kind of line it is looking at before it reads
-an answer out of it. An auth failure and `--stop-on-error` do stop it, and the next rules list what
+an answer out of it. An auth failure and `--stop-on=error` do stop it, and the next rules list what
 else cuts the output short. See the onesie skill's failures reference for the exit code table.
 
 ```sh
@@ -20,7 +20,7 @@ onesie --ask urgent='is this urgent' -i jsonl -j 8 < tickets.jsonl | jq -c 'sele
 ```
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.
 
 ## Rules
 
@@ -42,7 +42,7 @@ onesie --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'select(.error 
 
 ### Match output line N to input line N, unless the exit code says the run stopped early.
 
-Output keeps input order under any `-j`, so line N answers record N. A record with an error still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on-error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on-assert` at the first fail, exit 1, or 6 when an earlier record had an error, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
+Output keeps input order under any `-j`, so line N answers record N. A record with an error still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on=error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on=fail` at the first fail, exit 1, or 6 when an earlier record had an error, `--stop-on=unsure` at the first unsure, exit 7, or 1 when an earlier record had a fail, or 6 when one had an error, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
@@ -82,7 +82,7 @@ onesie --ask urgent='is this urgent' -i jsonl --print-request
 
 ### Write -o markdown for a PR comment or a job summary, and never as a file to resume or parse.
 
-`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge`, `-r` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
+`-o markdown`, or `-o md`, writes a stream as one GitHub table with a summary alert. A table cannot be read back into answers, so `--resume`, `--merge` and `-q` exit 2. Read answers with `-o json` or `-o csv`. A GitHub comment holds at most 65536 characters, so send a large stream to `$GITHUB_STEP_SUMMARY` or write it as csv. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes).
 
 **Bad:**
 

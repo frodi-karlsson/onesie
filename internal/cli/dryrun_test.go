@@ -16,10 +16,10 @@ func TestDryRunRules(t *testing.T) {
 		{
 			name: "should strip what a dry run refuses, and before --print-questions what it refuses too",
 			wantAlways: []string{
-				"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock", "cache",
+				"output", "quiet", "usage", "merge", "merge-key", "stats", "stop-on", "mock", "cache",
 			},
 			wantQuestionsOnly: []string{
-				"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank", "map", "id",
+				"input", "jobs", "model", "state", "unordered", "skip-blank", "map", "id",
 			},
 		},
 	}

@@ -42,7 +42,7 @@ func streamRaw(
 		source: input.NewStream(settings.stdin, input.Request, input.StreamOptions{SkipBlank: setting.Get(flags.merged, setting.SkipBlank)}),
 		left:   resume.Skip,
 		stored: resume.Stored,
-		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
+		// --stop-on=fail and --stop-on=unsure are refused under -i request, whose bodies carry no assertion.
 		stops: stops,
 	}
 

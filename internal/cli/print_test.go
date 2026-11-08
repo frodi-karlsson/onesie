@@ -158,17 +158,6 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject --state-file with --print-questions before it is read",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--state-file", "/nonexistent",
-				"--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --state-file does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
 			name: "should reject -i with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "json", "--print-questions",
@@ -1184,11 +1173,6 @@ func TestPrintRequest(t *testing.T) {
 
 		dir := t.TempDir()
 
-		stateFile := filepath.Join(dir, "state.json")
-		if err := os.WriteFile(stateFile, []byte(`{"customer":"c1","body":"from the file"}`), 0o600); err != nil {
-			t.Fatalf("writing the state file: %v", err)
-		}
-
 		bodyFile := filepath.Join(dir, "body.json")
 		if err := os.WriteFile(bodyFile, []byte(`{"state":{"customer":"c1","body":"from the body"},`+
 			`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}}`), 0o600); err != nil {
@@ -1215,9 +1199,10 @@ func TestPrintRequest(t *testing.T) {
 				want: `"state":"THE SITE IS DOWN"`,
 			},
 			{
-				name: "should map a --state-file object",
-				args: []string{"--ask", "urgent=is this urgent", "-i", "json", "--state-file", stateFile, "--map", ".body"},
-				want: `"state":"from the file"`,
+				name:  "should map a --state - object",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "json", "--state", "-", "--map", ".body"},
+				stdin: `{"customer":"c1","body":"from the file"}`,
+				want:  `"state":"from the file"`,
 			},
 			{
 				name: "should map the state a request body brought with it",
@@ -1426,10 +1411,10 @@ func TestPrintRequest(t *testing.T) {
 				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name:  "should reject --stop-on-assert with --print-request in a stream",
-				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
+				name:  "should reject --stop-on=fail with --print-request in a stream",
+				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on=fail"},
 				stdin: "a\nb\n",
-				want:  "onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
+				want:  "onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",
 			},
 		}
 

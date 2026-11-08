@@ -270,7 +270,6 @@ func runMode(command settingrow.Command, flags, defaults Layer) settingrow.Mode 
 		key  Key[bool]
 		mode settingrow.Mode
 	}{
-		{Version, settingrow.ModeVersion},
 		{PrintSchema, settingrow.ModePrintSchema},
 		{ListModels, settingrow.ModeListModels},
 		{PrintRequest, settingrow.ModePrintRequest},

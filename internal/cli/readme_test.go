@@ -305,13 +305,6 @@ func intoTempDir(t *testing.T, tokens []string) []string {
 	dir := t.TempDir()
 
 	for i, token := range tokens {
-		if i > 0 && tokens[i-1] == "--state-file" {
-			tokens[i] = filepath.Join(dir, token)
-			if err := os.WriteFile(tokens[i], []byte("sample text"), 0o600); err != nil {
-				t.Fatal(err)
-			}
-		}
-
 		if i > 0 && tokens[i-1] == "--out" {
 			tokens[i] = filepath.Join(dir, token)
 		}

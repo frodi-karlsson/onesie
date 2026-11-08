@@ -1,24 +1,10 @@
 package settings
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
-
-func stateAndStateFileRule() Rule {
-	return Rule{
-		ID: "state-and-state-file",
-		Check: func(v View) error {
-			if typed(v, State.Name()) && typed(v, StateFile.Name()) {
-				return errors.New("--state and --state-file are mutually exclusive")
-			}
-
-			return nil
-		},
-	}
-}
 
 func bodyStateRule() Rule {
 	return Rule{
@@ -33,8 +19,6 @@ func bodyStateRule() Rule {
 			switch {
 			case typed(v, State.Name()):
 				flag = "--state"
-			case typed(v, StateFile.Name()):
-				flag = "--state-file"
 			case len(listOf(v, imageName)) > 0:
 				flag = "--image"
 			default:

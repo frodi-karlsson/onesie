@@ -208,18 +208,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
-			name:     "should refuse --raw naming both spellings",
-			args:     with("--raw"),
+			name:     "should refuse -o raw",
+			args:     with("-o", "raw"),
 			wantCode: ExitUsage,
-			contains: []string{
-				"onesie: calibrate prints its report as a table or as json, so -r/--raw does not apply. Drop it\n",
-			},
-		},
-		{
-			name:     "should refuse -r naming both spellings",
-			args:     with("-r"),
-			wantCode: ExitUsage,
-			contains: []string{"so -r/--raw does not apply. Drop it"},
+			contains: []string{"onesie: calibrate -o takes table, json or auto, got raw\n"},
 		},
 		{
 			name:     "should refuse -q inside a cluster of short flags",
@@ -248,16 +240,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should refuse --stop-on-error",
-			args:     with("--stop-on-error"),
+			name:     "should refuse --stop-on",
+			args:     with("--stop-on=error,fail"),
 			wantCode: ExitUsage,
-			contains: []string{"so --stop-on-error does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --stop-on-assert",
-			args:     with("--stop-on-assert"),
-			wantCode: ExitUsage,
-			contains: []string{"so --stop-on-assert does not apply. Drop it"},
+			contains: []string{"calibrate scores every record it can and judges no assertion, so --stop-on does not apply. Drop it"},
 		},
 		{
 			name:     "should refuse --unordered",
@@ -522,14 +508,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			wantCode: ExitUsage,
 			contains: []string{
 				"onesie: calibrate reads each state from its input through --map, so --state does not apply. Drop it",
-			},
-		},
-		{
-			name:     "should refuse --state-file, since each state comes from the input",
-			args:     with("--state-file", "x.txt"),
-			wantCode: ExitUsage,
-			contains: []string{
-				"onesie: calibrate reads each state from its input through --map, so --state-file does not apply. Drop it",
 			},
 		},
 		{
@@ -900,7 +878,7 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords+1),
 			wantCode: ExitUsage,
-			contains: []string{"onesie: calibrate reads at most 100000 records, and -V lists the cap"},
+			contains: []string{"onesie: calibrate reads at most 100000 records, and onesie version lists the cap"},
 		},
 		{
 			name:       "should read as many records as the cap",

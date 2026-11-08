@@ -42,7 +42,7 @@ func TestNewRunConfig(t *testing.T) {
 					}
 				}
 
-				for _, name := range []settingrow.Name{setting.StateFile.Name(), setting.ID.Name(), setting.Jobs.Name()} {
+				for _, name := range []settingrow.Name{setting.ID.Name(), setting.Jobs.Name()} {
 					if got.typed(name) {
 						t.Errorf("typed(%s) = true, want false", name)
 					}

@@ -1,13 +1,12 @@
 {"args":["--list-models","--cache=false"],"error":"onesie: --cache does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage=false"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--merge=false"],"error":"onesie: --merge does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--replace=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--skip-blank=false"],"error":"onesie: --skip-blank does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--unordered=false"],"error":"onesie: --unordered does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-error=false"],"error":"onesie: --stop-on-error does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=error"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--no-dedup"],"error":"onesie: --no-dedup does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--long-context"],"error":"onesie: --long-context does not apply to --list-models, which only lists the models a provider serves\n"}
@@ -28,29 +27,21 @@
 {"args":["--list-models","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--max-retry-after","1","--long-context"],"error":"onesie: --long-context does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--max-retry-after","1","--resume=false"],"error":"onesie: --resume does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--cache","--raw=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--cache","--stop-on-error=false"],"error":"onesie: --stop-on-error does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--cache","--stop-on=error"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--cache=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--cache=false","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--cache=false","--image-field",".image"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw","--replace=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--quiet"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--stats=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--merge=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--stats"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--merge"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage","--image-field",".image"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage=false","--replace=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--usage=false","--prune=false"],"error":"onesie: --usage does not apply to --list-models, which only lists the models a provider serves\n"}
@@ -68,7 +59,7 @@
 {"args":["--list-models","--merge=false","--no-dedup"],"error":"onesie: --merge does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--merge=false","--long-context"],"error":"onesie: --merge does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--replace=false","--stop-on-error"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--replace=false","--stop-on=error"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--replace=false","--no-dedup=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--replace=false","--long-context=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--replace=false","--prune=false"],"error":"onesie: --replace does not apply to --list-models, which only lists the models a provider serves\n"}
@@ -77,14 +68,14 @@
 {"args":["--list-models","--skip-blank=false","--no-dedup"],"error":"onesie: --skip-blank does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--skip-blank=false","--long-context"],"error":"onesie: --skip-blank does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--skip-blank=false","--resume=false"],"error":"onesie: --skip-blank does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--unordered=false","--stop-on-assert=false"],"error":"onesie: --unordered does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--unordered=false","--stop-on=fail"],"error":"onesie: --unordered does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--unordered=false","--base-url","ENDPOINT"],"error":"onesie: --unordered does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--unordered=false","--image-field",".image"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-error=false","--stop-on-assert"],"error":"onesie: --stop-on-error does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-error=false","--allow-http=false"],"error":"onesie: --stop-on-error does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves\n"}
-{"args":["--list-models","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=error,fail"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=error","--allow-http=false"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
+{"args":["--list-models","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--no-dedup","--image-field",".image"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--no-dedup=false","--long-context=false"],"error":"onesie: --no-dedup does not apply to --list-models, which only lists the models a provider serves\n"}
@@ -97,12 +88,11 @@
 {"args":["--list-models","--abstain-if","s.value > 0.5","--image-field",".image"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["--list-models","--image-field",".image","--out","OUT"],"error":"onesie: --image-field does not apply to --list-models, which only lists the models a provider serves\n"}
 {"args":["-i","request","--cache=false"],"error":"onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--usage=false"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--merge=false"],"error":"onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--replace=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--no-dedup"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--delimiter",","],"error":"onesie: --delimiter does not apply to -i request, which sends each body as written and prints each raw response\n"}
@@ -114,28 +104,20 @@
 {"args":["-i","request","--retries","2","--merge=false"],"error":"onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--cache","--raw=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--cache=false","--jobs","1"],"error":"onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--cache=false","--unordered"],"error":"onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--cache=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--cache=false","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw","--replace=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--quiet"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--stats=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--merge=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--stats"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--merge"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--usage=false","--replace=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--usage=false","--prune=false"],"error":"onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response\n"}
@@ -148,19 +130,19 @@
 {"args":["-i","request","--merge=false","--no-dedup"],"error":"onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--merge=false","--long-context"],"error":"onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--replace=false","--stop-on-error"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--replace=false","--stop-on=error"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--replace=false","--no-dedup=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--replace=false","--long-context=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--replace=false","--threshold","0.5"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--replace=false","--prune=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--skip-blank=false","--no-dedup"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--unordered","--delimiter",","],"error":"onesie: --delimiter does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--unordered=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-error","--prune=false"],"error":"onesie: --prune does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--unordered=false","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=error","--prune=false"],"error":"onesie: --prune does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--no-dedup=false","--long-context=false"],"error":"onesie: --no-dedup does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--no-dedup=false","--prune=false"],"error":"onesie: --prune does not apply to -i request, which sends each body as written and prints each raw response\n"}
@@ -171,12 +153,11 @@
 {"args":["--ask","s=q","--print-request","--retries","2"],"error":"onesie: --retries does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -187,7 +168,7 @@
 {"args":["--ask","s=q","--print-request","--timeout","5","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--timeout","5","--input","text"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--timeout","5","--replace=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--timeout","5","--stop-on-error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--timeout","5","--stop-on=error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--timeout","5","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--timeout","5","--long-context=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--timeout","5","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -199,55 +180,46 @@
 {"args":["--ask","s=q","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--long-context"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--max-retry-after","1","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--cache","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--jobs","1"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--state","x"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--merge-key","k"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--unordered"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--cache=false","--stop-on-assert=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--cache=false","--stop-on=fail"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--cache=false","--image-field",".image"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--quiet"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--stats=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--id",".id"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--merge=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--raw=false","--fallback","x"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--stats"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--map","."],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--merge"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--min-confidence","0.5"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false","--input","text"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false","--replace=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--usage=false","--prune=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--long-context"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--stats=false","--resume=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--jobs","1","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--model","jev-1.13.0","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--model","jev-1.13.0","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--model","jev-1.13.0","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--input","text","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--input","text","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -256,15 +228,15 @@
 {"args":["--ask","s=q","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--state-file","MISSING","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--no-dedup"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--long-context"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--replace","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--replace","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--replace","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--replace=false","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--replace=false","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -272,14 +244,14 @@
 {"args":["--ask","s=q","--print-request","--skip-blank=false","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--skip-blank=false","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--unordered","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--unordered=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--unordered=false","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--unordered=false","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-error=false","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","--print-request","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=error","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","--print-request","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--no-dedup","--image-field",".image"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","--print-request","--no-dedup=false","--long-context=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -295,7 +267,6 @@
 {"args":["--ask","s=q","--print-questions","--retries","2"],"error":"onesie: --retries does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--max-retry-after","1"],"error":"onesie: --max-retry-after does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false"],"error":"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage=false"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats=false"],"error":"onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -304,10 +275,8 @@
 {"args":["--ask","s=q","--print-questions","--skip-blank=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered=false"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--allow-http"],"error":"onesie: --allow-http does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -321,7 +290,7 @@
 {"args":["--ask","s=q","--print-questions","--prune=false"],"error":"onesie: --prune does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--timeout","5","--usage=false"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--timeout","5","--replace=false"],"error":"onesie: --timeout does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--timeout","5","--stop-on-error"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--timeout","5","--stop-on=error"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--timeout","5","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--timeout","5","--long-context=false"],"error":"onesie: --long-context does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--timeout","5","--threshold","0.5"],"error":"onesie: --timeout does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -330,7 +299,7 @@
 {"args":["--ask","s=q","--print-questions","--retries","2","--stats=false"],"error":"onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--retries","2","--merge=false"],"error":"onesie: --merge does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--retries","2","--skip-blank=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--retries","2","--stop-on-assert"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--retries","2","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--retries","2","--fallback","x"],"error":"onesie: --retries does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -340,33 +309,25 @@
 {"args":["--ask","s=q","--print-questions","--max-retry-after","1","--long-context"],"error":"onesie: --long-context does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--max-retry-after","1","--abstain-if","s.value > 0.5"],"error":"onesie: --max-retry-after does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--max-retry-after","1","--resume=false"],"error":"onesie: --resume does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--cache","--raw=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache","--skip-blank"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--cache","--stop-on-error=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--cache","--stop-on=error"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false","--unordered"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--cache=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--cache=false","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false","--assert","s.value > 0.5"],"error":"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--cache=false","--image-field",".image"],"error":"onesie: --image-field does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--quiet"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--stats=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--merge=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--raw=false","--fallback","x"],"error":"onesie: -r does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--stats"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--merge"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--min-confidence","0.5"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage","--image-field",".image"],"error":"onesie: --image-field does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage=false","--replace=false"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--usage=false","--threshold","0.5"],"error":"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -374,7 +335,7 @@
 {"args":["--ask","s=q","--print-questions","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats","--skip-blank=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stats","--stop-on-assert"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stats","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats=false","--unordered=false"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -390,15 +351,15 @@
 {"args":["--ask","s=q","--print-questions","--merge=false","--abstain-if","s.value > 0.5"],"error":"onesie: --merge does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace","--unordered"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--replace","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--replace","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace","--image-field",".image"],"error":"onesie: --image-field does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--replace=false","--stop-on-error"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--replace=false","--stop-on=error"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace=false","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace=false","--long-context=false"],"error":"onesie: --long-context does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--replace=false","--prune=false"],"error":"onesie: --prune does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank","--skip-blank=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--skip-blank","--stop-on-assert"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--skip-blank","--stop-on=fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank","--allow-http=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank","--fallback","x"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank=false","--unordered=false"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -406,30 +367,30 @@
 {"args":["--ask","s=q","--print-questions","--skip-blank=false","--long-context"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank=false","--abstain-if","s.value > 0.5"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--skip-blank=false","--resume=false"],"error":"onesie: --skip-blank does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--unordered","--stop-on-error=false"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--unordered","--stop-on=error"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered","--allow-http"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered","--delimiter",","],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered","--min-confidence","0.5"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered","--out","OUT"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--unordered=false","--stop-on-assert=false"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--unordered=false","--stop-on=fail"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered=false","--base-url","ENDPOINT"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered=false","--assert","s.value > 0.5"],"error":"onesie: --unordered does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--unordered=false","--image-field",".image"],"error":"onesie: --image-field does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error","--no-dedup=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error","--long-context=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error","--threshold","0.5"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error","--prune=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error=false","--stop-on-assert"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error=false","--allow-http=false"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-error=false","--fallback","x"],"error":"onesie: --stop-on-error does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert","--no-dedup"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert","--long-context"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert","--abstain-if","s.value > 0.5"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert","--resume=false"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert=false","--min-confidence","0.5"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
-{"args":["--ask","s=q","--print-questions","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--no-dedup=false"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--long-context=false"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--threshold","0.5"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--prune=false"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error,fail"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--allow-http=false"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=error","--fallback","x"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--no-dedup"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--long-context"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--abstain-if","s.value > 0.5"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--resume=false"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--min-confidence","0.5"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--ask","s=q","--print-questions","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--no-dedup","--assert","s.value > 0.5"],"error":"onesie: --no-dedup does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
 {"args":["--ask","s=q","--print-questions","--no-dedup","--image-field",".image"],"error":"onesie: --image-field does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
@@ -458,12 +419,11 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--retries","2"],"error":"onesie: --retries does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -474,7 +434,7 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--input","text"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--replace=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--stop-on-error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--stop-on=error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--long-context=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--timeout","5","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -486,55 +446,46 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--long-context"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--max-retry-after","1","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--cache","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--jobs","1"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--state","x"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--merge-key","k"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--unordered"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--stop-on-assert=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--stop-on=fail"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--cache=false","--image-field",".image"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--quiet"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--stats=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--id",".id"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--merge=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--raw=false","--fallback","x"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--stats"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--map","."],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--merge"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--min-confidence","0.5"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--input","text"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--replace=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--usage=false","--prune=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--long-context"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--stats=false","--resume=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--jobs","1","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--model","jev-1.13.0","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--model","jev-1.13.0","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--model","jev-1.13.0","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--input","text","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--input","text","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -543,15 +494,15 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--state-file","MISSING","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--no-dedup"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--long-context"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--replace","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--replace","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--replace","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--replace=false","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--replace=false","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -559,14 +510,14 @@
 {"args":["--ask","s=q","-i","lines","--print-request","--skip-blank=false","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--skip-blank=false","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--unordered","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--unordered=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--unordered=false","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--unordered=false","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-error=false","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["--ask","s=q","-i","lines","--print-request","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=error","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["--ask","s=q","-i","lines","--print-request","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--no-dedup","--image-field",".image"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["--ask","s=q","-i","lines","--print-request","--no-dedup=false","--long-context=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -582,13 +533,12 @@
 {"args":["-i","request","--print-request","--retries","2"],"error":"onesie: --retries does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--replace=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--print-request","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -599,7 +549,7 @@
 {"args":["-i","request","--print-request","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--timeout","5","--usage=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--timeout","5","--replace=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--timeout","5","--stop-on-error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--timeout","5","--stop-on=error"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--timeout","5","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--timeout","5","--long-context=false"],"error":"onesie: --timeout does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--timeout","5","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -611,47 +561,38 @@
 {"args":["-i","request","--print-request","--retries","2","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--cache=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--model","jev-1.13.0"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--max-retry-after","1","--state-file","MISSING"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--max-retry-after","1","--state","x"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--replace"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--unordered=false"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--long-context"],"error":"onesie: --max-retry-after does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--max-retry-after","1","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--cache","--raw=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--quiet=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--jobs","1"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--state","x"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--merge-key","k"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--unordered"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--cache=false","--stop-on-assert=false"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--cache=false","--stop-on=fail"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--base-url","ENDPOINT"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--cache=false","--image-field",".image"],"error":"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--quiet"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--stats=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--id",".id"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--merge=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--skip-blank=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--stop-on-assert"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--allow-http=false"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--raw=false","--fallback","x"],"error":"onesie: -r does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--stats"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--map","."],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--merge"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--skip-blank"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--quiet=false","--stop-on-error=false"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--quiet=false","--stop-on=error"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--allow-http"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--delimiter",","],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--min-confidence","0.5"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--quiet=false","--out","OUT"],"error":"onesie: -q does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--usage=false","--replace=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--usage=false","--stop-on-error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--usage=false","--stop-on=error"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--usage=false","--no-dedup=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--usage=false","--long-context=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--usage=false","--prune=false"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats","--stats=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--model","jev-1.13.0"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stats=false","--state-file","MISSING"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stats=false","--state","x"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--replace"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--unordered=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--stats=false","--no-dedup"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -659,24 +600,24 @@
 {"args":["-i","request","--print-request","--stats=false","--resume=false"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--jobs","1","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--jobs","1","--delimiter",","],"error":"onesie: --delimiter does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--print-request","--model","jev-1.13.0","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--model","jev-1.13.0","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--model","jev-1.13.0","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--map",".","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--map",".","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--id",".id","--no-dedup"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--id",".id","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--state","x","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--state-file","MISSING","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--state-file","MISSING","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--state","x","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--state","x","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge","--merge=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--replace"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--unordered=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--no-dedup"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--long-context"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--merge=false","--resume=false"],"error":"onesie: --merge does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--replace","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--replace","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--replace","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--replace=false","--stop-on-error"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["-i","request","--print-request","--replace=false","--stop-on=error"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--print-request","--replace=false","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--replace=false","--long-context=false"],"error":"onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response\n"}
 {"args":["-i","request","--print-request","--replace=false","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
@@ -685,14 +626,14 @@
 {"args":["-i","request","--print-request","--skip-blank=false","--resume=false"],"error":"onesie: --resume does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--unordered","--allow-http"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--unordered","--delimiter",","],"error":"onesie: --delimiter does not apply to -i request, which sends each body as written and prints each raw response\n"}
-{"args":["-i","request","--print-request","--unordered=false","--stop-on-assert=false"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--unordered=false","--stop-on=fail"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--unordered=false","--base-url","ENDPOINT"],"error":"onesie: --base-url does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-error=false","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-assert=false","--allow-http"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-assert=false","--delimiter",","],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
-{"args":["-i","request","--print-request","--stop-on-assert=false","--out","OUT"],"error":"onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=error","--no-dedup=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=error","--prune=false"],"error":"onesie: --prune does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=error","--allow-http=false"],"error":"onesie: --allow-http does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=fail","--allow-http"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=fail","--delimiter",","],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["-i","request","--print-request","--stop-on=fail","--out","OUT"],"error":"onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--no-dedup","--base-url","ENDPOINT"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--no-dedup","--image-field",".image"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["-i","request","--print-request","--no-dedup=false","--long-context=false"],"error":"onesie: --no-dedup does not apply to --print-request, which writes the request bodies and sends none\n"}

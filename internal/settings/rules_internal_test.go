@@ -34,7 +34,10 @@ func TestModeRefusals(t *testing.T) {
 
 					// -i request refuses -m, whose bodies carry their own model, and still sends a body that
 					// names none with the model a profile or TYPESAFE_DEFAULT_MODEL gives.
-					if row.Modes.Has(mode) && (mode != settingrow.ModeRequest || rule.setting != Model.Name()) {
+					// --stop-on has an effect under -i request and --print-request, which still refuse its fail and
+					// unsure verdicts.
+					if row.Modes.Has(mode) && (mode != settingrow.ModeRequest || rule.setting != Model.Name()) &&
+						rule.setting != StopOn.Name() {
 						t.Errorf("mode %d refuses %s, whose row has an effect in it", mode, rule.setting)
 					}
 				}
@@ -84,7 +87,7 @@ func TestModeRefusals(t *testing.T) {
 		})
 	}
 	t.Run("should leave other modes to their own rules", func(t *testing.T) {
-		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeVersion, settingrow.ModeCalibrate, settingrow.ModeProfile} {
+		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeCalibrate, settingrow.ModeProfile} {
 			if got := modeRefusals(mode); len(got) != 0 {
 				t.Errorf("mode %d has %d refusals", mode, len(got))
 			}
@@ -96,7 +99,7 @@ func TestModeRefusals(t *testing.T) {
 			"out":           {settingrow.ModeRequest, settingrow.ModePrintRequest, settingrow.ModePrintQuestions, settingrow.ModeListModels},
 			"skip_blank":    {settingrow.ModeRequest, settingrow.ModePrintRequest},
 			"unordered":     {settingrow.ModeRequest, settingrow.ModePrintRequest},
-			"stop_on_error": {settingrow.ModeRequest, settingrow.ModePrintRequest},
+			"stop_on":       {settingrow.ModeRequest, settingrow.ModePrintRequest},
 			"jobs":          {settingrow.ModePrintRequest},
 			"stats":         {settingrow.ModeListModels},
 			"print_request": {settingrow.ModeRequest},

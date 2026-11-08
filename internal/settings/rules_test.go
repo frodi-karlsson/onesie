@@ -68,15 +68,6 @@ func TestValidate(t *testing.T) {
 			set: values{"output": "json", "input": "text"},
 		},
 		{
-			name: "should reject raw with more than one question",
-			events: []argv.Event{
-				{Name: "ask", Value: "a=one"},
-				{Name: "ask", Value: "b=two"},
-			},
-			set:     values{"raw": true},
-			wantErr: "-r needs a single question. 'a', 'b' were asked",
-		},
-		{
 			name: "should reject -o raw with more than one question",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=one"},
@@ -107,18 +98,6 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 			},
 			set: values{"assert": []string{"answer.value > 0.5"}, "quiet": true},
-		},
-		{
-			name:       "should reject raw combined with output",
-			positional: "is this urgent",
-			set:        values{"raw": true, "output": "json"},
-			wantErr:    "-r and -o are mutually exclusive",
-		},
-		{
-			name:       "should reject both state flags together",
-			positional: "is this urgent",
-			typed:      []settingrow.Name{"state", "state_file"},
-			wantErr:    "--state and --state-file are mutually exclusive",
 		},
 		{
 			name:    "should refuse --for without -f",
@@ -203,21 +182,21 @@ func TestValidate(t *testing.T) {
 			typed:      []settingrow.Name{"input", "state"},
 		},
 		{
-			name:       "should reject stop on error outside a stream",
+			name:       "should reject --stop-on=error outside a stream",
 			positional: "is this urgent",
-			set:        values{"stop_on_error": true, "input": "json"},
-			wantErr:    "--stop-on-error applies to streaming input. -i json reads one record",
+			set:        values{"stop_on": "error", "input": "json"},
+			wantErr:    "--stop-on applies to streaming input. -i json reads one record",
 		},
 		{
-			name:       "should reject stop on assert outside a stream",
+			name:       "should reject --stop-on=fail outside a stream",
 			positional: "is this urgent",
-			set:        values{"stop_on_assert": true, "input": "text"},
-			wantErr:    "--stop-on-assert applies to streaming input. -i text reads one record",
+			set:        values{"stop_on": "fail", "input": "text"},
+			wantErr:    "--stop-on applies to streaming input. -i text reads one record",
 		},
 		{
-			name:       "should accept stop on assert in a gated stream",
+			name:       "should accept --stop-on=fail in a gated stream",
 			positional: "is this urgent",
-			set:        values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "input": "jsonl"},
+			set:        values{"assert": []string{"answer.value > 0.5"}, "stop_on": "fail", "input": "jsonl"},
 		},
 		{
 			name:       "should reject skip blank outside a stream",
@@ -249,13 +228,6 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--state cannot be combined with -i jsonl",
 		},
 		{
-			name:       "should reject state-file with a streaming mode naming the flag used",
-			positional: "is this urgent",
-			set:        values{"input": "lines"},
-			typed:      []settingrow.Name{"state_file"},
-			wantErr:    "--state-file cannot be combined with -i lines",
-		},
-		{
 			name:       "should reject merge with raw output",
 			positional: "is this urgent",
 			set:        values{"merge": true, "output": "raw", "input": "lines"},
@@ -274,9 +246,9 @@ func TestValidate(t *testing.T) {
 			wantErr:    "--merge-key needs -o json, values, csv or tsv",
 		},
 		{
-			name:       "should reject merge with the -r spelling of raw",
+			name:       "should reject merge with -o raw",
 			positional: "is this urgent",
-			set:        values{"merge": true, "raw": true, "input": "text"},
+			set:        values{"merge": true, "output": "raw", "input": "text"},
 			wantErr:    "--merge needs -o json, values, csv or tsv",
 		},
 		{
@@ -516,9 +488,9 @@ func TestValidate(t *testing.T) {
 		{
 			name:       "should report the dry run before --delimiter",
 			positional: "is this urgent",
-			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "raw": true},
+			set:        values{"print_request": true, "input": "jsonl", "delimiter": "x", "output": "raw"},
 			typed:      []settingrow.Name{"input", "delimiter"},
-			wantExact:  "-r does not apply to --print-request, which writes the request bodies and sends none",
+			wantExact:  "-o does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
 			name:       "should report --delimiter before --abstain-if without an assertion",
@@ -528,22 +500,16 @@ func TestValidate(t *testing.T) {
 			wantExact:  "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
 		},
 		{
-			name:       "should report the dry run before the output rules",
-			positional: "is this urgent",
-			set:        values{"print_request": true, "raw": true, "output": "json"},
-			wantExact:  "-o does not apply to --print-request, which writes the request bodies and sends none",
-		},
-		{
 			name:      "should report a streaming -q before the plan rules",
 			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
 			set:       values{"quiet": true, "input": "jsonl"},
 			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
 		},
 		{
-			name:       "should refuse -q with -r",
+			name:       "should refuse -q with -o raw",
 			positional: "is this urgent",
-			set:        values{"quiet": true, "raw": true},
-			wantExact:  "-q suppresses output, which leaves -r nothing to write",
+			set:        values{"quiet": true, "output": "raw"},
+			wantExact:  "-q suppresses output, which leaves -o raw nothing to write",
 		},
 		{
 			name:       "should refuse -q with -o json",
@@ -590,10 +556,10 @@ func TestValidate(t *testing.T) {
 			set:        values{"quiet": true},
 		},
 		{
-			name:       "should report --stop-on-assert on one record before its missing assertion",
+			name:       "should report --stop-on=fail on one record before its missing assertion",
 			positional: "is this urgent",
-			set:        values{"stop_on_assert": true},
-			wantExact:  "--stop-on-assert applies to streaming input. -i text reads one record",
+			set:        values{"stop_on": "fail"},
+			wantExact:  "--stop-on applies to streaming input. -i text reads one record",
 		},
 	}
 
@@ -962,12 +928,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "--state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --state-file with -i request",
-				set:     values{"input": "request", "jobs": 1},
-				typed:   []settingrow.Name{"state_file"},
-				wantErr: "--state-file does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
 				name:    "should reject --map with -i request",
 				set:     values{"input": "request", "jobs": 1},
 				typed:   []settingrow.Name{"map"},
@@ -1019,11 +979,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "-o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -r with -i request",
-				set:     values{"input": "request", "jobs": 1, "raw": true},
-				wantErr: "-r does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
 				name:    "should reject --usage with -i request",
 				set:     values{"input": "request", "jobs": 1, "usage": true},
 				wantErr: "--usage does not apply to -i request, which sends each body as written and prints each raw response",
@@ -1051,7 +1006,7 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				name:  "should accept the streaming flags with -i request",
-				set:   values{"input": "request", "jobs": 4, "unordered": true, "stop_on_error": true, "skip_blank": true},
+				set:   values{"input": "request", "jobs": 4, "unordered": true, "stop_on": "error", "skip_blank": true},
 				typed: []settingrow.Name{"jobs"},
 			},
 			{
@@ -1063,11 +1018,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject -o with --print-questions",
 				set:     values{"print_questions": true, "output": "json", "input": "text"},
 				wantErr: "-o does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-			{
-				name:    "should reject -r with --print-request",
-				set:     values{"print_request": true, "raw": true, "input": "text"},
-				wantErr: "-r does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should name --merge-key when that is the spelling given",
@@ -1150,9 +1100,9 @@ func TestValidate(t *testing.T) {
 				set:  values{"assert": []string{"answer.value > 0.5"}, "print_questions": true, "input": "text"},
 			},
 			{
-				name:    "should reject --stop-on-assert with --print-request",
-				set:     values{"print_request": true, "stop_on_assert": true, "input": "lines"},
-				wantErr: "--stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
+				name:    "should reject --stop-on=fail with --print-request",
+				set:     values{"print_request": true, "stop_on": "fail", "input": "lines"},
+				wantErr: "--stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should reject --abstain-if with --list-models",
@@ -1179,8 +1129,8 @@ func TestValidate(t *testing.T) {
 				set:  values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_questions": true, "input": "text"},
 			},
 			{
-				name: "should accept --stop-on-error with --print-request",
-				set:  values{"print_request": true, "stop_on_error": true, "input": "lines"},
+				name: "should accept --stop-on=error with --print-request",
+				set:  values{"print_request": true, "stop_on": "error", "input": "lines"},
 			},
 			{
 				name:    "should refuse --threshold beside --print-request",
@@ -1329,11 +1279,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "--usage does not apply to -o raw, which writes only the answers. Use -o json",
 			},
 			{
-				name:    "should reject --usage with -r",
-				set:     values{"input": "text", "raw": true, "usage": true, "jobs": 1},
-				wantErr: "--usage does not apply to -r, which writes only the answers. Use -o json",
-			},
-			{
 				name: "should accept --usage with -o json",
 				set:  values{"input": "text", "output": "json", "usage": true, "jobs": 1},
 			},
@@ -1356,11 +1301,6 @@ func TestValidate(t *testing.T) {
 				name:    "should reject --merge-key with -o md",
 				set:     values{"merge_key": "verdict", "input": "jsonl", "output": "markdown", "jobs": 1},
 				wantErr: "--merge-key needs -o json, values, csv or tsv",
-			},
-			{
-				name:    "should reject -r with -o markdown",
-				set:     values{"input": "text", "raw": true, "output": "markdown", "jobs": 1},
-				wantErr: "-r and -o are mutually exclusive",
 			},
 			{
 				name:    "should reject -q with -o markdown on one record",
@@ -1398,20 +1338,9 @@ func TestValidate(t *testing.T) {
 				typed: []settingrow.Name{"id"},
 			},
 			{
-				name:    "should reject --resume with --id and -r, which writes no id",
-				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "raw": true},
-				typed:   []settingrow.Name{"id"},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
-			},
-			{
 				name:    "should reject --resume with --id and -o raw, which writes no id",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "output": "raw"},
 				typed:   []settingrow.Name{"id"},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
-			},
-			{
-				name:    "should reject a resume by position with -r and --assert, since a raw line keeps no outcome",
-				set:     values{"assert": []string{"answer.value > 0.5"}, "input": "jsonl", "resume": true, "out": "a.txt", "raw": true},
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
@@ -1432,17 +1361,12 @@ func TestValidate(t *testing.T) {
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
-				name:    "should reject a resume by position with -r and no gate",
-				set:     values{"input": "jsonl", "resume": true, "out": "a.txt", "raw": true, "jobs": 1},
-				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
+				name: "should accept a tsv resume by position under --stop-on=error, since the file is read at runtime",
+				set:  values{"input": "jsonl", "resume": true, "out": "a.tsv", "output": "tsv", "stop_on": "error", "jobs": 1},
 			},
 			{
-				name: "should accept a tsv resume by position under --stop-on-error, since the file is read at runtime",
-				set:  values{"input": "jsonl", "resume": true, "out": "a.tsv", "output": "tsv", "stop_on_error": true, "jobs": 1},
-			},
-			{
-				name:  "should accept a csv resume by id under --stop-on-error",
-				set:   values{"input": "jsonl", "resume": true, "out": "a.csv", "output": "csv", "stop_on_error": true, "jobs": 1},
+				name:  "should accept a csv resume by id under --stop-on=error",
+				set:   values{"input": "jsonl", "resume": true, "out": "a.csv", "output": "csv", "stop_on": "error", "jobs": 1},
 				typed: []settingrow.Name{"id"},
 			},
 			{
@@ -1494,11 +1418,6 @@ func TestValidate(t *testing.T) {
 				wantErr: "-q does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -r with -o outside request mode",
-				set:     values{"raw": true, "output": "json", "input": "text"},
-				wantErr: "-r and -o are mutually exclusive",
-			},
-			{
 				name:    "should reject --abstain-if without an assertion",
 				set:     values{"abstain_if": []string{"answer.value > 0.4"}, "input": "text"},
 				wantErr: "--abstain-if needs --assert, since without one every record is a yes",
@@ -1515,13 +1434,13 @@ func TestValidate(t *testing.T) {
 				fromFile: []settingrow.Name{"assert"},
 			},
 			{
-				name:    "should reject --stop-on-assert without an assertion",
-				set:     values{"stop_on_assert": true, "input": "jsonl"},
-				wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
+				name:    "should reject --stop-on=fail without an assertion",
+				set:     values{"stop_on": "fail", "input": "jsonl"},
+				wantErr: "--stop-on=fail needs --assert, since without one no record can fail",
 			},
 			{
-				name:     "should accept --stop-on-assert when the only assertion comes from the file",
-				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "file": "q.yaml", "input": "jsonl"},
+				name:     "should accept --stop-on=fail when the only assertion comes from the file",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on": "fail", "file": "q.yaml", "input": "jsonl"},
 				fromFile: []settingrow.Name{"assert"},
 			},
 			{
@@ -1724,12 +1643,12 @@ func TestRules(t *testing.T) {
 					"cuts-parse", "calibrate-resumes-by-id", "calibrate-dry-run-out", "calibrate-usage",
 					"requires-parse", "needs-a-question", "list-models-alone", "resume-needs-a-stream",
 					"prune-needs-resume-and-id", "dry-run-and-request", "cache-beside-mock", "delimiter-needs-csv", "abstain-needs-assert",
-					"raw-and-output", "quiet-without-markdown", "state-and-state-file", "replace-needs-file",
+					"quiet-without-markdown", "replace-needs-file",
 					"for-selects-a-file-question", "file-question-shape",
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
-					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
+					"stop-on-verdict-needs-gate", "columns-unique", "line-field-reserved",
 					"policy-binding", "questions-valid", "quiet-needs-one-question",
 					"raw-needs-one-question", "one-state", "quiet-writes-nothing", "setting-given-twice",
 				}
@@ -1871,7 +1790,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "dry-run-and-request",
 			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, typed: []settingrow.Name{"mock"}},
-			passed:  run{set: values{"print_request": true, "input": "request", "stop_on_error": true}},
+			passed:  run{set: values{"print_request": true, "input": "request", "stop_on": "error"}},
 			wantErr: "--mock does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
@@ -1896,22 +1815,10 @@ func ruleCases() []ruleCase {
 			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
 		},
 		{
-			rule:    "raw-and-output",
-			refused: run{set: values{"raw": true, "output": "json"}},
-			passed:  run{set: values{"raw": true}},
-			wantErr: "-r and -o are mutually exclusive",
-		},
-		{
 			rule:    "quiet-without-markdown",
 			refused: run{set: values{"quiet": true, "output": "markdown"}},
 			passed:  run{set: values{"quiet": true}},
 			wantErr: "-q suppresses output, which leaves -o markdown nothing to write",
-		},
-		{
-			rule:    "state-and-state-file",
-			refused: run{typed: []settingrow.Name{"state", "state_file"}},
-			passed:  run{typed: []settingrow.Name{"state"}},
-			wantErr: "--state and --state-file are mutually exclusive",
 		},
 		{
 			rule:    "replace-needs-file",
@@ -1974,10 +1881,10 @@ func ruleCases() []ruleCase {
 			wantErr: "-o table reads one record. Drop -i lines or use -o json",
 		},
 		{
-			rule:    "stop-on-assert-needs-assert",
-			refused: run{set: values{"stop_on_assert": true}},
-			passed:  run{set: values{"stop_on_assert": true, "assert": []string{"answer.value > 0.5"}}},
-			wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
+			rule:    "stop-on-verdict-needs-gate",
+			refused: run{set: values{"stop_on": "fail"}},
+			passed:  run{set: values{"stop_on": "fail", "assert": []string{"answer.value > 0.5"}}},
+			wantErr: "--stop-on=fail needs --assert, since without one no record can fail",
 		},
 		{
 			rule: "columns-unique",
@@ -2045,9 +1952,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "raw-needs-one-question",
-			refused: run{planned: true, set: values{"raw": true}, events: two},
-			passed:  run{planned: true, set: values{"raw": true}, positional: "is this urgent"},
-			wantErr: "-r needs a single question. 'a', 'b' were asked",
+			refused: run{planned: true, set: values{"output": "raw"}, events: two},
+			passed:  run{planned: true, set: values{"output": "raw"}, positional: "is this urgent"},
+			wantErr: "-o raw needs a single question. 'a', 'b' were asked",
 		},
 		{
 			rule: "one-state",
@@ -2059,9 +1966,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "quiet-writes-nothing",
-			refused: run{set: values{"quiet": true, "raw": true}},
+			refused: run{set: values{"quiet": true, "output": "raw"}},
 			passed:  run{set: values{"quiet": true}},
-			wantErr: "-q suppresses output, which leaves -r nothing to write",
+			wantErr: "-q suppresses output, which leaves -o raw nothing to write",
 		},
 	}
 }
