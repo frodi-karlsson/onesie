@@ -12,6 +12,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/jq"
 	"github.com/frodi-karlsson/onesie/internal/num"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 // WriteMarkdown writes one record as a GitHub flavoured markdown table under an alert for its
@@ -20,10 +21,10 @@ func WriteMarkdown(w io.Writer, rec Record, opts MarkdownOptions) error {
 	var sections []string
 
 	switch {
-	case rec.Failure != nil:
-		sections = append(sections, alert("CAUTION", "**No answer:** "+codeSpan(rec.Failure.Message, false)))
+	case rec.Verdict() == Error:
+		sections = append(sections, alert("CAUTION", "**Error:** "+codeSpan(rec.Failure.Message, false)))
 	case opts.Assert != "":
-		sections = append(sections, verdict(rec, opts))
+		sections = append(sections, verdictAlert(rec, opts))
 	}
 
 	// A failed record keeps its table only for the fallbacks it carries, which are the answers a
@@ -49,17 +50,17 @@ type MarkdownOptions struct {
 	Abstain string
 }
 
-func verdict(rec Record, opts MarkdownOptions) string {
+func verdictAlert(rec Record, opts MarkdownOptions) string {
 	gate := codeSpan(opts.Assert, false)
 
-	switch {
-	case rec.AssertFailed:
-		return alert("CAUTION", "**Failed:** "+gate+" did not hold.")
-	case rec.Abstained:
+	switch rec.Verdict() {
+	case Fail:
+		return alert("CAUTION", "**Fail:** "+gate+" did not hold.")
+	case Unsure:
 		return alert("WARNING", "**Unsure:** "+gate+" did not hold and "+
 			codeSpan(opts.Abstain, false)+" did, so a person should decide.")
 	default:
-		return alert("TIP", "**Passed:** "+gate+" held.")
+		return alert("TIP", "**Pass:** "+gate+" held.")
 	}
 }
 
@@ -114,7 +115,7 @@ type MarkdownTableOptions struct {
 	IDs []string
 	// ID adds an id column ahead of the answers, for a run that names its records with --id.
 	ID bool
-	// Gate adds a gate column, passed, failed or unsure per row, when the run carries an assertion.
+	// Gate adds a gate column, pass, fail or unsure per row, when the run carries an assertion.
 	Gate bool
 }
 
@@ -194,7 +195,7 @@ func (m *MarkdownTable) head() string {
 }
 
 func (m *MarkdownTable) count(rec Record) {
-	m.tally.add(rec, m.opts.Gate)
+	m.tally.add(rec)
 
 	if rec.Model != "" && !slices.Contains(m.models, rec.Model) {
 		m.models = append(m.models, rec.Model)
@@ -241,70 +242,45 @@ func streamAnswer(rec Record, id string) string {
 }
 
 func gateText(rec Record) string {
-	switch {
-	case rec.Failure != nil:
+	switch verdict := rec.Verdict(); verdict {
+	case Error:
 		return ""
-	case rec.AssertFailed:
-		return "failed"
-	case rec.Abstained:
-		return "unsure"
+	case Fail, Unsure:
+		return verdict.String()
 	default:
-		return "passed"
+		return Pass.String()
 	}
 }
 
 type tally struct {
-	records, passed, failed, unsure, answered, unanswered int
+	records int
+	counts  Tally
 }
 
-func (t *tally) add(rec Record, gated bool) {
+func (t *tally) add(rec Record) {
 	t.records++
-
-	switch {
-	case rec.Failure != nil:
-		t.unanswered++
-	case !gated:
-		t.answered++
-	case rec.AssertFailed:
-		t.failed++
-	case rec.Abstained:
-		t.unsure++
-	default:
-		t.passed++
-	}
+	t.counts[rec.Verdict()]++
 }
 
 func (t *tally) alert(whole bool) string {
 	kind := "TIP"
 
 	switch {
-	case t.failed > 0 || t.unanswered > 0:
+	case t.counts[Fail] > 0 || t.counts[Error] > 0:
 		kind = "CAUTION"
-	case t.unsure > 0:
+	case t.counts[Unsure] > 0:
 		kind = "WARNING"
 	}
 
 	var parts []string
 
-	for _, part := range []struct {
-		count int
-		label string
-	}{
-		{t.passed, "passed"},
-		{t.failed, "failed"},
-		{t.unsure, "unsure"},
-		{t.answered, "answered"},
-		{t.unanswered, "with no answer"},
-	} {
-		if part.count > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", part.count, part.label))
+	for _, verdict := range []Verdict{Pass, Fail, Unsure, Answered, Error} {
+		if count := t.counts[verdict]; count > 0 {
+			parts = append(parts, Count(verdict, count))
 		}
 	}
 
-	counted := fmt.Sprintf("%d records", t.records)
-	if t.records == 1 {
-		counted = "1 record"
-	}
+	counted := wording.Plural(t.records, "record", "records")
 
 	if !whole {
 		counted = "stopped after " + counted

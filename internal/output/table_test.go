@@ -175,9 +175,9 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				AssertFailed: true,
+				Gate: output.Fail,
 			},
-			want: "model: onesie-1.13.0\nassert: false\n\nurgent: 0.92\n",
+			want: "model: onesie-1.13.0\nverdict: fail\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should print no assert line when the assertion held",
@@ -188,7 +188,7 @@ func TestWriteTable(t *testing.T) {
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
 			},
-			absent: []string{"assert", "abstain"},
+			absent: []string{"assert", "abstain", "verdict"},
 		},
 		{
 			name:    "should print an abstain line beside the model when the record abstained",
@@ -198,9 +198,9 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				Abstained: true,
+				Gate: output.Unsure,
 			},
-			want: "model: onesie-1.13.0\nabstain\n\nurgent: 0.92\n",
+			want: "model: onesie-1.13.0\nverdict: unsure\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should print a false assertion with no model in the header",
@@ -209,9 +209,9 @@ func TestWriteTable(t *testing.T) {
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
-				AssertFailed: true,
+				Gate: output.Fail,
 			},
-			want: "assert: false\n\nurgent: 0.92\n",
+			want: "verdict: fail\n\nurgent: 0.92\n",
 		},
 		{
 			name:    "should add usage to the header when present",

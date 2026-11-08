@@ -45,6 +45,12 @@ func TestResumed(t *testing.T) {
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
 	})
 
+	byPositionGated := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
+		Assert: "answer.value > 0.9",
+	})
+	contradictory := `{"error":{"kind":"http","status":503,"message":"503 bad key"},"assert":false,"abstain":true,"answer":0.5}` + "\n"
+
 	jsonPrint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "json", Input: "jsonl",
 	})
@@ -182,7 +188,7 @@ func TestResumed(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUnavailable,
 					wantFile: "{\"answer\":0.5}\n" + unavailableBody + "{\"answer\":0.5}\n",
-					wantStderr: "onesie: 503 bad key. The stored failure for record 2 is followed by more lines, " +
+					wantStderr: "onesie: 503 bad key. The stored error for record 2 is followed by more lines, " +
 						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
 				},
 			},
@@ -203,7 +209,7 @@ func TestResumed(t *testing.T) {
 					args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode:   ExitUsage,
 					wantFile:   "{\"answer\":0.5}\n" + failedBody + failedBody,
-					wantStderr: "The stored failure for record 2 is followed by more lines",
+					wantStderr: "The stored error for record 2 is followed by more lines",
 				},
 			},
 		},
@@ -275,7 +281,7 @@ func TestResumed(t *testing.T) {
 					bare:     true,
 					wantCode: ExitUsage,
 					wantFile: answeredBody + failedBody + answeredBody,
-					wantStderr: "onesie: 400 bad key. The stored failure for record 2 is followed by more lines, " +
+					wantStderr: "onesie: 400 bad key. The stored error for record 2 is followed by more lines, " +
 						"so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on",
 				},
 			},
@@ -352,7 +358,7 @@ func TestResumed(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--retries", "0", "--stop-on-error"},
 					wantCode: ExitUsage,
 					wantFile: "answer,error\n0.5,\n,503 bad key\n0.5,\n",
-					wantStderr: "onesie: the stored failure for record 2 is followed by more rows, so a run without " +
+					wantStderr: "onesie: the stored error for record 2 is followed by more rows, so a run without " +
 						"--stop-on-error wrote it, and a csv row keeps only its message, not the code to stop with. " +
 						"Pass --id or drop --stop-on-error to carry on",
 				},
@@ -376,7 +382,7 @@ func TestResumed(t *testing.T) {
 					bare:       true,
 					wantCode:   ExitRecords,
 					wantFile:   answeredBody + failedBody,
-					wantStderr: "2 skipped by --resume, 1 failed, ",
+					wantStderr: "2 skipped by --resume, 1 error, ",
 				},
 			},
 		},
@@ -406,7 +412,7 @@ func TestResumed(t *testing.T) {
 				wantCode:   ExitRejected,
 				wantFile:   "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
 				wantSent:   []string{`{"id":2}`},
-				wantStderr: "1 skipped by --resume, 1 false assertion, 1 abstain, ",
+				wantStderr: "1 skipped by --resume, 1 fail, 1 unsure, ",
 			}},
 		},
 		{
@@ -439,7 +445,7 @@ func TestResumed(t *testing.T) {
 					},
 					wantCode:   ExitRejected,
 					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
-					wantStderr: "2 records, 2 skipped by --resume, 2 false assertions, ",
+					wantStderr: "2 records, 2 skipped by --resume, 2 fail, ",
 				},
 			},
 		},
@@ -463,9 +469,46 @@ func TestResumed(t *testing.T) {
 					},
 					wantCode:   ExitAbstain,
 					wantFile:   strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
-					wantStderr: "2 records, 2 skipped by --resume, 2 abstains, ",
+					wantStderr: "2 records, 2 skipped by --resume, 2 unsure, ",
 				},
 			},
+		},
+		{
+			name:     "should count a stored line that claims an error, a fail and an unsure once, as an error",
+			existing: fileOf(contradictory),
+			sidecar:  byPositionGated,
+			stdin:    idRecords(1, 2),
+			runs: []resumeRun{{
+				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stats", "--assert", "answer.value > 0.9"},
+				wantCode:   ExitRecords,
+				wantFile:   contradictory + "{\"assert\":false,\"answer\":0.5}\n",
+				wantSent:   []string{`{"id":2}`},
+				wantStderr: "2 records, 1 skipped by --resume, 1 error, 1 fail, 1 request, ",
+			}},
+		},
+		{
+			name:     "should read past a stored line that claims an error and a fail under --stop-on-assert",
+			existing: fileOf(contradictory + "{\"answer\":0.5}\n"),
+			sidecar:  byPositionGated,
+			stdin:    idRecords(1, 3),
+			runs: []resumeRun{{
+				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on-assert", "--assert", "answer.value > 0.9"},
+				wantCode: ExitRecords,
+				wantFile: contradictory + "{\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
+				wantSent: []string{`{"id":3}`},
+			}},
+		},
+		{
+			name:     "should stop at a stored line that claims an error and a fail under --stop-on-error",
+			existing: fileOf(contradictory + "{\"answer\":0.5}\n"),
+			sidecar:  byPositionGated,
+			stdin:    idRecords(1, 3),
+			runs: []resumeRun{{
+				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on-error", "--assert", "answer.value > 0.9"},
+				wantCode:   ExitUnavailable,
+				wantFile:   contradictory + "{\"answer\":0.5}\n",
+				wantStderr: "The stored error for record 1 is followed by more lines",
+			}},
 		},
 		{
 			name:  "should count only the skipped records of a resume by position, asking the rest",
@@ -485,7 +528,7 @@ func TestResumed(t *testing.T) {
 					wantCode:   ExitRejected,
 					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 3),
 					wantSent:   []string{`{"id":2}`, `{"id":3}`},
-					wantStderr: "3 records, 1 skipped by --resume, 3 false assertions, ",
+					wantStderr: "3 records, 1 skipped by --resume, 3 fail, ",
 				},
 			},
 		},

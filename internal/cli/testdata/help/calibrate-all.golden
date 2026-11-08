@@ -268,7 +268,7 @@ How they work together:
   id, which answers every record, as in {"urgent":0.9}, or one line per record in the
   shape -o json writes, so the --out file of a real run replays. Lines match records by
   id under --id and by position otherwise. Blank lines are refused, apart from those at
-  the end. An entry {"error":503} fails a record as that status does,
+  the end. An entry {"error":503} makes the record an error, as that status does,
   {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection.
   Each is retried as a live failure is, without the wait. --print-request writes API
   shaped request bodies and sends none.
@@ -284,5 +284,5 @@ Exit codes:
   2    usage or validation error, including a bad label or record
   3    the key was refused, the account is out of credits, the keychain failed, or
        profiles.json or credentials.json is exposed. No report prints
-  6    the report holds one or more failed records, which wins over 1
+  6    the report holds one or more errors, which wins over 1
   130  interrupted. No report prints

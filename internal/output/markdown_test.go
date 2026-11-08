@@ -78,10 +78,10 @@ func TestWriteMarkdown(t *testing.T) {
 		},
 		{
 			name: "should open with a caution when the assertion failed",
-			rec:  output.Record{Model: "jev-1.13.0", Answers: answers, AssertFailed: true},
+			rec:  output.Record{Model: "jev-1.13.0", Answers: answers, Gate: output.Fail},
 			opts: gate,
 			want: "> [!CAUTION]\n" +
-				"> **Failed:** `urgent.value < 0.9` did not hold.\n" +
+				"> **Fail:** `urgent.value < 0.9` did not hold.\n" +
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
@@ -95,7 +95,7 @@ func TestWriteMarkdown(t *testing.T) {
 			rec:  output.Record{Model: "jev-1.13.0", Answers: answers[:1]},
 			opts: gate,
 			want: "> [!TIP]\n" +
-				"> **Passed:** `urgent.value < 0.9` held.\n" +
+				"> **Pass:** `urgent.value < 0.9` held.\n" +
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
@@ -105,7 +105,7 @@ func TestWriteMarkdown(t *testing.T) {
 		},
 		{
 			name: "should open with a warning that a person should decide when the record abstained",
-			rec:  output.Record{Model: "jev-1.13.0", Answers: answers[:1], Abstained: true},
+			rec:  output.Record{Model: "jev-1.13.0", Answers: answers[:1], Gate: output.Unsure},
 			opts: gate,
 			want: "> [!WARNING]\n" +
 				"> **Unsure:** `urgent.value < 0.9` did not hold and `urgent.value < 0.99` did, " +
@@ -178,7 +178,7 @@ func TestWriteMarkdown(t *testing.T) {
 			},
 			opts: gate,
 			want: "> [!CAUTION]\n" +
-				"> **No answer:** `http 500: upstream failed`\n",
+				"> **Error:** `http 500: upstream failed`\n",
 		},
 		{
 			name: "should keep the table under the caution when a failed record fell back",
@@ -191,7 +191,7 @@ func TestWriteMarkdown(t *testing.T) {
 			},
 			opts: gate,
 			want: "> [!CAUTION]\n" +
-				"> **No answer:** `http 500: upstream failed`\n" +
+				"> **Error:** `http 500: upstream failed`\n" +
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
@@ -232,7 +232,7 @@ func TestWriteMarkdown(t *testing.T) {
 				Usage:   &onesie.Usage{InputTokens: 10, OutputTokens: 2},
 			},
 			want: "> [!CAUTION]\n" +
-				"> **No answer:** `unusable`\n" +
+				"> **Error:** `unusable`\n" +
 				"\n" +
 				"_10 in, 2 out tokens_\n",
 		},
@@ -240,10 +240,10 @@ func TestWriteMarkdown(t *testing.T) {
 			name: "should fence data that would ping, link or render",
 			rec: output.Record{Model: "jev-1.13.0", Answers: []output.Named{
 				{ID: "@team|#12", Answer: &answer.Answer{Value: "<b>`x`</b>", Confidence: &confidence}},
-			}, AssertFailed: true},
+			}, Gate: output.Fail},
 			opts: output.MarkdownOptions{Assert: "a\nb"},
 			want: "> [!CAUTION]\n" +
-				"> **Failed:** `a b` did not hold.\n" +
+				"> **Fail:** `a b` did not hold.\n" +
 				"\n" +
 				"| question | answer | confidence |\n" +
 				"|---|---|---|\n" +
@@ -283,11 +283,18 @@ func TestNewMarkdownTable(t *testing.T) {
 		}}
 	}
 
+	passed := func(id any, urgent float64, team string) output.Record {
+		rec := answered(id, urgent, team)
+		rec.Gate = output.Pass
+
+		return rec
+	}
+
 	rejected := answered("T-1", 0.97, "billing")
-	rejected.AssertFailed = true
+	rejected.Gate = output.Fail
 
 	unsure := answered("T-4", 0.5, "sales")
-	unsure.Abstained = true
+	unsure.Gate = output.Unsure
 
 	failed := output.Record{
 		ID:      "T-3",
@@ -323,16 +330,16 @@ func TestNewMarkdownTable(t *testing.T) {
 		{
 			name:     "should write one header, a row per record, the summary and the model",
 			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records:  []output.Record{rejected, answered("T-2", 0.08, "shipping"), failed},
+			records:  []output.Record{rejected, passed("T-2", 0.08, "shipping"), failed},
 			complete: true,
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
-				"| `T-1` | 0.97 | `billing` | failed | |\n" +
-				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
+				"| `T-1` | 0.97 | `billing` | fail | |\n" +
+				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
 				"| `T-3` | | | | `http 500: upstream failed` |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
-				"> 3 records: 1 passed, 1 failed, 1 with no answer.\n" +
+				"> 3 records: 1 pass, 1 fail, 1 error.\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -354,29 +361,29 @@ func TestNewMarkdownTable(t *testing.T) {
 		{
 			name:     "should tip when every record passed",
 			opts:     output.MarkdownTableOptions{IDs: both, Gate: true},
-			records:  []output.Record{answered(nil, 0.1, "billing")},
+			records:  []output.Record{passed(nil, 0.1, "billing")},
 			complete: true,
 			want: "| `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|\n" +
-				"| 0.1 | `billing` | passed | |\n" +
+				"| 0.1 | `billing` | pass | |\n" +
 				"\n" +
 				"> [!TIP]\n" +
-				"> 1 record: 1 passed.\n" +
+				"> 1 record: 1 pass.\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
 		{
 			name:     "should warn when the worst record is an unsure",
 			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records:  []output.Record{answered("T-2", 0.08, "shipping"), unsure},
+			records:  []output.Record{passed("T-2", 0.08, "shipping"), unsure},
 			complete: true,
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
-				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
+				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
 				"| `T-4` | 0.5 | `sales` | unsure | |\n" +
 				"\n" +
 				"> [!WARNING]\n" +
-				"> 2 records: 1 passed, 1 unsure.\n" +
+				"> 2 records: 1 pass, 1 unsure.\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -390,7 +397,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"| `T-5` | fallback no | | `connection reset` |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
-				"> 1 record: 1 with no answer.\n",
+				"> 1 record: 1 error.\n",
 		},
 		{
 			name: "should list every model that answered and sum the usage",
@@ -415,14 +422,14 @@ func TestNewMarkdownTable(t *testing.T) {
 		{
 			name:    "should say the run stopped early when it did not read every record",
 			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records: []output.Record{answered("T-2", 0.08, "shipping"), rejected},
+			records: []output.Record{passed("T-2", 0.08, "shipping"), rejected},
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
-				"| `T-2` | 0.08 | `shipping` | passed | |\n" +
-				"| `T-1` | 0.97 | `billing` | failed | |\n" +
+				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
+				"| `T-1` | 0.97 | `billing` | fail | |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
-				"> stopped after 2 records: 1 passed, 1 failed.\n" +
+				"> stopped after 2 records: 1 pass, 1 fail.\n" +
 				"\n" +
 				"_`jev-1.13.0`_\n",
 		},
@@ -457,7 +464,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"| | | `line 4: not json` |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
-				"> 4 records: 2 answered, 2 with no answer.\n",
+				"> 4 records: 2 answered, 2 errors.\n",
 		},
 	}
 

@@ -17,51 +17,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/frodi-karlsson/onesie-go"
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
-
-func TestPlural(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		count int
-		noun  string
-		want  string
-	}{
-		{name: "should leave a single request bare", count: 1, noun: "request", want: "1 request"},
-		{name: "should add an s to two requests", count: 2, noun: "request", want: "2 requests"},
-		{
-			name: "should leave a single question bare", count: 1, noun: "question",
-			want: "1 question",
-		},
-		{
-			name: "should add an s to two questions", count: 2, noun: "question",
-			want: "2 questions",
-		},
-		{name: "should leave a single attempt bare", count: 1, noun: "attempt", want: "1 attempt"},
-		{name: "should add an s to two attempts", count: 2, noun: "attempt", want: "2 attempts"},
-		{
-			name: "should leave a single false assertion bare", count: 1, noun: "false assertion",
-			want: "1 false assertion",
-		},
-		{
-			name: "should add an s to two false assertions", count: 2, noun: "false assertion",
-			want: "2 false assertions",
-		},
-		{name: "should leave a single retry bare", count: 1, noun: "retry", want: "1 retry"},
-		{name: "should spell two retries irregularly", count: 2, noun: "retry", want: "2 retries"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := plural(tc.count, tc.noun); got != tc.want {
-				t.Errorf("plural(%d, %q) = %q, want %q", tc.count, tc.noun, got, tc.want)
-			}
-		})
-	}
-}
 
 func TestCollectorSnapshot(t *testing.T) {
 	t.Parallel()
@@ -113,8 +71,8 @@ func TestCollectorSnapshot(t *testing.T) {
 				t.Errorf("Requests = %d, want %d", got.Requests, 2*each)
 			}
 
-			if got.Failed != each {
-				t.Errorf("Failed = %d, want %d", got.Failed, each)
+			if got.Verdicts[output.Error] != each {
+				t.Errorf("Verdicts[Error] = %d, want %d", got.Verdicts[output.Error], each)
 			}
 
 			if got.Retries[http.StatusTooManyRequests] != each {
@@ -240,8 +198,8 @@ func TestCollectorRecordFailure(t *testing.T) {
 				t.Errorf("Requests = %d, want %d", got.Requests, tc.wantRequests)
 			}
 
-			if got.Failed != tc.wantFailed {
-				t.Errorf("Failed = %d, want %d", got.Failed, tc.wantFailed)
+			if got.Verdicts[output.Error] != tc.wantFailed {
+				t.Errorf("Verdicts[Error] = %d, want %d", got.Verdicts[output.Error], tc.wantFailed)
 			}
 		})
 	}
@@ -279,9 +237,9 @@ func TestCollectorDeduplicated(t *testing.T) {
 
 			got := c.snapshot(time.Second)
 
-			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Failed != tc.wantFailed {
+			if got.Records != tc.wantRecords || got.Dedups != tc.wantDedups || got.Verdicts[output.Error] != tc.wantFailed {
 				t.Errorf("records, dedups, failed = %d, %d, %d, want %d, %d, %d",
-					got.Records, got.Dedups, got.Failed, tc.wantRecords, tc.wantDedups, tc.wantFailed)
+					got.Records, got.Dedups, got.Verdicts[output.Error], tc.wantRecords, tc.wantDedups, tc.wantFailed)
 			}
 
 			if got.Requests != 0 || got.Questions != 0 || got.Attempts != 0 {
@@ -496,7 +454,7 @@ func TestWithStats(t *testing.T) {
 				stdin:      "{\"id\":1}\nnot json\n",
 				handler:    func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode:   ExitRecords,
-				wantErr:    []string{"2 records, 1 failed, 1 request, 1 question asked, 2841 in / 71 out tokens"},
+				wantErr:    []string{"2 records, 1 error, 1 request, 1 question asked, 2841 in / 71 out tokens"},
 				wantOutHas: []string{`"urgent"`},
 			},
 			{
@@ -540,7 +498,7 @@ func TestWithStats(t *testing.T) {
 				stdin:      "{\"id\":1}\n{\"id\":2,\"answers\":{}}\n{\"id\":3}\n",
 				handler:    func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode:   ExitRecords,
-				wantErr:    []string{"3 records, 1 failed, 2 requests, 2 questions"},
+				wantErr:    []string{"3 records, 1 error, 2 requests, 2 questions"},
 				wantOutHas: []string{"would overwrite"},
 			},
 			{
@@ -557,7 +515,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitUnavailable,
 				wantErr: []string{
-					"1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, " +
+					"1 request, 1 error, 2 questions asked, 0 in / 0 out tokens, " +
 						"3 attempts (2 retries: 500×2)",
 				},
 			},
@@ -570,7 +528,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{"urgent":{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
+				wantErr:  []string{"1 request, 1 error, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				name:  "should count the tokens of a 200 that carries no answer for a question",
@@ -581,7 +539,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
+				wantErr:  []string{"1 request, 1 error, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				name: "should report an empty stream as zero records",
@@ -691,7 +649,7 @@ func TestWithStats(t *testing.T) {
 				status:   http.StatusUnprocessableEntity,
 				response: `{"error":{"message":"bad body"}}`,
 				wantCode: ExitRecords,
-				wantErr:  "1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 1 error, 2 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 		}
 
@@ -845,4 +803,38 @@ type brokenWriter struct{}
 
 func (brokenWriter) Write([]byte) (int, error) {
 	return 0, errBroken
+}
+
+func TestCollectorSkip(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		skips answersfile.Tally
+	}{
+		{
+			name:  "should count a skipped error line once",
+			skips: answersfile.Tally{Records: 1, Verdicts: output.Tally{output.Error: 1}},
+		},
+		{
+			name:  "should count skipped fails and unsures under their own verdicts",
+			skips: answersfile.Tally{Records: 3, Verdicts: output.Tally{output.Pass: 1, output.Fail: 1, output.Unsure: 1}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var c collector
+
+			c.skip(tc.skips)
+
+			got := c.snapshot(0)
+
+			if got.Skipped != tc.skips.Records || got.Verdicts != tc.skips.Verdicts {
+				t.Errorf("skipped, verdicts = %d, %v, want %d, %v", got.Skipped, got.Verdicts, tc.skips.Records, tc.skips.Verdicts)
+			}
+		})
+	}
 }

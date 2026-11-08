@@ -28,6 +28,7 @@ func records(
 	book *answersfile.Ledger,
 	resume answersfile.Resume,
 	outputMode output.Mode,
+	stops stopSet,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
 		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
@@ -42,11 +43,11 @@ func records(
 		stop: stop,
 		source: &resumed{
 			source: stream, left: resume.Skip, stored: resume.Stored,
-			haltOnAssert: setting.Get(flags.merged, setting.StopOnAssert), haltOnError: setting.Get(flags.merged, setting.StopOnError), table: tableName(outputMode, flags),
+			stops: stops, table: tableName(outputMode, flags),
 		},
 		stream:   stream,
 		namer:    namer,
-		halt:     setting.Get(flags.merged, setting.StopOnAssert),
+		stops:    stops,
 		book:     book,
 		mode:     outputMode,
 		input:    inputMode,
@@ -74,10 +75,9 @@ type resumed struct {
 	mu              sync.Mutex
 	source          engine.Source[input.Record]
 	left            int
-	stored          []answersfile.Verdict
+	stored          []answersfile.Stored
 	skips           answersfile.Tally
-	haltOnAssert    bool
-	haltOnError     bool
+	stops           stopSet
 	halted          bool
 	table           string
 	stoppedBy       *output.Failure
@@ -103,10 +103,9 @@ func (r *resumed) Next() (input.Record, bool, error) {
 		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
 		// so nothing after it is read.
 		judged := r.count()
-		stopsOnError := judged.Failure != nil && r.haltOnError
-		r.halted = (judged.Rejected && r.haltOnAssert) || stopsOnError
+		r.halted = r.stops.has(judged.Verdict)
 
-		if stopsOnError {
+		if r.halted && judged.Verdict == output.Error {
 			r.stop(judged.Failure)
 		}
 	}
@@ -118,11 +117,11 @@ func (r *resumed) Next() (input.Record, bool, error) {
 	return r.source.Next()
 }
 
-func (r *resumed) count() answersfile.Verdict {
+func (r *resumed) count() answersfile.Stored {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	var judged answersfile.Verdict
+	var judged answersfile.Stored
 	if at := r.skips.Records; at < len(r.stored) {
 		judged = r.stored[at]
 	}
@@ -153,7 +152,7 @@ func (r *resumed) freshRunAbort() error {
 	}
 
 	if r.table != "" {
-		return fmt.Errorf("the stored failure for record %d is followed by more rows, so a run "+
+		return fmt.Errorf("the stored error for record %d is followed by more rows, so a run "+
 			"without --stop-on-error wrote it, and a %s row keeps only its message, not the code to stop "+
 			"with. Pass --id or drop --stop-on-error to carry on", r.stoppedAtRecord, r.table)
 	}
@@ -179,7 +178,7 @@ type naming struct {
 	input    input.Mode
 	appended *appendedCSV
 	seen     map[[sha256.Size]byte]int
-	halt     bool
+	stops    stopSet
 	halted   bool
 	misread  atomic.Pointer[[]string]
 	otherID  atomic.Bool
@@ -221,7 +220,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// The ledger is left unended, so a stopped run is not compacted, as a fresh one is not.
-		n.halted = judged.Rejected && n.halt
+		n.halted = n.stops.has(judged.Verdict)
 	}
 
 	return namedRecord{}, false, nil

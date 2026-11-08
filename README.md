@@ -36,9 +36,9 @@ chosen from [40 labelled commands and their saved answers](examples/README.md#sh
 onesie -f shell-safety -q --state 'git status'
 # exit 0: pass
 onesie -f shell-safety -q --state 'rm -rf ~'
-# exit 1: block
+# exit 1: fail, so block
 onesie -f shell-safety -q --state 'echo hello > notes.txt'
-# exit 7: hand off to a person
+# exit 7: unsure, so hand off to a person
 ```
 
 For destroys, shell-safety blocks at 0.5 and passes below 0.25. The overwrite command scored 0.37,

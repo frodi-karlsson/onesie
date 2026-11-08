@@ -512,7 +512,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitRejected,
 				wantLines: 3,
 				wantFalse: 1,
-				wantErr:   "3 records, 1 false assertion, 3 requests, 3 questions",
+				wantErr:   "3 records, 1 fail, 3 requests, 3 questions",
 			},
 			{
 				name: "should count a false assertion on every record that shares a request",
@@ -523,7 +523,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitRejected,
 				wantLines: 3,
 				wantFalse: 2,
-				wantErr:   "3 records, 1 deduplicated, 2 false assertions, 2 requests, 2 questions",
+				wantErr:   "3 records, 1 deduplicated, 2 fail, 2 requests, 2 questions",
 			},
 			{
 				name:      "should exit six when a failed record precedes a false assertion",
@@ -585,7 +585,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
 				contains:  []string{`{"line":2,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
-				wantErr:   "3 records, 1 abstain, 3 requests, 3 questions",
+				wantErr:   "3 records, 1 unsure, 3 requests, 3 questions",
 			},
 			{
 				name: "should count an abstain on every record that shares a request",
@@ -597,7 +597,7 @@ func TestStream(t *testing.T) {
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
 				contains:  []string{`{"line":3,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
-				wantErr:   "3 records, 1 deduplicated, 2 abstains, 2 requests, 2 questions",
+				wantErr:   "3 records, 1 deduplicated, 2 unsure, 2 requests, 2 questions",
 			},
 			{
 				name: "should exit six when a failed record sits beside an abstain",
@@ -1183,7 +1183,7 @@ func TestStream(t *testing.T) {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitUsage, errOut.String())
 			}
 
-			if !strings.Contains(errOut.String(), "1 record failed") {
+			if !strings.Contains(errOut.String(), "1 error") {
 				t.Errorf("stderr = %q, want it to name the failed record", errOut.String())
 			}
 
@@ -1415,12 +1415,12 @@ func TestStream(t *testing.T) {
 				wantCode: cli.ExitRecords,
 				want: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
-					"| `T-1` | 0.5 | passed | |\n" +
+					"| `T-1` | 0.5 | pass | |\n" +
 					"| | | | `line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')` |\n" +
-					"| `@T-2` | 0.5 | passed | |\n" +
+					"| `@T-2` | 0.5 | pass | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> 3 records: 2 passed, 1 with no answer.\n" +
+					"> 3 records: 2 pass, 1 error.\n" +
 					"\n" +
 					"_`m`_\n",
 			},
@@ -1465,10 +1465,10 @@ func TestStream(t *testing.T) {
 				wantCode: cli.ExitRejected,
 				want: "| `answer` | gate | error |\n" +
 					"|---|---|---|\n" +
-					"| 0.5 | failed | |\n" +
+					"| 0.5 | fail | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
-					"> stopped after 1 record: 1 failed.\n" +
+					"> stopped after 1 record: 1 fail.\n" +
 					"\n" +
 					"_`m`_\n",
 			},
@@ -1478,7 +1478,7 @@ func TestStream(t *testing.T) {
 				stdin:    "site down\nslow\nfine\n",
 				status:   http.StatusUnauthorized,
 				wantCode: cli.ExitAuth,
-				contains: []string{"| `answer` | error |\n", "> [!CAUTION]\n> stopped after 1 record: 1 with no answer.\n"},
+				contains: []string{"| `answer` | error |\n", "> [!CAUTION]\n> stopped after 1 record: 1 error.\n"},
 			},
 			{
 				name:  "should write the summary for a stream with no records",

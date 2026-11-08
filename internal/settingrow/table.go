@@ -371,13 +371,13 @@ func streamRows() []Row {
 		{
 			Name: "stop_on_error", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "stop-on-error", Commands: onRoot()},
-			Help: "End the run at the first failure, with its exit code, or 6 for a line onesie could not read. " +
+			Help: "End the run at the first error, with its exit code, or 6 for a line onesie could not read. " +
 				"Streaming only.",
 		},
 		{
 			Name: "stop_on_assert", HelpTopic: "decisions", Kind: Bool(), Modes: Modes(ModeStream),
 			Flag: FlagSpec{Long: "stop-on-assert", Commands: onRoot()},
-			Help: "End the run at the first false assertion. Streaming only.",
+			Help: "End the run at the first fail. Streaming only.",
 		},
 		{
 			Name: "no_dedup", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream),

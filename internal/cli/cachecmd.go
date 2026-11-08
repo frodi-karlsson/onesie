@@ -10,6 +10,7 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 func newCacheCmd(settings rootSettings) *cobra.Command {
@@ -85,7 +86,7 @@ func newCacheCmd(settings rootSettings) *cobra.Command {
 				return err
 			}
 
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed %s from %s\n", entries(removed), dir)
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "removed %s from %s\n", wording.Plural(removed, "entry", "entries"), dir)
 
 			return err
 		},
@@ -118,15 +119,7 @@ func describeCache(summary cache.Summary, dir string) string {
 	}
 
 	return fmt.Sprintf("%s, %d of them expiring, since their model is an alias or their base URL is custom, %s in %s",
-		entries(summary.Entries), summary.Aliases, size(summary.Bytes), dir)
-}
-
-func entries(count int) string {
-	if count == 1 {
-		return "1 entry"
-	}
-
-	return fmt.Sprintf("%d entries", count)
+		wording.Plural(summary.Entries, "entry", "entries"), summary.Aliases, size(summary.Bytes), dir)
 }
 
 func size(bytes int64) string {

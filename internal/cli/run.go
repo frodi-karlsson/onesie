@@ -11,6 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 
 	"github.com/spf13/cobra"
 
@@ -334,7 +335,7 @@ func noteOverriddenBodyState(w io.Writer, loaded *qfile.File, images *imaging, q
 
 	note := ""
 	if dropped > 0 {
-		note = " and its " + plural(dropped, "asset")
+		note = " and its " + wording.Plural(dropped, "asset", "assets")
 	}
 
 	return output.Notice(w, "the input records override the request body's state"+note)
@@ -558,18 +559,6 @@ func jqValue(state, wire any) any {
 	return value
 }
 
-func plural(count int, noun string) string {
-	if count == 1 {
-		return fmt.Sprintf("%d %s", count, noun)
-	}
-
-	if noun == "retry" {
-		return fmt.Sprintf("%d retries", count)
-	}
-
-	return fmt.Sprintf("%d %ss", count, noun)
-}
-
 func rowLine(record output.Record, rec namedRecord) line {
 	var fields map[string]any
 	if object, ok := rec.State.(map[string]any); ok {
@@ -607,15 +596,19 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func stopping(flags runConfig) func(line) bool {
-	if !setting.Get(flags.merged, setting.StopOnAssert) {
+func stopping(stops stopSet) func(line) bool {
+	if !stops.judges() {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
 		return nil
 	}
 
 	return func(l line) bool {
-		return l.record.AssertFailed
+		// An error stops the run through the engine's StopOnError, which also gives it the error's
+		// exit code.
+		verdict := l.record.Verdict()
+
+		return verdict != output.Error && stops.has(verdict)
 	}
 }
 
@@ -630,7 +623,7 @@ type line struct {
 	call   *sharedCall
 }
 
-func streamResult(result engine.Result, falseAsserts, abstains int) error {
+func streamResult(result engine.Result, judged output.Tally) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -651,14 +644,14 @@ func streamResult(result engine.Result, falseAsserts, abstains int) error {
 		return &recordsError{}
 	}
 
-	// After the failed records and before the successful return. A stream carrying both exits 6,
-	// since a record that never answered says more than a gate that answered no.
-	if falseAsserts > 0 {
+	// After the errors and before the successful return. A stream carrying both exits 6, since a
+	// record that never answered says more than a gate that answered no.
+	if judged[output.Fail] > 0 {
 		return &rejectedError{}
 	}
 
 	// Last, since a gate that could not decide says less than one that answered no.
-	if abstains > 0 {
+	if judged[output.Unsure] > 0 {
 		return &abstainError{}
 	}
 
@@ -745,25 +738,21 @@ func ask(
 		return err
 	}
 
+	quiet := setting.Get(flags.merged, setting.Quiet)
+
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(gate, abstain, record, stats)
+	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record, stats)
 
-	if setting.Get(flags.merged, setting.Quiet) {
-		// Beside an assertion -q only silences the output. A gate of its own on top would make a
-		// safety assertion such as value < 0.5 impossible to pass.
-		if gate == nil {
-			return quietResult(built.Questions[0], record.Answers[0].Answer)
-		}
-
-		return assertResult(record)
+	if quiet {
+		return verdictResult(record.Verdict())
 	}
 
 	if writeErr := writeRecord(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 		return writeErr
 	}
 
-	return assertResult(record)
+	return verdictResult(record.Verdict())
 }
 
 type singleState struct {
@@ -772,38 +761,82 @@ type singleState struct {
 	assets   onesie.Assets
 }
 
-func assertResult(record output.Record) error {
-	if record.AssertFailed {
+func verdictResult(verdict output.Verdict) error {
+	switch verdict {
+	case output.Fail:
 		// A false assertion is the same statement a policy rejection makes over one answer, so it
 		// takes the same error and the same exit code.
 		return &rejectedError{}
-	}
-
-	if record.Abstained {
+	case output.Unsure:
 		return &abstainError{}
+	default:
+		return nil
 	}
-
-	return nil
 }
 
-func judge(gate, abstain *assert.Expr, record output.Record, stats *collector) output.Record {
-	if assert.Eval(gate, record) {
-		return record
-	}
-
-	// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
-	// missing abstain expression leaves every false assertion a no.
-	if abstain != nil && assert.Eval(abstain, record) {
-		record.Abstained = true
-		stats.abstained()
-
-		return record
-	}
-
-	record.AssertFailed = true
-	stats.assertFailed()
+func judge(decide decider, record output.Record, stats *collector) output.Record {
+	record.Gate = decide(record)
+	stats.judged(record.Gate)
 
 	return record
+}
+
+type decider func(output.Record) output.Verdict
+
+func askedDecider(gate, abstain *assert.Expr, quiet bool, first plan.Question) decider {
+	// Beside an assertion -q only silences the output. A gate of its own on top would make a
+	// safety assertion such as value < 0.5 impossible to pass.
+	if quiet && gate == nil {
+		return quietly(first)
+	}
+
+	return gated(gate, abstain)
+}
+
+func gated(gate, abstain *assert.Expr) decider {
+	return func(record output.Record) output.Verdict {
+		switch {
+		case gate == nil:
+			return output.Answered
+		case assert.Eval(gate, record):
+			return output.Pass
+		// Eval holds for a nil expression, which is right for a missing gate and wrong here, where a
+		// missing abstain expression leaves every false assertion a no.
+		case abstain != nil && assert.Eval(abstain, record):
+			return output.Unsure
+		default:
+			return output.Fail
+		}
+	}
+}
+
+func quietly(question plan.Question) decider {
+	return func(record output.Record) output.Verdict {
+		if quietAccepts(question, record.Answers[0].Answer) {
+			return output.Pass
+		}
+
+		return output.Fail
+	}
+}
+
+func quietAccepts(question plan.Question, a *answer.Answer) bool {
+	if question.Shape == plan.Noul {
+		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
+		// policy at all, unlike a pick question which has nothing to compare.
+		threshold := quietDefaultThreshold
+		if question.Policy.Threshold != nil {
+			threshold = *question.Policy.Threshold
+		}
+
+		probability, ok := a.Value.(float64)
+
+		return ok && probability >= threshold
+	}
+
+	// A low confidence fallback exits zero in every other output mode. Under -q it is the one
+	// signal the exit code has, so it reports a fail instead.
+	return a.Fallback != "low_confidence"
 }
 
 func writeFailure(
@@ -1073,32 +1106,6 @@ func describe(cause error) *output.Failure {
 	found := classify(cause)
 
 	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
-}
-
-func quietResult(question plan.Question, a *answer.Answer) error {
-	if question.Shape == plan.Noul {
-		// The threshold defaults to a half, so a yes or no question is meaningful under -q with no
-		// policy at all, unlike a pick question which has nothing to compare.
-		threshold := quietDefaultThreshold
-		if question.Policy.Threshold != nil {
-			threshold = *question.Policy.Threshold
-		}
-
-		probability, ok := a.Value.(float64)
-		if ok && probability >= threshold {
-			return nil
-		}
-
-		return &rejectedError{}
-	}
-
-	// A low confidence fallback exits zero in every other output mode. Under -q it is the one
-	// signal the exit code has, so it reports rejection instead.
-	if a.Fallback == "low_confidence" {
-		return &rejectedError{}
-	}
-
-	return nil
 }
 
 type runFlags struct {

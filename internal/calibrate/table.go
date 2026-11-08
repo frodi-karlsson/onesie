@@ -12,6 +12,7 @@ import (
 
 	"golang.org/x/text/width"
 
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
@@ -58,8 +59,8 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 }
 
 func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
-	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %d failed. %s\n",
-		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, s.Failed, aucText(s))
+	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %s. %s\n",
+		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, output.Count(output.Error, s.Failed), aucText(s))
 
 	if s.Labelled == 0 {
 		return
@@ -131,8 +132,8 @@ func rateLines(s RateScore) []string {
 }
 
 func writeChoice(b *strings.Builder, id string, shape plan.Shape, noun string, s PickScore, extra []string) {
-	fmt.Fprintf(b, "%s, %s: labelled %d, %d failed. agreement %s\n",
-		printable(id), ShapeName(shape), s.Labelled, s.Failed, inlineShare(s.Agreement))
+	fmt.Fprintf(b, "%s, %s: labelled %d, %s. agreement %s\n",
+		printable(id), ShapeName(shape), s.Labelled, output.Count(output.Error, s.Failed), inlineShare(s.Agreement))
 
 	if s.Labelled == 0 {
 		return

@@ -36,7 +36,7 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		Write:       run.write,
 		Jobs:        setting.Get(in.flags.merged, setting.Jobs),
 		Unordered:   setting.Get(in.flags.merged, setting.Unordered),
-		StopOnError: setting.Get(in.flags.merged, setting.StopOnError),
+		StopOnError: run.stops.has(output.Error),
 		Abort:       aborting,
 		Stop:        run.stop,
 	})
@@ -78,7 +78,9 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, setting.Get(in.flags.merged, setting.StopOnError), in.resume)
+	stops := stopsOf(in.flags)
+
+	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, stops.has(output.Error), in.resume)
 	if err != nil {
 		return nil, err
 	}
@@ -87,11 +89,12 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 	run := &streamRun{
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
 		abstain: inv.abstain, asker: asker, model: model, questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
-		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode),
+		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode, stops),
 		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
 		delimited:     in.outputMode == output.CSV || in.outputMode == output.TSV,
 		headerWritten: resume.Header,
 		md:            markdown(out, in.outputMode, inv.plan, inv.gate != nil, inv.namer != nil),
+		stops:         stops,
 	}
 
 	if !setting.Get(in.flags.merged, setting.NoDedup) {
@@ -102,13 +105,14 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		})
 	}
 
-	run.stop = watched(stopping(in.flags), &run.stopped)
+	run.stop = watched(stopping(stops), &run.stopped)
 
 	return run, nil
 }
 
 type streamRun struct {
 	flags         runConfig
+	stops         stopSet
 	built         *plan.Plan
 	mapper        *jq.Expr
 	images        *imaging
@@ -243,7 +247,7 @@ func wrapRepeated(rec namedRecord) error {
 		return errWrapRepeated
 	}
 
-	return fmt.Errorf("--merge-key %s cannot write this failed record, since its line wraps under %s: %w",
+	return fmt.Errorf("--merge-key %s cannot write this record's error, since its line wraps under %s: %w",
 		setting.WrapKey, setting.WrapKey, cause)
 }
 
@@ -277,7 +281,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 	// A false assertion or an abstain is not an engine failure: the record succeeded and the answer
 	// is complete, so the outcome is carried on the line rather than returned as an error the engine
 	// would count against result.Failed.
-	record = judge(r.gate, r.abstain, record, r.stats)
+	record = judge(gated(r.gate, r.abstain), record, r.stats)
 
 	answered := rowLine(record, rec)
 	answered.call = call
@@ -362,7 +366,7 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 	}
 
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.
-	outcome := streamResult(result, r.stats.falseAssertions(), r.stats.abstains())
+	outcome := streamResult(result, r.stats.verdicts())
 	if outcome == nil {
 		return r.shared.noticeError()
 	}
@@ -399,7 +403,7 @@ func finishStream(
 	}
 
 	// A stored failure a resume skipped fails the run as it failed the one that wrote it.
-	result.Failed += skips.Failed
+	result.Failed += skips.Verdicts[output.Error]
 
 	if freshAbort := source.freshRunAbort(); freshAbort != nil {
 		return result, freshAbort

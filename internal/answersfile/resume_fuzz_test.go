@@ -19,7 +19,7 @@ func FuzzLineVerdict(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, kind, message string, status int, hasStatus bool, outcome uint8, id string, line []byte) {
 		rec := writtenRecord(kind, message, status, hasStatus, outcome, id)
-		want := Verdict{Rejected: rec.AssertFailed, Abstained: rec.Abstained, Failure: rec.Failure}
+		want := Stored{Verdict: rec.Verdict(), Failure: rec.Failure}
 
 		for _, mode := range []output.Mode{output.JSON, output.Values} {
 			var written bytes.Buffer
@@ -76,6 +76,8 @@ func writtenRecord(kind, message string, status int, hasStatus bool, outcome uin
 	}
 
 	switch outcome % 4 {
+	case 0:
+		rec.Gate = output.Pass
 	case 1:
 		// Every message onesie writes is an error's text, which is never empty.
 		rec.Failure = &output.Failure{Kind: output.Kind(kind), Message: "onesie: " + message}
@@ -83,20 +85,20 @@ func writtenRecord(kind, message string, status int, hasStatus bool, outcome uin
 			rec.Failure.Status = &status
 		}
 	case 2:
-		rec.AssertFailed = true
+		rec.Gate = output.Fail
 	case 3:
-		rec.Abstained = true
+		rec.Gate = output.Unsure
 	}
 
 	return rec
 }
 
-func onlyVerdict(t *testing.T, format Format, written []byte) Verdict {
+func onlyVerdict(t *testing.T, format Format, written []byte) Stored {
 	t.Helper()
 
-	var judged []Verdict
+	var judged []Stored
 
-	if err := format.eachVerdict(bytes.NewReader(written), func(_ Span, stored Verdict) {
+	if err := format.eachVerdict(bytes.NewReader(written), func(_ Span, stored Stored) {
 		judged = append(judged, stored)
 	}); err != nil {
 		t.Fatalf("reading %q back: %v", written, err)
@@ -109,8 +111,8 @@ func onlyVerdict(t *testing.T, format Format, written []byte) Verdict {
 	return judged[0]
 }
 
-func sameVerdict(got, want Verdict, whole bool) bool {
-	if got.Rejected != want.Rejected || got.Abstained != want.Abstained || (got.Failure == nil) != (want.Failure == nil) {
+func sameVerdict(got, want Stored, whole bool) bool {
+	if got.Verdict != want.Verdict || (got.Failure == nil) != (want.Failure == nil) {
 		return false
 	}
 

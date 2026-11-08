@@ -18,6 +18,7 @@ import (
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/output"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 func withStats(
@@ -68,10 +69,8 @@ type collector struct {
 	dedups         int
 	cached         int
 	requests       int
-	failed         int
 	failedRequests int
-	falseAsserts   int
-	abstainCount   int
+	tally          output.Tally
 	questions      int
 	inputTokens    int
 	outputTokens   int
@@ -218,7 +217,7 @@ func (c *collector) recordFailure(cause error, reached bool, questions int) {
 	defer c.mu.Unlock()
 
 	c.records++
-	c.failed++
+	c.tally[output.Error]++
 	c.questions += questions
 
 	// An input error never reached the client, so it is a record and not a request. Counting it
@@ -243,7 +242,7 @@ func (c *collector) deduplicated(cause error) {
 	c.dedups++
 
 	if cause != nil {
-		c.failed++
+		c.tally[output.Error]++
 	}
 }
 
@@ -252,37 +251,24 @@ func (c *collector) skip(skips answersfile.Tally) {
 	defer c.mu.Unlock()
 
 	c.skipped += skips.Records
-	c.failed += skips.Failed
-	c.falseAsserts += skips.Rejected
-	c.abstainCount += skips.Abstained
+
+	for verdict, count := range skips.Verdicts {
+		c.tally[verdict] += count
+	}
 }
 
-func (c *collector) assertFailed() {
+func (c *collector) judged(verdict output.Verdict) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	c.falseAsserts++
+	c.tally[verdict]++
 }
 
-func (c *collector) falseAssertions() int {
+func (c *collector) verdicts() output.Tally {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	return c.falseAsserts
-}
-
-func (c *collector) abstained() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.abstainCount++
-}
-
-func (c *collector) abstains() int {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	return c.abstainCount
+	return c.tally
 }
 
 func (c *collector) snapshot(elapsed time.Duration) Stats {
@@ -304,8 +290,7 @@ func (c *collector) snapshot(elapsed time.Duration) Stats {
 	return Stats{
 		Mocked:  c.mocked,
 		Records: c.records, Skipped: c.skipped, Dedups: c.dedups, Cached: c.cached, Requests: c.requests,
-		Failed: c.failed, FailedRequests: c.failedRequests,
-		FalseAsserts: c.falseAsserts, Abstains: c.abstainCount, Questions: c.questions,
+		Verdicts: c.tally, FailedRequests: c.failedRequests, Questions: c.questions,
 		InputTokens: c.inputTokens, OutputTokens: c.outputTokens, Cost: c.cost,
 		Models: slices.Sorted(maps.Keys(c.models)), Attempts: c.attempts, Retries: retries,
 		AttemptTimeout: c.timeout, Elapsed: elapsed,
@@ -328,16 +313,12 @@ type Stats struct {
 	// Cached counts the records answered from the response cache, which sent no request.
 	Cached   int
 	Requests int
-	Failed   int
-	// FailedRequests counts the failed records that reached the client, a part of both Failed and
-	// Requests, so a mock run never counts one as answered.
+	// Verdicts counts the records by how each ended, a resume's skipped ones included. Error also
+	// counts the records that never became a request.
+	Verdicts output.Tally
+	// FailedRequests counts the error records that reached the client, a part of both
+	// Verdicts[output.Error] and Requests, so a mock run never counts one as answered.
 	FailedRequests int
-	// FalseAsserts counts the records whose assertion did not hold, a resume's skipped ones
-	// included, apart from Failed, since a false assertion judges a complete record.
-	FalseAsserts int
-	// Abstains counts the records whose assertion did not hold and whose abstain expression did, a
-	// resume's skipped ones included.
-	Abstains int
 	// Questions counts the questions the requests asked, so a record the cache answered adds none.
 	Questions    int
 	InputTokens  int
@@ -364,11 +345,11 @@ func (s Stats) String() string {
 
 	switch {
 	case split:
-		parts = append(parts, plural(total, "record"))
+		parts = append(parts, wording.Plural(total, "record", "records"))
 	case s.Mocked:
-		parts = append(parts, plural(s.Requests, "record")+" answered from the mock")
+		parts = append(parts, wording.Plural(s.Requests, "record", "records")+" answered from the mock")
 	default:
-		parts = append(parts, plural(s.Requests, "request"))
+		parts = append(parts, wording.Plural(s.Requests, "request", "requests"))
 	}
 
 	if s.Skipped > 0 {
@@ -383,16 +364,16 @@ func (s Stats) String() string {
 		parts = append(parts, fmt.Sprintf("%d cached", s.Cached))
 	}
 
-	if s.Failed > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", s.Failed))
+	if errored := s.Verdicts[output.Error]; errored > 0 {
+		parts = append(parts, output.Count(output.Error, errored))
 	}
 
-	if s.FalseAsserts > 0 {
-		parts = append(parts, plural(s.FalseAsserts, "false assertion"))
+	if fails := s.Verdicts[output.Fail]; fails > 0 {
+		parts = append(parts, output.Count(output.Fail, fails))
 	}
 
-	if s.Abstains > 0 {
-		parts = append(parts, plural(s.Abstains, "abstain"))
+	if unsures := s.Verdicts[output.Unsure]; unsures > 0 {
+		parts = append(parts, output.Count(output.Unsure, unsures))
 	}
 
 	if split {
@@ -400,7 +381,7 @@ func (s Stats) String() string {
 	}
 
 	parts = append(parts,
-		plural(s.Questions, "question")+" asked",
+		wording.Plural(s.Questions, "question", "questions")+" asked",
 		fmt.Sprintf("%d in / %d out tokens", s.InputTokens, s.OutputTokens))
 
 	if s.Cost != nil {
@@ -426,7 +407,7 @@ func (s Stats) requestClause() string {
 		return fmt.Sprintf("%d answered from the mock", s.Requests-s.FailedRequests)
 	}
 
-	return plural(s.Requests, "request")
+	return wording.Plural(s.Requests, "request", "requests")
 }
 
 func roundElapsed(d time.Duration) string {
@@ -460,11 +441,11 @@ func (s Stats) attemptClause() string {
 	}
 
 	if retries == 0 {
-		return plural(s.Attempts, "attempt")
+		return wording.Plural(s.Attempts, "attempt", "attempts")
 	}
 
 	return fmt.Sprintf("%s (%s: %s)",
-		plural(s.Attempts, "attempt"), plural(retries, "retry"), s.retryBreakdown())
+		wording.Plural(s.Attempts, "attempt", "attempts"), wording.Plural(retries, "retry", "retries"), s.retryBreakdown())
 }
 
 func (s Stats) retryBreakdown() string {

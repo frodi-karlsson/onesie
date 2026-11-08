@@ -11,8 +11,8 @@ Flags:
       --prune                   Drop the answered ids the input no longer has. Needs
                                 --resume and --id.
       --unordered               Emit records as they complete. Streaming only.
-      --stop-on-error           End the run at the first failure, with its exit code, or
-                                6 for a line onesie could not read. Streaming only.
+      --stop-on-error           End the run at the first error, with its exit code, or 6
+                                for a line onesie could not read. Streaming only.
       --no-dedup                Ask every record even when its request repeats an
                                 earlier one. Streaming only.
       --long-context            Raise the context limits to 262k tokens, slower and less
@@ -45,7 +45,7 @@ How they work together:
   requests. onesie cache reports entries and onesie cache clear empties them. Streams
   normally preserve input order. --unordered emits completed records immediately.
   --no-dedup asks every record even when its request repeats, independently of the disk
-  cache. --stop-on-error ends at the first failure with its exit code, or 6 for an
+  cache. --stop-on-error ends at the first error with its exit code, or 6 for an
   unreadable record.
 
   --resume needs --out. Without --id, a stream continues after the last complete line.
@@ -58,7 +58,7 @@ How they work together:
   id, which answers every record, as in {"urgent":0.9}, or one line per record in the
   shape -o json writes, so the --out file of a real run replays. Lines match records by
   id under --id and by position otherwise. Blank lines are refused, apart from those at
-  the end. An entry {"error":503} fails a record as that status does,
+  the end. An entry {"error":503} makes the record an error, as that status does,
   {"error":"timeout"} as a timeout and {"error":"connection"} as a dropped connection.
   Each is retried as a live failure is, without the wait. --print-request writes API
   shaped request bodies and sends none. Question export writes configuration rather than

@@ -50,8 +50,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 
 	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
-	buf = appendAssert(buf, rec.AssertFailed)
-	buf = appendAbstain(buf, rec.Abstained)
+	buf = appendVerdict(buf, rec.Verdict())
 
 	if rec.Model != "" {
 		buf = appendKey(buf, "model")
@@ -105,8 +104,7 @@ func valuesBytes(rec Record) ([]byte, error) {
 
 	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
-	buf = appendAssert(buf, rec.AssertFailed)
-	buf = appendAbstain(buf, rec.Abstained)
+	buf = appendVerdict(buf, rec.Verdict())
 
 	for _, named := range rec.Answers {
 		if named.Answer == nil {
@@ -170,24 +168,15 @@ func appendFailure(buf []byte, failure *Failure) []byte {
 	return append(buf, encoded...)
 }
 
-func appendAssert(buf []byte, failed bool) []byte {
-	if !failed {
+func appendVerdict(buf []byte, verdict Verdict) []byte {
+	switch verdict {
+	case Fail:
+		return append(appendKey(buf, "assert"), "false"...)
+	case Unsure:
+		return append(appendKey(buf, "abstain"), "true"...)
+	default:
 		return buf
 	}
-
-	buf = appendKey(buf, "assert")
-
-	return append(buf, "false"...)
-}
-
-func appendAbstain(buf []byte, abstained bool) []byte {
-	if !abstained {
-		return buf
-	}
-
-	buf = appendKey(buf, "abstain")
-
-	return append(buf, "true"...)
 }
 
 func appendKey(buf []byte, name string) []byte {

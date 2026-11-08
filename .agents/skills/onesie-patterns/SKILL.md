@@ -37,7 +37,7 @@ onesie --ask group='which team owns this' --pick billing,shipping,support -r --s
 
 ### To choose among many candidates, stream a yes or no over each one, then --pick among the survivors.
 
-A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.fits.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .fits.decision == true) | .id'`, since a failed record reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.
+A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.fits.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .fits.decision == true) | .id'`, since a record with an error reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.
 
 **Bad:**
 

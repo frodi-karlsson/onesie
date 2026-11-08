@@ -138,7 +138,8 @@ func streamRequests(
 		built: inv.plan, mapper: inv.mapper, images: inv.images, provider: chosen.provider,
 		model: chosen.modelFor(inv.plan.Model), questions: plan.WireAll(inv.plan.Questions),
 	}
-	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON)
+	stops := stopsOf(flags)
+	source := records(cmd.Context(), settings, flags.inputMode, flags, inv.namer, nil, resume, output.JSON, stops)
 
 	result, err := engine.Run(cmd.Context(), engine.Config[namedRecord, []byte]{
 		Source:      source,
@@ -146,7 +147,7 @@ func streamRequests(
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        setting.Get(flags.merged, setting.Jobs),
 		Unordered:   setting.Get(flags.merged, setting.Unordered),
-		StopOnError: setting.Get(flags.merged, setting.StopOnError),
+		StopOnError: stops.has(output.Error),
 		Abort:       aborting,
 	})
 	source.stop()
@@ -156,7 +157,7 @@ func streamRequests(
 	}
 
 	// A dry run asks no question, so no record can have carried an assertion.
-	return streamResult(result, 0, 0)
+	return streamResult(result, output.Tally{})
 }
 
 type requestRun struct {

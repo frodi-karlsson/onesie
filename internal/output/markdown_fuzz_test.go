@@ -66,7 +66,7 @@ func FuzzMarkdownTable(f *testing.F) {
 
 		var single bytes.Buffer
 
-		rec := Record{ID: message, Model: model, Answers: named, AssertFailed: true}
+		rec := Record{ID: message, Model: model, Answers: named, Gate: Fail}
 		if err := WriteMarkdown(&single, rec, MarkdownOptions{Assert: gate}); err != nil {
 			t.Fatalf("WriteMarkdown() error = %v", err)
 		}
@@ -88,7 +88,7 @@ func FuzzMarkdownTable(f *testing.F) {
 		for _, rec := range []Record{
 			rec,
 			{ID: level, Model: legend, Failure: &Failure{Kind: "input", Message: message}},
-			{ID: 1.5, Answers: named, Abstained: true},
+			{ID: 1.5, Answers: named, Gate: Unsure},
 		} {
 			if err := table.Write(rec); err != nil {
 				t.Fatalf("Write() error = %v", err)

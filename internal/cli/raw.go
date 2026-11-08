@@ -15,6 +15,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
 func streamRaw(
@@ -30,7 +31,9 @@ func streamRaw(
 		return err
 	}
 
-	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, setting.Get(flags.merged, setting.StopOnError), resume)
+	stops := stopsOf(flags)
+
+	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, stops.has(output.Error), resume)
 	if err != nil {
 		return err
 	}
@@ -40,7 +43,7 @@ func streamRaw(
 		left:   resume.Skip,
 		stored: resume.Stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
-		haltOnError: setting.Get(flags.merged, setting.StopOnError),
+		stops: stops,
 	}
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
@@ -49,7 +52,7 @@ func streamRaw(
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        setting.Get(flags.merged, setting.Jobs),
 		Unordered:   setting.Get(flags.merged, setting.Unordered),
-		StopOnError: setting.Get(flags.merged, setting.StopOnError),
+		StopOnError: stops.has(output.Error),
 		Abort:       aborting,
 	})
 
@@ -59,7 +62,7 @@ func streamRaw(
 	}
 
 	// A request body carries no assertion, so no record can have failed one.
-	return streamResult(result, 0, 0)
+	return streamResult(result, output.Tally{})
 }
 
 func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) (*rawRun, error) {

@@ -39,10 +39,10 @@ func TestNewDelimited(t *testing.T) {
 	}
 
 	gated := answered
-	gated.AssertFailed = true
+	gated.Gate = output.Fail
 
 	abstained := answered
-	abstained.Abstained = true
+	abstained.Gate = output.Unsure
 
 	tests := []struct {
 		name    string
