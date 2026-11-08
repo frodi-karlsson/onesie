@@ -1,0 +1,18 @@
+Exit codes:
+  0    every record was answered and every --require held
+  1    a --require did not hold
+  2    usage or validation error, including a bad label or record
+  3    the key was refused, the account is out of credits, the keychain failed, or
+       profiles.json or credentials.json is exposed. No report prints
+  6    the report holds one or more failed records, which wins over 1
+  130  interrupted. No report prints
+
+More help:
+  onesie help calibrate asking
+  onesie help calibrate input
+  onesie help calibrate evaluation
+  onesie help calibrate output
+  onesie help calibrate connections
+  onesie help calibrate execution
+  onesie help calibrate exit-codes
+  onesie help calibrate all

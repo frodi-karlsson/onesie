@@ -18,9 +18,11 @@ const helpLabelledRecord = `{"id":"a","text":"The server is down","urgent":true}
 func helpTopics(command settingrow.Command) []helpTopic {
 	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions(), overview: 4}
 	output := helpTopic{name: "output", title: "Output", body: helpOutput(command), overview: 3}
+	codes := rootExitCodes
 	if command == settingrow.CommandCalibrate {
 		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation(), overview: 3}
 		output.overview = 4
+		codes = calibrateExitCodes
 	}
 	return []helpTopic{
 		{name: "asking", title: "Asking", body: helpAsking(command), overview: 1},
@@ -29,6 +31,7 @@ func helpTopics(command settingrow.Command) []helpTopic {
 		output,
 		{name: "connections", title: "Connections", body: helpConnections(), overview: 5},
 		{name: "execution", title: "Execution", body: helpExecution(command), overview: 6},
+		{name: "exit-codes", codes: codes},
 	}
 }
 
@@ -37,6 +40,7 @@ type helpTopic struct {
 	title    string
 	body     string
 	overview int
+	codes    []exitCodeLine
 }
 
 func helpAsking(command settingrow.Command) string {

@@ -1,6 +1,6 @@
 # Settings lookup
 
-Use `onesie help all` for command flags and exit codes, and `onesie help calibrate all` for calibration.
+Use `onesie help all` for command flags, `onesie help exit-codes` for exit codes, and `onesie help calibrate all` for calibration.
 
 ## What a run uses
 
@@ -83,12 +83,13 @@ to see which profile, model and endpoint a command will use.
 
 ## Exit codes
 
-`onesie help all` lists every exit code. `onesie help calibrate all` lists the codes calibration uses.
+`onesie help exit-codes` lists every exit code. `onesie help calibrate exit-codes` lists the codes calibration uses.
 
 ### Related help
 
 | To look up | Run |
 |---|---|
+| Exit codes and what each means | `onesie help exit-codes` |
 | Gates, thresholds and abstention | `onesie help decisions` |
 | Reading records and writing results | `onesie help input` and `onesie help output` |
 | Caching and resuming a run | `onesie help execution` |

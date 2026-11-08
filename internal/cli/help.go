@@ -49,6 +49,10 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			if b.Len() > 0 {
 				b.WriteString("\n")
 			}
+			if section.codes != nil {
+				b.WriteString(exitCodesSection(section.codes) + "\n")
+				continue
+			}
 			fmt.Fprintf(&b, "%s\n\nFlags:\n", section.title)
 			for _, flag := range selectHelpFlags(flags, section.name, false) {
 				writeHelpFlag(&b, flag)
@@ -57,14 +61,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			writeHelpText(&b, section.body, "  ", "  ")
 			writeHelpExamples(&b, examples, section.name)
 		}
-		if topic == "all" {
-			b.WriteString("\n")
-			codes := rootExitCodes
-			if command == settingrow.CommandCalibrate {
-				codes = calibrateExitCodes
-			}
-			b.WriteString(exitCodesSection(codes) + "\n")
-		} else {
+		if topic != "all" {
 			writeHelpNavigation(&b, cmd, topics)
 		}
 	}

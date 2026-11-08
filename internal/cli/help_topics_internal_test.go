@@ -2,8 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -68,4 +72,87 @@ func TestHelpTopics(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should list every declared exit code on the root exit-codes topic", func(t *testing.T) {
+		t.Parallel()
+
+		declared := declaredExitCodes(t)
+		if listed := listedExitCodes(t, settingrow.CommandRoot); !slices.Equal(listed, declared) {
+			t.Fatalf("help exit-codes lists %v, exit.go declares %v", listed, declared)
+		}
+	})
+
+	t.Run("should list only declared exit codes in ascending order on the calibrate exit-codes topic", func(t *testing.T) {
+		t.Parallel()
+
+		declared := declaredExitCodes(t)
+		listed := listedExitCodes(t, settingrow.CommandCalibrate)
+		if len(listed) == 0 || !slices.IsSorted(listed) {
+			t.Fatalf("help calibrate exit-codes lists %v", listed)
+		}
+		for _, code := range listed {
+			if !slices.Contains(declared, code) {
+				t.Errorf("help calibrate exit-codes lists %d, which exit.go does not declare", code)
+			}
+		}
+	})
+}
+
+func declaredExitCodes(t *testing.T) []int {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), "exit.go", nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var codes []int
+	for _, decl := range file.Decls {
+		group, isGroup := decl.(*ast.GenDecl)
+		if !isGroup || group.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range group.Specs {
+			value, isValue := spec.(*ast.ValueSpec)
+			if !isValue {
+				continue
+			}
+			for i, name := range value.Names {
+				if !strings.HasPrefix(name.Name, "Exit") || i >= len(value.Values) {
+					continue
+				}
+				literal, isLiteral := value.Values[i].(*ast.BasicLit)
+				if !isLiteral {
+					t.Fatalf("%s is not a literal", name.Name)
+				}
+				code, err := strconv.Atoi(literal.Value)
+				if err != nil {
+					t.Fatal(err)
+				}
+				codes = append(codes, code)
+			}
+		}
+	}
+
+	slices.Sort(codes)
+	return codes
+}
+
+func listedExitCodes(t *testing.T, command settingrow.Command) []int {
+	t.Helper()
+
+	var page bytes.Buffer
+	if err := writeHelp(&page, helpTestCommand(t, command), command, "exit-codes"); err != nil {
+		t.Fatal(err)
+	}
+
+	line := regexp.MustCompile(`^  ([0-9]+) +\S`)
+	var codes []int
+	for _, text := range strings.Split(page.String(), "\n") {
+		if match := line.FindStringSubmatch(text); match != nil {
+			code, _ := strconv.Atoi(match[1])
+			codes = append(codes, code)
+		}
+	}
+	return codes
 }

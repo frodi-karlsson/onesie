@@ -264,6 +264,8 @@ func TestResolveHelp(t *testing.T) {
 	}{
 		{[]string{"decisions"}, "onesie", "decisions", false},
 		{[]string{"calibrate", "evaluation"}, "onesie calibrate", "evaluation", false},
+		{[]string{"exit-codes"}, "onesie", "exit-codes", false},
+		{[]string{"calibrate", "exit-codes"}, "onesie calibrate", "exit-codes", false},
 		{[]string{"questions"}, "onesie questions", "", false},
 		{[]string{"profile", "create"}, "onesie profile create", "", false},
 		{[]string{"decisions", "extra"}, "", "", true},
@@ -294,8 +296,8 @@ func TestCompleteHelp(t *testing.T) {
 		prefix string
 		want   []string
 	}{
-		{nil, "", []string{"all", "asking", "cache", "calibrate", "completion", "connections", "decisions", "execution", "help", "input", "output", "profile", "questions", "version"}},
-		{[]string{"calibrate"}, "", []string{"all", "asking", "connections", "evaluation", "execution", "input", "output"}},
+		{nil, "", []string{"all", "asking", "cache", "calibrate", "completion", "connections", "decisions", "execution", "exit-codes", "help", "input", "output", "profile", "questions", "version"}},
+		{[]string{"calibrate"}, "", []string{"all", "asking", "connections", "evaluation", "execution", "exit-codes", "input", "output"}},
 		{nil, "dec", []string{"decisions"}},
 		{[]string{"decisions"}, "", nil},
 		{[]string{"profile"}, "cr", []string{"create"}},

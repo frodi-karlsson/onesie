@@ -96,8 +96,8 @@ and experimental `--image` and `--box` questions work with images.
 
 ## Help and settings
 
-`onesie --help` shows common tasks. Use `onesie help decisions` for gates and exit codes,
-`onesie help input` for streams, and `onesie help all` for the full flag reference.
+`onesie --help` shows common tasks. Use `onesie help decisions` for gates, `onesie help exit-codes`
+for exit codes, `onesie help input` for streams, and `onesie help all` for the full flag reference.
 `onesie help calibrate all` covers calibration.
 
 Look up [configuration precedence, profile fields, environment variables and question file keys](REFERENCE.md).
