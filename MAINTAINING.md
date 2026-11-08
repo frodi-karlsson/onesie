@@ -232,14 +232,19 @@ goreleaser release --snapshot --clean
 
 ### setup-onesie
 
-[setup-onesie](https://github.com/frodi-karlsson/setup-onesie) runs onesie with `-f`, `-o json` and
-`--state -`, and reads exit codes 0, 1 and 7. Before a release that removes or renames one of those
+[setup-onesie](https://github.com/frodi-karlsson/setup-onesie) checks each install with
+`onesie version -o json` and its `version` field, runs onesie with `-f`, `-o json` and `--state -`,
+and reads exit codes 0, 1 and 7. Before a release that removes or renames one of those commands or
 flags, or changes that output or those exit codes:
 
 1. Release a candidate such as `v0.15.0-rc.1`, and run setup-onesie's `Compatibility` workflow by
-   hand with that `version`. If it fails, release setup-onesie with `below_version` in its `lib.sh`
-   set to the new minor, such as `0.15.0`, before this release.
+   hand with that `version`. It installs the candidate, then runs the run mode cases. If either
+   fails, release setup-onesie with `below_version` in its `lib.sh` set to the new minor, such as
+   `0.15.0`, before this release.
 2. Once setup-onesie adapts, release it again with `below_version` cleared or `min_version` raised.
+
+The workflow also runs weekly against the newest release. When either step fails outside a pull
+request, it opens an issue titled `onesie VERSION breaks setup-onesie`.
 
 ### The Homebrew formula
 
