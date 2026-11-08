@@ -22,24 +22,6 @@ const (
 	SourceImages
 )
 
-// String names the source as an error message would spell it.
-func (s Source) String() string {
-	switch s {
-	case SourceStdin:
-		return "stdin"
-	case SourceState:
-		return "--state"
-	case SourceStateFile:
-		return "--state-file"
-	case SourceBody:
-		return "a request body"
-	case SourceImages:
-		return "--image"
-	default:
-		return "nothing"
-	}
-}
-
 // ParseMode maps the -i flag onto a Mode.
 func ParseMode(name string) (Mode, error) {
 	switch name {

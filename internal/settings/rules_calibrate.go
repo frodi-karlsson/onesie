@@ -130,26 +130,25 @@ func checkCalibrateUsage(v View) error {
 	return nil
 }
 
-func prepareCalibration(v View) (CalibrationArguments, error, error) {
-	var args CalibrationArguments
-	var cutsError error
-	if typed(v, Cuts.Name()) {
-		args.Cuts, cutsError = calibrate.ParseCuts(Get(v.Merged, Cuts))
-		if cutsError != nil {
-			cutsError = fmt.Errorf("--cuts %w", cutsError)
-		}
-	} else {
-		args.Cuts = calibrate.DefaultCuts()
+func calibrationCuts(v View) ([]float64, error) {
+	if !typed(v, Cuts.Name()) {
+		return calibrate.DefaultCuts(), nil
 	}
+	cuts, err := calibrate.ParseCuts(Get(v.Merged, Cuts))
+	if err != nil {
+		return nil, fmt.Errorf("--cuts %w", err)
+	}
+	return cuts, nil
+}
+
+func calibrationRequirements(v View) ([]calibrate.Requirement, error) {
+	var requirements []calibrate.Requirement
 	for _, text := range listOf(v, requireName) {
 		req, err := calibrate.ParseRequirement(text)
 		if err != nil {
-			return CalibrationArguments{}, cutsError, fmt.Errorf("--require '%s' %w", text, err)
+			return nil, fmt.Errorf("--require '%s' %w", text, err)
 		}
-		args.Requirements = append(args.Requirements, req)
+		requirements = append(requirements, req)
 	}
-	if cutsError != nil {
-		return CalibrationArguments{}, cutsError, nil
-	}
-	return args, nil, nil
+	return requirements, nil
 }

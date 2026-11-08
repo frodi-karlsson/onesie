@@ -1,6 +1,7 @@
 package hooks_test
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -36,6 +37,29 @@ func TestPreflight(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should report a missing binary in the words the onesie-setup skill triggers on", func(t *testing.T) {
+		data, err := os.ReadFile(filepath.Join("..", "skills", "onesie-setup", "skill.json"))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		var skill struct {
+			Description string `json:"description"`
+		}
+		if err := json.Unmarshal(data, &skill); err != nil {
+			t.Fatal(err)
+		}
+
+		const phrase = "onesie is not on PATH"
+		if !strings.Contains(skill.Description, phrase) {
+			t.Fatalf("the onesie-setup description no longer says %q: %s", phrase, skill.Description)
+		}
+
+		if out := runPreflight(t, t.TempDir(), nil); !strings.Contains(out, phrase) {
+			t.Fatalf("the hook does not say %q: %s", phrase, out)
+		}
+	})
 }
 
 func TestPreflightCompatibility(t *testing.T) {
@@ -90,7 +114,7 @@ func TestPreflightBinary(t *testing.T) {
 	}{
 		{"should report no key", nil, "no API key resolves"},
 		{"should accept a keyless loopback endpoint", []string{"ONESIE_BASE_URL=" + server.URL + "/sentinel-secret"}, "needs no key"},
-		{"should require the Cloudflare account", []string{"ONESIE_PROVIDER=cloudflare", "CLOUDFLARE_API_TOKEN=sentinel-secret"}, "no account resolves"},
+		{"should require the Cloudflare account", []string{"ONESIE_PROVIDER=cloudflare", "CLOUDFLARE_API_TOKEN=sentinel-secret"}, "but no account does"},
 		{"should safely refuse multiline switches", []string{"ONESIE_CACHE=bad\nsentinel-secret"}, "Unset or correct ONESIE_CACHE"},
 		{"should safely refuse invalid long context", []string{"ONESIE_LONG_CONTEXT=sentinel-secret"}, "Unset or correct ONESIE_LONG_CONTEXT"},
 		{"should refuse mock mode", []string{"ONESIE_MOCK=1"}, "automatic readiness is unavailable"},
