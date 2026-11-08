@@ -10,6 +10,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/providers"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 const helpLabelledRecord = `{"id":"a","text":"The server is down","urgent":true}`
@@ -125,31 +126,49 @@ func helpOutput(command settingrow.Command) string {
 }
 
 func helpConnections() string {
+	profileEnv, providerEnv := settingEnv(setting.Profile.Name()), settingEnv(setting.Provider.Name())
+	baseURLEnv, modelEnv := settingEnv(setting.APIEndpoint.Name()), settingEnv(setting.Model.Name())
 	return "onesie is a Unix filter over the System One API, served by " + providers.Names() + ". " +
 		"A profile in profiles.json holds a provider, a key in the OS keychain or file, and optionally a model and base URL or " + providers.WithAccounts() + " account. " +
 		"onesie profile create stores one and onesie profile use makes it the default.\n\n" +
-		"A run uses the profile named by --profile, then ONESIE_PROFILE, then the default profile. --profile overrides ONESIE_PROVIDER. " +
-		"--provider runs without a profile and overrides ONESIE_PROVIDER and the default profile. " +
-		"It is refused beside --profile or ONESIE_PROFILE. ONESIE_PROVIDER beside ONESIE_PROFILE is also refused. " +
+		"A run uses the profile named by --profile, then " + profileEnv + ", then the default profile. --profile overrides " + providerEnv + ". " +
+		"--provider runs without a profile and overrides " + providerEnv + " and the default profile. " +
+		"It is refused beside --profile or " + profileEnv + ". " + providerEnv + " beside " + profileEnv + " is also refused. " +
 		"With no profiles, typesafe runs directly. Provider keys come from " + providers.KeyVariables() + ". " +
 		"The chosen profile key and endpoint beat the environment. Provider variables beat the default profile. " +
-		"--base-url wins over a chosen profile, then ONESIE_BASE_URL, then the provider base URL or account variable, then the default profile. " +
-		"On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL.\n\n" +
+		"--base-url wins over a chosen profile, then " + baseURLEnv + ", then the provider base URL or account variable, then the default profile. " +
+		baseURLPrecedence() + ".\n\n" +
 		"A key goes only with its own endpoint. A custom profile endpoint takes only the key from that profile. A custom URL from a variable takes only the provider key variable. " +
 		"A typed --base-url takes the chosen profile key or provider variable, never the default profile key. A keyless profile reads no key variable. " +
 		"No provider uses another provider key. The base URL and account are one setting, taken whole from the highest source.\n\n" +
 		"On " + providers.WithAccounts() + " an account comes from the profile, " + providers.AccountVariables() + " or a base URL holding it. " +
-		"--model overrides the chosen profile or request body. TYPESAFE_DEFAULT_MODEL applies when none names a model and beats the model in the default profile. " +
+		"--model overrides the chosen profile or request body. " + modelEnv + " applies when none names a model and beats the model in the default profile. " +
 		"A custom base URL needs no key and sends none when none resolves. Plain HTTP to a host other than this machine needs --allow-http, " +
 		"which permits sending the request and any API key over it. Without that flag the run exits 2 before a request. " +
 		"A profile storing such a URL needs --allow-http on every run too."
+}
+
+func baseURLPrecedence() string {
+	row, _ := settingrow.Lookup(setting.APIEndpoint.Name())
+	var names []string
+	var provider string
+	for _, variable := range row.Env {
+		if variable.Half != settingrow.HalfBaseURL {
+			continue
+		}
+		names = append(names, variable.Name)
+		if variable.Provider != "" {
+			provider = variable.Provider
+		}
+	}
+	return "On " + provider + ", " + strings.Join(names, " beats ")
 }
 
 func helpExecution(command settingrow.Command) string {
 	common := fmt.Sprintf("--jobs bounds records in flight. --timeout is seconds per attempt. Requests with images default to %s seconds unless given. ", strconv.FormatFloat(limits.AssetAttemptTimeout.Seconds(), 'f', -1, 64)) +
 		"Retries happen after failed attempts, bounded by --retries. --max-retry-after caps seconds spent waiting for a server Retry-After. " +
 		"--long-context raises context limits, is slower and less accurate, and is experimental on TypeSafe's side. version reports the built in limits.\n\n" +
-		"--cache, or ONESIE_CACHE=1, stores successful responses on disk and reuses repeated requests. onesie cache reports entries and onesie cache clear empties them. "
+		"--cache, or " + settingEnv(setting.Cache.Name()) + "=1, stores successful responses on disk and reuses repeated requests. onesie cache reports entries and onesie cache clear empties them. "
 	if command == settingrow.CommandRoot {
 		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
@@ -162,7 +181,7 @@ func helpExecution(command settingrow.Command) string {
 	common += "\n\n" + resume +
 		"A record whose content changes but whose id does not keeps its old answer. The file is rewritten in input order. " +
 		"Answered ids absent from input stay after them unless --prune drops them.\n\n" +
-		"--mock FILE, or ONESIE_MOCK=FILE, answers from fixtures without a key or network, so gate scripts can be tested for free. " +
+		"--mock FILE, or " + settingEnv(setting.Mock.Name()) + "=FILE, answers from fixtures without a key or network, so gate scripts can be tested for free. " +
 		"--print-request writes API shaped request bodies and sends none."
 	if command == settingrow.CommandRoot {
 		common += " Question export writes configuration rather than answers. Mocks exercise execution and policy behavior. Request previews and question export do not execute those policies. Mocks are skipped beside --list-models, request input, --print-request and --print-questions."
