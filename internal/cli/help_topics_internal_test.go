@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
+	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
 func TestHelpTopics(t *testing.T) {
@@ -166,4 +167,52 @@ func listedExitCodes(t *testing.T, command settingrow.Command) []int {
 		}
 	}
 	return codes
+}
+
+func TestBaseURLPrecedence(t *testing.T) {
+	t.Parallel()
+
+	endpoint, found := settingrow.Lookup(setting.APIEndpoint.Name())
+
+	for _, tc := range []struct {
+		name  string
+		row   settingrow.Row
+		found bool
+		want  string
+	}{
+		{
+			name: "should give each provider its own sentence when two providers have a base URL variable",
+			row: settingrow.Row{Env: []settingrow.EnvSpec{
+				{Name: "ONESIE_BASE_URL", Half: settingrow.HalfBaseURL},
+				{Name: "TYPESAFE_BASE_URL", Provider: "typesafe", Half: settingrow.HalfBaseURL},
+				{Name: "CLOUDFLARE_ACCOUNT_ID", Provider: "cloudflare", Half: settingrow.HalfAccount},
+				{Name: "BERGET_BASE_URL", Provider: "berget", Half: settingrow.HalfBaseURL},
+			}},
+			found: true,
+			want:  "On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL. On berget, ONESIE_BASE_URL beats BERGET_BASE_URL.",
+		},
+		{
+			name:  "should say nothing when no provider has a base URL variable",
+			row:   settingrow.Row{Env: []settingrow.EnvSpec{{Name: "ONESIE_BASE_URL", Half: settingrow.HalfBaseURL}}},
+			found: true,
+		},
+		{
+			name: "should say nothing when the endpoint row is missing",
+			row:  settingrow.Row{Env: []settingrow.EnvSpec{{Name: "TYPESAFE_BASE_URL", Provider: "typesafe", Half: settingrow.HalfBaseURL}}},
+		},
+		{
+			name:  "should order the endpoint row's variables on typesafe",
+			row:   endpoint,
+			found: found,
+			want:  "On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL.",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := baseURLPrecedence(tc.row, tc.found); got != tc.want {
+				t.Fatalf("got %q, want %q", got, tc.want)
+			}
+		})
+	}
 }

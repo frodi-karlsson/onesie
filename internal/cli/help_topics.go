@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -147,7 +148,7 @@ func helpConnections() string {
 		"With no profiles, typesafe runs directly. Provider keys come from " + providers.KeyVariables() + ". " +
 		"The chosen profile key and endpoint beat the environment. Provider variables beat the default profile. " +
 		"--base-url wins over a chosen profile, then " + baseURLEnv + ", then the provider base URL or account variable, then the default profile. " +
-		baseURLPrecedence() + ".\n\n" +
+		baseURLPrecedence(settingrow.Lookup(setting.APIEndpoint.Name())) + "\n\n" +
 		"A key goes only with its own endpoint. A custom profile endpoint takes only the key from that profile. A custom URL from a variable takes only the provider key variable. " +
 		"A typed --base-url takes the chosen profile key or provider variable, never the default profile key. A keyless profile reads no key variable. " +
 		"No provider uses another provider key. The base URL and account are one setting, taken whole from the highest source.\n\n" +
@@ -158,20 +159,27 @@ func helpConnections() string {
 		"A profile storing such a URL needs --allow-http on every run too."
 }
 
-func baseURLPrecedence() string {
-	row, _ := settingrow.Lookup(setting.APIEndpoint.Name())
-	var names []string
-	var provider string
-	for _, variable := range row.Env {
-		if variable.Half != settingrow.HalfBaseURL {
-			continue
-		}
-		names = append(names, variable.Name)
-		if variable.Provider != "" {
-			provider = variable.Provider
+func baseURLPrecedence(endpoint settingrow.Row, found bool) string {
+	if !found {
+		return ""
+	}
+	var order []string
+	for _, variable := range endpoint.Env {
+		if variable.Half == settingrow.HalfBaseURL && variable.Provider != "" && !slices.Contains(order, variable.Provider) {
+			order = append(order, variable.Provider)
 		}
 	}
-	return "On " + provider + ", " + strings.Join(names, " beats ")
+	sentences := make([]string, 0, len(order))
+	for _, provider := range order {
+		var names []string
+		for _, variable := range endpoint.Env {
+			if variable.Half == settingrow.HalfBaseURL && (variable.Provider == "" || variable.Provider == provider) {
+				names = append(names, variable.Name)
+			}
+		}
+		sentences = append(sentences, "On "+provider+", "+strings.Join(names, " beats ")+".")
+	}
+	return strings.Join(sentences, " ")
 }
 
 func helpExecution(command settingrow.Command) string {
