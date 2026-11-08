@@ -2,25 +2,26 @@
 
 `onesie help all` lists each exit code and its meaning.
 
-Only exit 1 means the policy said no. Exits 2 through 5 mean no answer arrived at all. Exit 6
-means a stream finished and only the lines carrying an error failed, the rest answered normally.
+Only exit 1 means a fail, a gate that said no. Exits 2 through 5 mean an error, so no answer
+arrived at all. Exit 6 means a stream finished with one or more errors, and only the lines
+carrying an error are affected, the rest answered normally.
 A resume without `--id` skips a stored error line instead of asking again, and still exits 6
 over it. Under `--stop-on-error` a trailing error line is the exception, as below.
-Exit 7 is an answer too, neither a yes nor a no, so route it to whoever decides the middle
-ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
+Exit 7 is unsure, an answer too, neither a pass nor a fail, so route it to whoever decides
+the middle ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
 A stream that stops early takes the code of what stopped it. An auth failure stops it with 3.
 `--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6. A record
 that never became a request, such as a line onesie could not read, has no code of its own, so it
 stops the run with 6.
-`--stop-on-assert` stops it with 1, or with 6 when an earlier record failed.
-A resume under `--stop-on-assert` stops at a skipped false assertion the same way.
+`--stop-on-assert` stops it at the first fail with 1, or with 6 when an earlier record had an error.
+A resume under `--stop-on-assert` stops at a skipped fail the same way.
 A resume without `--id` under `--stop-on-error` drops a trailing error line and asks its record
 again, since a run stopped by `--stop-on-error` writes nothing after it. So rerunning the same
 command makes progress once the cause is gone. An error line with more lines after it came from a
 run without `--stop-on-error`. The resume stops there with the code that run exited with, or exits
 2 for a csv or tsv row, which keeps only the message. Pass `--id` or drop `--stop-on-error` to
-carry on. With `--id` the failed record is asked again instead.
+carry on. With `--id` the record with the error is asked again instead.
 
 ## On exit 3
 
@@ -84,7 +85,7 @@ Exit 3 also covers these:
 | `--cache stores answers from the API` | `--cache` beside `--mock`, which answers from a file. Drop one. Beside `ONESIE_MOCK` or `ONESIE_CACHE=1` nothing is refused: the mock answers and the cache is left untouched |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
-| `wraps every record under a state key`, `would repeat that key` or `cannot write this failed record` | `--merge` writes an input that is not an object, or a record that failed, as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. A failed record's own error follows the colon. Pick another key |
+| `wraps every record under a state key`, `would repeat that key` or `cannot write this record's error` | `--merge` writes an input that is not an object, or a record with an error, as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. The record's own error follows the colon. Pick another key |
 | `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `assert` column under a gate. An input `id` column never clashes |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie -V` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |

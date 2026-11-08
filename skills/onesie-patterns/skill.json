@@ -17,7 +17,7 @@
     {
       "id": "shortlist-then-pick",
       "short": "To choose among many candidates, stream a yes or no over each one, then --pick among the survivors.",
-      "why": "A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.fits.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .fits.decision == true) | .id'`, since a failed record reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.",
+      "why": "A yes or no question over each candidate is one record per candidate, asked in parallel under `-j`, with no option limit. Keep the candidates whose `.fits.decision` is true and whose line has no `.error`, as in `jq -r 'select(.error == null and .fits.decision == true) | .id'`, since a record with an error reads as null. Then ask one `--pick` whose options are the survivors, with what sets them apart in the state, so the pick weighs a few strong candidates rather than many weak ones. Pick the `--threshold` with the onesie-calibrate skill.",
       "bad": "onesie --ask best='which candidate fits the role best' --pick ana,ben,chen,dara,eli,fay,gus,hana,ivan,jo --state 'the role needs five years of Go and on call experience'",
       "bad_passes": true,
       "good": "onesie --ask fits='does this candidate meet every hard requirement of the role' --threshold 0.7 -i jsonl --map '.summary' --id '.name' -j 8 -o json"

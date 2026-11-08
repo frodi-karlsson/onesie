@@ -10,9 +10,9 @@ allowed-tools: Bash(onesie:*)
 onesie streams over many records with `-i jsonl`, `-i lines`, `-i csv`, `-i tsv` or `-i request`,
 one record per line or row in and one answer per line out.
 
-A failed record usually does not stop the run. It prints an error record in its place and the run
-keeps going, so a consumer has to check which kind of line it is looking at before it reads an
-answer out of it. An auth failure and `--stop-on-error` do stop it, and the next rules list what
+A record with an error usually does not stop the run. It prints an error record in its place and
+the run keeps going, so a consumer has to check which kind of line it is looking at before it reads
+an answer out of it. An auth failure and `--stop-on-error` do stop it, and the next rules list what
 else cuts the output short. See the onesie skill's failures reference for the exit code table.
 
 ```sh
@@ -26,7 +26,7 @@ For a flag this skill does not cover, run `onesie help all` or `onesie help cali
 
 ### Read the error before you read any answer.
 
-A failed record still prints a line, carrying an error rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits a failed record as if it had passed. The error sits at `.error`, but under `--merge` it sits at `.answers.error`, or under the `--merge-key` name, since the input's own fields stay at the top. In `-o csv` and `-o tsv` it is the `error` column, empty on a row that answered.
+A record with an error still prints a line, carrying the error rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits an error as if it had passed. The error sits at `.error`, but under `--merge` it sits at `.answers.error`, or under the `--merge-key` name, since the input's own fields stay at the top. In `-o csv` and `-o tsv` it is the `error` column, empty on a row that answered.
 
 **Bad:**
 
@@ -42,7 +42,7 @@ onesie --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'select(.error 
 
 ### Match output line N to input line N, unless the exit code says the run stopped early.
 
-Output keeps input order under any `-j`, so line N answers record N. A failed record still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on-error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on-assert`, exit 1, or 6 when an earlier record failed, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
+Output keeps input order under any `-j`, so line N answers record N. A record with an error still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on-error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on-assert` at the first fail, exit 1, or 6 when an earlier record had an error, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
@@ -50,7 +50,7 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 
 ### On live input, filter each line on its answer, since a stream's exit code arrives only at the end.
 
-A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: under `--assert` every record carries its gate result at `.assert`, true or false, and under `--merge` at `.answers.assert`. Pass `jq --unbuffered` so each match leaves jq at once rather than when a buffer fills. A failed record carries `.answers.error` under `--merge` and no `assert`, so a filter on `.answers.assert == false` alone skips it. Route it too, as the good example does, since a record with no answer is not an all clear.
+A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: under `--assert` a fail carries `"assert":false` and an unsure carries `"abstain":true`, at the top or under `--merge` inside `.answers`, and a pass carries neither. Pass `jq --unbuffered` so each match leaves jq at once rather than when a buffer fills. A record with an error carries `.answers.error` under `--merge` and no `assert`, so a filter on `.answers.assert == false` alone skips it. Route it too, as the good example does, since an error is not an all clear.
 
 **Bad:**
 
@@ -78,7 +78,7 @@ onesie --ask urgent='is this urgent' -i jsonl --print-request
 
 ### Read csv or tsv with -i and write it back with -o csv --merge.
 
-`-i csv` and `-i tsv` read a header row and send each row as an object keyed by it, so a question can name a column such as `body`. A byte order mark before the header is dropped, and a blank or repeated column name exits 2. A csv field may be quoted to hold commas and newlines. `--delimiter` takes one character or `auto`, which picks a comma, a semicolon or a tab from the header row, so a semicolon separated spreadsheet export reads with `--delimiter auto`. It sets the separator both ways: `-o csv` writes with the given or detected one, merged or not, and without the flag both sides use commas. `-o csv` from other input takes one character, `auto` needs `-i csv`, `-o tsv` always writes tabs, and a run with neither `-i csv` nor `-o csv` refuses the flag. TSV has no quoting: a quote is ordinary text and every non blank line is a row. `-o csv` and `-o tsv` write one header row: the input columns under `--merge`, an `id` column under `--id`, one column per question holding its `-o values` answer, followed by an `ID_fallback` column for a question with a fallback, holding `low_confidence` or `error` when the fallback replaced the answer and empty otherwise, an `assert` column holding `true`, `false` or `abstain` when there is an assertion, empty on a failed row, and an `error` column. In `-o tsv` a tab or line break inside a cell becomes a space. Under `--merge`, an input column named like a question id or `error`, or `assert` under a gate, exits 2 at the first row. An input `id` column never clashes. `--merge` into `-o csv` or `-o tsv` needs csv or tsv input, since jsonl has no fixed columns, and both refuse `--usage`, and `--merge-key` even beside `--merge`.
+`-i csv` and `-i tsv` read a header row and send each row as an object keyed by it, so a question can name a column such as `body`. A byte order mark before the header is dropped, and a blank or repeated column name exits 2. A csv field may be quoted to hold commas and newlines. `--delimiter` takes one character or `auto`, which picks a comma, a semicolon or a tab from the header row, so a semicolon separated spreadsheet export reads with `--delimiter auto`. It sets the separator both ways: `-o csv` writes with the given or detected one, merged or not, and without the flag both sides use commas. `-o csv` from other input takes one character, `auto` needs `-i csv`, `-o tsv` always writes tabs, and a run with neither `-i csv` nor `-o csv` refuses the flag. TSV has no quoting: a quote is ordinary text and every non blank line is a row. `-o csv` and `-o tsv` write one header row: the input columns under `--merge`, an `id` column under `--id`, one column per question holding its `-o values` answer, followed by an `ID_fallback` column for a question with a fallback, holding `low_confidence` or `error` when the fallback replaced the answer and empty otherwise, an `assert` column holding `true`, `false` or `abstain` when there is an assertion, empty on a row with an error, and an `error` column. In `-o tsv` a tab or line break inside a cell becomes a space. Under `--merge`, an input column named like a question id or `error`, or `assert` under a gate, exits 2 at the first row. An input `id` column never clashes. `--merge` into `-o csv` or `-o tsv` needs csv or tsv input, since jsonl has no fixed columns, and both refuse `--usage`, and `--merge-key` even beside `--merge`.
 
 ### Write -o markdown for a PR comment or a job summary, and never as a file to resume or parse.
 
@@ -114,7 +114,7 @@ onesie 'is this urgent' -i jsonl --map '.body' --id '.id'
 
 ### Write a long stream with --out and rerun it with --resume and --id after a failure.
 
-Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, failed records included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model, `--map`, the profile, a custom base URL, the cloudflare account or `--usage`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
+Pass `--resume` from the first run, since a missing or empty `--out` file starts fresh. After a failure, rerun with the same `--out` and `--id`: the run skips every id the file answers and asks the rest, records with an error included. `-j`, `--timeout` and `--retries` may change between runs. Exit 2 names what changed, such as the model, `--map`, the profile, a custom base URL, the cloudflare account or `--usage`, so put it back, or drop `--resume` and start over. A record whose content changed under the same id keeps its old answer. See the [worked stream recipes](https://github.com/frodi-karlsson/onesie/blob/main/examples/README.md#recipes). A full resume: `onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' --out answers.jsonl --resume < tickets.jsonl`.
 
 ### Dedup shares a request within one run, --cache shares it across runs, and --resume skips the ids an --out file already answers.
 

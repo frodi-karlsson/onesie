@@ -26,9 +26,10 @@ mv shell-safety.yaml .onesie/questions/
 ```
 
 Each file carries its own gate as `assert` and `abstain_if`, so `-f NAME` alone runs the whole
-gate. Every gate exits 0 to pass, 1 to block and 7 to hand the record to a person. Any other exit
-code means there was no answer, so treat it as a block. `calibrate` and `--print-request` ignore
-the gate in a file, so the same file can be calibrated and dry run as it stands.
+gate. Every gate exits 0 on a pass, 1 on a fail, which blocks, and 7 on an unsure, which hands the
+record to a person. Any other exit code is an error, so treat it as a block. `calibrate` and
+`--print-request` ignore the gate in a file, so the same file can be calibrated and dry run as it
+stands.
 
 ## Calibrate on your own data
 
@@ -89,7 +90,7 @@ case $? in
     0) eval "$cmd" ;;
     1) echo blocked ;;
     7) ask_the_user ;;
-    *) echo 'no answer, blocked' ;;
+    *) echo 'error, blocked' ;;
 esac
 ```
 
@@ -388,7 +389,7 @@ A spreadsheet export separated by semicolons reads with `--delimiter auto`, and 
 semicolons back, merged or not.
 
 **Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
-`--resume` skips every id the file already answers and asks the rest, failed ones included.
+`--resume` skips every id the file already answers and asks the rest, errors included.
 
 ```sh
 onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
@@ -411,7 +412,7 @@ In GitHub Actions, a failing gate fails the step only under pipefail, so name `s
 **Rank records by several questions.** One `--ask` per dimension scores every record, and `jq`
 weighs the answers and sorts by the sum. `.value` is the yes or no probability, and `.norm` is the
 rate's position between 0 and 1. The weighting lives in `jq`, since `--assert` has no arithmetic,
-and `select(has("error") | not)` drops the records that failed.
+and `select(has("error") | not)` drops the records with an error.
 
 ```sh
 onesie --ask impact='does this help many users' \
