@@ -530,30 +530,6 @@ func rootArgs(flags *runFlags) cobra.PositionalArgs {
 	}
 }
 
-func helpShowsSwitches(root *cobra.Command) {
-	help := root.HelpFunc()
-
-	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		// pflag prints a NoOptDefVal other than true after the flag's name, and argv.Bare is one.
-		var switches []*pflag.Flag
-
-		cmd.Flags().VisitAll(func(flag *pflag.Flag) {
-			if flag.NoOptDefVal == argv.Bare {
-				flag.NoOptDefVal = "true"
-				switches = append(switches, flag)
-			}
-		})
-
-		defer func() {
-			for _, flag := range switches {
-				flag.NoOptDefVal = argv.Bare
-			}
-		}()
-
-		help(cmd, args)
-	})
-}
-
 func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {
 	return func(cmd *cobra.Command, err error) error {
 		var unknown *pflag.NotExistError

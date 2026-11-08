@@ -2,10 +2,12 @@ package cli
 
 import (
 	"bytes"
+	"cmp"
 	"fmt"
 	"io"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -13,6 +15,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
+
+const annotationHelpValue = "onesie-help-value"
 
 func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topic string) error {
 	flags, err := helpFlags(cmd, command, settingrow.Table())
@@ -31,10 +35,8 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 			intro = "Compare answers with labelled examples. Calibrate never chooses a threshold."
 		}
 		writeHelpText(&b, intro, "", "")
-		fmt.Fprintf(&b, "\nUsage:\n  %s [question] [flags]\n", cmd.CommandPath())
-		if cmd.HasAvailableSubCommands() {
-			fmt.Fprintf(&b, "  %s [command]\n", cmd.CommandPath())
-		}
+		b.WriteString("\n")
+		writeHelpUsage(&b, cmd, cmd.CommandPath()+" [question] [flags]")
 	}
 	if topic == "" {
 		writeHelpOverview(&b, cmd, command, flags, topics, examples)
@@ -53,10 +55,8 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 				b.WriteString(exitCodesSection(section.codes) + "\n")
 				continue
 			}
-			fmt.Fprintf(&b, "%s\n\nFlags:\n", section.title)
-			for _, flag := range selectHelpFlags(flags, section.name, false) {
-				writeHelpFlag(&b, flag)
-			}
+			fmt.Fprintf(&b, "%s\n", section.title)
+			writeHelpSection(&b, "Flags", selectHelpFlags(flags, section.name, false))
 			b.WriteString("\nHow they work together:\n")
 			writeHelpText(&b, section.body, "  ", "  ")
 			writeHelpExamples(&b, examples, section.name)
@@ -78,14 +78,7 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 	}
 	writeHelpExamples(b, examples, "overview")
 	for _, section := range overviewOrder(topics) {
-		selected := selectHelpFlags(flags, section.name, true)
-		if len(selected) == 0 {
-			continue
-		}
-		fmt.Fprintf(b, "\n%s:\n", section.title)
-		for _, flag := range selected {
-			writeHelpFlag(b, flag)
-		}
+		writeHelpSection(b, section.title, selectHelpFlags(flags, section.name, true))
 	}
 	writeHelpCommands(b, cmd)
 	writeHelpNavigation(b, cmd, topics)
@@ -162,6 +155,110 @@ func selectHelpFlags(flags []helpFlag, topic string, common bool) []helpFlag {
 		return 0
 	})
 	return selected
+}
+
+func writeSubcommandHelp(w io.Writer, cmd *cobra.Command) error {
+	local, inherited, err := commandHelpFlags(cmd)
+	if err != nil {
+		return err
+	}
+	var b bytes.Buffer
+	if text := cmp.Or(cmd.Long, cmd.Short); text != "" {
+		b.WriteString(strings.TrimRightFunc(text, unicode.IsSpace) + "\n\n")
+	}
+	useLine := ""
+	if cmd.Runnable() {
+		useLine = cmd.UseLine()
+	}
+	writeHelpUsage(&b, cmd, useLine)
+	if cmd.HasExample() {
+		fmt.Fprintf(&b, "\nExamples:\n%s\n", cmd.Example)
+	}
+	writeHelpCommands(&b, cmd)
+	writeHelpSection(&b, "Flags", local)
+	writeHelpSection(&b, "Global Flags", inherited)
+	if cmd.HasAvailableSubCommands() {
+		fmt.Fprintf(&b, "\nUse \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
+	}
+	_, err = w.Write(b.Bytes())
+	return err
+}
+
+func commandHelpFlags(cmd *cobra.Command) (local, inherited []helpFlag, missing error) {
+	describe := func(flag *pflag.Flag, owner *cobra.Command, persistent bool) helpFlag {
+		described, found := describedFlag(flag, rowCommand(owner), persistent)
+		if !found && missing == nil {
+			missing = fmt.Errorf("flag --%s has no help metadata", flag.Name)
+		}
+		return described
+	}
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		if !flag.Hidden {
+			local = append(local, describe(flag, cmd, false))
+		}
+	})
+	cmd.InheritedFlags().VisitAll(func(flag *pflag.Flag) {
+		if !flag.Hidden {
+			inherited = append(inherited, describe(flag, flagOwner(cmd, flag), true))
+		}
+	})
+	return local, inherited, missing
+}
+
+func describedFlag(flag *pflag.Flag, command settingrow.Command, persistent bool) (helpFlag, bool) {
+	for _, row := range settingrow.Table() {
+		if bound, available := row.FlagOn(command); available && bound.Long == flag.Name && (!persistent || bound.Persistent) {
+			return helpFlag{flag: flag, bound: bound}, true
+		}
+	}
+	if value, named := flag.Annotations[annotationHelpValue]; named && len(value) == 1 {
+		return helpFlag{flag: flag, bound: settingrow.BoundFlag{HelpValue: value[0]}}, true
+	}
+	if switchFlag, ok := flag.Value.(interface{ IsBoolFlag() bool }); ok && switchFlag.IsBoolFlag() {
+		return helpFlag{flag: flag, bound: settingrow.BoundFlag{Kind: settingrow.Bool()}}, true
+	}
+	return helpFlag{}, false
+}
+
+func rowCommand(cmd *cobra.Command) settingrow.Command {
+	path := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name()+" ")
+	for _, row := range settingrow.Table() {
+		for _, command := range row.Flag.Commands {
+			if command.String() == path {
+				return command
+			}
+		}
+	}
+	return 0
+}
+
+func flagOwner(cmd *cobra.Command, flag *pflag.Flag) *cobra.Command {
+	for parent := cmd.Parent(); parent != nil; parent = parent.Parent() {
+		if parent.PersistentFlags().Lookup(flag.Name) == flag {
+			return parent
+		}
+	}
+	return cmd
+}
+
+func writeHelpUsage(w *bytes.Buffer, cmd *cobra.Command, useLine string) {
+	w.WriteString("Usage:\n")
+	if useLine != "" {
+		fmt.Fprintf(w, "  %s\n", useLine)
+	}
+	if cmd.HasAvailableSubCommands() {
+		fmt.Fprintf(w, "  %s [command]\n", cmd.CommandPath())
+	}
+}
+
+func writeHelpSection(w *bytes.Buffer, title string, flags []helpFlag) {
+	if len(flags) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "\n%s:\n", title)
+	for _, flag := range flags {
+		writeHelpFlag(w, flag)
+	}
 }
 
 func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
@@ -280,6 +377,21 @@ func helpShellQuote(value string) string {
 		return value
 	}
 	return "'" + strings.ReplaceAll(value, "'", "'\"'\"'") + "'"
+}
+
+func borrowHelpValue(set *pflag.FlagSet, name string, from settingrow.Name) {
+	row, found := settingrow.Lookup(from)
+	if !found || row.HelpValue == "" {
+		panic("help value: no settings row " + string(from) + " with a help value")
+	}
+	flag := set.Lookup(name)
+	if flag == nil {
+		panic("help value: no flag --" + name)
+	}
+	if flag.Annotations == nil {
+		flag.Annotations = map[string][]string{}
+	}
+	flag.Annotations[annotationHelpValue] = []string{row.HelpValue}
 }
 
 type helpFlag struct {

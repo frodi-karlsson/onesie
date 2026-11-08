@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -122,6 +123,126 @@ func TestHelpFlags(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestWriteCommandHelp(t *testing.T) {
+	t.Run("should render a help line for every visible flag on every command", func(t *testing.T) {
+		for _, cmd := range helpTestTree(t) {
+			var out bytes.Buffer
+			if err := writeCommandHelp(&out, cmd, "all"); err != nil {
+				t.Fatalf("%s: %v", cmd.CommandPath(), err)
+			}
+			for _, set := range []*pflag.FlagSet{cmd.LocalFlags(), cmd.InheritedFlags()} {
+				set.VisitAll(func(flag *pflag.Flag) {
+					line := regexp.MustCompile(`(?m)^  (-[[:alnum:]], |    )--` + regexp.QuoteMeta(flag.Name) + `( |$)`)
+					if !flag.Hidden && !line.MatchString(out.String()) {
+						t.Errorf("%s has no help line for --%s", cmd.CommandPath(), flag.Name)
+					}
+				})
+			}
+		}
+	})
+	t.Run("should find no command content that the help writers drop", func(t *testing.T) {
+		for _, cmd := range helpTestTree(t) {
+			if len(cmd.Aliases) > 0 || len(cmd.Groups()) > 0 || cmd.GroupID != "" || cmd.HasHelpSubCommands() {
+				t.Errorf("%s has aliases, command groups or help topic commands, which the help writers do not render", cmd.CommandPath())
+			}
+		}
+	})
+	t.Run("should refuse an unclassified visible flag on a subcommand", func(t *testing.T) {
+		root := helpTestCommand(t, settingrow.CommandRoot)
+		cmd, _, err := root.Find([]string{"version"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		cmd.InitDefaultHelpFlag()
+		cmd.Flags().String("unclassified", "", "extra")
+		if err := writeCommandHelp(io.Discard, cmd, ""); err == nil {
+			t.Fatal("accepted an unclassified flag with a value")
+		}
+	})
+}
+
+func TestDescribedFlag(t *testing.T) {
+	annotated := pflag.NewFlagSet("annotated", pflag.ContinueOnError)
+	annotated.String("output", "", "format")
+	borrowHelpValue(annotated, "output", "output")
+	plain := pflag.NewFlagSet("plain", pflag.ContinueOnError)
+	plain.String("unclassified", "", "extra")
+	plain.Bool("switch", false, "a switch")
+	plain.String("model", "", "the model")
+	plain.String("profile", "", "the profile")
+	tests := []struct {
+		name       string
+		flag       *pflag.Flag
+		command    settingrow.Command
+		persistent bool
+		wantFound  bool
+		wantValue  string
+	}{
+		{name: "should take the value name from a borrowed annotation", flag: annotated.Lookup("output"), wantFound: true, wantValue: "FORMAT"},
+		{name: "should describe a bool flag as a switch", flag: plain.Lookup("switch"), wantFound: true},
+		{name: "should refuse a valued flag with no row or annotation", flag: plain.Lookup("unclassified")},
+		{name: "should describe a flag from the row its command binds", flag: plain.Lookup("model"), command: settingrow.CommandProfileCreate, wantFound: true, wantValue: "STRING"},
+		{name: "should accept an inherited flag only from a persistent binding", flag: plain.Lookup("profile"), command: settingrow.CommandRoot, persistent: true, wantFound: true, wantValue: "STRING"},
+		{name: "should refuse an inherited flag whose binding is not persistent", flag: plain.Lookup("model"), command: settingrow.CommandRoot, persistent: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			described, found := describedFlag(tc.flag, tc.command, tc.persistent)
+			if found != tc.wantFound {
+				t.Fatalf("found = %v, want %v", found, tc.wantFound)
+			}
+			if !found {
+				return
+			}
+			var line bytes.Buffer
+			writeHelpFlag(&line, described)
+			if got := strings.Fields(line.String()); tc.wantValue != "" && got[1] != tc.wantValue {
+				t.Errorf("line = %q, want value name %s", line.String(), tc.wantValue)
+			}
+		})
+	}
+}
+
+func TestBorrowHelpValue(t *testing.T) {
+	tests := []struct {
+		name string
+		flag string
+		row  settingrow.Name
+	}{
+		{name: "should panic on a flag the set lacks", flag: "missing", row: "output"},
+		{name: "should panic on a row that does not exist", flag: "output", row: "no_such_row"},
+		{name: "should panic on a row with no help value", flag: "output", row: "raw"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			set := pflag.NewFlagSet("test", pflag.ContinueOnError)
+			set.String("output", "", "format")
+			defer func() {
+				if recover() == nil {
+					t.Fatal("did not panic")
+				}
+			}()
+			borrowHelpValue(set, tc.flag, tc.row)
+		})
+	}
+}
+
+func helpTestTree(t *testing.T) []*cobra.Command {
+	t.Helper()
+	root := helpTestCommand(t, settingrow.CommandRoot)
+	root.InitDefaultHelpCmd()
+	root.InitDefaultCompletionCmd()
+	commands := []*cobra.Command{root}
+	for i := 0; i < len(commands); i++ {
+		commands[i].InitDefaultHelpFlag()
+		commands = append(commands, commands[i].Commands()...)
+	}
+	if len(commands) < 15 {
+		t.Fatalf("walked %d commands, want the whole tree", len(commands))
+	}
+	return commands
 }
 
 func TestWriteHelp(t *testing.T) {

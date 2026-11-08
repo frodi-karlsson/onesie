@@ -347,6 +347,22 @@ func TestInstallHelp(t *testing.T) {
 			}
 		}
 	})
+	t.Run("should report an unclassified flag on stderr instead of printing empty help", func(t *testing.T) {
+		var out, errOut bytes.Buffer
+		root := NewRootCmd(BuildInfo{})
+		version, _, err := root.Command.Find([]string{"version"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		version.Flags().String("unclassified", "", "extra")
+		root.Command.SetArgs([]string{"version", "--help"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Execute(t.Context())
+		if out.Len() != 0 || errOut.String() != "onesie: flag --unclassified has no help metadata\n" {
+			t.Fatalf("stdout %q, stderr %q", out.String(), errOut.String())
+		}
+	})
 	t.Run("should preserve established writer failure and broken pipe handling", func(t *testing.T) {
 		for _, tc := range []struct {
 			args []string

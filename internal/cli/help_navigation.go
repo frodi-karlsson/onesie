@@ -1,26 +1,28 @@
 package cli
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"slices"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
 func installHelp(root, calibrate *cobra.Command) {
-	helpShowsSwitches(root)
-	legacy := root.HelpFunc()
-	root.SetHelpFunc(func(cmd *cobra.Command, args []string) {
-		command, custom := helpCommand(cmd)
-		if !custom {
-			legacy(cmd, args)
+	root.SetHelpFunc(func(cmd *cobra.Command, _ []string) {
+		var page bytes.Buffer
+		if err := writeCommandHelp(&page, cmd, ""); err != nil {
+			//nolint:errcheck // Cobra help callbacks cannot return an error, so stderr is the only report.
+			_ = output.Notice(cmd.ErrOrStderr(), err.Error())
 			return
 		}
 		//nolint:errcheck // Cobra help callbacks cannot return writer failures, as with the default handler.
-		_ = writeHelp(cmd.OutOrStdout(), cmd, command, "")
+		_, _ = cmd.OutOrStdout().Write(page.Bytes())
 	})
 	root.InitDefaultHelpCmd()
 	for _, cmd := range []*cobra.Command{root, calibrate} {
@@ -48,13 +50,17 @@ func installHelp(root, calibrate *cobra.Command) {
 			}
 			cmd.InitDefaultHelpFlag()
 			cmd.InitDefaultVersionFlag()
-			if command, custom := helpCommand(cmd); custom {
-				return writeHelp(cmd.OutOrStdout(), cmd, command, topic)
-			}
-			return cmd.Help()
+			return writeCommandHelp(cmd.OutOrStdout(), cmd, topic)
 		}
 		sub.ValidArgsFunction = completeHelp
 	}
+}
+
+func writeCommandHelp(w io.Writer, cmd *cobra.Command, topic string) error {
+	if command, custom := helpCommand(cmd); custom {
+		return writeHelp(w, cmd, command, topic)
+	}
+	return writeSubcommandHelp(w, cmd)
 }
 
 func resolveHelp(root *cobra.Command, args []string) (*cobra.Command, string, error) {
