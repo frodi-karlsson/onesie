@@ -10,7 +10,7 @@ Flags:
                                 --desc and --sep after it apply to that question.
                                 Repeatable.
       --desc KEY=TEXT           Describe an option, level, yes or no.
-      --sep STRING              Set the separator for the --pick and --rate that follow
+      --sep SEP                 Set the separator for the --pick and --rate that follow
                                 it.
       --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,

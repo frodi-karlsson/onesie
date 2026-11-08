@@ -26,11 +26,12 @@ Flags:
                                 error object is one record.
       --cache                   Store responses on disk and answer a repeated request
                                 from them. Also ONESIE_CACHE=1.
-  -j, --jobs INT                Records in flight at once. Default: 1.
-      --timeout INT             Seconds per attempt, 60 for a request with images unless
+  -j, --jobs N                  Records in flight at once. Default: 1.
+      --timeout SECONDS         Seconds per attempt, 60 for a request with images unless
                                 given. Default: 10.
-      --retries INT             Retries after a failed attempt. Default: 2.
-      --max-retry-after INT     Most seconds to wait out a server Retry-After. Default:
+      --retries N               Retries after a failed attempt. Default: 2.
+      --max-retry-after SECONDS
+                                Most seconds to wait out a server Retry-After. Default:
                                 60.
 
 How they work together:

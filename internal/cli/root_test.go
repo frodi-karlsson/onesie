@@ -991,7 +991,7 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should say in the root help that a run uses a profile",
 			args:     []string{"help", "connections"},
 			wantCode: cli.ExitOK,
-			contains: []string{"onesie profile create", "--profile STRING"},
+			contains: []string{"onesie profile create", "--profile NAME"},
 		},
 		{
 			name:     "should exit 2 for auth status, since auth is no longer a subcommand",

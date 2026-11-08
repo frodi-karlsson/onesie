@@ -123,7 +123,7 @@ func questionRows() []Row {
 			Help:   "Describe an option, level, yes or no.",
 		},
 		{
-			Name: "sep", HelpTopic: "asking", Scope: ScopeQuestion, Kind: Separator(), Modes: shaping(),
+			Name: "sep", HelpTopic: "asking", Scope: ScopeQuestion, HelpValue: "SEP", Kind: Separator(), Modes: shaping(),
 			Shapes: []Shape{Pick, Rate},
 			Flag:   FlagSpec{Long: "sep", Group: true, Commands: onRuns()},
 			Help:   "Set the separator for the --pick and --rate that follow it.",
@@ -206,7 +206,7 @@ func outputRows() []Row {
 			Help: "Suppress output. Without --assert, judge one answer.",
 		},
 		{
-			Name: "out", HelpTopic: "output", HelpCommon: map[Command]int{CommandCalibrate: 12}, Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels, ModeCalibrate),
+			Name: "out", HelpTopic: "output", HelpCommon: map[Command]int{CommandCalibrate: 12}, HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModePrintQuestions, ModeListModels, ModeCalibrate),
 			Flag: FlagSpec{Long: "out", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Write the answers to this file as -o json lines."},
 			}},
@@ -235,7 +235,7 @@ func outputRows() []Row {
 			Help: "Keep input fields and attach the answers.",
 		},
 		{
-			Name: "merge_key", HelpTopic: "output", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "merge_key", HelpTopic: "output", HelpValue: "KEY", Kind: NonEmptyText(), Modes: Modes(ModeAsk, ModeStream),
 			Flag: FlagSpec{Long: "merge-key", Commands: onRoot()},
 			Help: "Put the answers under this key in the merged record. Implies --merge.",
 		},
@@ -264,7 +264,7 @@ func reportRows() []Row {
 			Help: "Write a one line summary of the run to stderr at exit.",
 		},
 		{
-			Name: "delimiter", HelpTopic: "input", Kind: Text(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
+			Name: "delimiter", HelpTopic: "input", HelpValue: "CHAR", Kind: Text(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
 			Flag: FlagSpec{Long: "delimiter", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Set the field separator for -i csv: auto, or one character. Defaults to a comma."},
 			}},
@@ -400,7 +400,7 @@ func choiceRows() []Row {
 			Help: "Let --ask override an id from -f.",
 		},
 		{
-			Name: "provider", HelpTopic: "connections", Kind: NonEmptyText(), Modes: choosing(),
+			Name: "provider", HelpTopic: "connections", HelpValue: "PROVIDER", Kind: NonEmptyText(), Modes: choosing(),
 			Env:     []EnvSpec{{Name: "ONESIE_PROVIDER", Order: 7, Help: providerEnvHelp}},
 			Profile: []ProfileMember{{Key: "provider"}},
 			Flag: FlagSpec{Long: "provider", Commands: onProfileWriters(CommandRoot), PerCommand: map[Command]CommandFlag{
@@ -414,7 +414,7 @@ func choiceRows() []Row {
 				"default profile. Refused beside --profile or ONESIE_PROFILE.",
 		},
 		{
-			Name: "profile", HelpTopic: "connections", Kind: NonEmptyText(), Modes: choosing(),
+			Name: "profile", HelpTopic: "connections", HelpValue: "NAME", Kind: NonEmptyText(), Modes: choosing(),
 			Env: []EnvSpec{{Name: "ONESIE_PROFILE", Order: 6, Help: profileEnvHelp}},
 			Flag: FlagSpec{Long: "profile", Commands: onRoot(), PerCommand: map[Command]CommandFlag{
 				CommandRoot: {Persistent: true},
@@ -428,7 +428,7 @@ func choiceRows() []Row {
 func endpointRows() []Row {
 	return append([]Row{
 		{
-			Name: "model", HelpTopic: "connections", Kind: NonEmptyText(),
+			Name: "model", HelpTopic: "connections", HelpValue: "MODEL", Kind: NonEmptyText(),
 			Modes:    Modes(ModeAsk, ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate, ModeProfile),
 			FileKey:  "model",
 			InBody:   true,
@@ -449,7 +449,7 @@ func endpointRows() []Row {
 			Help: "Use this model.",
 		},
 		{
-			Name: "endpoint", HelpTopic: "connections", Kind: Endpoint(), Modes: connecting(),
+			Name: "endpoint", HelpTopic: "connections", HelpValue: "URL", Kind: Endpoint(), Modes: connecting(),
 			Env: []EnvSpec{
 				{Name: "ONESIE_BASE_URL", Order: 4, Half: HalfBaseURL, Help: "the API root on every provider when " +
 					"neither `--base-url` nor a chosen profile's `base_url` or `account_id` names one. It beats the " +
@@ -514,13 +514,13 @@ func answerSourceRows() []Row {
 func requestRows() []Row {
 	return []Row{
 		{
-			Name: "jobs", HelpTopic: "execution", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
+			Name: "jobs", HelpTopic: "execution", HelpValue: "N", Kind: Int(1, limits.MaxJobs), Default: 1, Modes: Modes(ModeStream, ModeRequest, ModePrintRequest, ModeCalibrate),
 			Flag:  FlagSpec{Long: "jobs", Short: "j", Commands: onRuns()},
 			Check: jobsInRange,
 			Help:  "Records in flight at once.",
 		},
 		{
-			Name: "timeout", HelpTopic: "execution", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultAttemptTimeout.Seconds()),
+			Name: "timeout", HelpTopic: "execution", HelpValue: "SECONDS", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultAttemptTimeout.Seconds()),
 			Modes: sending(),
 			Flag:  FlagSpec{Long: "timeout", Commands: onRuns()},
 			Check: secondsInRange("--timeout", "--timeout takes a positive number of seconds, got %d"),
@@ -528,13 +528,13 @@ func requestRows() []Row {
 				" for a request with images unless given.",
 		},
 		{
-			Name: "retries", HelpTopic: "execution", Kind: Int(0, limits.MaxRetries), Default: limits.DefaultRetries, Modes: sending(),
+			Name: "retries", HelpTopic: "execution", HelpValue: "N", Kind: Int(0, limits.MaxRetries), Default: limits.DefaultRetries, Modes: sending(),
 			Flag:  FlagSpec{Long: "retries", Commands: onRuns()},
 			Check: retriesInRange,
 			Help:  "Retries after a failed attempt.",
 		},
 		{
-			Name: "max_retry_after", HelpTopic: "execution", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultMaxRetryAfter.Seconds()),
+			Name: "max_retry_after", HelpTopic: "execution", HelpValue: "SECONDS", Kind: Int(1, limits.MaxSeconds), Default: int(limits.DefaultMaxRetryAfter.Seconds()),
 			Modes: sending(),
 			Flag:  FlagSpec{Long: "max-retry-after", Commands: onRuns()},
 			Check: secondsInRange("--max-retry-after",
@@ -607,7 +607,7 @@ func calibrateRows() []Row {
 				"mapped state. A question with none is skipped. With one question ID= may be left out.",
 		},
 		{
-			Name: "cuts", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 9}, Kind: Text(), Modes: Modes(ModeCalibrate),
+			Name: "cuts", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 9}, HelpValue: "CUTS", Kind: Text(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "cuts", Commands: onCalibrate()},
 			Help: "Comma separated cuts between 0 and 1. See Evaluation for defaults.",
 		},
@@ -628,7 +628,7 @@ func calibrateRows() []Row {
 func profileRows() []Row {
 	return []Row{
 		{
-			Name: "account_id", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
+			Name: "account_id", HelpValue: "ACCOUNT_ID", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "account-id", Commands: onProfileWriters(), PerCommand: map[Command]CommandFlag{
 				CommandProfileCreate: {Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
 				CommandProfileUpdate: {Kind: Text(), Member: ProfileMember{Key: "account_id", Half: HalfAccount}},
@@ -636,7 +636,7 @@ func profileRows() []Row {
 			Help: "The account id, 32 hexadecimal characters. Only on " + providers.WithAccounts() + ".",
 		},
 		{
-			Name: "name", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
+			Name: "name", HelpValue: "NAME", Kind: NonEmptyText(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "name", Commands: []Command{CommandProfileUpdate}},
 			Help: "A new name for the profile. A keychain item named after it moves with it, and the default follows it.",
 		},

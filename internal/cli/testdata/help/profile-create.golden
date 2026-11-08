@@ -12,20 +12,20 @@ Examples:
   onesie profile create cf --provider cloudflare --account-id 0123456789abcdef0123456789abcdef
 
 Flags:
-      --account-id STRING       The account id, 32 hexadecimal characters. Only on
+      --account-id ACCOUNT_ID   The account id, 32 hexadecimal characters. Only on
                                 cloudflare.
       --allow-http              Store a plain http --base-url to a host other than this
                                 machine. Every run on the profile then needs
                                 --allow-http too.
-      --base-url STRING         The API root the profile's runs use.
+      --base-url URL            The API root the profile's runs use.
       --file                    Store the key in profiles.json, not the OS keychain.
-  -h, --help                    help for create
-      --model STRING            The model a run uses when it names none.
-      --provider STRING         The profile's provider: typesafe, openrouter, berget,
+  -h, --help                    Show this help.
+      --model MODEL             The model a run uses when it names none.
+      --provider PROVIDER       The profile's provider: typesafe, openrouter, berget,
                                 levanto or cloudflare. Required.
 
 Global Flags:
-      --profile STRING          The profile a run uses, from profiles.json in the config
+      --profile NAME            The profile a run uses, from profiles.json in the config
                                 dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER.
                                 Otherwise the default profile runs, which onesie profile
                                 use sets.

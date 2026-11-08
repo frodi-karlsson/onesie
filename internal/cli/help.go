@@ -274,7 +274,7 @@ func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
 	if value != "" {
 		signature += " " + value
 	}
-	description := flag.flag.Usage
+	description := flagUsage(flag.flag)
 	def := flag.flag.DefValue
 	if def != "" && def != "false" && def != "[]" && def != argv.Bare {
 		if !strings.HasSuffix(description, ".") && !strings.HasSuffix(description, "!") && !strings.HasSuffix(description, ":") {
@@ -289,6 +289,13 @@ func writeHelpFlag(w *bytes.Buffer, flag helpFlag) {
 		return
 	}
 	writeHelpText(w, description, fmt.Sprintf("%-32s", prefix), strings.Repeat(" ", 32))
+}
+
+func flagUsage(flag *pflag.Flag) string {
+	if flag.Name == "help" {
+		return "Show this help."
+	}
+	return flag.Usage
 }
 
 func writeHelpCommands(w *bytes.Buffer, cmd *cobra.Command) {
