@@ -406,7 +406,7 @@ func TestStreamRaw(t *testing.T) {
 					t.Errorf("stdout = %q, want one response error line naming %q", out, tc.want)
 				}
 
-				if !strings.Contains(errOut, "1 failed") {
+				if !strings.Contains(errOut, "1 error") {
 					t.Errorf("stderr = %q, want the record counted as failed", errOut)
 				}
 			})

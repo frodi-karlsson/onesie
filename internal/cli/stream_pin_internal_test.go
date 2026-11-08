@@ -75,7 +75,7 @@ func pinnedStreamRuns() []pinnedRun {
 				stdout: "{\"line\":1,\"answer\":0.4}\n" +
 					"{\"line\":2,\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines\"}}\n" +
 					"{\"line\":3,\"answer\":0.4}\n",
-				stderr: "3 records, 1 failed, 2 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
+				stderr: "3 records, 1 error, 2 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
 					"model jev-latest, 2 attempts, 10s/attempt, 0s\n",
 				code: ExitRecords,
 			}},
@@ -182,7 +182,7 @@ func pinnedStreamRuns() []pinnedRun {
 					"{\"id\":2,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.8}}\n" +
 					"{\"id\":3,\"model\":\"jev-latest\",\"answer\":{\"value\":0.3}}\n" +
 					"{\"id\":4,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.9}}\n",
-				stderr: "4 records answered from the mock, 2 false assertions, 4 questions asked, 0 in / 0 out tokens, " +
+				stderr: "4 records answered from the mock, 2 fail, 4 questions asked, 0 in / 0 out tokens, " +
 					"model jev-latest, 4 attempts, 10s/attempt, 0s\n",
 				code: ExitRejected,
 			}},
@@ -286,7 +286,7 @@ func pinnedStreamRuns() []pinnedRun {
 				{
 					args:  lines("-o", "json", "--out", pinnedOut, "--resume", "--stats"),
 					stdin: "a\n\nc\nd\n", mock: `{"answer":0.4}`,
-					stderr: "4 records, 3 skipped by --resume, 1 failed, 1 answered from the mock, 1 question asked, " +
+					stderr: "4 records, 3 skipped by --resume, 1 error, 1 answered from the mock, 1 question asked, " +
 						"0 in / 0 out tokens, model jev-latest, 1 attempt, 10s/attempt, 0s\n",
 					code: ExitRecords,
 				},
@@ -380,7 +380,7 @@ func pinnedStreamRuns() []pinnedRun {
 					"{\"id\":2,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
 					"{\"id\":3,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n" +
 					"{\"id\":4,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n",
-				stderr: "4 records, 4 failed, 4 requests, 4 questions asked, 0 in / 0 out tokens, 4 attempts, 10s/attempt, 0s\n",
+				stderr: "4 records, 4 errors, 4 requests, 4 questions asked, 0 in / 0 out tokens, 4 attempts, 10s/attempt, 0s\n",
 				code:   ExitRecords,
 			}},
 		},
@@ -432,7 +432,7 @@ func pinnedRawRuns() []pinnedRun {
 				stdout: "{\"model\":\"m\",\"usage\":{\"input_tokens\":5,\"output_tokens\":2},\"answers\":{\"answer\":{\"type\":\"noul\",\"noul\":0.9}}}\n" +
 					"{\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')\"}}\n" +
 					"{\"model\":\"m\",\"usage\":{\"input_tokens\":5,\"output_tokens\":2},\"answers\":{\"answer\":{\"type\":\"noul\",\"noul\":0.9}}}\n",
-				stderr: "3 records, 1 failed, 2 requests, 2 questions asked, 10 in / 4 out tokens, model m, 2 attempts, 10s/attempt, 0s\n",
+				stderr: "3 records, 1 error, 2 requests, 2 questions asked, 10 in / 4 out tokens, model m, 2 attempts, 10s/attempt, 0s\n",
 				code:   ExitRecords,
 			}},
 		},
@@ -448,7 +448,7 @@ func pinnedRawRuns() []pinnedRun {
 					args: []string{"-i", "request", "--out", pinnedOut, "--resume", "--stats"},
 					stdin: request + `{"questions":{"answer":{"type":"noul","question":"is it urgent"}},"state":"c"}` +
 						"\n",
-					stderr: "4 records, 3 skipped by --resume, 3 failed, 1 request, 1 question asked, 5 in / 2 out tokens, model m, 1 attempt, 10s/attempt, 0s\n",
+					stderr: "4 records, 3 skipped by --resume, 3 errors, 1 request, 1 question asked, 5 in / 2 out tokens, model m, 1 attempt, 10s/attempt, 0s\n",
 					code:   ExitRecords,
 				},
 			},

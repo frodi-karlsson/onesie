@@ -250,7 +250,7 @@ func TestMockAnswers(t *testing.T) {
 			args: with("-o", "values", "--state", "x", "--stats"),
 			mock: `{"error":503}`,
 			stderr: []string{
-				"1 record, 1 failed, 0 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+				"1 record, 1 error, 0 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
 					"3 attempts (2 retries: 503×2), 10s/attempt, ",
 			},
 			wantCode: ExitUnavailable,
@@ -442,7 +442,7 @@ func TestMockAnswers(t *testing.T) {
 			args:  with("-o", "values", "-i", "lines", "--stats"),
 			stdin: "a\nb\n",
 			mock:  lines(mockAll, mockUnread),
-			stderr: []string{"2 records, 1 failed, 1 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
+			stderr: []string{"2 records, 1 error, 1 answered from the mock, 3 questions asked, 0 in / 0 out tokens, " +
 				"model jev-latest, 1 attempt, 10s/attempt, "},
 			wantCode: ExitUsage,
 		},

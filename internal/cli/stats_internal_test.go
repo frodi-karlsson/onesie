@@ -498,7 +498,7 @@ func TestWithStats(t *testing.T) {
 				stdin:      "{\"id\":1}\nnot json\n",
 				handler:    func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode:   ExitRecords,
-				wantErr:    []string{"2 records, 1 failed, 1 request, 1 question asked, 2841 in / 71 out tokens"},
+				wantErr:    []string{"2 records, 1 error, 1 request, 1 question asked, 2841 in / 71 out tokens"},
 				wantOutHas: []string{`"urgent"`},
 			},
 			{
@@ -542,7 +542,7 @@ func TestWithStats(t *testing.T) {
 				stdin:      "{\"id\":1}\n{\"id\":2,\"answers\":{}}\n{\"id\":3}\n",
 				handler:    func() http.HandlerFunc { return answerHandler(answered) },
 				wantCode:   ExitRecords,
-				wantErr:    []string{"3 records, 1 failed, 2 requests, 2 questions"},
+				wantErr:    []string{"3 records, 1 error, 2 requests, 2 questions"},
 				wantOutHas: []string{"would overwrite"},
 			},
 			{
@@ -559,7 +559,7 @@ func TestWithStats(t *testing.T) {
 				},
 				wantCode: ExitUnavailable,
 				wantErr: []string{
-					"1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, " +
+					"1 request, 1 error, 2 questions asked, 0 in / 0 out tokens, " +
 						"3 attempts (2 retries: 500×2)",
 				},
 			},
@@ -572,7 +572,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{"urgent":{"type":"choice","choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
+				wantErr:  []string{"1 request, 1 error, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				name:  "should count the tokens of a 200 that carries no answer for a question",
@@ -583,7 +583,7 @@ func TestWithStats(t *testing.T) {
 						`"answers":{}}`)
 				},
 				wantCode: ExitRecords,
-				wantErr:  []string{"1 request, 1 failed, 1 question asked, 7 in / 3 out tokens"},
+				wantErr:  []string{"1 request, 1 error, 1 question asked, 7 in / 3 out tokens"},
 			},
 			{
 				name: "should report an empty stream as zero records",
@@ -693,7 +693,7 @@ func TestWithStats(t *testing.T) {
 				status:   http.StatusUnprocessableEntity,
 				response: `{"error":{"message":"bad body"}}`,
 				wantCode: ExitRecords,
-				wantErr:  "1 request, 1 failed, 2 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 1 error, 2 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 		}
 

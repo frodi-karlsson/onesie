@@ -163,7 +163,7 @@ func TestListModels(t *testing.T) {
 				status:   http.StatusUnauthorized,
 				response: `{"error":{"message":"invalid api key"}}`,
 				wantCode: ExitAuth,
-				wantErr:  "1 request, 1 failed, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
+				wantErr:  "1 request, 1 error, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 		}
 

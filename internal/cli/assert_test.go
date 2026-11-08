@@ -128,7 +128,7 @@ func TestAsk(t *testing.T) {
 				response: urgent,
 				wantCode: cli.ExitRejected,
 				contains: []string{`"assert":false`},
-				wantErr:  "1 request, 1 false assertion, 1 question asked",
+				wantErr:  "1 request, 1 fail, 1 question asked",
 			},
 			{
 				name:      "should reject a bad expression before any request",
@@ -356,7 +356,7 @@ func TestAsk(t *testing.T) {
 				abstain:   holds,
 				wantCode:  cli.ExitAbstain,
 				wantOut:   "{\"abstain\":true,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 abstain, 1 question asked",
+				wantStats: "1 request, 1 unsure, 1 question asked",
 			},
 			{
 				name:      "should exit one on a no",
@@ -364,7 +364,7 @@ func TestAsk(t *testing.T) {
 				abstain:   fails,
 				wantCode:  cli.ExitRejected,
 				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
-				wantStats: "1 request, 1 false assertion, 1 question asked",
+				wantStats: "1 request, 1 fail, 1 question asked",
 			},
 		}
 
@@ -417,7 +417,7 @@ func TestAsk(t *testing.T) {
 		}{
 			{
 				name: "should count a yes or no below the threshold", args: []string{"is this urgent"}, response: low,
-				wantCode: cli.ExitRejected, wantStats: "1 request, 1 false assertion, 1 question asked",
+				wantCode: cli.ExitRejected, wantStats: "1 request, 1 fail, 1 question asked",
 			},
 			{
 				name: "should count nothing beside a yes or no above the threshold", args: []string{"is this urgent"}, response: urgent,
@@ -425,7 +425,7 @@ func TestAsk(t *testing.T) {
 			},
 			{
 				name: "should count a low confidence pick", args: picked, response: unsure,
-				wantCode: cli.ExitRejected, wantStats: "1 request, 1 false assertion, 1 question asked",
+				wantCode: cli.ExitRejected, wantStats: "1 request, 1 fail, 1 question asked",
 			},
 			{
 				name: "should count nothing beside a confident pick", args: picked, response: routed,
@@ -964,7 +964,7 @@ func TestStopping(t *testing.T) {
 	}{
 		{
 			name: "should count no failed record for a request the stop cancelled",
-			want: "1 request, 1 false assertion, 1 question asked",
+			want: "1 request, 1 fail, 1 question asked",
 		},
 	}
 

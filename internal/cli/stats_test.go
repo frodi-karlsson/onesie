@@ -38,7 +38,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: 30 * time.Second,
 			},
-			want: "40 records, 2 failed, 40 requests, 80 questions asked, 10000 in / 400 out tokens, " +
+			want: "40 records, 2 errors, 40 requests, 80 questions asked, 10000 in / 400 out tokens, " +
 				"models onesie-1.13.0, onesie-1.14.0, 41 attempts (1 retry: 429×1), " +
 				"10s/attempt, 30s",
 		},
@@ -113,7 +113,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 3,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "3 records, 1 false assertion, 1 abstain, 3 requests, 3 questions asked, 0 in / 0 out tokens, " +
+			want: "3 records, 1 fail, 1 unsure, 3 requests, 3 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 3 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -135,7 +135,7 @@ func TestStatsString(t *testing.T) {
 				Retries: map[int]int{429: 1}, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
-			want: "3 records, 1 failed, 2 requests, 2 questions asked, 0 in / 0 out tokens, " +
+			want: "3 records, 1 error, 2 requests, 2 questions asked, 0 in / 0 out tokens, " +
 				"model onesie-1.13.0, 3 attempts (1 retry: 429×1), 10s/attempt, 1s",
 		},
 		{
@@ -171,7 +171,7 @@ func TestStatsString(t *testing.T) {
 				Models: []string{"onesie-1.13.0"}, Attempts: 40,
 				AttemptTimeout: 10 * time.Second, Elapsed: 30 * time.Second,
 			},
-			want: "40 records, 2 failed, 1 false assertion, 40 requests, 80 questions asked, " +
+			want: "40 records, 2 errors, 1 fail, 40 requests, 80 questions asked, " +
 				"10000 in / 400 out tokens, model onesie-1.13.0, 40 attempts, 10s/attempt, 30s",
 		},
 		{
@@ -190,7 +190,7 @@ func TestStatsString(t *testing.T) {
 				Records: 1, Requests: 1, Verdicts: output.Tally{output.Error: 1}, Questions: 1, Attempts: 1,
 				AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "1 request, 1 failed, 1 question asked, 0 in / 0 out tokens, " +
+			want: "1 request, 1 error, 1 question asked, 0 in / 0 out tokens, " +
 				"1 attempt, 10s/attempt, 1s",
 		},
 		{
@@ -217,7 +217,7 @@ func TestStatsString(t *testing.T) {
 				Mocked: true, Records: 2, Requests: 2, Verdicts: output.Tally{output.Error: 1}, FailedRequests: 1, Questions: 2,
 				Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second, Elapsed: time.Second,
 			},
-			want: "2 records, 1 failed, 1 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
+			want: "2 records, 1 error, 1 answered from the mock, 2 questions asked, 0 in / 0 out tokens, " +
 				"model jev-latest, 2 attempts, 10s/attempt, 1s",
 		},
 		{
@@ -227,7 +227,7 @@ func TestStatsString(t *testing.T) {
 				Questions: 2, Models: []string{"jev-latest"}, Attempts: 2, AttemptTimeout: 10 * time.Second,
 				Elapsed: time.Second,
 			},
-			want: "4 records, 1 skipped by --resume, 2 failed, 1 false assertion, 2 answered from the mock, " +
+			want: "4 records, 1 skipped by --resume, 2 errors, 1 fail, 2 answered from the mock, " +
 				"2 questions asked, 0 in / 0 out tokens, model jev-latest, 2 attempts, 10s/attempt, 1s",
 		},
 	}

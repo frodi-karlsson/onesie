@@ -1491,7 +1491,7 @@ func TestCalibrateRun(t *testing.T) {
 			t.Errorf("stdout =\n%s\nwant the report to count two failed records", out)
 		}
 
-		if !strings.Contains(errOut, "8 records, 2 failed, 8 requests, ") {
+		if !strings.Contains(errOut, "8 records, 2 errors, 8 requests, ") {
 			t.Errorf("stderr =\n%s\nwant the stats line to count the same two failed records", errOut)
 		}
 	})
@@ -1513,7 +1513,7 @@ func TestCalibrateRun(t *testing.T) {
 		report := strings.Index(out, "urgent, yes/no:")
 		first := strings.Index(out, "\nonesie: record T-7: 200 response could not be used: question 'urgent' answered 1.5, which lies outside [0,1]\n")
 		second := strings.Index(out, "\nonesie: record T-8: ")
-		stats := strings.Index(out, "8 records, 2 failed, 8 requests, ")
+		stats := strings.Index(out, "8 records, 2 errors, 8 requests, ")
 
 		if report < 0 || first < report || second < first || stats < second {
 			t.Errorf("output =\n%s\nwant the report, then one line per failed record, then the stats line", out)
@@ -2124,7 +2124,7 @@ func TestCalibrateRun(t *testing.T) {
 			}
 		}
 
-		if causes != 1 || !strings.Contains(errOut, "7 records, 6 skipped by --resume, 1 failed, ") {
+		if causes != 1 || !strings.Contains(errOut, "7 records, 6 skipped by --resume, 1 error, ") {
 			t.Errorf("stderr =\n%s\nwant one failed record named and counted once", errOut)
 		}
 	})

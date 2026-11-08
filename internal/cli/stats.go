@@ -364,15 +364,15 @@ func (s Stats) String() string {
 	}
 
 	if errored := s.Verdicts[output.Error]; errored > 0 {
-		parts = append(parts, fmt.Sprintf("%d failed", errored))
+		parts = append(parts, plural(errored, "error"))
 	}
 
 	if fails := s.Verdicts[output.Fail]; fails > 0 {
-		parts = append(parts, plural(fails, "false assertion"))
+		parts = append(parts, fmt.Sprintf("%d %s", fails, output.Fail))
 	}
 
 	if unsures := s.Verdicts[output.Unsure]; unsures > 0 {
-		parts = append(parts, plural(unsures, "abstain"))
+		parts = append(parts, fmt.Sprintf("%d %s", unsures, output.Unsure))
 	}
 
 	if split {
