@@ -45,6 +45,7 @@ func newQuestionsCmd(settings rootSettings) *cobra.Command {
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "The format, table, json or auto, which means table.")
 	setting.RefuseEmpty(cmd.Flags(), "output")
+	borrowHelpValue(cmd.Flags(), "output", setting.Output.Name())
 
 	return cmd
 }

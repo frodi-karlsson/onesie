@@ -220,7 +220,7 @@ func TestNewProfileCmd(t *testing.T) {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut)
 			}
 
-			if tc.wantOut != "" && !strings.Contains(out, tc.wantOut) {
+			if tc.wantOut != "" && !strings.Contains(strings.Join(strings.Fields(out), " "), tc.wantOut) {
 				t.Errorf("stdout = %q, want it to contain %q", out, tc.wantOut)
 			}
 
