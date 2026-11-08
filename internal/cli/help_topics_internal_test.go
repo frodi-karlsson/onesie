@@ -25,28 +25,39 @@ func TestHelpTopics(t *testing.T) {
 	}
 
 	flagName := regexp.MustCompile(`--[a-z][a-z-]*`)
+	shortFlag := regexp.MustCompile(`(?:^|\s)-([A-Za-z])\b`)
 	variableName := regexp.MustCompile(`[A-Z][A-Z0-9]*_[A-Z0-9_]+`)
 
 	for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+		pages := map[string]string{"overview": ""}
 		for _, topic := range helpTopics(command) {
-			t.Run("should name only real flags and variables in "+command.String()+" "+topic.name, func(t *testing.T) {
+			pages[topic.name] = topic.name
+		}
+		for page, topic := range pages {
+			t.Run("should name only real flags and variables in "+command.String()+" "+page, func(t *testing.T) {
 				t.Parallel()
 
 				cmd := helpTestCommand(t, command)
-				var page bytes.Buffer
-				if err := writeHelp(&page, cmd, command, topic.name); err != nil {
+				var text bytes.Buffer
+				if err := writeHelp(&text, cmd, command, topic); err != nil {
 					t.Fatal(err)
 				}
 
-				for _, flag := range flagName.FindAllString(page.String(), -1) {
+				for _, flag := range flagName.FindAllString(text.String(), -1) {
 					if cmd.Flags().Lookup(strings.TrimPrefix(flag, "--")) == nil {
-						t.Errorf("%s names %s, which %s does not register", topic.name, flag, command)
+						t.Errorf("%s names %s, which %s does not register", page, flag, command)
 					}
 				}
 
-				for _, variable := range variableName.FindAllString(page.String(), -1) {
+				for _, match := range shortFlag.FindAllStringSubmatch(text.String(), -1) {
+					if cmd.Flags().ShorthandLookup(match[1]) == nil {
+						t.Errorf("%s names -%s, which %s does not register", page, match[1], command)
+					}
+				}
+
+				for _, variable := range variableName.FindAllString(text.String(), -1) {
 					if !variables[variable] {
-						t.Errorf("%s names %s, which no settings row reads", topic.name, variable)
+						t.Errorf("%s names %s, which no settings row reads", page, variable)
 					}
 				}
 			})
