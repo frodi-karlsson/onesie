@@ -281,7 +281,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 	// A false assertion or an abstain is not an engine failure: the record succeeded and the answer
 	// is complete, so the outcome is carried on the line rather than returned as an error the engine
 	// would count against result.Failed.
-	record = judge(gated(r.gate, r.abstain), record, r.stats)
+	record = judge(gated(r.gate, r.abstain), record)
 
 	answered := rowLine(record, rec)
 	answered.call = call
@@ -296,6 +296,12 @@ func (r *streamRun) write(l line) error {
 		r.halted = true
 
 		return nil
+	}
+
+	// Tallied here rather than where the gate is asked, so a record still in flight when a stop
+	// ends the run neither counts in --stats nor outranks the verdict that stopped it.
+	if verdict := l.record.Verdict(); verdict != output.Error {
+		r.stats.judged(verdict)
 	}
 
 	if setting.Get(r.flags.merged, setting.Usage) {

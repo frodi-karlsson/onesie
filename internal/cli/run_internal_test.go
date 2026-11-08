@@ -71,19 +71,10 @@ func TestJudge(t *testing.T) {
 				{ID: "answer", Answer: &answer.Answer{Value: 0.9}},
 			}}
 
-			stats := &collector{}
-
-			got := judge(gated(parsed(t, tc.gate), parsed(t, tc.abstain)), record, stats)
+			got := judge(gated(parsed(t, tc.gate), parsed(t, tc.abstain)), record)
 
 			if got.Gate != tc.want {
 				t.Errorf("Gate = %v, want %v", got.Gate, tc.want)
-			}
-
-			var want output.Tally
-			want[tc.want] = 1
-
-			if counted := stats.snapshot(0).Verdicts; counted != want {
-				t.Errorf("Verdicts = %v, want %v", counted, want)
 			}
 		})
 	}

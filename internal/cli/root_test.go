@@ -131,6 +131,14 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	// A pass, an unsure, then a fail still in flight when the unsure stops the run, then a pass.
+	const (
+		stopRecords = "{\"id\":1,\"body\":\"a\"}\n{\"id\":2,\"body\":\"b\"}\n{\"id\":3,\"body\":\"c\"}\n" +
+			"{\"id\":4,\"body\":\"d\"}\n"
+		stopMock = "{\"id\":1,\"answer\":0.1}\n{\"id\":2,\"answer\":0.8}\n{\"id\":3,\"answer\":0.9}\n" +
+			"{\"id\":4,\"answer\":0.1}\n"
+	)
+
 	const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
 		`"usage":{"input_tokens":10,"output_tokens":2}}`
 
@@ -1118,6 +1126,32 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--version"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: there is no flag --version\n"},
+		},
+		{
+			name: "should exit 7 at the first unsure under -j 4, counting only the written records",
+			args: []string{
+				"is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id", "--mock", "mock.jsonl", "-o", "json",
+				"--assert", "answer.value < 0.5", "--abstain-if", "answer.value < 0.85", "--stop-on=unsure", "--stats",
+				"-j", "4",
+			},
+			stdin:    stopRecords,
+			files:    map[string]string{"mock.jsonl": stopMock},
+			wantCode: cli.ExitAbstain,
+			contains: []string{`{"id":2,"abstain":true`, ", 1 unsure,"},
+			absent:   []string{`"id":3`, `"id":4`, " fail"},
+		},
+		{
+			name: "should exit 7 at the first unsure under --unordered, counting only the written records",
+			args: []string{
+				"is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id", "--mock", "mock.jsonl", "-o", "json",
+				"--assert", "answer.value < 0.5", "--abstain-if", "answer.value < 0.85", "--stop-on=unsure", "--stats",
+				"--unordered",
+			},
+			stdin:    stopRecords,
+			files:    map[string]string{"mock.jsonl": stopMock},
+			wantCode: cli.ExitAbstain,
+			contains: []string{`{"id":2,"abstain":true`, ", 1 unsure,"},
+			absent:   []string{`"id":3`, `"id":4`, " fail"},
 		},
 		{
 			name:     "should let a later --state - win over --state with a notice",

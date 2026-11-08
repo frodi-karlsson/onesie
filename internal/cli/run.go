@@ -739,7 +739,8 @@ func ask(
 
 	// Only a record that arrived is evaluated. A failed request would read as all zeros, so a gate
 	// such as answer.value < 0.5 would hold for a request that never happened.
-	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record, stats)
+	record = judge(askedDecider(gate, abstain, quiet, built.Questions[0]), record)
+	stats.judged(record.Gate)
 
 	if quiet {
 		return verdictResult(record.Verdict())
@@ -771,9 +772,8 @@ func verdictResult(verdict output.Verdict) error {
 	}
 }
 
-func judge(decide decider, record output.Record, stats *collector) output.Record {
+func judge(decide decider, record output.Record) output.Record {
 	record.Gate = decide(record)
-	stats.judged(record.Gate)
 
 	return record
 }
