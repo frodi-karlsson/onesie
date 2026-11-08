@@ -31,7 +31,9 @@ func streamRaw(
 		return err
 	}
 
-	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, setting.Get(flags.merged, setting.StopOnError), resume)
+	stops := stopsOf(flags)
+
+	resume, err = answersfile.ResumedVerdicts(cmd.Context(), answers, answersfile.Format{Forwarded: true}, stops.has(output.Error), resume)
 	if err != nil {
 		return err
 	}
@@ -41,7 +43,7 @@ func streamRaw(
 		left:   resume.Skip,
 		stored: resume.Stored,
 		// --stop-on-assert is refused under -i request, whose bodies carry no assertion.
-		haltOnError: setting.Get(flags.merged, setting.StopOnError),
+		stops: stops,
 	}
 
 	result, err := engine.Run(cmd.Context(), engine.Config[input.Record, []byte]{
@@ -50,7 +52,7 @@ func streamRaw(
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        setting.Get(flags.merged, setting.Jobs),
 		Unordered:   setting.Get(flags.merged, setting.Unordered),
-		StopOnError: setting.Get(flags.merged, setting.StopOnError),
+		StopOnError: stops.has(output.Error),
 		Abort:       aborting,
 	})
 

@@ -607,15 +607,19 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func stopping(flags runConfig) func(line) bool {
-	if !setting.Get(flags.merged, setting.StopOnAssert) {
+func stopping(stops stopSet) func(line) bool {
+	if !stops.judges() {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
 		return nil
 	}
 
 	return func(l line) bool {
-		return l.record.AssertFailed
+		// An error stops the run through the engine's StopOnError, which also gives it the error's
+		// exit code.
+		verdict := l.record.Verdict()
+
+		return verdict != output.Error && stops.has(verdict)
 	}
 }
 

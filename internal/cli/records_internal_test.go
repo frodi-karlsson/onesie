@@ -6,6 +6,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
@@ -235,6 +236,74 @@ func TestDelimiterHint(t *testing.T) {
 
 			if got := delimiterHint(tc.mode, tc.comma, tc.header); got != tc.want {
 				t.Errorf("delimiterHint = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestResumed_Next(t *testing.T) {
+	t.Parallel()
+
+	failure := &output.Failure{Kind: output.KindHTTP, Message: "boom"}
+
+	tests := []struct {
+		name       string
+		stored     []answersfile.Stored
+		stops      stopSet
+		wantSkips  answersfile.Tally
+		wantHalted bool
+	}{
+		{
+			name:   "should count each stored verdict once and read on",
+			stored: []answersfile.Stored{{Verdict: output.Error, Failure: failure}, {Verdict: output.Fail}, {Verdict: output.Unsure}},
+			wantSkips: answersfile.Tally{
+				Records: 3, Verdicts: output.Tally{output.Fail: 1, output.Unsure: 1, output.Error: 1},
+			},
+		},
+		{
+			name:       "should halt at a stored fail when a fail stops the run",
+			stored:     []answersfile.Stored{{Verdict: output.Pass}, {Verdict: output.Fail}, {Verdict: output.Pass}},
+			stops:      stopSet(0).with(output.Fail),
+			wantSkips:  answersfile.Tally{Records: 2, Verdicts: output.Tally{output.Pass: 1, output.Fail: 1}},
+			wantHalted: true,
+		},
+		{
+			name:       "should halt at a stored error when an error stops the run",
+			stored:     []answersfile.Stored{{Verdict: output.Pass}, {Verdict: output.Error, Failure: failure}, {Verdict: output.Pass}},
+			stops:      stopSet(0).with(output.Error),
+			wantSkips:  answersfile.Tally{Records: 2, Verdicts: output.Tally{output.Pass: 1, output.Error: 1}},
+			wantHalted: true,
+		},
+		{
+			name:      "should read past a stored unsure when only a fail stops the run",
+			stored:    []answersfile.Stored{{Verdict: output.Unsure}},
+			stops:     stopSet(0).with(output.Fail),
+			wantSkips: answersfile.Tally{Records: 1, Verdicts: output.Tally{output.Unsure: 1}},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			source := &resumed{
+				source: input.NewStream(strings.NewReader("a\nb\nc\nd\n"), input.Lines, input.StreamOptions{}),
+				left:   len(tc.stored),
+				stored: tc.stored,
+				stops:  tc.stops,
+			}
+
+			_, ok, err := source.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if halted := !ok; halted != tc.wantHalted {
+				t.Errorf("halted = %v, want %v", halted, tc.wantHalted)
+			}
+
+			if got := source.skipped(); got != tc.wantSkips {
+				t.Errorf("skipped = %+v, want %+v", got, tc.wantSkips)
 			}
 		})
 	}

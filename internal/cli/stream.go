@@ -36,7 +36,7 @@ func stream(cmd *cobra.Command, in streamInputs) error {
 		Write:       run.write,
 		Jobs:        setting.Get(in.flags.merged, setting.Jobs),
 		Unordered:   setting.Get(in.flags.merged, setting.Unordered),
-		StopOnError: setting.Get(in.flags.merged, setting.StopOnError),
+		StopOnError: stopsOf(in.flags).has(output.Error),
 		Abort:       aborting,
 		Stop:        run.stop,
 	})
@@ -78,7 +78,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, setting.Get(in.flags.merged, setting.StopOnError), in.resume)
+	resume, err := answersfile.ResumedVerdicts(cmd.Context(), in.answers, format, stopsOf(in.flags).has(output.Error), in.resume)
 	if err != nil {
 		return nil, err
 	}
@@ -102,7 +102,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		})
 	}
 
-	run.stop = watched(stopping(in.flags), &run.stopped)
+	run.stop = watched(stopping(stopsOf(in.flags)), &run.stopped)
 
 	return run, nil
 }

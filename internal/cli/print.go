@@ -146,7 +146,7 @@ func streamRequests(
 		Write:       writeBodies(cmd.OutOrStdout()),
 		Jobs:        setting.Get(flags.merged, setting.Jobs),
 		Unordered:   setting.Get(flags.merged, setting.Unordered),
-		StopOnError: setting.Get(flags.merged, setting.StopOnError),
+		StopOnError: stopsOf(flags).has(output.Error),
 		Abort:       aborting,
 	})
 	source.stop()

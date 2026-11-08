@@ -29,6 +29,7 @@ func records(
 	resume answersfile.Resume,
 	outputMode output.Mode,
 ) *naming {
+	stops := stopsOf(flags)
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
 		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
 	})
@@ -42,11 +43,11 @@ func records(
 		stop: stop,
 		source: &resumed{
 			source: stream, left: resume.Skip, stored: resume.Stored,
-			haltOnAssert: setting.Get(flags.merged, setting.StopOnAssert), haltOnError: setting.Get(flags.merged, setting.StopOnError), table: tableName(outputMode, flags),
+			stops: stops, table: tableName(outputMode, flags),
 		},
 		stream:   stream,
 		namer:    namer,
-		halt:     setting.Get(flags.merged, setting.StopOnAssert),
+		stops:    stops,
 		book:     book,
 		mode:     outputMode,
 		input:    inputMode,
@@ -76,8 +77,7 @@ type resumed struct {
 	left            int
 	stored          []answersfile.Stored
 	skips           answersfile.Tally
-	haltOnAssert    bool
-	haltOnError     bool
+	stops           stopSet
 	halted          bool
 	table           string
 	stoppedBy       *output.Failure
@@ -103,10 +103,9 @@ func (r *resumed) Next() (input.Record, bool, error) {
 		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
 		// so nothing after it is read.
 		judged := r.count()
-		stopsOnError := judged.Verdict == output.Error && r.haltOnError
-		r.halted = (judged.Verdict == output.Fail && r.haltOnAssert) || stopsOnError
+		r.halted = r.stops.has(judged.Verdict)
 
-		if stopsOnError {
+		if r.halted && judged.Verdict == output.Error {
 			r.stop(judged.Failure)
 		}
 	}
@@ -179,7 +178,7 @@ type naming struct {
 	input    input.Mode
 	appended *appendedCSV
 	seen     map[[sha256.Size]byte]int
-	halt     bool
+	stops    stopSet
 	halted   bool
 	misread  atomic.Pointer[[]string]
 	otherID  atomic.Bool
@@ -221,7 +220,7 @@ func (n *naming) Next() (namedRecord, bool, error) {
 		}
 
 		// The ledger is left unended, so a stopped run is not compacted, as a fresh one is not.
-		n.halted = judged.Verdict == output.Fail && n.halt
+		n.halted = n.stops.has(judged.Verdict)
 	}
 
 	return namedRecord{}, false, nil
