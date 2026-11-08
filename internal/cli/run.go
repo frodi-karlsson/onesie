@@ -791,8 +791,6 @@ func verdictResult(verdict output.Verdict) error {
 
 func judge(decide decider, record output.Record, stats *collector) output.Record {
 	record.Gate = decide(record)
-	record.AssertFailed = record.Gate == output.Fail
-	record.Abstained = record.Gate == output.Unsure
 	stats.judged(record.Gate)
 
 	return record
