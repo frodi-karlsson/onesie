@@ -110,6 +110,7 @@ func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow
 	var flags []helpFlag
 	seen := map[*pflag.Flag]bool{}
 	local, inherited := cmd.LocalFlags(), cmd.InheritedFlags()
+	topics := helpTopics(command)
 	for _, row := range rows {
 		bound, available := row.FlagOn(command)
 		var flag *pflag.Flag
@@ -124,7 +125,7 @@ func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow
 		if flag == nil || flag.Hidden || seen[flag] {
 			continue
 		}
-		if !slices.ContainsFunc(helpTopics(command), func(topic helpTopic) bool { return topic.name == bound.HelpTopic }) {
+		if !slices.ContainsFunc(topics, func(topic helpTopic) bool { return topic.name == bound.HelpTopic }) {
 			return nil, fmt.Errorf("flag --%s has no help topic", flag.Name)
 		}
 		seen[flag] = true
