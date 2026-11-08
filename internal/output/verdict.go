@@ -39,3 +39,12 @@ func (v Verdict) String() string {
 
 // Tally counts records by verdict, indexed by the verdict.
 type Tally [Error + 1]int
+
+// Verdict is how the record ended: Error when it carries a Failure, its Gate otherwise.
+func (r Record) Verdict() Verdict {
+	if r.Failure != nil {
+		return Error
+	}
+
+	return r.Gate
+}

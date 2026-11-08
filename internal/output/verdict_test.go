@@ -32,3 +32,36 @@ func TestVerdict_String(t *testing.T) {
 		})
 	}
 }
+
+func TestRecord_Verdict(t *testing.T) {
+	t.Parallel()
+
+	failure := &output.Failure{Kind: output.KindHTTP, Message: "boom"}
+
+	tests := []struct {
+		name   string
+		record output.Record
+		want   output.Verdict
+	}{
+		{name: "should be answered when nothing judged the record", record: output.Record{}, want: output.Answered},
+		{name: "should be the gate's pass", record: output.Record{Gate: output.Pass}, want: output.Pass},
+		{name: "should be the gate's fail", record: output.Record{Gate: output.Fail}, want: output.Fail},
+		{name: "should be the gate's unsure", record: output.Record{Gate: output.Unsure}, want: output.Unsure},
+		{name: "should be an error when the record carries a failure", record: output.Record{Failure: failure}, want: output.Error},
+		{
+			name:   "should be an error whatever the gate holds beside a failure",
+			record: output.Record{Gate: output.Fail, Failure: failure},
+			want:   output.Error,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := tc.record.Verdict(); got != tc.want {
+				t.Errorf("Verdict() = %v, want %v", got, tc.want)
+			}
+		})
+	}
+}

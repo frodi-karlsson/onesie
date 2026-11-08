@@ -133,6 +133,9 @@ type Record struct {
 	Answers []Named
 	Failure *Failure
 
+	// Gate is what the run's gate made of the record: Answered with no gate, else Pass, Fail or
+	// Unsure. A record with a Failure ends in Error whatever Gate holds.
+	Gate Verdict
 	// AssertFailed is the reserved assert key. It is written as false and only when the record was
 	// judged a no, so a record with neither key passed.
 	AssertFailed bool
