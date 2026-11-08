@@ -6,21 +6,23 @@ Only exit 1 means a fail, a gate that said no. Exits 2 through 5 mean an error, 
 arrived at all. Exit 6 means a stream finished with one or more errors, and only the lines
 carrying an error are affected, the rest answered normally.
 A resume without `--id` skips a stored error line instead of asking again, and still exits 6
-over it. Under `--stop-on-error` a trailing error line is the exception, as below.
+over it. Under `--stop-on=error` a trailing error line is the exception, as below.
 Exit 7 is unsure, an answer too, neither a pass nor a fail, so route it to whoever decides
 the middle ground. A stream keeps the most severe code: 6 beats 1, and 1 beats 7.
 
 A stream that stops early takes the code of what stopped it. An auth failure stops it with 3.
-`--stop-on-error` stops it with the failing record's own code, such as 4 or 5, not 6. A record
+`--stop-on=error` stops it with the failing record's own code, such as 4 or 5, not 6. A record
 that never became a request, such as a line onesie could not read, has no code of its own, so it
 stops the run with 6.
-`--stop-on-assert` stops it at the first fail with 1, or with 6 when an earlier record had an error.
-A resume under `--stop-on-assert` stops at a skipped fail the same way.
-A resume without `--id` under `--stop-on-error` drops a trailing error line and asks its record
-again, since a run stopped by `--stop-on-error` writes nothing after it. So rerunning the same
+`--stop-on=fail` stops it at the first fail with 1, or with 6 when an earlier record had an error.
+`--stop-on=unsure` stops it at the first unsure with 7, or with 1 when an earlier record had a fail,
+or 6 when one had an error.
+A resume under `--stop-on=fail` stops at a skipped fail the same way.
+A resume without `--id` under `--stop-on=error` drops a trailing error line and asks its record
+again, since a run stopped by `--stop-on=error` writes nothing after it. So rerunning the same
 command makes progress once the cause is gone. An error line with more lines after it came from a
-run without `--stop-on-error`. The resume stops there with the code that run exited with, or exits
-2 for a csv or tsv row, which keeps only the message. Pass `--id` or drop `--stop-on-error` to
+run without `--stop-on=error`. The resume stops there with the code that run exited with, or exits
+2 for a csv or tsv row, which keeps only the message. Pass `--id` or drop `--stop-on=error` to
 carry on. With `--id` the record with the error is asked again instead.
 
 ## On exit 3
@@ -75,13 +77,13 @@ Exit 3 also covers these:
 | `which onesie did not write, and no CACHEDIR.TAG` | `--cache` found the file the message names in a cache directory onesie did not make. Point `ONESIE_CACHE_DIR` at a new or empty directory. `onesie cache` prints the same line and exits 0 |
 | `Drop --resume to start over` | the `--out` file was written by a different run, or has no fingerprint. `changed since` names what differs, such as `the model` or `--map` |
 | `--resume needs output that keeps each record's outcome` | `-o raw` and `-r` keep no id, failure or gate outcome, so a resume refuses them. Use `-o values` or `-o json` |
-| `is followed by more rows` | a resume without `--id` under `--stop-on-error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on-error` |
+| `is followed by more rows` | a resume without `--id` under `--stop-on=error` reached a stored csv or tsv error row with more rows after it, and a row keeps only the message, not the code to stop with. Pass `--id` or drop `--stop-on=error` |
 | `the header` | the csv or tsv header is not valid, or has a blank or repeated column name |
 | `every record's --id was null` | `-i csv` read a tab separated file, or `-i tsv` a comma separated one, so the header is one column and `--id` finds nothing. Pass the other `-i`. A mistyped `--id` also gives null ids, but then each record fails with `got null` and no hint. Check that `--id` names a header column |
 | `a row is longer than the limit`, with no error line | a csv row over `max-line-bytes` from `onesie -V`. It stops the run, since csv cannot find the next row after it. In tsv it is an error line instead |
 | `-q suppresses output, which leaves` | `-q` writes nothing, so it refuses `-r`, any `-o`, `--out`, `--merge` and `--merge-key`, which would only shape that output. Drop `-q` to keep the output, or drop the other flag to gate on the exit code alone |
 | `does not apply to --list-models`, `-i request`, `--print-request` or `--print-questions` | a typed flag that has no effect in that mode, and the message says what the mode does instead. `--print-request` refuses `--threshold`, `--min-confidence`, `--fallback`, `--assert` and `--abstain-if`, since the request it prints carries none of them, while a `-f` file's policy and gate are checked and left alone. The message says to rehearse the whole command with `--mock`, or to see the questions with `--print-questions`. An environment variable that has no effect in the mode is skipped instead, apart from `ONESIE_MOCK` beside `calibrate --print-request`, which is refused as `ONESIE_MOCK does not apply to --print-request` |
-| `applies to streaming input` | `-j` above 1, `--unordered`, `--stop-on-error`, `--stop-on-assert`, `--skip-blank`, `--no-dedup`, `--id` or `--image-field` beside one record. Pass `-i jsonl`, `-i lines`, `-i csv` or `-i tsv`, or drop the flag |
+| `applies to streaming input` | `-j` above 1, `--unordered`, `--stop-on`, `--skip-blank`, `--no-dedup`, `--id` or `--image-field` beside one record. Pass `-i jsonl`, `-i lines`, `-i csv` or `-i tsv`, or drop the flag |
 | `--cache stores answers from the API` | `--cache` beside `--mock`, which answers from a file. Drop one. Beside `ONESIE_MOCK` or `ONESIE_CACHE=1` nothing is refused: the mock answers and the cache is left untouched |
 | `--usage does not apply to` | `-o values`, `-o raw` and `-r` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |

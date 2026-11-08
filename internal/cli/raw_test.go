@@ -573,7 +573,7 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
-	t.Run("should stop at the first failed record under --stop-on-error", func(t *testing.T) {
+	t.Run("should stop at the first failed record under --stop-on=error", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -586,7 +586,7 @@ func TestStreamRaw(t *testing.T) {
 		}{
 			{
 				name:      "should end the run at the first failed record",
-				args:      []string{"-i", "request", "--stop-on-error"},
+				args:      []string{"-i", "request", "--stop-on=error"},
 				stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
 				wantSent:  0,
 				wantLines: 1,

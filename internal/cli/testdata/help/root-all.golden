@@ -132,7 +132,6 @@ Flags:
       --abstain-if EXPR         Turn a no into an unsure when this condition holds.
                                 Repeatable, combined with and. Needs --assert and
                                 replaces the -f file's abstain_if.
-      --stop-on-assert          End the run at the first fail. Streaming only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone
@@ -166,10 +165,11 @@ How they work together:
   operators, so weight answers with jq. A box has no value, so gate it on its edges or
   its confidence, as in mug.confidence >= 0.6.
 
-  Streams print every fail too. --stop-on-assert prints the first fail before stopping.
-  Earlier errors still affect the aggregate exit code. See Asking for question setting
-  scope. Use onesie help calibrate to choose cuts from labelled evidence. The export
-  example uses an illustrative cut.
+  Streams print every fail and unsure too. --stop-on=fail prints the first fail before
+  stopping, and --stop-on=unsure the first unsure. Both need --assert, and unsure also
+  needs --abstain-if. Earlier errors still affect the aggregate exit code. See Asking
+  for question setting scope. Use onesie help calibrate to choose cuts from labelled
+  evidence. The export example uses an illustrative cut.
 
   Inspect a policy without asking the model:
     onesie --ask 'urgent=is this urgent' --threshold 0.5 --print-questions
@@ -270,8 +270,9 @@ Flags:
       --prune                   Drop the answered ids the input no longer has. Needs
                                 --resume and --id.
       --unordered               Emit records as they complete. Streaming only.
-      --stop-on-error           End the run at the first error, with its exit code, or 6
-                                for a line onesie could not read. Streaming only.
+      --stop-on VERDICTS        End the run at the first record with one of these
+                                verdicts: error, fail or unsure, comma separated. An
+                                error exits with its own code. Streaming only.
       --no-dedup                Ask every record even when its request repeats an
                                 earlier one. Streaming only.
       --long-context            Raise the context limits to 262k tokens, slower and less
@@ -304,7 +305,7 @@ How they work together:
   requests. onesie cache reports entries and onesie cache clear empties them. Streams
   normally preserve input order. --unordered emits completed records immediately.
   --no-dedup asks every record even when its request repeats, independently of the disk
-  cache. --stop-on-error ends at the first error with its exit code, or 6 for an
+  cache. --stop-on=error ends at the first error with its exit code, or 6 for an
   unreadable record.
 
   --resume needs --out. Without --id, a stream continues after the last complete line.
@@ -336,7 +337,7 @@ Exit codes:
   4    the server did not answer after retries, or it answered 200 with a response
        onesie could not use, which is never retried
   5    transport error or timeout
-  6    a stream finished with one or more errors, or --stop-on-error stopped it at a
+  6    a stream finished with one or more errors, or --stop-on=error stopped it at a
        record that never became a request
   7    unsure: an --assert was false and --abstain-if held, so the gate could not decide
   130  interrupted

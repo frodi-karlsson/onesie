@@ -609,7 +609,7 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should write only the failing line under --stop-on-error and -j 4 every time", func(t *testing.T) {
+	t.Run("should write only the failing line under --stop-on=error and -j 4 every time", func(t *testing.T) {
 		t.Parallel()
 
 		stub := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -634,7 +634,7 @@ func TestStream(t *testing.T) {
 		}))
 		t.Cleanup(stub.Close)
 
-		args := []string{"is this urgent", "-i", "lines", "-o", "json", "-j", "4", "--stop-on-error", "--retries", "0"}
+		args := []string{"is this urgent", "-i", "lines", "-o", "json", "-j", "4", "--stop-on=error", "--retries", "0"}
 
 		for range 30 {
 			out, errOut, code := runStub(t, t.Context(), args, "fail\nfail\nx\n", stub.URL)
@@ -1014,13 +1014,13 @@ func TestStream(t *testing.T) {
 				},
 			},
 			{
-				name:     "should leave the appended answers uncompacted when --stop-on-error ends the run and finish on the next resume",
+				name:     "should leave the appended answers uncompacted when --stop-on=error ends the run and finish on the next resume",
 				existing: fileOf(idLines(4, 4)),
 				sidecar:  byID,
 				stdin:    idRecords(1, 5),
 				runs: []resumeRun{
 					{
-						args:       append([]string{"--stop-on-error", "--retries", "0"}, values...),
+						args:       append([]string{"--stop-on=error", "--retries", "0"}, values...),
 						failFrom:   3,
 						failStatus: http.StatusBadRequest,
 						wantCode:   ExitUsage,
@@ -1391,12 +1391,12 @@ func TestStream(t *testing.T) {
 				},
 			},
 			{
-				name:     "should stop at a skipped false assertion under --stop-on-assert and ask nothing after it",
+				name:     "should stop at a skipped false assertion under --stop-on=fail and ask nothing after it",
 				existing: fileOf(rejectedLines(2, 2)),
 				sidecar:  byIDAbstaining,
 				stdin:    idRecords(1, 4),
 				runs: []resumeRun{{
-					args:     append(append([]string{"--stop-on-assert"}, gateArgs...), values...),
+					args:     append(append([]string{"--stop-on=fail"}, gateArgs...), values...),
 					wantCode: ExitRejected,
 					wantFile: rejectedLines(2, 2) + abstainedLines(1, 1),
 					wantSent: []string{`{"id":1}`},
@@ -1464,7 +1464,7 @@ func TestStream(t *testing.T) {
 				}},
 			},
 			{
-				name:  "should ask a stored error line again under --id and --stop-on-error and stop as a fresh run does",
+				name:  "should ask a stored error line again under --id and --stop-on=error and stop as a fresh run does",
 				stdin: idRecords(1, 3),
 				runs: []resumeRun{
 					{
@@ -1478,7 +1478,7 @@ func TestStream(t *testing.T) {
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
-						args:       append([]string{"--retries", "0", "--stop-on-error"}, values...),
+						args:       append([]string{"--retries", "0", "--stop-on=error"}, values...),
 						failFrom:   1,
 						failStatus: http.StatusBadRequest,
 						wantCode:   ExitUsage,

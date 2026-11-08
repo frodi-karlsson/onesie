@@ -248,16 +248,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should refuse --stop-on-error",
-			args:     with("--stop-on-error"),
+			name:     "should refuse --stop-on",
+			args:     with("--stop-on=error,fail"),
 			wantCode: ExitUsage,
-			contains: []string{"so --stop-on-error does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --stop-on-assert",
-			args:     with("--stop-on-assert"),
-			wantCode: ExitUsage,
-			contains: []string{"so --stop-on-assert does not apply. Drop it"},
+			contains: []string{"calibrate scores every record it can and judges no assertion, so --stop-on does not apply. Drop it"},
 		},
 		{
 			name:     "should refuse --unordered",

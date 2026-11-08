@@ -22,8 +22,7 @@ var (
 	PrintSchema    = Key[bool]{name: "print_schema"}
 	ListModels     = Key[bool]{name: "list_models"}
 	Unordered      = Key[bool]{name: "unordered"}
-	StopOnError    = Key[bool]{name: "stop_on_error"}
-	StopOnAssert   = Key[bool]{name: "stop_on_assert"}
+	StopOn         = Key[string]{name: "stop_on"}
 	NoDedup        = Key[bool]{name: "no_dedup"}
 	MergeInput     = Key[bool]{name: "merge"}
 	MergeKey       = Key[string]{name: "merge_key"}

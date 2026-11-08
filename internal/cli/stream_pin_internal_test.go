@@ -81,9 +81,9 @@ func pinnedStreamRuns() []pinnedRun {
 			}},
 		},
 		{
-			name: "should stop at a blank line under --stop-on-error",
+			name: "should stop at a blank line under --stop-on=error",
 			steps: []pinnedStep{{
-				args: lines("-o", "json", "--stop-on-error", "-j", "4"), stdin: "a\n\nc\nd\n",
+				args: lines("-o", "json", "--stop-on=error", "-j", "4"), stdin: "a\n\nc\nd\n",
 				mock: `{"answer":0.4}`,
 				stdout: "{\"line\":1,\"model\":\"jev-latest\",\"answer\":{\"value\":0.4}}\n" +
 					"{\"line\":2,\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines\"}}\n",
@@ -157,9 +157,9 @@ func pinnedStreamRuns() []pinnedRun {
 			}},
 		},
 		{
-			name: "should write a markdown table cut short by --stop-on-assert",
+			name: "should write a markdown table cut short by --stop-on=fail",
 			steps: []pinnedStep{{
-				args:  byID("-o", "markdown", "--assert", "answer.value < 0.5", "--stop-on-assert"),
+				args:  byID("-o", "markdown", "--assert", "answer.value < 0.5", "--stop-on=fail"),
 				stdin: pinnedRecords, mock: pinnedByID,
 				stdout: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
@@ -188,9 +188,9 @@ func pinnedStreamRuns() []pinnedRun {
 			}},
 		},
 		{
-			name: "should stop at the first false assertion under --stop-on-assert",
+			name: "should stop at the first false assertion under --stop-on=fail",
 			steps: []pinnedStep{{
-				args:  byID("-o", "json", "--assert", "answer.value < 0.5", "--stop-on-assert", "-j", "4"),
+				args:  byID("-o", "json", "--assert", "answer.value < 0.5", "--stop-on=fail", "-j", "4"),
 				stdin: pinnedRecords, mock: pinnedByID,
 				stdout: "{\"id\":1,\"model\":\"jev-latest\",\"answer\":{\"value\":0.1}}\n" +
 					"{\"id\":2,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.8}}\n",
@@ -298,7 +298,7 @@ func pinnedStreamRuns() []pinnedRun {
 				"{\"line\":4,\"model\":\"jev-latest\",\"answer\":{\"value\":0.4}}\n",
 		},
 		{
-			name: "should refuse to resume past a stored failure under --stop-on-error",
+			name: "should refuse to resume past a stored failure under --stop-on=error",
 			steps: []pinnedStep{
 				{
 					args:  lines("-o", "json", "--out", pinnedOut, "--resume"),
@@ -306,9 +306,9 @@ func pinnedStreamRuns() []pinnedRun {
 					code: ExitRecords,
 				},
 				{
-					args:  lines("-o", "json", "--out", pinnedOut, "--resume", "--stop-on-error"),
+					args:  lines("-o", "json", "--out", pinnedOut, "--resume", "--stop-on=error"),
 					stdin: "a\n\nc\nd\n", mock: `{"answer":0.4}`,
-					stderr: "onesie: line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines. The stored error for record 2 is followed by more lines, so a run without --stop-on-error wrote it. Pass --id or drop --stop-on-error to carry on\n",
+					stderr: "onesie: line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines. The stored error for record 2 is followed by more lines, so a run without --stop-on=error wrote it. Pass --id or drop --stop-on=error to carry on\n",
 					code:   ExitRecords,
 				},
 			},
@@ -385,9 +385,9 @@ func pinnedStreamRuns() []pinnedRun {
 			}},
 		},
 		{
-			name: "should stop at a failed request under --stop-on-error with its own exit code",
+			name: "should stop at a failed request under --stop-on=error with its own exit code",
 			steps: []pinnedStep{{
-				args:   byID("-o", "json", "--stop-on-error"),
+				args:   byID("-o", "json", "--stop-on=error"),
 				stdin:  pinnedRecords,
 				status: http.StatusInternalServerError,
 				stdout: "{\"id\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 the server failed\"}}\n",

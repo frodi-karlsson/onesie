@@ -203,21 +203,21 @@ func TestValidate(t *testing.T) {
 			typed:      []settingrow.Name{"input", "state"},
 		},
 		{
-			name:       "should reject stop on error outside a stream",
+			name:       "should reject --stop-on=error outside a stream",
 			positional: "is this urgent",
-			set:        values{"stop_on_error": true, "input": "json"},
-			wantErr:    "--stop-on-error applies to streaming input. -i json reads one record",
+			set:        values{"stop_on": "error", "input": "json"},
+			wantErr:    "--stop-on applies to streaming input. -i json reads one record",
 		},
 		{
-			name:       "should reject stop on assert outside a stream",
+			name:       "should reject --stop-on=fail outside a stream",
 			positional: "is this urgent",
-			set:        values{"stop_on_assert": true, "input": "text"},
-			wantErr:    "--stop-on-assert applies to streaming input. -i text reads one record",
+			set:        values{"stop_on": "fail", "input": "text"},
+			wantErr:    "--stop-on applies to streaming input. -i text reads one record",
 		},
 		{
-			name:       "should accept stop on assert in a gated stream",
+			name:       "should accept --stop-on=fail in a gated stream",
 			positional: "is this urgent",
-			set:        values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "input": "jsonl"},
+			set:        values{"assert": []string{"answer.value > 0.5"}, "stop_on": "fail", "input": "jsonl"},
 		},
 		{
 			name:       "should reject skip blank outside a stream",
@@ -590,10 +590,10 @@ func TestValidate(t *testing.T) {
 			set:        values{"quiet": true},
 		},
 		{
-			name:       "should report --stop-on-assert on one record before its missing assertion",
+			name:       "should report --stop-on=fail on one record before its missing assertion",
 			positional: "is this urgent",
-			set:        values{"stop_on_assert": true},
-			wantExact:  "--stop-on-assert applies to streaming input. -i text reads one record",
+			set:        values{"stop_on": "fail"},
+			wantExact:  "--stop-on applies to streaming input. -i text reads one record",
 		},
 	}
 
@@ -1051,7 +1051,7 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				name:  "should accept the streaming flags with -i request",
-				set:   values{"input": "request", "jobs": 4, "unordered": true, "stop_on_error": true, "skip_blank": true},
+				set:   values{"input": "request", "jobs": 4, "unordered": true, "stop_on": "error", "skip_blank": true},
 				typed: []settingrow.Name{"jobs"},
 			},
 			{
@@ -1150,9 +1150,9 @@ func TestValidate(t *testing.T) {
 				set:  values{"assert": []string{"answer.value > 0.5"}, "print_questions": true, "input": "text"},
 			},
 			{
-				name:    "should reject --stop-on-assert with --print-request",
-				set:     values{"print_request": true, "stop_on_assert": true, "input": "lines"},
-				wantErr: "--stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
+				name:    "should reject --stop-on=fail with --print-request",
+				set:     values{"print_request": true, "stop_on": "fail", "input": "lines"},
+				wantErr: "--stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
 				name:    "should reject --abstain-if with --list-models",
@@ -1179,8 +1179,8 @@ func TestValidate(t *testing.T) {
 				set:  values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}, "print_questions": true, "input": "text"},
 			},
 			{
-				name: "should accept --stop-on-error with --print-request",
-				set:  values{"print_request": true, "stop_on_error": true, "input": "lines"},
+				name: "should accept --stop-on=error with --print-request",
+				set:  values{"print_request": true, "stop_on": "error", "input": "lines"},
 			},
 			{
 				name:    "should refuse --threshold beside --print-request",
@@ -1437,12 +1437,12 @@ func TestValidate(t *testing.T) {
 				wantErr: "--resume needs output that keeps each record's outcome, which raw lines do not. Use -o values or -o json",
 			},
 			{
-				name: "should accept a tsv resume by position under --stop-on-error, since the file is read at runtime",
-				set:  values{"input": "jsonl", "resume": true, "out": "a.tsv", "output": "tsv", "stop_on_error": true, "jobs": 1},
+				name: "should accept a tsv resume by position under --stop-on=error, since the file is read at runtime",
+				set:  values{"input": "jsonl", "resume": true, "out": "a.tsv", "output": "tsv", "stop_on": "error", "jobs": 1},
 			},
 			{
-				name:  "should accept a csv resume by id under --stop-on-error",
-				set:   values{"input": "jsonl", "resume": true, "out": "a.csv", "output": "csv", "stop_on_error": true, "jobs": 1},
+				name:  "should accept a csv resume by id under --stop-on=error",
+				set:   values{"input": "jsonl", "resume": true, "out": "a.csv", "output": "csv", "stop_on": "error", "jobs": 1},
 				typed: []settingrow.Name{"id"},
 			},
 			{
@@ -1515,13 +1515,13 @@ func TestValidate(t *testing.T) {
 				fromFile: []settingrow.Name{"assert"},
 			},
 			{
-				name:    "should reject --stop-on-assert without an assertion",
-				set:     values{"stop_on_assert": true, "input": "jsonl"},
-				wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
+				name:    "should reject --stop-on=fail without an assertion",
+				set:     values{"stop_on": "fail", "input": "jsonl"},
+				wantErr: "--stop-on=fail needs --assert, since without one no record can fail",
 			},
 			{
-				name:     "should accept --stop-on-assert when the only assertion comes from the file",
-				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on_assert": true, "file": "q.yaml", "input": "jsonl"},
+				name:     "should accept --stop-on=fail when the only assertion comes from the file",
+				set:      values{"assert": []string{"answer.value > 0.5"}, "stop_on": "fail", "file": "q.yaml", "input": "jsonl"},
 				fromFile: []settingrow.Name{"assert"},
 			},
 			{
@@ -1729,7 +1729,7 @@ func TestRules(t *testing.T) {
 					"merge-needs-mergeable-output", "merge-key-not-wrapped", "delimited-output", "quiet-without-usage",
 					"usage-needs-a-usage-column", "streaming-flags-need-a-stream",
 					"stream-reads-its-own-state", "quiet-reads-one-record", "table-reads-one-record",
-					"stop-on-assert-needs-assert", "columns-unique", "line-field-reserved",
+					"stop-on-verdict-needs-gate", "columns-unique", "line-field-reserved",
 					"policy-binding", "questions-valid", "quiet-needs-one-question",
 					"raw-needs-one-question", "one-state", "quiet-writes-nothing", "setting-given-twice",
 				}
@@ -1871,7 +1871,7 @@ func ruleCases() []ruleCase {
 		{
 			rule:    "dry-run-and-request",
 			refused: run{set: values{"print_request": true, "mock": "answers.jsonl"}, typed: []settingrow.Name{"mock"}},
-			passed:  run{set: values{"print_request": true, "input": "request", "stop_on_error": true}},
+			passed:  run{set: values{"print_request": true, "input": "request", "stop_on": "error"}},
 			wantErr: "--mock does not apply to --print-request, which writes the request bodies and sends none",
 		},
 		{
@@ -1974,10 +1974,10 @@ func ruleCases() []ruleCase {
 			wantErr: "-o table reads one record. Drop -i lines or use -o json",
 		},
 		{
-			rule:    "stop-on-assert-needs-assert",
-			refused: run{set: values{"stop_on_assert": true}},
-			passed:  run{set: values{"stop_on_assert": true, "assert": []string{"answer.value > 0.5"}}},
-			wantErr: "--stop-on-assert needs --assert, since without one no assertion is false",
+			rule:    "stop-on-verdict-needs-gate",
+			refused: run{set: values{"stop_on": "fail"}},
+			passed:  run{set: values{"stop_on": "fail", "assert": []string{"answer.value > 0.5"}}},
+			wantErr: "--stop-on=fail needs --assert, since without one no record can fail",
 		},
 		{
 			rule: "columns-unique",

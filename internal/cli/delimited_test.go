@@ -304,8 +304,8 @@ func TestFinishStream(t *testing.T) {
 				"so if the file is tab separated, pass -i tsv\n",
 		},
 		{
-			name:     "should hint at the delimiter after the one record --stop-on-error read",
-			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id", "--stop-on-error"},
+			name:     "should hint at the delimiter after the one record --stop-on=error read",
+			args:     []string{"is this urgent", "-i", "tsv", "--id", ".id", "--stop-on=error"},
 			stdin:    commas,
 			wantCode: ExitRecords,
 			wantErr:  tsvHint,

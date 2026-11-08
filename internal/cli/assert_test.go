@@ -1041,7 +1041,7 @@ func runStoppedStream(t *testing.T) string {
 	root.Command.SetErr(&errOut)
 	root.Command.SetArgs([]string{
 		"is this urgent", "-i", "lines", "-j", "2",
-		"--assert", "answer.value < 0.5", "--stop-on-assert", "--stats",
+		"--assert", "answer.value < 0.5", "--stop-on=fail", "--stats",
 	})
 
 	if code := root.Execute(t.Context()); code != cli.ExitRejected {

@@ -138,7 +138,7 @@ func runTargets(flags *runFlags) map[settingrow.Name]any {
 		"image": &flags.images, "image_field": &flags.imageFields,
 		setting.Map.Name(): &flags.mapSource, setting.ID.Name(): &flags.idSource,
 		setting.SkipBlank.Name(): &flags.skipBlank, setting.Unordered.Name(): &flags.unordered,
-		setting.StopOnError.Name(): &flags.stopOnError, setting.StopOnAssert.Name(): &flags.stopOnAssert,
+		setting.StopOn.Name():  &flags.stopOn,
 		setting.NoDedup.Name(): &flags.noDedup, setting.File.Name(): &flags.file,
 		setting.Replace.Name(): &flags.replace, setting.Provider.Name(): &flags.provider,
 		setting.Profile.Name(): &flags.profile, setting.Model.Name(): &flags.model,

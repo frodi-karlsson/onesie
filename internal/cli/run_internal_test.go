@@ -226,7 +226,7 @@ func TestDescribe(t *testing.T) {
 			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, output.Tally{})
 
 			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
-				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on-error does", stored.failure, got, want)
+				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on=error does", stored.failure, got, want)
 			}
 
 			if strings.HasPrefix(stored.failure.Message, "onesie: ") {

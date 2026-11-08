@@ -114,7 +114,8 @@ func helpDecisions() string {
 		"min, max, sum and avg take numbers and nest, as in max(a.value, b.value) < 0.2. " +
 		"There are no arithmetic operators, so weight answers with jq. " +
 		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
-		"Streams print every fail too. --stop-on-assert prints the first fail before stopping. " +
+		"Streams print every fail and unsure too. --stop-on=fail prints the first fail before stopping, and --stop-on=unsure the first unsure. " +
+		"Both need --assert, and unsure also needs --abstain-if. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."
 }
@@ -190,7 +191,7 @@ func helpExecution(command settingrow.Command) string {
 	if command == settingrow.CommandRoot {
 		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
-			"--stop-on-error ends at the first error with its exit code, or 6 for an unreadable record. "
+			"--stop-on=error ends at the first error with its exit code, or 6 for an unreadable record. "
 	}
 	resume := "--resume needs --out. Without --id, a stream continues after the last complete line. With --id it skips answered ids. "
 	if command == settingrow.CommandCalibrate {

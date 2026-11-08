@@ -162,8 +162,8 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"kind":"input"`},
 		},
 		{
-			name:      "should exit 6 at a bad input line under --stop-on-error",
-			args:      []string{"is this urgent", "-i", "jsonl", "--stop-on-error"},
+			name:      "should exit 6 at a bad input line under --stop-on=error",
+			args:      []string{"is this urgent", "-i", "jsonl", "--stop-on=error"},
 			stdin:     "\"good\"\nnot json\n\"also good\"\n",
 			response:  answered,
 			wantCode:  cli.ExitRecords,
@@ -171,8 +171,8 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"kind":"input"`},
 		},
 		{
-			name:      "should exit 6 at an empty state under --stop-on-error",
-			args:      []string{"is this urgent", "-i", "lines", "--stop-on-error"},
+			name:      "should exit 6 at an empty state under --stop-on=error",
+			args:      []string{"is this urgent", "-i", "lines", "--stop-on=error"},
 			stdin:     "first\n\nthird\n",
 			response:  answered,
 			wantCode:  cli.ExitRecords,
@@ -180,8 +180,8 @@ func TestStream(t *testing.T) {
 			contains:  []string{`{"line":2,"error":{"kind":"input"`},
 		},
 		{
-			name:      "should exit with a server error's own code under --stop-on-error",
-			args:      []string{"is this urgent", "-i", "lines", "--stop-on-error", "--retries", "0"},
+			name:      "should exit with a server error's own code under --stop-on=error",
+			args:      []string{"is this urgent", "-i", "lines", "--stop-on=error", "--retries", "0"},
 			stdin:     "first\nsecond\n",
 			status:    http.StatusInternalServerError,
 			response:  `{"error":{"message":"boom"}}`,
@@ -190,8 +190,8 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"status":500`},
 		},
 		{
-			name:      "should exit 2 at a server 422 under --stop-on-error",
-			args:      []string{"is this urgent", "-i", "lines", "--stop-on-error", "--retries", "0"},
+			name:      "should exit 2 at a server 422 under --stop-on=error",
+			args:      []string{"is this urgent", "-i", "lines", "--stop-on=error", "--retries", "0"},
 			stdin:     "first\nsecond\n",
 			status:    http.StatusUnprocessableEntity,
 			response:  `{"error":{"message":"bad"}}`,
@@ -555,9 +555,9 @@ func TestStream(t *testing.T) {
 				missing:   []string{"assert"},
 			},
 			{
-				name: "should end the run at the first false assertion under stop on assert",
+				name: "should end the run at the first false assertion under --stop-on=fail",
 				args: []string{
-					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on=fail",
 				},
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitRejected,
@@ -568,7 +568,7 @@ func TestStream(t *testing.T) {
 				name: "should end an unordered run at the first false assertion",
 				args: []string{
 					"is this urgent", "-i", "lines", "--assert", gate,
-					"--stop-on-assert", "--unordered",
+					"--stop-on=fail", "--unordered",
 				},
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitRejected,
@@ -611,10 +611,21 @@ func TestStream(t *testing.T) {
 				contains:  []string{`"abstain":true`, `"kind":"http"`},
 			},
 			{
-				name: "should not stop on an abstain under stop on assert",
+				name: "should end the run at the first unsure under --stop-on=unsure",
 				args: []string{
 					"is this urgent", "-i", "lines", "--assert", gate,
-					"--abstain-if", "answer.value < 0.95", "--stop-on-assert",
+					"--abstain-if", "answer.value < 0.95", "--stop-on=unsure",
+				},
+				stdin:     "cold\nhot\ncold\n",
+				wantCode:  cli.ExitAbstain,
+				wantLines: 2,
+				contains:  []string{`{"line":2,"abstain":true,`},
+			},
+			{
+				name: "should not stop on an unsure under --stop-on=fail",
+				args: []string{
+					"is this urgent", "-i", "lines", "--assert", gate,
+					"--abstain-if", "answer.value < 0.95", "--stop-on=fail",
 				},
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
@@ -633,9 +644,9 @@ func TestStream(t *testing.T) {
 				contains:  []string{"answer,assert,error\n0.1,true,\n0.9,abstain,\n"},
 			},
 			{
-				name: "should read the whole stream under stop on assert when nothing is false",
+				name: "should read the whole stream under --stop-on=fail when nothing is false",
 				args: []string{
-					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on-assert",
+					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on=fail",
 				},
 				stdin:     "cold\ncold\ncold\n",
 				wantCode:  cli.ExitOK,
@@ -1456,10 +1467,10 @@ func TestStream(t *testing.T) {
 					"_`m`_\n",
 			},
 			{
-				name: "should say the run stopped early under --stop-on-assert",
+				name: "should say the run stopped early under --stop-on=fail",
 				args: []string{
 					"is this urgent", "-i", "lines", "-o", "markdown", "--assert", "answer.value > 0.9",
-					"--stop-on-assert",
+					"--stop-on=fail",
 				},
 				stdin:    "site down\nslow\nfine\n",
 				wantCode: cli.ExitRejected,

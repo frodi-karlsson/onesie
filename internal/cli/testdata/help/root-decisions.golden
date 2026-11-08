@@ -13,7 +13,6 @@ Flags:
       --abstain-if EXPR         Turn a no into an unsure when this condition holds.
                                 Repeatable, combined with and. Needs --assert and
                                 replaces the -f file's abstain_if.
-      --stop-on-assert          End the run at the first fail. Streaming only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone
@@ -47,10 +46,11 @@ How they work together:
   operators, so weight answers with jq. A box has no value, so gate it on its edges or
   its confidence, as in mug.confidence >= 0.6.
 
-  Streams print every fail too. --stop-on-assert prints the first fail before stopping.
-  Earlier errors still affect the aggregate exit code. See Asking for question setting
-  scope. Use onesie help calibrate to choose cuts from labelled evidence. The export
-  example uses an illustrative cut.
+  Streams print every fail and unsure too. --stop-on=fail prints the first fail before
+  stopping, and --stop-on=unsure the first unsure. Both need --assert, and unsure also
+  needs --abstain-if. Earlier errors still affect the aggregate exit code. See Asking
+  for question setting scope. Use onesie help calibrate to choose cuts from labelled
+  evidence. The export example uses an illustrative cut.
 
   Inspect a policy without asking the model:
     onesie --ask 'urgent=is this urgent' --threshold 0.5 --print-questions

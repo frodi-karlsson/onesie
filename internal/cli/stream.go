@@ -215,7 +215,7 @@ func (r *streamRun) mergeCollision(rec namedRecord) (line, error) {
 	// Detected here rather than inside Write, since the engine counts a failure from the evaluator's
 	// error and a rewrite inside Write would count as a success.
 	//
-	// A LineError gets kind input rather than the transport default from describe, so --stop-on-error
+	// A LineError gets kind input rather than the transport default from describe, so --stop-on=error
 	// reaches the row, and the line number comes along without a onesie prefix inside the JSON.
 	taken := &input.LineError{Line: rec.Line, Err: overwrite}
 

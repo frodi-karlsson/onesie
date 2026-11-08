@@ -963,7 +963,7 @@ func TestMockAnswers(t *testing.T) {
 						t.Fatal(err)
 					}
 
-					_, errOut, code := runMocked(t, t.Context(), append(args, "--stop-on-error"), stdin, env, nil)
+					_, errOut, code := runMocked(t, t.Context(), append(args, "--stop-on=error"), stdin, env, nil)
 					if code != ExitAuth {
 						t.Errorf("resume exit %d, want %d as the live refusal exits\n%s", code, ExitAuth, errOut)
 					}
@@ -971,7 +971,7 @@ func TestMockAnswers(t *testing.T) {
 					// Without the flag the stored refusal is skipped as any failed line is, and counts as failed.
 					_, errOut, code = runMocked(t, t.Context(), args, stdin, env, nil)
 					if code != ExitRecords {
-						t.Errorf("resume without --stop-on-error exit %d, want %d\n%s", code, ExitRecords, errOut)
+						t.Errorf("resume without --stop-on=error exit %d, want %d\n%s", code, ExitRecords, errOut)
 					}
 				})
 			}

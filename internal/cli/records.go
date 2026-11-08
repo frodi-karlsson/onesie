@@ -100,7 +100,7 @@ func (r *resumed) Next() (input.Record, bool, error) {
 			return rec, ok, err
 		}
 
-		// A fresh run under --stop-on-assert or --stop-on-error would have stopped at this record,
+		// A fresh run under --stop-on would have stopped at this record,
 		// so nothing after it is read.
 		judged := r.count()
 		r.halted = r.stops.has(judged.Verdict)
@@ -153,8 +153,8 @@ func (r *resumed) freshRunAbort() error {
 
 	if r.table != "" {
 		return fmt.Errorf("the stored error for record %d is followed by more rows, so a run "+
-			"without --stop-on-error wrote it, and a %s row keeps only its message, not the code to stop "+
-			"with. Pass --id or drop --stop-on-error to carry on", r.stoppedAtRecord, r.table)
+			"without --stop-on=error wrote it, and a %s row keeps only its message, not the code to stop "+
+			"with. Pass --id or drop --stop-on=error to carry on", r.stoppedAtRecord, r.table)
 	}
 
 	return &storedFailure{failure: *r.stoppedBy, record: r.stoppedAtRecord}

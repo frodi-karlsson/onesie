@@ -144,9 +144,9 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: -m does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --stop-on-assert with -i request",
-				args:    []string{"-i", "request", "--stop-on-assert"},
-				wantErr: "onesie: --stop-on-assert does not apply to -i request, which sends each body as written and prints each raw response",
+				name:    "should reject --stop-on=fail with -i request",
+				args:    []string{"-i", "request", "--stop-on=fail"},
+				wantErr: "onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
 				name:    "should reject --print-questions with -i request",
@@ -354,14 +354,14 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: --unordered does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --stop-on-error with --list-models",
-				args:    []string{"--list-models", "--stop-on-error"},
-				wantErr: "onesie: --stop-on-error does not apply to --list-models, which only lists the models a provider serves",
+				name:    "should reject --stop-on=error with --list-models",
+				args:    []string{"--list-models", "--stop-on=error"},
+				wantErr: "onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --stop-on-assert with --list-models",
-				args:    []string{"--list-models", "--stop-on-assert"},
-				wantErr: "onesie: --stop-on-assert does not apply to --list-models, which only lists the models a provider serves",
+				name:    "should reject --stop-on=fail with --list-models",
+				args:    []string{"--list-models", "--stop-on=fail"},
+				wantErr: "onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				name:    "should reject --skip-blank with --list-models",

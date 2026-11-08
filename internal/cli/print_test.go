@@ -1426,10 +1426,10 @@ func TestPrintRequest(t *testing.T) {
 				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name:  "should reject --stop-on-assert with --print-request in a stream",
-				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on-assert"},
+				name:  "should reject --stop-on=fail with --print-request in a stream",
+				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on=fail"},
 				stdin: "a\nb\n",
-				want:  "onesie: --stop-on-assert does not apply to --print-request, which writes the request bodies and sends none",
+				want:  "onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",
 			},
 		}
 
