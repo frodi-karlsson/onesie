@@ -275,6 +275,37 @@ func TestHelpOutput(t *testing.T) {
 	}
 }
 
+func TestHelpExecution(t *testing.T) {
+	t.Run("should describe the mock file format on both commands", func(t *testing.T) {
+		for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
+			for _, want := range []string{
+				"A mock file is one JSON object keyed by question id",
+				"Lines match records by id under --id and by position otherwise",
+				`{"error":503}`, `{"error":"timeout"}`, `{"error":"connection"}`,
+			} {
+				if !strings.Contains(helpExecution(command), want) {
+					t.Errorf("%s help execution lacks %q", command, want)
+				}
+			}
+		}
+	})
+	for _, tc := range []struct {
+		entry string
+		code  int
+	}{
+		{`{"error":503}`, ExitUnavailable},
+		{`{"error":"timeout"}`, ExitTransport},
+		{`{"error":"connection"}`, ExitTransport},
+	} {
+		t.Run("should exit "+strconv.Itoa(tc.code)+" on the documented entry "+tc.entry, func(t *testing.T) {
+			args := []string{"is this urgent", "--state", "text", "--retries", "0", "--mock", writeMock(t, tc.entry)}
+			if _, errOut, code := runMocked(t, t.Context(), args, "", nil, nil); code != tc.code {
+				t.Fatalf("exit %d, want %d, stderr %s", code, tc.code, errOut)
+			}
+		})
+	}
+}
+
 func TestInstallHelp(t *testing.T) {
 	t.Run("should render every direct help route without runtime dependencies", func(t *testing.T) {
 		paths := [][]string{nil, {"--help"}, {"help"}, {"calibrate"}, {"calibrate", "--help"}, {"help", "calibrate"}, {"help", "questions"}, {"help", "profile", "create"}}
