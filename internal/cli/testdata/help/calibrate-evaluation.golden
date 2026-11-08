@@ -1,10 +1,10 @@
 Evaluation
 
 Flags:
-      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
-                                mapped state, whose result is the right answer for
-                                question ID. A question with none is skipped. With one
-                                question ID= may be left out
+      --label [ID=]EXPR         Read the right answer for question ID with this jq
+                                expression, run on the record, not on the mapped state.
+                                A question with none is skipped. With one question ID=
+                                may be left out.
       --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
                                 defaults
       --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a

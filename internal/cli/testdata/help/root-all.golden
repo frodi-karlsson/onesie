@@ -26,9 +26,9 @@ Flags:
                                 naming the schema --print-schema prints
       --print-schema            write the JSON Schema for a question file to stdout and
                                 exit
-      --for ID                  ID, repeatable, selects a question from -f, so the
-                                question flags after it apply to that question, each
-                                with a notice
+      --for ID                  Select a question from -f by ID, so the question flags
+                                after it apply to that question, each with a notice.
+                                Repeatable.
       --sep STRING              separator for --pick and --rate that follow it
       --box                     make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,
@@ -78,12 +78,11 @@ Flags:
       --delimiter STRING        field separator that -i csv reads and -o csv writes:
                                 auto, which needs -i csv and writes the one it detects,
                                 or one character. Defaults to a comma
-      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in the state
-                                under NAME, experimental on TypeSafe's side. For one
-                                record stdin is read beside it only through --state -,
-                                so text joins it from --state, --state-file or --state
-                                -. A stream reads its records from stdin and adds the
-                                image to each
+      --image NAME=PATH         Put a PNG or JPEG in the state under NAME. Repeatable.
+                                For one record stdin is read beside it only through
+                                --state -, so text joins it from --state, --state-file
+                                or --state -. A stream reads its records from stdin and
+                                adds the image to each. Experimental on TypeSafe's side.
       --image-field NAME        streaming only, repeatable, a state key whose value is a
                                 path to a PNG or JPEG, read per record. Under -i lines
                                 the line is the path. Experimental on TypeSafe's side

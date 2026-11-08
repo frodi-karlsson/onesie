@@ -8,9 +8,8 @@ Flags:
                                 result names it
       --delimiter STRING        field separator for -i csv: auto, or one character.
                                 Defaults to a comma
-      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
-                                record's state under NAME. Experimental on TypeSafe's
-                                side
+      --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
+                                Repeatable. Experimental on TypeSafe's side.
       --image-field NAME        repeatable, a state key whose value is a path to a PNG
                                 or JPEG, read per record. Experimental on TypeSafe's
                                 side

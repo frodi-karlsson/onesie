@@ -11,9 +11,9 @@ Flags:
       --rate LEVELS             Rate against levels from lowest to highest.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
-      --for ID                  ID, repeatable, selects a question from -f, so the
-                                --pick, --rate, --desc and --sep after it apply to that
-                                question
+      --for ID                  Select a question from -f by ID, so the --pick, --rate,
+                                --desc and --sep after it apply to that question.
+                                Repeatable.
       --desc KEY=TEXT           Describe an option, level, yes or no.
       --sep STRING              separator for --pick and --rate that follow it
       --box                     make this a box question, answered with the left, top,
@@ -62,9 +62,8 @@ Flags:
                                 result names it
       --delimiter STRING        field separator for -i csv: auto, or one character.
                                 Defaults to a comma
-      --image NAME=PATH         NAME=PATH, repeatable, puts a PNG or JPEG in every
-                                record's state under NAME. Experimental on TypeSafe's
-                                side
+      --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
+                                Repeatable. Experimental on TypeSafe's side.
       --image-field NAME        repeatable, a state key whose value is a path to a PNG
                                 or JPEG, read per record. Experimental on TypeSafe's
                                 side
@@ -91,10 +90,10 @@ How they work together:
 Evaluation
 
 Flags:
-      --label [ID=]EXPR         [ID=]EXPR, a jq expression run on the record, not on the
-                                mapped state, whose result is the right answer for
-                                question ID. A question with none is skipped. With one
-                                question ID= may be left out
+      --label [ID=]EXPR         Read the right answer for question ID with this jq
+                                expression, run on the record, not on the mapped state.
+                                A question with none is skipped. With one question ID=
+                                may be left out.
       --cuts STRING             comma separated cuts between 0 and 1. See Evaluation for
                                 defaults
       --require CONDITION       [lower|upper](ID.MEASURE) OP NUMBER [at CUT], a

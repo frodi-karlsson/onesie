@@ -94,12 +94,12 @@ func questionRows() []Row {
 			Name: "for", HelpTopic: "asking", HelpValue: "ID", Kind: NonEmptyText(), Modes: shaping(),
 			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
-					Help: "ID, repeatable, selects a question from -f, so the --pick, --rate, --desc and --sep " +
-						"after it apply to that question",
+					Help: "Select a question from -f by ID, so the --pick, --rate, --desc and --sep after it apply " +
+						"to that question. Repeatable.",
 				},
 			}},
-			Help: "ID, repeatable, selects a question from -f, so the question flags after it apply to that " +
-				"question, each with a notice",
+			Help: "Select a question from -f by ID, so the question flags after it apply to that question, " +
+				"each with a notice. Repeatable.",
 		},
 		{
 			Name: "pick", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 2, CommandCalibrate: 2}, HelpValue: "OPTIONS", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []Shape{Pick},
@@ -314,12 +314,12 @@ func inputRows() []Row {
 		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "image", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "NAME=PATH, repeatable, puts a PNG or JPEG in every record's state under NAME. " +
-					experimental},
+				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. Repeatable. " +
+					"Experimental on TypeSafe's side."},
 			}},
-			Help: "NAME=PATH, repeatable, puts a PNG or JPEG in the state under NAME, experimental on TypeSafe's side. " +
-				"For one record stdin is read beside it only through --state -, so text joins it from --state, " +
-				"--state-file or --state -. A stream reads its records from stdin and adds the image to each",
+			Help: "Put a PNG or JPEG in the state under NAME. Repeatable. For one record stdin is read beside it " +
+				"only through --state -, so text joins it from --state, --state-file or --state -. A stream reads " +
+				"its records from stdin and adds the image to each. Experimental on TypeSafe's side.",
 		},
 		{
 			Name: "image_field", HelpTopic: "input", HelpValue: "NAME", Kind: NonEmptyText(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate),
@@ -603,8 +603,8 @@ func calibrateRows() []Row {
 		{
 			Name: "label", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 8}, HelpValue: "[ID=]EXPR", Kind: NonEmptyText(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "label", Repeat: true, Commands: onCalibrate()},
-			Help: "[ID=]EXPR, a jq expression run on the record, not on the mapped state, whose result is the " +
-				"right answer for question ID. A question with none is skipped. With one question ID= may be left out",
+			Help: "Read the right answer for question ID with this jq expression, run on the record, not on the " +
+				"mapped state. A question with none is skipped. With one question ID= may be left out.",
 		},
 		{
 			Name: "cuts", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 9}, Kind: Text(), Modes: Modes(ModeCalibrate),

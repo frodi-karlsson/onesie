@@ -6,9 +6,9 @@ Flags:
       --rate LEVELS             Rate against levels from lowest to highest.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
-      --for ID                  ID, repeatable, selects a question from -f, so the
-                                --pick, --rate, --desc and --sep after it apply to that
-                                question
+      --for ID                  Select a question from -f by ID, so the --pick, --rate,
+                                --desc and --sep after it apply to that question.
+                                Repeatable.
       --desc KEY=TEXT           Describe an option, level, yes or no.
       --sep STRING              separator for --pick and --rate that follow it
       --box                     make this a box question, answered with the left, top,
