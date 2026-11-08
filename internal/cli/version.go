@@ -10,7 +10,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -54,8 +53,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "Print text, or under json the same as one JSON object.")
 	setting.RefuseEmpty(cmd.Flags(), "output")
-	outputRow, _ := settingrow.Lookup(setting.Output.Name())
-	namesHelpValue(cmd.Flags(), "output", outputRow.HelpValue)
+	borrowHelpValue(cmd.Flags(), "output", setting.Output.Name())
 
 	return cmd
 }
