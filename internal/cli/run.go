@@ -760,14 +760,14 @@ func ask(
 			return quietResult(built.Questions[0], record.Answers[0].Answer)
 		}
 
-		return assertResult(record)
+		return verdictResult(record.Verdict())
 	}
 
 	if writeErr := writeRecord(cmd, settings, outputMode, flags, inv, state.resolved, record); writeErr != nil {
 		return writeErr
 	}
 
-	return assertResult(record)
+	return verdictResult(record.Verdict())
 }
 
 type singleState struct {
@@ -776,18 +776,17 @@ type singleState struct {
 	assets   onesie.Assets
 }
 
-func assertResult(record output.Record) error {
-	if record.AssertFailed {
+func verdictResult(verdict output.Verdict) error {
+	switch verdict {
+	case output.Fail:
 		// A false assertion is the same statement a policy rejection makes over one answer, so it
 		// takes the same error and the same exit code.
 		return &rejectedError{}
-	}
-
-	if record.Abstained {
+	case output.Unsure:
 		return &abstainError{}
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 func judge(decide decider, record output.Record, stats *collector) output.Record {
