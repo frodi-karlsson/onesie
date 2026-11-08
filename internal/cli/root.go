@@ -82,13 +82,13 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	root = &cobra.Command{
 		Use:   "onesie [question]",
 		Short: "Ask a System One model typed questions about state on stdin",
-		Args:  rootArgs(flags),
+		Args:  atMostOneQuestion,
 		// Cobra otherwise buries every returned error under the full help text. Execute owns the
 		// reporting instead.
 		SilenceUsage:  true,
 		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runRoot(cmd, args, info, settings, flags, recorder)
+			return runRoot(cmd, args, settings, flags, recorder)
 		},
 	}
 
@@ -124,8 +124,8 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 
 func runTargets(flags *runFlags) map[settingrow.Name]any {
 	return map[settingrow.Name]any{
-		setting.Version.Name(): &flags.version, setting.PrintQuestions.Name(): &flags.printQuestions,
-		setting.PrintSchema.Name(): &flags.printSchema, setting.ListModels.Name(): &flags.listModels,
+		setting.PrintQuestions.Name(): &flags.printQuestions,
+		setting.PrintSchema.Name():    &flags.printSchema, setting.ListModels.Name(): &flags.listModels,
 		setting.PrintRequest.Name(): &flags.printRequest,
 		"assert":                    &flags.assert, "abstain_if": &flags.abstainIf,
 		setting.Output.Name(): &flags.output, setting.Quiet.Name(): &flags.quiet,
@@ -149,7 +149,7 @@ func runTargets(flags *runFlags) map[settingrow.Name]any {
 }
 
 func runRoot(
-	cmd *cobra.Command, args []string, info BuildInfo, settings rootSettings, flags *runFlags,
+	cmd *cobra.Command, args []string, settings rootSettings, flags *runFlags,
 	recorder *argv.Recorder,
 ) (err error) {
 	var ready staged
@@ -157,11 +157,6 @@ func runRoot(
 	defer func() {
 		err = withKeyHint(withDashQuestionHint(err, cmd.Flags(), settings.args, args), settings, ready.config)
 	}()
-
-	// Not cobra's own version flag, which prints before any argument is checked.
-	if flags.version {
-		return printVersion(cmd, info, flags.output)
-	}
 
 	positional := ""
 	if len(args) == 1 {
@@ -497,36 +492,6 @@ func noArguments(cmd *cobra.Command, args []string) error {
 	}
 
 	return fmt.Errorf("%s takes no argument, got '%s'", name, args[0])
-}
-
-func printVersion(cmd *cobra.Command, info BuildInfo, format string) error {
-	asJSON, err := versionFormat("-V", format)
-	if err != nil {
-		return err
-	}
-
-	if asJSON {
-		return writeVersionJSON(cmd.OutOrStdout(), info)
-	}
-
-	// The first line stays the name and the version alone, since the session hook reads it.
-	if _, err := fmt.Fprintf(cmd.OutOrStdout(), "%s %s\ncommit %s\nbuilt %s\n",
-		cmd.Name(), info.Version, info.Commit, info.Date); err != nil {
-		return err
-	}
-
-	return writeLimits(cmd.OutOrStdout())
-}
-
-func rootArgs(flags *runFlags) cobra.PositionalArgs {
-	return func(cmd *cobra.Command, args []string) error {
-		// -V answers before any question is read, so its own message names what it refuses.
-		if flags.version && len(args) > 0 {
-			return fmt.Errorf("-V takes no question, got '%s'", strings.Join(args, " "))
-		}
-
-		return atMostOneQuestion(cmd, args)
-	}
 }
 
 func subcommandHint(root *cobra.Command) func(*cobra.Command, error) error {

@@ -15,13 +15,13 @@ A second call pays for itself only when the first answer decides what the next c
 options or its state. Everything else belongs in one call.
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.
 
 ## Rules
 
 ### With over 255 options, or options that cluster, pick the group first, then pick within it.
 
-`--pick` takes at most 255 options, the `max-choice-options` that `onesie -V` lists, and more exits 2 before any request. When options cluster, `p` spreads across the neighbours in a cluster, so `confidence` can read low even when the group is plain. Ask for the group first, with `-o raw` so the answer is the bare name, then ask a second `--pick` with only that group's options, as in `onesie --ask queue='which shipping queue owns this' --pick tracking,returns,damage --state "$t"`. The first answer decides the second option set, so this is a second call that pays for itself.
+`--pick` takes at most 255 options, the `max-choice-options` that `onesie version` lists, and more exits 2 before any request. When options cluster, `p` spreads across the neighbours in a cluster, so `confidence` can read low even when the group is plain. Ask for the group first, with `-o raw` so the answer is the bare name, then ask a second `--pick` with only that group's options, as in `onesie --ask queue='which shipping queue owns this' --pick tracking,returns,damage --state "$t"`. The first answer decides the second option set, so this is a second call that pays for itself.
 
 **Bad:**
 

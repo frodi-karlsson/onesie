@@ -100,26 +100,6 @@ func TestRegister(t *testing.T) {
 				t.Errorf("calibrate -o help = %q, want its own", got)
 			}
 		}},
-		{name: "should register --version before any other flag on root", run: func(t *testing.T) {
-			set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
-			set.SortFlags = false
-			persistent := pflag.NewFlagSet("persistent", pflag.ContinueOnError)
-			rows := settingrow.Table()
-			settings.Register(set, persistent, rows, argv.New(), settingrow.CommandRoot,
-				targetsFor(rows, settingrow.CommandRoot))
-
-			var first string
-
-			set.VisitAll(func(flag *pflag.Flag) {
-				if first == "" {
-					first = flag.Name
-				}
-			})
-
-			if first != "version" || set.Lookup("version").Shorthand != "V" {
-				t.Errorf("first flag = %q, want version as -V", first)
-			}
-		}},
 		{name: "should put a row persistent only on the commands that mark it", run: func(t *testing.T) {
 			root := register(settingrow.CommandRoot)
 			if root.persistent.Lookup("provider") == nil || root.set.Lookup("provider") != nil {
@@ -325,7 +305,7 @@ func TestRegister(t *testing.T) {
 		{name: "should mark the flags that ask nothing", run: func(t *testing.T) {
 			registered := register(settingrow.CommandRoot)
 
-			for _, name := range []string{"version", "print-schema", "list-models", "model"} {
+			for _, name := range []string{"print-schema", "list-models", "model"} {
 				_, marked := registered.lookup(name).Annotations[settings.AnnotationAsksNothing]
 				if want := name != "model"; marked != want {
 					t.Errorf("--%s marked as asking nothing = %v, want %v", name, marked, want)

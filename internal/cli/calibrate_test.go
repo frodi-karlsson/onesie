@@ -878,7 +878,7 @@ func TestReadLabelled(t *testing.T) {
 			args:     jsonl(),
 			stdin:    strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords+1),
 			wantCode: ExitUsage,
-			contains: []string{"onesie: calibrate reads at most 100000 records, and -V lists the cap"},
+			contains: []string{"onesie: calibrate reads at most 100000 records, and onesie version lists the cap"},
 		},
 		{
 			name:       "should read as many records as the cap",

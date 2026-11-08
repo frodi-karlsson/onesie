@@ -6,4 +6,4 @@ A second call pays for itself only when the first answer decides what the next c
 options or its state. Everything else belongs in one call.
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.

@@ -71,7 +71,7 @@ func TestPreflightCompatibility(t *testing.T) {
 		script := `#!/bin/sh
 case "$1 $2" in
  'profile preflight') echo 'legacy usage sentinel' >&2; exit 1 ;;
- '--version ') echo 'onesie v999.0.0' ;;
+ 'version ') echo 'version   v999.0.0' ;;
  'questions ') i=1; while [ "$i" -le 25 ]; do echo "saved$i built in"; i=$((i + 1)); done ;;
 esac
 `
@@ -79,7 +79,7 @@ esac
 			t.Fatal(err)
 		}
 		out := runPreflight(t, bin, nil)
-		for _, want := range []string{"automatic readiness is unavailable", "onesie --version reports 999.0.0", "saved20 built in", "and 5 more"} {
+		for _, want := range []string{"automatic readiness is unavailable", "onesie version reports 999.0.0", "saved20 built in", "and 5 more"} {
 			if !strings.Contains(out, want) {
 				t.Errorf("missing %q in %s", want, out)
 			}

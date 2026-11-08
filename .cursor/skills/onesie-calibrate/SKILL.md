@@ -32,7 +32,7 @@ The built in starter sets come calibrated already. `-f shell-safety` and the oth
 as it stands before you write and calibrate a gate of your own.
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.
 
 ## Rules
 

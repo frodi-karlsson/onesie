@@ -488,7 +488,7 @@ func TestLoad(t *testing.T) {
 		{
 			name:    "should refuse a line longer than the cap",
 			file:    `{"u":0.9,"pad":"` + strings.Repeat("a", limits.MaxLineBytes) + `"}`,
-			wantErr: "--mock line 1 is longer than 8388608 bytes, the max-line-bytes cap -V lists",
+			wantErr: "--mock line 1 is longer than 8388608 bytes, the max-line-bytes cap onesie version lists",
 		},
 	}
 

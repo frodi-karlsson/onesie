@@ -442,11 +442,6 @@ func TestRootExecute(t *testing.T) {
 				"which writes the input line number as line\n",
 		},
 		{
-			name: "should print the version whatever ONESIE_CACHE holds",
-			args: []string{"-V"},
-			env:  map[string]string{"ONESIE_CACHE": "maybe"},
-		},
-		{
 			name:     "should refuse an ONESIE_CACHE value it cannot read",
 			args:     []string{"--state", "s", "is it urgent"},
 			env:      map[string]string{"ONESIE_CACHE": "maybe"},

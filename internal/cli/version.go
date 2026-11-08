@@ -24,7 +24,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 			// cobra's own Print helpers write to stderr, not stdout.
 			out := cmd.OutOrStdout()
 
-			asJSON, err := versionFormat("version", format)
+			asJSON, err := versionFormat(format)
 			if err != nil {
 				return err
 			}
@@ -58,7 +58,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 	return cmd
 }
 
-func versionFormat(command, format string) (asJSON bool, err error) {
+func versionFormat(format string) (asJSON bool, err error) {
 	switch format {
 	case "", "auto":
 		return false, nil
@@ -66,7 +66,7 @@ func versionFormat(command, format string) (asJSON bool, err error) {
 		return true, nil
 	}
 
-	return false, fmt.Errorf("%s prints text, or JSON under -o json, so -o %s does not apply", command, format)
+	return false, fmt.Errorf("version prints text, or JSON under -o json, so -o %s does not apply", format)
 }
 
 func writeVersionJSON(w io.Writer, info BuildInfo) error {

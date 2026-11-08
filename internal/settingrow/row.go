@@ -208,8 +208,6 @@ const (
 	ModePrintSchema
 	// ModeListModels writes the models a provider serves.
 	ModeListModels
-	// ModeVersion writes the build and its limits.
-	ModeVersion
 	// ModeCalibrate scores the answers against labelled records.
 	ModeCalibrate
 	// ModeProfile writes a profile.

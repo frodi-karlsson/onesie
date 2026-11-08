@@ -9,7 +9,7 @@
     {
       "id": "pick-the-group-first",
       "short": "With over 255 options, or options that cluster, pick the group first, then pick within it.",
-      "why": "`--pick` takes at most 255 options, the `max-choice-options` that `onesie -V` lists, and more exits 2 before any request. When options cluster, `p` spreads across the neighbours in a cluster, so `confidence` can read low even when the group is plain. Ask for the group first, with `-o raw` so the answer is the bare name, then ask a second `--pick` with only that group's options, as in `onesie --ask queue='which shipping queue owns this' --pick tracking,returns,damage --state \"$t\"`. The first answer decides the second option set, so this is a second call that pays for itself.",
+      "why": "`--pick` takes at most 255 options, the `max-choice-options` that `onesie version` lists, and more exits 2 before any request. When options cluster, `p` spreads across the neighbours in a cluster, so `confidence` can read low even when the group is plain. Ask for the group first, with `-o raw` so the answer is the bare name, then ask a second `--pick` with only that group's options, as in `onesie --ask queue='which shipping queue owns this' --pick tracking,returns,damage --state \"$t\"`. The first answer decides the second option set, so this is a second call that pays for itself.",
       "bad": "onesie --ask queue='which queue owns this' --pick billing-refunds,billing-invoices,billing-tax,shipping-tracking,shipping-returns,shipping-damage,support-login,support-account --state 'my package never arrived'",
       "bad_passes": true,
       "good": "onesie --ask group='which team owns this' --pick billing,shipping,support -o raw --state 'my package never arrived'"

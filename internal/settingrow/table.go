@@ -34,8 +34,7 @@ const (
 	StopOnUnsure = "unsure"
 )
 
-// Table returns every setting, grouped by topic with the mode switches first, so --version is the
-// first flag root registers.
+// Table returns every setting, grouped by topic with the mode switches first.
 func Table() []Row {
 	var rows []Row
 
@@ -62,11 +61,6 @@ func Lookup(name Name) (Row, bool) {
 
 func modeRows() []Row {
 	return []Row{
-		{
-			Name: "version", HelpTopic: "output", Kind: Bool(), Modes: Modes(ModeVersion),
-			Flag: FlagSpec{Long: "version", Short: "V", AsksNothing: true, Commands: onRoot()},
-			Help: "Print the version, commit, build date and built in limits, as one JSON object under -o json.",
-		},
 		{
 			Name: "print_questions", HelpTopic: "asking", Kind: Bool(), Modes: Modes(ModePrintQuestions),
 			Flag: FlagSpec{Long: "print-questions", Commands: onRoot()},
@@ -193,7 +187,7 @@ func policyRows() []Row {
 func outputRows() []Row {
 	return append([]Row{
 		{
-			Name: "output", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 10, CommandCalibrate: 13}, HelpValue: "FORMAT", Kind: outputModes(), Modes: Modes(ModeAsk, ModeStream, ModeVersion, ModeCalibrate),
+			Name: "output", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 10, CommandCalibrate: 13}, HelpValue: "FORMAT", Kind: outputModes(), Modes: Modes(ModeAsk, ModeStream, ModeCalibrate),
 			Flag: FlagSpec{Long: "output", Short: "o", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
 					Help: "The report format, table, json or auto, which means table.",
@@ -342,7 +336,7 @@ func inputRows() []Row {
 			}},
 			Help: "Name each record on every output line with the string or number this jq expression returns. " +
 				"Streaming only. It runs one record at a time as the input is read, so keep it cheap, such as a " +
-				"field lookup. -V lists the cap on its length.",
+				"field lookup. onesie version lists the cap on its length.",
 		},
 	}, streamRows()...)
 }

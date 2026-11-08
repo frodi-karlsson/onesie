@@ -133,8 +133,7 @@ func helpOutput(command settingrow.Command) string {
 		"--merge keeps the input fields and places answer metadata under answers by default. --merge-key selects another location and implies --merge. " +
 		"JSON preserves model values, decisions and errors. A request error remains in the output even when a fallback supplies a decision. " +
 		"--out writes answers to a file instead of stdout. See Execution for resume and pruning. " +
-		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit. " +
-		"--version prints the version, commit, build date and built in limits, as one JSON object with -o json."
+		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit."
 }
 
 func helpConnections() string {

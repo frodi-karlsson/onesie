@@ -1106,7 +1106,6 @@ func describe(cause error) *output.Failure {
 }
 
 type runFlags struct {
-	version   bool
 	provider  string
 	profile   string
 	mock      string

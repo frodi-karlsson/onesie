@@ -4,8 +4,6 @@ Flags:
   -o, --output FORMAT           One of auto, json, values, table, raw, csv, tsv or
                                 markdown.
       --merge                   Keep input fields and attach the answers.
-  -V, --version                 Print the version, commit, build date and built in
-                                limits, as one JSON object under -o json.
       --out FILE                Write the answers to this file rather than stdout.
       --merge-key KEY           Put the answers under this key in the merged record.
                                 Implies --merge.
@@ -24,8 +22,7 @@ How they work together:
   decisions and errors. A request error remains in the output even when a fallback
   supplies a decision. --out writes answers to a file instead of stdout. See Execution
   for resume and pruning. --usage adds API usage to JSON output. --stats writes a one
-  line run summary to stderr at exit. --version prints the version, commit, build date
-  and built in limits, as one JSON object with -o json.
+  line run summary to stderr at exit.
 
 More help:
   onesie help asking

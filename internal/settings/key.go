@@ -9,7 +9,6 @@ import (
 // The keys of the settings that take one value, by row. A row given repeatedly, such as --assert,
 // has no key.
 var (
-	Version        = Key[bool]{name: "version"}
 	Output         = Key[string]{name: "output"}
 	Quiet          = Key[bool]{name: "quiet"}
 	Input          = Key[string]{name: "input"}

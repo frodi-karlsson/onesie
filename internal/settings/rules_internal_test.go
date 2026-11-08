@@ -87,7 +87,7 @@ func TestModeRefusals(t *testing.T) {
 		})
 	}
 	t.Run("should leave other modes to their own rules", func(t *testing.T) {
-		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeVersion, settingrow.ModeCalibrate, settingrow.ModeProfile} {
+		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeCalibrate, settingrow.ModeProfile} {
 			if got := modeRefusals(mode); len(got) != 0 {
 				t.Errorf("mode %d has %d refusals", mode, len(got))
 			}

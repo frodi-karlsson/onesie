@@ -262,13 +262,6 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"unknown provider"},
 		},
 		{
-			name:     "should still print the version beside a bad provider",
-			args:     []string{"-V", "--provider", "bogus"},
-			wantCode: cli.ExitOK,
-			contains: []string{"onesie 1.2.3\n"},
-			absent:   []string{"unknown provider"},
-		},
-		{
 			name:     "should name -o for -o jsno --threshold 2",
 			args:     []string{"is this urgent", "-o", "jsno", "--threshold", "2"},
 			stdin:    "site down",
@@ -1020,27 +1013,6 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should refuse a word beside the version flag",
-			args:     []string{"-V", "extra"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -V takes no question, got 'extra'"},
-			absent:   []string{"onesie 1.2.3"},
-		},
-		{
-			name:     "should ask the question when the version flag is set to false",
-			args:     []string{"--version=false", "is this urgent", "--state", "site down"},
-			response: answered,
-			wantCode: cli.ExitOK,
-			absent:   []string{"takes no question"},
-		},
-		{
-			name:     "should refuse two words beside the version flag with the version flag's message",
-			args:     []string{"-V", "a", "b"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -V takes no question, got 'a b'\n"},
-			absent:   []string{"expected one question"},
-		},
-		{
 			name:     "should show --box in the help as a switch that takes no value",
 			args:     []string{"help", "asking"},
 			wantCode: cli.ExitOK,
@@ -1077,15 +1049,6 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"help", "calibrate", "execution"},
 			wantCode: cli.ExitOK,
 			contains: []string{"--mock FILE", "ONESIE_MOCK"},
-		},
-		{
-			name:     "should print the limits for the version flag",
-			args:     []string{"-V"},
-			wantCode: cli.ExitOK,
-			contains: []string{
-				"onesie 1.2.3", "max-choice-options 255", "max-retry-after 1m0s",
-				"max-line-bytes 8388608", "max-map-depth 9999", "max-id-bytes 1024",
-			},
 		},
 		{
 			name:     "should print full provenance for the version subcommand",
@@ -1143,6 +1106,18 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state-file", "x.txt"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: there is no flag --state-file\n"},
+		},
+		{
+			name:     "should refuse -V as an unknown flag",
+			args:     []string{"-V"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -V\n"},
+		},
+		{
+			name:     "should refuse --version as an unknown flag",
+			args:     []string{"--version"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --version\n"},
 		},
 		{
 			name:     "should let a later --state - win over --state with a notice",
@@ -2890,7 +2865,7 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should print the same JSON object for -V -o json and version -o json", func(t *testing.T) {
+	t.Run("should print one JSON object for version -o json and version --output json", func(t *testing.T) {
 		t.Parallel()
 
 		limited := map[string]string{}
@@ -2898,7 +2873,7 @@ func TestNewRootCmd(t *testing.T) {
 			limited[entry.Name] = entry.Value
 		}
 
-		for _, args := range [][]string{{"-V", "-o", "json"}, {"version", "-o", "json"}, {"version", "--output", "json"}} {
+		for _, args := range [][]string{{"version", "-o", "json"}, {"version", "--output", "json"}} {
 			var out bytes.Buffer
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
@@ -2922,16 +2897,15 @@ func TestNewRootCmd(t *testing.T) {
 			if got.Version != "1.2.3" || got.Commit != "abc1234" || got.Date != "2026-10-27" ||
 				got.Go != runtime.Version() || got.Platform != runtime.GOOS+"/"+runtime.GOARCH ||
 				!maps.Equal(got.Limits, limited) {
-				t.Errorf("onesie %s = %+v, want the build info and every limit as -V prints it", strings.Join(args, " "), got)
+				t.Errorf("onesie %s = %+v, want the build info and every limit", strings.Join(args, " "), got)
 			}
 		}
 	})
 
-	t.Run("should refuse an output mode other than json beside -V and on version", func(t *testing.T) {
+	t.Run("should refuse an output mode other than json on version", func(t *testing.T) {
 		t.Parallel()
 
 		for args, want := range map[string]string{
-			"-V -o table":        "onesie: -V prints text, or JSON under -o json, so -o table does not apply\n",
 			"version -o csv":     "onesie: version prints text, or JSON under -o json, so -o csv does not apply\n",
 			"version --output x": "onesie: version prints text, or JSON under -o json, so -o x does not apply\n",
 		} {
@@ -2949,10 +2923,10 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should refuse an empty output mode beside -V and on version", func(t *testing.T) {
+	t.Run("should refuse an empty output mode on version", func(t *testing.T) {
 		t.Parallel()
 
-		for _, args := range [][]string{{"-V", "-o", ""}, {"version", "-o", ""}, {"version", "--output", ""}} {
+		for _, args := range [][]string{{"version", "-o", ""}, {"version", "--output", ""}} {
 			var out, errOut bytes.Buffer
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
@@ -2970,7 +2944,7 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should print the limits for -V and for version as limits.Report lists them", func(t *testing.T) {
+	t.Run("should print the limits for version as limits.Report lists them", func(t *testing.T) {
 		t.Parallel()
 
 		var listed strings.Builder
@@ -2986,7 +2960,6 @@ func TestNewRootCmd(t *testing.T) {
 			args []string
 			want string
 		}{
-			{args: []string{"-V"}, want: "onesie 1.2.3\ncommit abc1234\nbuilt 2026-10-27\n" + listed.String()},
 			{args: []string{"version"}, want: provenance + listed.String()},
 		} {
 			var out bytes.Buffer
@@ -3216,13 +3189,13 @@ func TestNewRootCmd(t *testing.T) {
 				want: "--quiet belongs to a run, not to version\n",
 			},
 			{
-				name:   "should not hint for -V, which takes no question",
+				name:   "should not hint for -V, which no command knows",
 				args:   []string{"version", "-V"},
 				want:   "onesie: version has no flag -V\n",
 				absent: true,
 			},
 			{
-				name:   "should not hint for --version, which takes no question",
+				name:   "should not hint for --version, which no command knows",
 				args:   []string{"calibrate", "--version"},
 				want:   "onesie: calibrate has no flag --version\n",
 				absent: true,
@@ -3354,10 +3327,10 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should list --cache in help and the cache limits under -V", func(t *testing.T) {
+	t.Run("should list --cache in help", func(t *testing.T) {
 		t.Parallel()
 
-		for _, args := range [][]string{{"help", "all"}, {"help", "calibrate", "all"}, {"-V"}} {
+		for _, args := range [][]string{{"help", "all"}, {"help", "calibrate", "all"}} {
 			var out bytes.Buffer
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
@@ -3373,9 +3346,6 @@ func TestNewRootCmd(t *testing.T) {
 			want := []string{"--cache", "ONESIE_CACHE=1"}
 			if len(args) == 2 && args[1] == "all" {
 				want = append(want, "  cache ")
-			}
-			if args[0] == "-V" {
-				want = []string{"max-cache-bytes 104857600", "cache-ttl 24h0m0s"}
 			}
 
 			for _, needle := range want {

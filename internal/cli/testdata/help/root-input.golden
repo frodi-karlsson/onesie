@@ -19,8 +19,8 @@ Flags:
       --id EXPR                 Name each record on every output line with the string or
                                 number this jq expression returns. Streaming only. It
                                 runs one record at a time as the input is read, so keep
-                                it cheap, such as a field lookup. -V lists the cap on
-                                its length.
+                                it cheap, such as a field lookup. onesie version lists
+                                the cap on its length.
       --skip-blank              Drop blank lines with no output line. Streaming only.
 
 How they work together:

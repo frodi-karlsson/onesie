@@ -11,4 +11,4 @@ onesie --ask urgent='is this urgent' -i jsonl -j 8 < tickets.jsonl | jq -c 'sele
 ```
 
 For a flag this skill does not cover, run `onesie help all` or `onesie help calibrate all`, and
-`onesie -V` for the version and the built in limits.
+`onesie version` for the version and the built in limits.

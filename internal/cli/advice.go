@@ -169,7 +169,7 @@ func adviseLimits(err error) error {
 
 	return &advisedError{
 		cause: err,
-		note:  "onesie's own check passed, so its built in limits may be stale. Run onesie -V",
+		note:  "onesie's own check passed, so its built in limits may be stale. Run onesie version",
 	}
 }
 

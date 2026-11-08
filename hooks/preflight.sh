@@ -19,12 +19,12 @@ fi
 # only a release version is compared.
 manifest="$(dirname -- "$0")/../.claude-plugin/plugin.json"
 plugin=$(sed -n 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' "$manifest" 2>/dev/null | head -n 1)
-binary=$(onesie --version </dev/null 2>/dev/null | head -n 1 | sed -n 's/^onesie v\{0,1\}//p')
+binary=$(onesie version </dev/null 2>/dev/null | sed -n 's/^version[[:space:]]*v\{0,1\}//p' | head -n 1)
 case "$binary" in
   dev | *-[0-9]*-g[0-9a-f]* | *-dirty) ;;
   [0-9]*.[0-9]*.[0-9]*)
     if [ -n "$plugin" ] && [ "$plugin" != "$binary" ]; then
-      printf 'onesie --version reports %s, while the skills describe the flags of release %s. Check a flag with onesie --help before relying on it.\n' "$binary" "$plugin"
+      printf 'onesie version reports %s, while the skills describe the flags of release %s. Check a flag with onesie --help before relying on it.\n' "$binary" "$plugin"
     fi
     ;;
 esac

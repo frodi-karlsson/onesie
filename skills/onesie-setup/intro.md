@@ -15,4 +15,4 @@ The steps, in order:
 5. Run `onesie profile test` and confirm it reports the provider and a model count.
 
 For a flag this skill does not cover, run `onesie help all`, `onesie profile --help` or
-`onesie help calibrate all`, and `onesie -V` for the version and the built in limits.
+`onesie help calibrate all`, and `onesie version` for the version and the built in limits.

@@ -107,7 +107,7 @@ func readLabelled(
 		set.total++
 		if set.total > limits.MaxCalibrateRecords {
 			return labelledSet{}, fmt.Errorf(
-				"calibrate reads at most %d records, and -V lists the cap", limits.MaxCalibrateRecords)
+				"calibrate reads at most %d records, and onesie version lists the cap", limits.MaxCalibrateRecords)
 		}
 
 		labelled, found, err := reader.read(ctx, rec)

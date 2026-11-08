@@ -52,7 +52,7 @@ func TestExplain(t *testing.T) {
 			name: "should say the local check passed when the server refuses a count", status: http.StatusBadRequest,
 			body: tooMany, facts: typesafe,
 			want: "400 Too many score levels. Must have at most 10 levels. onesie's own check passed, " +
-				"so its built in limits may be stale. Run onesie -V",
+				"so its built in limits may be stale. Run onesie version",
 		},
 		{
 			name: "should keep the server text for a 400 that names no count", status: http.StatusBadRequest,
@@ -323,7 +323,7 @@ func TestAdvise(t *testing.T) {
 
 		const rejected = "onesie: 400 Too many score levels. Must have at most 10 levels."
 
-		const note = " onesie's own check passed, so its built in limits may be stale. Run onesie -V"
+		const note = " onesie's own check passed, so its built in limits may be stale. Run onesie version"
 
 		const file = "team:\n  ask: which team\n  pick:\n    billing: payments\n    technical: bugs\n"
 
