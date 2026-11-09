@@ -1,0 +1,11 @@
+urgent, yes/no: labelled 30, 14 yes, 16 no, 0 errors. AUC 1.00
+flagged means urgent.value >= cut
+
+  cut   flagged  catches           false alarms    right when flagged
+  0.30       16  14/14 99% 78-99%  2/16 13% 4-36%  14/16 88% 64-97%
+  0.50       13  13/14 93% 69-99%  0/16  1% 1-19%  13/13 99% 77-99%
+  0.70       12  12/14 86% 60-96%  0/16  1% 1-19%  12/12 99% 76-99%
+  0.90        4   4/14 29% 12-55%  0/16  1% 1-19%   4/4  99% 51-99%
+
+worst misses
+  line 23  we were billed for 400 seats instead of...  labelled yes  answered 0.44
