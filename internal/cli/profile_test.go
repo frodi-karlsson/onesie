@@ -93,25 +93,25 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name:     "should reject an unknown subcommand",
+			name:     "should refuse an unknown subcommand",
 			args:     []string{"profile", "nonsense"},
 			wantErr:  "onesie: profile has no subcommand 'nonsense'. Its subcommands: create, delete, list, show, test, update, use",
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should reject create with no name",
+			name:     "should refuse create with no name",
 			args:     []string{"profile", "create", "--provider", "typesafe"},
 			wantErr:  "onesie: profile create takes one profile name",
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should reject show with two names",
+			name:     "should refuse show with two names",
 			args:     []string{"profile", "show", "a", "b"},
 			wantErr:  "onesie: profile show takes at most one profile name",
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should reject list with a name",
+			name:     "should refuse list with a name",
 			args:     []string{"profile", "list", "a"},
 			wantErr:  "onesie: profile list takes no argument",
 			wantCode: ExitUsage,
@@ -203,7 +203,7 @@ func TestNewProfileCmd(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:     "should reject a root question flag on a subcommand",
+			name:     "should refuse a root question flag on a subcommand",
 			args:     []string{"profile", "list", "--pick", "a,b"},
 			wantErr:  "onesie: profile list has no flag --pick",
 			wantCode: ExitUsage,

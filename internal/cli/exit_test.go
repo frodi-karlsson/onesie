@@ -194,7 +194,7 @@ func TestClassify(t *testing.T) {
 			name: "should report records for a stream that finished with failures",
 			err:  &recordsError{}, want: ExitRecords,
 		},
-		{name: "should classify a rejected policy as exit one", err: &failError{}, want: ExitFail},
+		{name: "should classify a fail as exit one", err: &failError{}, want: ExitFail},
 		{name: "should classify an abstain as exit seven", err: &abstainError{}, want: ExitAbstain},
 		{
 			name: "should report usage for an input error",
@@ -281,7 +281,7 @@ func TestWorthReporting(t *testing.T) {
 	}{
 		{name: "should report an ordinary failure", err: errors.New("boom"), want: true},
 		{name: "should stay quiet for an interrupt", err: context.Canceled},
-		{name: "should stay quiet for a policy rejection", err: &failError{}},
+		{name: "should stay quiet for a fail", err: &failError{}},
 		{name: "should stay quiet for an abstain", err: &abstainError{}},
 		{name: "should stay quiet for a stream that failed records", err: &recordsError{}},
 		{

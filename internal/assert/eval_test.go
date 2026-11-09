@@ -132,7 +132,7 @@ func TestEval(t *testing.T) {
 				t.Fatalf("Parse(%q) error = %v, want no error", tc.input, err)
 			}
 
-			// Eval promises nothing about an expression Check rejects, so every case here is one
+			// Eval promises nothing about an expression Check refuses, so every case here is one
 			// Check accepts against the plan the record came from.
 			if checked := Check(expr, built); checked != nil {
 				t.Fatalf("Check(%q) error = %v, want no error", expr.source, checked)
@@ -157,7 +157,7 @@ func TestEval(t *testing.T) {
 		}
 	})
 
-	t.Run("should answer rather than panic on an expression Check would reject", func(t *testing.T) {
+	t.Run("should answer rather than panic on an expression Check would refuse", func(t *testing.T) {
 		t.Parallel()
 
 		// Check is what gives an answer its meaning, so nothing here is a promise about these

@@ -68,7 +68,7 @@ func TestListModels(t *testing.T) {
 			wantOut:  "",
 		},
 		{
-			name:     "should exit 3 on a rejected key",
+			name:     "should exit 3 on a refused key",
 			response: `{"error":{"message":"invalid api key"}}`,
 			status:   401,
 			wantCode: ExitAuth,
@@ -159,7 +159,7 @@ func TestListModels(t *testing.T) {
 				wantErr:  "1 request, 0 questions asked, 0 in / 0 out tokens, 1 attempt, 10s/attempt,",
 			},
 			{
-				name:     "should count a rejected listing as a failed request and not as a retry",
+				name:     "should count a refused listing as a failed request and not as a retry",
 				status:   http.StatusUnauthorized,
 				response: `{"error":{"message":"invalid api key"}}`,
 				wantCode: ExitAuth,

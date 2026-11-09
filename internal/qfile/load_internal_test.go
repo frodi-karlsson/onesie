@@ -47,25 +47,25 @@ func TestDecodeOrdered(t *testing.T) {
 			doc:  `{"a": "--- not a separator ---"}`,
 		},
 		{
-			name:    "should reject a second document",
+			name:    "should refuse a second document",
 			doc:     "a: q1\n---\nb: q2\n",
 			wantErr: separated,
 		},
 		{
-			name:    "should reject a second document after a leading separator",
+			name:    "should refuse a second document after a leading separator",
 			doc:     "---\na: q1\n---\nb: q2\n",
 			wantErr: separated,
 		},
 		{
-			name:    "should reject a third document",
+			name:    "should refuse a third document",
 			doc:     "a: q1\n---\nb: q2\n---\nc: q3\n",
 			wantErr: separated,
 		},
-		{name: "should reject malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "value is not allowed in this context"},
-		{name: "should reject a key json repeats", doc: `{"a": "x", "a": "y"}`, wantErr: `mapping key 'a' already defined`},
-		{name: "should reject a key yaml repeats", doc: "a: x\na: y\n", wantErr: `mapping key "a" already defined`},
+		{name: "should refuse malformed yaml", doc: "a:\n  - b\n c: broken\n", wantErr: "value is not allowed in this context"},
+		{name: "should refuse a key json repeats", doc: `{"a": "x", "a": "y"}`, wantErr: `mapping key 'a' already defined`},
+		{name: "should refuse a key yaml repeats", doc: "a: x\na: y\n", wantErr: `mapping key "a" already defined`},
 		{
-			name: "should reject an alias before it expands",
+			name: "should refuse an alias before it expands",
 			doc: "a: &a [x, x, x, x, x, x, x, x, x, x]\n" +
 				"b: &b [*a, *a, *a, *a, *a, *a, *a, *a, *a, *a]\n" +
 				"c: &c [*b, *b, *b, *b, *b, *b, *b, *b, *b, *b]\n" +
@@ -77,13 +77,13 @@ func TestDecodeOrdered(t *testing.T) {
 				"Write the value out in full",
 		},
 		{
-			name:    "should reject a merge key, which is an alias too",
+			name:    "should refuse a merge key, which is an alias too",
 			doc:     "base: &base {ask: is this urgent}\nurgent:\n  <<: *base\n",
 			wantErr: "cannot use a YAML alias",
 		},
 		{name: "should accept an anchor nothing refers to", doc: "a: &a q1\n"},
 		{
-			name:    "should reject a file over the size cap",
+			name:    "should refuse a file over the size cap",
 			doc:     "a: \"" + strings.Repeat("x", limits.MaxQuestionFileBytes) + "\"\n",
 			wantErr: "a question file is at most 33554432 bytes",
 		},

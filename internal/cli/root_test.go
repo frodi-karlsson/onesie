@@ -1341,7 +1341,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"usage":{"input_tokens":10,"output_tokens":2}`},
 		},
 		{
-			name:     "should reject --usage with -o values before any request",
+			name:     "should refuse --usage with -o values before any request",
 			args:     []string{"is this urgent", "-o", "values", "--usage"},
 			stdin:    "the server is down",
 			status:   http.StatusInternalServerError,
@@ -1349,7 +1349,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --usage does not apply to -o values, which writes only the answers. Use -o json"},
 		},
 		{
-			name:     "should reject --usage with -q before any request",
+			name:     "should refuse --usage with -q before any request",
 			args:     []string{"is this urgent", "-q", "--usage"},
 			stdin:    "the server is down",
 			status:   http.StatusInternalServerError,
@@ -1371,7 +1371,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"answer;error\n0.9;\n"},
 		},
 		{
-			name:     "should reject --merge-key with --merge and -o csv before any request",
+			name:     "should refuse --merge-key with --merge and -o csv before any request",
 			args:     []string{"is this urgent", "-i", "csv", "-o", "csv", "--merge", "--merge-key", "k"},
 			stdin:    "id,body\n1,the server is down\n",
 			status:   http.StatusInternalServerError,
@@ -1379,7 +1379,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --merge-key does not apply to -o csv, which puts the answers in columns"},
 		},
 		{
-			name:     "should reject --usage with -o raw before any request",
+			name:     "should refuse --usage with -o raw before any request",
 			args:     []string{"is this urgent", "-o", "raw", "--usage"},
 			stdin:    "the server is down",
 			status:   http.StatusInternalServerError,
@@ -1387,7 +1387,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --usage does not apply to -o raw, which writes only the answers. Use -o json"},
 		},
 		{
-			name:     "should reject --usage with -o raw over a stream before any request",
+			name:     "should refuse --usage with -o raw over a stream before any request",
 			args:     []string{"is this urgent", "-i", "jsonl", "-o", "raw", "--usage"},
 			stdin:    "{\"a\":1}\n",
 			status:   http.StatusInternalServerError,
@@ -1489,14 +1489,14 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"0.92"},
 		},
 		{
-			name:     "should exit rejected with -q below the threshold",
+			name:     "should exit fail with -q below the threshold",
 			args:     []string{"is this urgent", "-q", "--threshold", "0.95"},
 			stdin:    "the server is down",
 			response: answered,
 			wantCode: cli.ExitFail,
 		},
 		{
-			name:     "should reject a state-less invocation, saying the stdin it read was empty",
+			name:     "should refuse a state-less invocation, saying the stdin it read was empty",
 			args:     []string{"is this urgent"},
 			wantCode: cli.ExitUsage,
 			contains: []string{
@@ -1510,7 +1510,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: no state given, since stdin was empty"},
 		},
 		{
-			name:     "should reject a flagged invocation that carries no question",
+			name:     "should refuse a flagged invocation that carries no question",
 			args:     []string{"-o", "json"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
@@ -1518,21 +1518,21 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"Usage:", "Flags:"},
 		},
 		{
-			name:     "should reject -o raw with two questions",
+			name:     "should refuse -o raw with two questions",
 			args:     []string{"--ask", "a=one", "--ask", "b=two", "-o", "raw"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: -o raw needs a single question. 'a', 'b' were asked"},
 		},
 		{
-			name:     "should reject two --ask flags sharing an id",
+			name:     "should refuse two --ask flags sharing an id",
 			args:     []string{"--ask", "a=one", "--ask", "a=two"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: question id 'a' is given twice"},
 		},
 		{
-			name:     "should reject a reserved question id",
+			name:     "should refuse a reserved question id",
 			args:     []string{"--ask", "model=one"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
@@ -1549,7 +1549,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"warning:", "but not technical"},
 		},
 		{
-			name:     "should reject an unknown output mode",
+			name:     "should refuse an unknown output mode",
 			args:     []string{"is this urgent", "-o", "yaml"},
 			stdin:    "body",
 			wantCode: cli.ExitUsage,
@@ -1650,7 +1650,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`"decision":true`},
 		},
 		{
-			name:     "should reject an id defined in both the file and --ask",
+			name:     "should refuse an id defined in both the file and --ask",
 			args:     []string{"-f", "q.yaml", "--ask", "urgent=different"},
 			stdin:    "body",
 			files:    map[string]string{"q.yaml": "urgent: does this convey urgency\n"},
@@ -1778,7 +1778,7 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"model":"onesie-1.2.0"`},
 		},
 		{
-			name: "should reject a null state in a request body",
+			name: "should refuse a null state in a request body",
 			args: []string{"-f", "body.json"},
 			files: map[string]string{
 				"body.json": `{"state":null,"questions":` +
@@ -1788,7 +1788,7 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"state must be a string, object or array"},
 		},
 		{
-			name: "should reject a policy flag on a multi question body",
+			name: "should refuse a policy flag on a multi question body",
 			args: []string{"-f", "body.json", "--threshold", "0.5"},
 			files: map[string]string{
 				"body.json": `{"state":"x","questions":` +
@@ -1998,7 +1998,7 @@ func TestNewRootCmd(t *testing.T) {
 				"file takes it, so put it after the --ask it belongs to, as in --ask ID=QUESTION --pick x,y"},
 		},
 		{
-			name:     "should reject a question file holding a second document",
+			name:     "should refuse a question file holding a second document",
 			args:     []string{"-f", "md.yaml"},
 			files:    map[string]string{"md.yaml": "a: q1\n---\nb: q2\n"},
 			stdin:    "the server is down",
@@ -2028,7 +2028,7 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"true":"CLI YES"`, `"false":"FILE NO"`},
 		},
 		{
-			name: "should reject a shape flag aimed at a request body",
+			name: "should refuse a shape flag aimed at a request body",
 			args: []string{"-f", "body.json", "--pick", "x,y"},
 			files: map[string]string{
 				"body.json": `{"state":"x","questions":` +
@@ -2098,14 +2098,14 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"criteria":["zulu","mike","alpha"]`},
 		},
 		{
-			name:     "should reject replace with no file to override",
+			name:     "should refuse replace with no file to override",
 			args:     []string{"--replace", "is this urgent"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --replace applies to -f, which was not given"},
 		},
 		{
-			name: "should reject a structured fallback in a question file",
+			name: "should refuse a structured fallback in a question file",
 			args: []string{"-f", "policy.yaml"},
 			files: map[string]string{
 				"policy.yaml": "team:\n  ask: q\n  pick: [a, b]\n" +
@@ -2527,7 +2527,7 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject a bad timing flag before any request", func(t *testing.T) {
+	t.Run("should refuse a bad timing flag before any request", func(t *testing.T) {
 		t.Parallel()
 
 		const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.92}},` +
@@ -2541,43 +2541,43 @@ func TestNewRootCmd(t *testing.T) {
 			requests int64
 		}{
 			{
-				name:     "should reject a timeout of zero",
+				name:     "should refuse a timeout of zero",
 				args:     []string{"--timeout", "0"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --timeout takes a positive number of seconds, got 0",
 			},
 			{
-				name:     "should reject a timeout above the ceiling",
+				name:     "should refuse a timeout above the ceiling",
 				args:     []string{"--timeout", "86401"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --timeout takes at most 86400 seconds, got 86401",
 			},
 			{
-				name:     "should reject a timeout that would overflow a duration",
+				name:     "should refuse a timeout that would overflow a duration",
 				args:     []string{"--timeout", "18446744074"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --timeout takes at most 86400 seconds, got 18446744074",
 			},
 			{
-				name:     "should reject a negative retry count",
+				name:     "should refuse a negative retry count",
 				args:     []string{"--retries=-1"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --retries takes a retry count of zero or more, got -1",
 			},
 			{
-				name:     "should reject a negative retry after cap",
+				name:     "should refuse a negative retry after cap",
 				args:     []string{"--max-retry-after=-5"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --max-retry-after must be a positive number of seconds, got -5",
 			},
 			{
-				name:     "should reject a retry after cap that would overflow a duration",
+				name:     "should refuse a retry after cap that would overflow a duration",
 				args:     []string{"--max-retry-after", "18446744074"},
 				code:     cli.ExitUsage,
 				contains: "onesie: --max-retry-after takes at most 86400 seconds, got 18446744074",
 			},
 			{
-				name:     "should reject a job count of zero",
+				name:     "should refuse a job count of zero",
 				args:     []string{"-j", "0"},
 				code:     cli.ExitUsage,
 				contains: "onesie: -j takes a positive number of records in flight, got 0",
@@ -2650,7 +2650,7 @@ func TestNewRootCmd(t *testing.T) {
 					t.Errorf("output = %q, want it to contain %q", out.String(), tc.contains)
 				}
 
-				// A rejected flag must be caught before anything is sent, which is what lets the
+				// A refused flag must be caught before anything is sent, which is what lets the
 				// error cases run without a reachable server at all.
 				if got := requests.Load(); got != tc.requests {
 					t.Errorf("requests = %d, want %d", got, tc.requests)
@@ -3168,7 +3168,7 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should hint that a subcommand rejected a flag the root knows", func(t *testing.T) {
+	t.Run("should hint that a subcommand refused a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 
 		const hint = "belongs to a run"

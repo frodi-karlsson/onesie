@@ -357,7 +357,7 @@ func TestAssemble(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject an ask with no equals",
+			name:    "should refuse an ask with no equals",
 			events:  []argv.Event{{Name: "ask", Value: "noequals"}},
 			wantErr: true,
 		},
@@ -410,17 +410,17 @@ func TestAssemble(t *testing.T) {
 			check:      wantFallbackBoolean(false),
 		},
 		{
-			name:    "should reject an empty ask",
+			name:    "should refuse an empty ask",
 			events:  []argv.Event{{Name: "ask", Value: ""}},
 			wantErr: true,
 		},
 		{
-			name:    "should reject an ask with an empty id",
+			name:    "should refuse an ask with an empty id",
 			events:  []argv.Event{{Name: "ask", Value: "=is this urgent"}},
 			wantErr: true,
 		},
 		{
-			name:    "should reject a desc with no equals",
+			name:    "should refuse a desc with no equals",
 			events:  []argv.Event{{Name: "ask", Value: "a=x"}, {Name: "desc", Value: "noequals"}},
 			wantErr: true,
 		},
@@ -522,7 +522,7 @@ func TestAssemble(t *testing.T) {
 				},
 			},
 			{
-				name: "should reject an id defined in both sources",
+				name: "should refuse an id defined in both sources",
 				src: plan.Source{
 					File:     fileQuestions(),
 					FileName: "triage.yaml",

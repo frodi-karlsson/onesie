@@ -172,7 +172,7 @@ func TestStream(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject a json line whose value is the wrong type",
+			name: "should refuse a json line whose value is the wrong type",
 			mode: input.JSONL,
 			in:   "42\n\"ok\"\n",
 			want: []want{
@@ -275,7 +275,7 @@ func TestStream(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject a request body that is not a json object", func(t *testing.T) {
+	t.Run("should refuse a request body that is not a json object", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -288,31 +288,31 @@ func TestStream(t *testing.T) {
 				in:   `{"state":"x","questions":{}}`,
 			},
 			{
-				name: "should accept an object the api will reject, since the 422 is the answer",
+				name: "should accept an object the api will refuse, since the 422 is the answer",
 				in:   `{"hello":1}`,
 			},
 			{
-				name:    "should reject a number",
+				name:    "should refuse a number",
 				in:      "12",
 				wantErr: "line 1: a request body must be a JSON object, got number",
 			},
 			{
-				name:    "should reject an array",
+				name:    "should refuse an array",
 				in:      "[1,2,3]",
 				wantErr: "line 1: a request body must be a JSON object, got array",
 			},
 			{
-				name:    "should reject a string",
+				name:    "should refuse a string",
 				in:      `"just a string"`,
 				wantErr: "line 1: a request body must be a JSON object, got string",
 			},
 			{
-				name:    "should reject a boolean",
+				name:    "should refuse a boolean",
 				in:      "true",
 				wantErr: "line 1: a request body must be a JSON object, got boolean",
 			},
 			{
-				name:    "should reject null",
+				name:    "should refuse null",
 				in:      "null",
 				wantErr: "line 1: a request body must be a JSON object, got null",
 			},
@@ -721,14 +721,14 @@ type watchedReader struct {
 }
 
 func TestReadHeader(t *testing.T) {
-	t.Run("should reject invalid header bytes before returning records", func(t *testing.T) {
+	t.Run("should refuse invalid header bytes before returning records", func(t *testing.T) {
 		for _, tc := range []struct {
 			name      string
 			mode      input.Mode
 			separator byte
 		}{
-			{"should reject CSV headers", input.CSV, ','},
-			{"should reject TSV headers", input.TSV, '\t'},
+			{"should refuse CSV headers", input.CSV, ','},
+			{"should refuse TSV headers", input.TSV, '\t'},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				text := string([]byte{0xff, tc.separator, 0xfe, '\n', 'a', tc.separator, 'b', '\n'})
@@ -861,7 +861,7 @@ func TestReadHeader(t *testing.T) {
 			t.Fatalf("record: %#v, %v, %v", rec, ok, err)
 		}
 	})
-	t.Run("should reject other modes without consuming input", func(t *testing.T) {
+	t.Run("should refuse other modes without consuming input", func(t *testing.T) {
 		for _, mode := range []input.Mode{input.Lines, input.JSONL, input.Request} {
 			reader := strings.NewReader("hello\n")
 			stream := input.NewStream(reader, mode, input.StreamOptions{})

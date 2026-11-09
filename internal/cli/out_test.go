@@ -140,7 +140,7 @@ func TestOpenOut(t *testing.T) {
 			wantFile:    "",
 		},
 		{
-			name:        "should leave the file untouched when the command is rejected",
+			name:        "should leave the file untouched when the command is refused",
 			existing:    "keep me\n",
 			sidecar:     "keep this too",
 			wantSidecar: "keep this too",
@@ -163,7 +163,7 @@ func TestOpenOut(t *testing.T) {
 			unreached:   true,
 		},
 		{
-			name:        "should leave the file untouched on a rejected fresh run",
+			name:        "should leave the file untouched on a refused fresh run",
 			existing:    "keep me\n",
 			sidecar:     "keep this too",
 			wantSidecar: "keep this too",

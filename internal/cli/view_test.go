@@ -34,92 +34,92 @@ func TestValidateRun(t *testing.T) {
 			wantErr string
 		}{
 			{
-				name:    "should reject a positional question with -i request",
+				name:    "should refuse a positional question with -i request",
 				args:    []string{"-i", "request", "is this urgent"},
 				wantErr: "onesie: the question argument does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --ask with -i request",
+				name:    "should refuse --ask with -i request",
 				args:    []string{"-i", "request", "--ask", "urgent=is this urgent"},
 				wantErr: "onesie: --ask does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -f with -i request before it is read",
+				name:    "should refuse -f with -i request before it is read",
 				args:    []string{"-i", "request", "-f", "nowhere.yaml"},
 				wantErr: "onesie: -f does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --replace with -i request",
+				name:    "should refuse --replace with -i request",
 				args:    []string{"-i", "request", "--replace"},
 				wantErr: "onesie: --replace does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --pick with -i request",
+				name:    "should refuse --pick with -i request",
 				args:    []string{"-i", "request", "--pick", "a,b"},
 				wantErr: "onesie: --pick does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --rate with -i request",
+				name:    "should refuse --rate with -i request",
 				args:    []string{"-i", "request", "--rate", "low,high"},
 				wantErr: "onesie: --rate does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --desc with -i request",
+				name:    "should refuse --desc with -i request",
 				args:    []string{"-i", "request", "--desc", "a=first"},
 				wantErr: "onesie: --desc does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --sep with -i request",
+				name:    "should refuse --sep with -i request",
 				args:    []string{"-i", "request", "--sep", ";"},
 				wantErr: "onesie: --sep does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --threshold with -i request",
+				name:    "should refuse --threshold with -i request",
 				args:    []string{"-i", "request", "--threshold", "0.5"},
 				wantErr: "onesie: --threshold does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --min-confidence with -i request",
+				name:    "should refuse --min-confidence with -i request",
 				args:    []string{"-i", "request", "--min-confidence", "0.5"},
 				wantErr: "onesie: --min-confidence does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --fallback with -i request",
+				name:    "should refuse --fallback with -i request",
 				args:    []string{"-i", "request", "--fallback", "maybe"},
 				wantErr: "onesie: --fallback does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --state with -i request",
+				name:    "should refuse --state with -i request",
 				args:    []string{"-i", "request", "--state", "x"},
 				wantErr: "onesie: --state does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -o with -i request",
+				name:    "should refuse -o with -i request",
 				args:    []string{"-i", "request", "-o", "json"},
 				wantErr: "onesie: -o does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -q with -i request",
+				name:    "should refuse -q with -i request",
 				args:    []string{"-i", "request", "-q"},
 				wantErr: "onesie: -q does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --assert with -i request",
+				name:    "should refuse --assert with -i request",
 				args:    []string{"-i", "request", "--assert", "answer.value > 0.5"},
 				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject an unparseable --assert with -i request",
+				name:    "should refuse an unparseable --assert with -i request",
 				args:    []string{"-i", "request", "--assert", "nonsense syntax here !!"},
 				wantErr: "onesie: --assert does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --usage with -i request",
+				name:    "should refuse --usage with -i request",
 				args:    []string{"-i", "request", "--usage"},
 				wantErr: "onesie: --usage does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --merge with -i request",
+				name:    "should refuse --merge with -i request",
 				args:    []string{"-i", "request", "--merge"},
 				wantErr: "onesie: --merge does not apply to -i request, which sends each body as written and prints each raw response",
 			},
@@ -129,17 +129,17 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: --merge-key does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject -m with -i request",
+				name:    "should refuse -m with -i request",
 				args:    []string{"-i", "request", "-m", "onesie-1.13.0"},
 				wantErr: "onesie: -m does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --stop-on=fail with -i request",
+				name:    "should refuse --stop-on=fail with -i request",
 				args:    []string{"-i", "request", "--stop-on=fail"},
 				wantErr: "onesie: --stop-on=fail does not apply to -i request, which sends each body as written and prints each raw response",
 			},
 			{
-				name:    "should reject --print-questions with -i request",
+				name:    "should refuse --print-questions with -i request",
 				args:    []string{"-i", "request", "--print-questions"},
 				wantErr: "onesie: --print-questions does not apply to -i request, which sends each body as written and prints each raw response",
 			},
@@ -204,7 +204,7 @@ func TestValidateRun(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject every question flag with --list-models", func(t *testing.T) {
+	t.Run("should refuse every question flag with --list-models", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -213,65 +213,65 @@ func TestValidateRun(t *testing.T) {
 			wantErr string
 		}{
 			{
-				name:    "should reject a positional question with --list-models",
+				name:    "should refuse a positional question with --list-models",
 				args:    []string{"--list-models", "is this urgent"},
 				wantErr: "onesie: the question argument does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --ask with --list-models",
+				name:    "should refuse --ask with --list-models",
 				args:    []string{"--list-models", "--ask", "urgent=is this urgent"},
 				wantErr: "onesie: --ask does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --pick with --list-models",
+				name:    "should refuse --pick with --list-models",
 				args:    []string{"--list-models", "--pick", "a,b"},
 				wantErr: "onesie: --pick does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --fallback with --list-models",
+				name:    "should refuse --fallback with --list-models",
 				args:    []string{"--list-models", "--fallback", "maybe"},
 				wantErr: "onesie: --fallback does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -f with --list-models before it is read",
+				name:    "should refuse -f with --list-models before it is read",
 				args:    []string{"--list-models", "-f", "nowhere.yaml"},
 				wantErr: "onesie: -f does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --replace with --list-models",
+				name:    "should refuse --replace with --list-models",
 				args:    []string{"--list-models", "--replace"},
 				wantErr: "onesie: --replace does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --state with --list-models",
+				name:    "should refuse --state with --list-models",
 				args:    []string{"--list-models", "--state", "x"},
 				wantErr: "onesie: --state does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				// --input's default is text, so a rejection here can only come from Changed, not from
+				// --input's default is text, so a refusal here can only come from Changed, not from
 				// the value differing from the default.
-				name:    "should reject --input given by its long name with --list-models",
+				name:    "should refuse --input given by its long name with --list-models",
 				args:    []string{"--list-models", "--input", "text"},
 				wantErr: "onesie: -i does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
 				// --jobs's default is 1, for the same reason as the --input case above.
-				name:    "should reject --jobs given by its long name with --list-models",
+				name:    "should refuse --jobs given by its long name with --list-models",
 				args:    []string{"--list-models", "--jobs", "1"},
 				wantErr: "onesie: -j does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --model given by its long name with --list-models",
+				name:    "should refuse --model given by its long name with --list-models",
 				args:    []string{"--list-models", "--model", "x"},
 				wantErr: "onesie: -m does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -i with --list-models",
+				name:    "should refuse -i with --list-models",
 				args:    []string{"--list-models", "-i", "jsonl"},
 				wantErr: "onesie: -i does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -i request with --list-models by name",
+				name:    "should refuse -i request with --list-models by name",
 				args:    []string{"--list-models", "-i", "request"},
 				wantErr: "onesie: -i does not apply to --list-models, which only lists the models a provider serves",
 			},
@@ -283,32 +283,32 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: --ask does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -o with --list-models",
+				name:    "should refuse -o with --list-models",
 				args:    []string{"--list-models", "-o", "json"},
 				wantErr: "onesie: -o does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -q with --list-models",
+				name:    "should refuse -q with --list-models",
 				args:    []string{"--list-models", "-q"},
 				wantErr: "onesie: -q does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --assert with --list-models",
+				name:    "should refuse --assert with --list-models",
 				args:    []string{"--list-models", "--assert", "answer.value > 0.5"},
 				wantErr: "onesie: --assert does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject an unparseable --assert with --list-models",
+				name:    "should refuse an unparseable --assert with --list-models",
 				args:    []string{"--list-models", "--assert", "nonsense syntax here !!"},
 				wantErr: "onesie: --assert does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --usage with --list-models",
+				name:    "should refuse --usage with --list-models",
 				args:    []string{"--list-models", "--usage"},
 				wantErr: "onesie: --usage does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --merge with --list-models",
+				name:    "should refuse --merge with --list-models",
 				args:    []string{"--list-models", "--merge"},
 				wantErr: "onesie: --merge does not apply to --list-models, which only lists the models a provider serves",
 			},
@@ -318,42 +318,42 @@ func TestValidateRun(t *testing.T) {
 				wantErr: "onesie: --merge-key does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -j with --list-models",
+				name:    "should refuse -j with --list-models",
 				args:    []string{"--list-models", "-j", "4"},
 				wantErr: "onesie: -j does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject -m with --list-models",
+				name:    "should refuse -m with --list-models",
 				args:    []string{"--list-models", "-m", "onesie-1.13.0"},
 				wantErr: "onesie: -m does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --unordered with --list-models",
+				name:    "should refuse --unordered with --list-models",
 				args:    []string{"--list-models", "--unordered"},
 				wantErr: "onesie: --unordered does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --stop-on=error with --list-models",
+				name:    "should refuse --stop-on=error with --list-models",
 				args:    []string{"--list-models", "--stop-on=error"},
 				wantErr: "onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --stop-on=fail with --list-models",
+				name:    "should refuse --stop-on=fail with --list-models",
 				args:    []string{"--list-models", "--stop-on=fail"},
 				wantErr: "onesie: --stop-on does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --skip-blank with --list-models",
+				name:    "should refuse --skip-blank with --list-models",
 				args:    []string{"--list-models", "--skip-blank"},
 				wantErr: "onesie: --skip-blank does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --print-request with --list-models",
+				name:    "should refuse --print-request with --list-models",
 				args:    []string{"--list-models", "--print-request"},
 				wantErr: "onesie: --print-request does not apply to --list-models, which only lists the models a provider serves",
 			},
 			{
-				name:    "should reject --print-questions with --list-models",
+				name:    "should refuse --print-questions with --list-models",
 				args:    []string{"--list-models", "--print-questions"},
 				wantErr: "onesie: --print-questions does not apply to --list-models, which only lists the models a provider serves",
 			},
@@ -381,7 +381,7 @@ func TestValidateRun(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject --stats with a print flag", func(t *testing.T) {
+	t.Run("should refuse --stats with a print flag", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -390,42 +390,42 @@ func TestValidateRun(t *testing.T) {
 			want string
 		}{
 			{
-				name: "should reject stats with print-request",
+				name: "should refuse stats with print-request",
 				args: []string{"--ask", "urgent=is this urgent", "--print-request", "--stats"},
 				want: "onesie: --stats does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should reject stats with print-questions",
+				name: "should refuse stats with print-questions",
 				args: []string{"--ask", "urgent=is this urgent", "--print-questions", "--stats"},
 				want: "onesie: --stats does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
 				// The path that returns before a plan is built, so the rule has to sit above it.
-				name: "should reject stats with print-request under a request mode stream",
+				name: "should refuse stats with print-request under a request mode stream",
 				args: []string{"-i", "request", "--print-request", "--stats"},
 				want: "onesie: --stats does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should reject both print flags at once",
+				name: "should refuse both print flags at once",
 				args: []string{
 					"--ask", "urgent=is this urgent", "--print-request", "--print-questions",
 				},
 				want: "onesie: --print-questions does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should reject an output mode with print-questions",
+				name: "should refuse an output mode with print-questions",
 				args: []string{
 					"--ask", "urgent=is this urgent", "--print-questions", "-o", "json",
 				},
 				want: "onesie: -o does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},
 			{
-				name: "should reject an output mode with print-request",
+				name: "should refuse an output mode with print-request",
 				args: []string{"--ask", "urgent=is this urgent", "--print-request", "-o", "json"},
 				want: "onesie: -o does not apply to --print-request, which writes the request bodies and sends none",
 			},
 			{
-				name: "should reject quiet with print-questions",
+				name: "should refuse quiet with print-questions",
 				args: []string{"--ask", "urgent=is this urgent", "--print-questions", "-q"},
 				want: "onesie: -q does not apply to --print-questions, which reads no input and writes the questions as a question file",
 			},

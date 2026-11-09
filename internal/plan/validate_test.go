@@ -48,13 +48,13 @@ func TestValidate(t *testing.T) {
 			wantErr: "--min-confidence does not apply to box question 'mug'. Gate a box with --assert",
 		},
 		{
-			name:       "should reject a positional combined with ask",
+			name:       "should refuse a positional combined with ask",
 			positional: "is this urgent",
 			events:     []argv.Event{{Name: "ask", Value: "a=first"}},
 			wantErr:    "a positional question cannot be combined with --ask or -f",
 		},
 		{
-			name:       "should reject a positional combined with a file question",
+			name:       "should refuse a positional combined with a file question",
 			positional: "is this urgent",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: "is this urgent", Origin: plan.OriginFile},
@@ -62,55 +62,55 @@ func TestValidate(t *testing.T) {
 			wantErr: "a positional question cannot be combined with --ask or -f",
 		},
 		{
-			name:    "should reject a reserved id",
+			name:    "should refuse a reserved id",
 			events:  []argv.Event{{Name: "ask", Value: "usage=first"}},
 			wantErr: "question id 'usage' is reserved",
 		},
 		{
-			name:    "should reject an empty --ask question",
+			name:    "should refuse an empty --ask question",
 			events:  []argv.Event{{Name: "ask", Value: "a="}},
 			wantErr: "--ask a= is blank, an empty question is one the model cannot answer",
 		},
 		{
-			name:    "should reject an all space --ask question",
+			name:    "should refuse an all space --ask question",
 			events:  []argv.Event{{Name: "ask", Value: "a= \t "}},
 			wantErr: "--ask a= is blank, an empty question is one the model cannot answer",
 		},
 		{
-			name:       "should reject an all space positional question",
+			name:       "should refuse an all space positional question",
 			positional: "   ",
 			wantErr:    "the question is blank, an empty question is one the model cannot answer",
 		},
 		{
-			name: "should reject an empty question in a question file",
+			name: "should refuse an empty question in a question file",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: " ", Origin: plan.OriginFile},
 			},
 			wantErr: "question 'urgent' has a blank 'ask', an empty question is one the model cannot answer",
 		},
 		{
-			name: "should reject empty instructions in a request body",
+			name: "should refuse empty instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: "", Origin: plan.OriginBody},
 			},
 			wantErr: "question 'urgent' has blank 'instructions', an empty question is one the model cannot answer",
 		},
 		{
-			name: "should reject null instructions in a request body",
+			name: "should refuse null instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginBody},
 			},
 			wantErr: "question 'urgent' has null 'instructions', an empty question is one the model cannot answer",
 		},
 		{
-			name: "should reject a null ask in a question file",
+			name: "should refuse a null ask in a question file",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: nil, Origin: plan.OriginFile},
 			},
 			wantErr: "question 'urgent' has a null 'ask', an empty question is one the model cannot answer",
 		},
 		{
-			name: "should reject number instructions in a request body",
+			name: "should refuse number instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: uint64(7), Origin: plan.OriginBody},
 			},
@@ -118,7 +118,7 @@ func TestValidate(t *testing.T) {
 				"model has no question to answer",
 		},
 		{
-			name: "should reject boolean instructions in a request body",
+			name: "should refuse boolean instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: true, Origin: plan.OriginBody},
 			},
@@ -126,7 +126,7 @@ func TestValidate(t *testing.T) {
 				"model has no question to answer",
 		},
 		{
-			name: "should reject empty structured instructions in a request body",
+			name: "should refuse empty structured instructions in a request body",
 			file: []plan.Question{
 				{ID: "urgent", Shape: plan.Noul, Instructions: json.RawMessage(`{}`), Origin: plan.OriginBody},
 			},
@@ -139,17 +139,17 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject the positional id used explicitly",
+			name:    "should refuse the positional id used explicitly",
 			events:  []argv.Event{{Name: "ask", Value: "answer=first"}},
 			wantErr: "question id 'answer' is reserved",
 		},
 		{
-			name:    "should reject an id beginning with two underscores",
+			name:    "should refuse an id beginning with two underscores",
 			events:  []argv.Event{{Name: "ask", Value: "__private=first"}},
 			wantErr: "question id '__private' is reserved",
 		},
 		{
-			name: "should reject a single option pick",
+			name: "should refuse a single option pick",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: "safe"},
@@ -157,7 +157,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--pick needs at least two options in question 'a', got 1: safe",
 		},
 		{
-			name: "should reject a single level rate",
+			name: "should refuse a single level rate",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},
 				{Name: "rate", Value: "calm"},
@@ -165,7 +165,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--rate needs at least two levels in question 'a', got 1: calm",
 		},
 		{
-			name: "should reject a duplicate option",
+			name: "should refuse a duplicate option",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,technical,billing"},
@@ -173,7 +173,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--pick option 'billing' is listed twice in question 'team'",
 		},
 		{
-			name: "should reject an empty option",
+			name: "should refuse an empty option",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,,technical"},
@@ -181,7 +181,7 @@ func TestValidate(t *testing.T) {
 			wantExact: "--pick option 2 in question 'team' is empty",
 		},
 		{
-			name: "should reject an option of only spaces",
+			name: "should refuse an option of only spaces",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing, "},
@@ -189,7 +189,7 @@ func TestValidate(t *testing.T) {
 			wantExact: "--pick option 2 in question 'team' is empty",
 		},
 		{
-			name: "should reject an empty level",
+			name: "should refuse an empty level",
 			events: []argv.Event{
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,,high"},
@@ -197,7 +197,7 @@ func TestValidate(t *testing.T) {
 			wantExact: "--rate level 2 in question 'severity' is empty",
 		},
 		{
-			name:      "should reject a file's blank option",
+			name:      "should refuse a file's blank option",
 			file:      filePick("billing", "  "),
 			wantExact: "'pick' option 2 in question 'team' is empty",
 		},
@@ -211,7 +211,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject a duplicate level",
+			name: "should refuse a duplicate level",
 			events: []argv.Event{
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,high,high"},
@@ -219,7 +219,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--rate label 'high' is listed twice in question 'severity'",
 		},
 		{
-			name: "should reject pick and rate together",
+			name: "should refuse pick and rate together",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},
 				{Name: "pick", Value: "x,y"},
@@ -228,7 +228,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--pick and --rate are mutually exclusive",
 		},
 		{
-			name: "should reject a partly described rubric",
+			name: "should refuse a partly described rubric",
 			events: []argv.Event{
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "minor,major,critical"},
@@ -238,7 +238,7 @@ func TestValidate(t *testing.T) {
 				"Described minor but not major, critical",
 		},
 		{
-			name: "should reject a desc naming an unknown option",
+			name: "should refuse a desc naming an unknown option",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "billing,technical"},
@@ -247,7 +247,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--desc names an unknown key 'bilingl' in question 'team'. --pick has: billing, technical",
 		},
 		{
-			name: "should reject a desc other than yes or no on a yes/no question",
+			name: "should refuse a desc other than yes or no on a yes/no question",
 			events: []argv.Event{
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "desc", Value: "maybe=unclear"},
@@ -255,7 +255,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--desc on a yes or no question takes 'yes' or 'no', got 'maybe'",
 		},
 		{
-			name: "should reject min-confidence on a yes/no question",
+			name: "should refuse min-confidence on a yes/no question",
 			events: []argv.Event{
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "min-confidence", Value: "0.7"},
@@ -264,7 +264,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--min-confidence needs a confidence value. 'urgent' is a yes or no question",
 		},
 		{
-			name: "should reject threshold on a pick question",
+			name: "should refuse threshold on a pick question",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "x,y"},
@@ -273,7 +273,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--threshold cuts a yes or no probability. 'team' has options",
 		},
 		{
-			name: "should reject threshold on a rate question",
+			name: "should refuse threshold on a rate question",
 			events: []argv.Event{
 				{Name: "ask", Value: "severity=first"},
 				{Name: "rate", Value: "low,high"},
@@ -282,7 +282,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--threshold cuts a yes or no probability. 'severity' has levels",
 		},
 		{
-			name: "should reject min-confidence with no fallback",
+			name: "should refuse min-confidence with no fallback",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "x,y"},
@@ -291,7 +291,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--min-confidence needs --fallback, nothing to substitute for 'team'",
 		},
 		{
-			name: "should reject a threshold outside zero to one",
+			name: "should refuse a threshold outside zero to one",
 			events: []argv.Event{
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "threshold", Value: "85"},
@@ -299,7 +299,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--threshold must be between 0 and 1, got 85",
 		},
 		{
-			name: "should reject a min-confidence outside zero to one",
+			name: "should refuse a min-confidence outside zero to one",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "x,y"},
@@ -309,7 +309,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "--min-confidence must be between 0 and 1, got 1.5",
 		},
 		{
-			name: "should reject a non boolean fallback on a yes/no question",
+			name: "should refuse a non boolean fallback on a yes/no question",
 			events: []argv.Event{
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "fallback", Value: "human"},
@@ -343,7 +343,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject two questions sharing an id",
+			name: "should refuse two questions sharing an id",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=one"},
 				{Name: "ask", Value: "a=two"},
@@ -374,27 +374,27 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject the reserved assert id",
+			name:    "should refuse the reserved assert id",
 			events:  []argv.Event{{Name: "ask", Value: "assert=first"}},
 			wantErr: "question id 'assert' is reserved",
 		},
 		{
-			name:    "should reject the reserved abstain_if id",
+			name:    "should refuse the reserved abstain_if id",
 			events:  []argv.Event{{Name: "ask", Value: "abstain_if=first"}},
 			wantErr: "question id 'abstain_if' is reserved",
 		},
 		{
-			name:    "should reject the reserved abstain id",
+			name:    "should refuse the reserved abstain id",
 			events:  []argv.Event{{Name: "ask", Value: "abstain=first"}},
 			wantErr: "question id 'abstain' is reserved",
 		},
 		{
-			name:    "should reject the reserved $schema id",
+			name:    "should refuse the reserved $schema id",
 			events:  []argv.Event{{Name: "ask", Value: "$schema=is it"}},
 			wantErr: "question id '$schema' is reserved",
 		},
 		{
-			name:    "should reject the reserved id id",
+			name:    "should refuse the reserved id id",
 			events:  []argv.Event{{Name: "ask", Value: "id=first"}},
 			wantErr: "question id 'id' is reserved",
 		},
@@ -547,7 +547,7 @@ func TestValidate(t *testing.T) {
 				"question, use 'threshold'",
 		},
 		{
-			name: "should reject a threshold of nan",
+			name: "should refuse a threshold of nan",
 			events: []argv.Event{
 				{Name: "ask", Value: "urgent=first"},
 				{Name: "threshold", Value: "nan"},
@@ -555,7 +555,7 @@ func TestValidate(t *testing.T) {
 			wantExact: "--threshold must be between 0 and 1, got NaN",
 		},
 		{
-			name: "should reject a min confidence of nan",
+			name: "should refuse a min confidence of nan",
 			events: []argv.Event{
 				{Name: "ask", Value: "team=first"},
 				{Name: "pick", Value: "x,y"},
@@ -565,7 +565,7 @@ func TestValidate(t *testing.T) {
 			wantExact: "--min-confidence must be between 0 and 1, got NaN",
 		},
 		{
-			name: "should reject a file's threshold of nan",
+			name: "should refuse a file's threshold of nan",
 			file: []plan.Question{{
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{Threshold: pointerTo(math.NaN())},
@@ -704,7 +704,7 @@ func bodyLevels(n int) []plan.Question {
 	levels := make([]plan.Level, 0, n)
 	for i := range n {
 		// Only the first level is described, which is the mixed rubric a labelled question is
-		// rejected for.
+		// refused for.
 		if i == 0 {
 			levels = append(levels, plan.Level{Desc: "x"})
 

@@ -315,13 +315,13 @@ func TestAdvise(t *testing.T) {
 		}
 	})
 
-	t.Run("should say the local check passed when the server rejects a count", func(t *testing.T) {
+	t.Run("should say the local check passed when the server refuses a count", func(t *testing.T) {
 		t.Parallel()
 
 		// The wording the live API answered with on 2026-09-22, for a score carrying eleven levels.
 		const tooManyLevels = `{"detail":"Too many score levels. Must have at most 10 levels."}`
 
-		const rejected = "onesie: 400 Too many score levels. Must have at most 10 levels."
+		const refused = "onesie: 400 Too many score levels. Must have at most 10 levels."
 
 		const note = " onesie's own check passed, so its built in limits may be stale. Run onesie version"
 
@@ -333,13 +333,13 @@ func TestAdvise(t *testing.T) {
 
 		tests := []adviceCase{
 			{
-				name:     "should say the local check passed when the server rejects a level count",
+				name:     "should say the local check passed when the server refuses a level count",
 				args:     []string{"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry"},
 				stdin:    "a ticket",
 				status:   http.StatusBadRequest,
 				response: tooManyLevels,
 				wantCode: ExitUsage,
-				wantErr:  rejected + note + "\n",
+				wantErr:  refused + note + "\n",
 			},
 			{
 				name:     "should say the same for an option count from a question file",
@@ -371,7 +371,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + note + `"}}`},
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}}`},
 			},
 			{
 				name:     "should say the same for an image the server refuses",
@@ -392,7 +392,7 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitRecords,
 				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"` + strings.TrimPrefix(rejected, "onesie: ") + note + `"}`},
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}`},
 			},
 			{
 				name:     "should leave a 400 reading Invalid request untouched",
@@ -431,7 +431,7 @@ func TestAdvise(t *testing.T) {
 				wantErr:  "onesie: 400 state: field required\n",
 			},
 			{
-				name: "should keep the model remedy when the rejection is an unknown model",
+				name: "should keep the model remedy when the refusal is an unknown model",
 				args: []string{
 					"--ask", "severity=how bad is it", "--rate", "calm,annoyed,angry",
 					"-m", "onesie-1.12",
@@ -448,7 +448,7 @@ func TestAdvise(t *testing.T) {
 				status:   http.StatusBadRequest,
 				response: tooManyLevels,
 				wantCode: ExitUsage,
-				wantErr:  rejected + "\n",
+				wantErr:  refused + "\n",
 			},
 		}
 

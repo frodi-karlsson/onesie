@@ -94,7 +94,7 @@ func TestCheckProse(t *testing.T) {
 		want  []string
 	}{
 		{name: "should accept an uncommon complete reference flag", intro: "Run `onesie --max-retry-after 2 --state x`."},
-		{name: "should reject a typo in an uncommon complete reference flag", intro: "Run `onesie --max-retry-aftr 2 --state x`.", want: []string{"onesie: skill 'demo' intro.md: --max-retry-aftr is not a flag in onesie help all"}},
+		{name: "should refuse a typo in an uncommon complete reference flag", intro: "Run `onesie --max-retry-aftr 2 --state x`.", want: []string{"onesie: skill 'demo' intro.md: --max-retry-aftr is not a flag in onesie help all"}},
 		{name: "should refuse a root gate flag on calibration", intro: "Run `onesie calibrate --assert true`.", want: []string{"onesie: skill 'demo' intro.md: --assert is not a flag in onesie help calibrate all"}},
 
 		{

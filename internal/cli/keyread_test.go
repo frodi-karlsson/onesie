@@ -94,7 +94,7 @@ func TestFirstLine(t *testing.T) {
 				}
 
 				if key != "" {
-					t.Errorf("key length = %d, want a rejected read to hand back nothing", len(key))
+					t.Errorf("key length = %d, want a refused read to hand back nothing", len(key))
 				}
 
 				return

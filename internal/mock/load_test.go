@@ -139,7 +139,7 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject duplicate canonical numeric ids",
+			name:    "should refuse duplicate canonical numeric ids",
 			file:    `{"id":7,` + full + "}\n" + `{"id":7e0,` + full + "}\n",
 			byID:    true,
 			wantErr: "--mock line 2: id '7' is also the id of line 1",
@@ -513,7 +513,7 @@ func TestLoad(t *testing.T) {
 			lookups   []lookup
 			wantErr   string
 		}{
-			name:    "should reject a present " + invalid.name + " id with line context",
+			name:    "should refuse a present " + invalid.name + " id with line context",
 			file:    `{"id":"ok",` + full + "}\n" + `{"id":` + invalid.raw + `,` + full + "}\n",
 			byID:    true,
 			wantErr: "--mock line 2: " + invalid.want,

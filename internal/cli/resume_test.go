@@ -40,7 +40,7 @@ func TestResumed(t *testing.T) {
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	})
 	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
-	byPositionRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+	byPositionFailing := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
 	})
@@ -402,7 +402,7 @@ func TestResumed(t *testing.T) {
 		{
 			name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
 			existing: fileOf("{\"abstain\":true,\"answer\":0.5}\n"),
-			sidecar:  byPositionRejecting,
+			sidecar:  byPositionFailing,
 			stdin:    idRecords(1, 2),
 			runs: []resumeRun{{
 				args: []string{

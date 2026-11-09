@@ -765,7 +765,7 @@ func TestStream(t *testing.T) {
 		byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 		gateArgs := []string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}
 		abstaining.AbstainIf = "answer.value > 0.6"
-		byIDRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
+		byIDFailing := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 
 		values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 		csvCR := "id,answer,error\n,,\"line 1: --id: 'a\\rb' holds a carriage return, which -o csv cannot read back\"\n" +
@@ -1451,7 +1451,7 @@ func TestStream(t *testing.T) {
 			{
 				name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
 				existing: fileOf(abstainedLines(1, 1)),
-				sidecar:  byIDRejecting,
+				sidecar:  byIDFailing,
 				stdin:    idRecords(1, 2),
 				runs: []resumeRun{{
 					args: append([]string{

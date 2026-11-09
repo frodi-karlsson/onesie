@@ -3872,7 +3872,7 @@ func TestRunCalibrate(t *testing.T) {
 		{name: "should report missing map before syntax errors", noMap: true, extra: []string{"--cuts", "invalid", "--require", "bad"}, want: "calibrate needs --map"},
 		{name: "should preserve the invalid second requirement", extra: []string{"--require", "u.catches >= 0.9 at 0.5", "--require", "second malformed entry"}, want: "--require 'second malformed entry'"},
 		{name: "should report resume before malformed requirements", extra: []string{"--cuts", "0.5", "--resume", "--require", "bad"}, want: "calibrate resumes by id"},
-		{name: "should reject syntax before request preview", extra: []string{"--print-request", "--require", "bad"}, want: "--require 'bad' needs an operator"},
+		{name: "should refuse syntax before request preview", extra: []string{"--print-request", "--require", "bad"}, want: "--require 'bad' needs an operator"},
 		{name: "should bind valid syntax before request preview", extra: []string{"--print-request", "--require", "missing.catches >= 0.9 at 0.5"}, want: "names an unknown question 'missing'"},
 	}
 	for _, tc := range tests {

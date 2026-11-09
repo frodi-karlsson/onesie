@@ -290,7 +290,7 @@ func TestTerminalStatus(t *testing.T) {
 			err:  &onesie.ResponseError{Status: http.StatusOK, Err: errors.New("bad json")},
 		},
 		{
-			name: "should not count a request rejected before it was sent",
+			name: "should not count a request refused before it was sent",
 			err:  &onesie.ValidationError{Message: "no API key"},
 		},
 		{

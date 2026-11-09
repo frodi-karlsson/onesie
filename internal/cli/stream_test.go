@@ -25,12 +25,12 @@ import (
 func TestStream(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should reject invalid header bytes before preview or provider requests", func(t *testing.T) {
+	t.Run("should refuse invalid header bytes before preview or provider requests", func(t *testing.T) {
 		for _, mode := range []string{"csv", "tsv"} {
 			for _, preview := range []bool{false, true} {
-				name := "should reject " + mode + " headers during execution"
+				name := "should refuse " + mode + " headers during execution"
 				if preview {
-					name = "should reject " + mode + " headers during preview"
+					name = "should refuse " + mode + " headers during preview"
 				}
 				t.Run(name, func(t *testing.T) {
 					var requests atomic.Int32
@@ -1771,7 +1771,7 @@ func TestWriteMerged(t *testing.T) {
 				requests: 1,
 			},
 			{
-				name:     "should reject a taken merge key before any request",
+				name:     "should refuse a taken merge key before any request",
 				args:     []string{"is this urgent", "-i", "json", "--merge"},
 				stdin:    `{"answers":1}`,
 				wantCode: cli.ExitUsage,

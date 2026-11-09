@@ -125,7 +125,7 @@ func TestResolve(t *testing.T) {
 			wantState:  map[string]any{"id": float64(7)},
 		},
 		{
-			name: "should reject a bare number under json",
+			name: "should refuse a bare number under json",
 			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("42"),
@@ -133,7 +133,7 @@ func TestResolve(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "should reject null under json",
+			name: "should refuse null under json",
 			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("null"),
@@ -142,7 +142,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "state must be a string, object or array, got null",
 		},
 		{
-			name: "should reject an empty json string on --state",
+			name: "should refuse an empty json string on --state",
 			req: input.Query{
 				Mode:     input.JSON,
 				State:    `""`,
@@ -152,7 +152,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject a json string of spaces on stdin",
+			name: "should refuse a json string of spaces on stdin",
 			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader(`"  "` + "\n"),
@@ -161,7 +161,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject an empty object under json",
+			name: "should refuse an empty object under json",
 			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("{}"),
@@ -170,7 +170,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "empty object, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject a boolean under json",
+			name: "should refuse a boolean under json",
 			req: input.Query{
 				Mode:  input.JSON,
 				Stdin: strings.NewReader("true"),
@@ -196,7 +196,7 @@ func TestResolve(t *testing.T) {
 			wantState:  "just a string",
 		},
 		{
-			name: "should reject an empty --state under text",
+			name: "should refuse an empty --state under text",
 			req: input.Query{
 				Mode:     input.Text,
 				State:    "",
@@ -206,7 +206,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "--state is blank, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject a --state of spaces under text",
+			name: "should refuse a --state of spaces under text",
 			req: input.Query{
 				Mode:     input.Text,
 				State:    "  ",
@@ -216,7 +216,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "--state is blank, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject a stdin holding only a newline under text",
+			name: "should refuse a stdin holding only a newline under text",
 			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader("\n"),
@@ -225,7 +225,7 @@ func TestResolve(t *testing.T) {
 			wantMessage: "stdin is blank, an empty state is a request the model cannot answer",
 		},
 		{
-			name: "should reject invalid utf8 under text",
+			name: "should refuse invalid utf8 under text",
 			req: input.Query{
 				Mode:  input.Text,
 				Stdin: strings.NewReader("bad \xff byte"),
@@ -585,27 +585,27 @@ func TestCheckState(t *testing.T) {
 		{name: "should accept an object", value: map[string]any{"id": 1.0}},
 		{name: "should accept an array", value: []any{"a"}},
 		{
-			name:    "should reject an empty string",
+			name:    "should refuse an empty string",
 			value:   "",
 			wantErr: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
-			name:    "should reject a string of whitespace",
+			name:    "should refuse a string of whitespace",
 			value:   " \t\n",
 			wantErr: "empty string, an empty state is a request the model cannot answer",
 		},
 		{
-			name:    "should reject an empty object",
+			name:    "should refuse an empty object",
 			value:   map[string]any{},
 			wantErr: "empty object, an empty state is a request the model cannot answer",
 		},
 		{
-			name:    "should reject an empty array",
+			name:    "should refuse an empty array",
 			value:   []any{},
 			wantErr: "empty array, an empty state is a request the model cannot answer",
 		},
 		{
-			name:    "should reject null",
+			name:    "should refuse null",
 			value:   nil,
 			wantErr: "state must be a string, object or array, got null",
 		},
@@ -653,7 +653,7 @@ func TestParseMode(t *testing.T) {
 		{name: "should parse csv", flag: "csv", wantMode: input.CSV},
 		{name: "should parse tsv", flag: "tsv", wantMode: input.TSV},
 		{
-			name:    "should reject an unknown mode",
+			name:    "should refuse an unknown mode",
 			flag:    "yaml",
 			wantErr: "-i takes text, json, jsonl, lines, csv, tsv or request, got 'yaml'",
 		},

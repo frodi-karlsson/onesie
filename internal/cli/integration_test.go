@@ -1054,7 +1054,7 @@ func TestRequestRoundTripIntegration(t *testing.T) {
 
 	t.Run("should answer a body its own --print-request produced", func(t *testing.T) {
 		// No -o on the first run. --print-request writes a request body rather than a record, so
-		// the CLI rejects an output format there, and the format belongs to the run that answers.
+		// the CLI refuses an output format there, and the format belongs to the run that answers.
 		args := []string{"--ask", "urgent=does this convey urgency"}
 
 		body, errOut, code := runLive(t,

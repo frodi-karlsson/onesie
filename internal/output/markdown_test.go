@@ -290,8 +290,8 @@ func TestNewMarkdownTable(t *testing.T) {
 		return rec
 	}
 
-	rejected := answered("T-1", 0.97, "billing")
-	rejected.Gate = output.Fail
+	failing := answered("T-1", 0.97, "billing")
+	failing.Gate = output.Fail
 
 	unsure := answered("T-4", 0.5, "sales")
 	unsure.Gate = output.Unsure
@@ -330,7 +330,7 @@ func TestNewMarkdownTable(t *testing.T) {
 		{
 			name:     "should write one header, a row per record, the summary and the model",
 			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records:  []output.Record{rejected, passed("T-2", 0.08, "shipping"), failed},
+			records:  []output.Record{failing, passed("T-2", 0.08, "shipping"), failed},
 			complete: true,
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
@@ -422,7 +422,7 @@ func TestNewMarkdownTable(t *testing.T) {
 		{
 			name:    "should say the run stopped early when it did not read every record",
 			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
-			records: []output.Record{passed("T-2", 0.08, "shipping"), rejected},
+			records: []output.Record{passed("T-2", 0.08, "shipping"), failing},
 			want: "| id | `urgent` | `team` | gate | error |\n" +
 				"|---|---|---|---|---|\n" +
 				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
