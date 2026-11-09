@@ -132,7 +132,7 @@ func TestWritingProblems(t *testing.T) {
 		},
 		{
 			name: "should not count a list marker or a word that starts with a dash",
-			text: "- Pass --stop-on-error or -o json.",
+			text: "- Pass --stop-on error or -o json.",
 		},
 		{
 			name: "should skip code spans, one that runs across lines included",

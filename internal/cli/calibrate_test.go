@@ -578,6 +578,39 @@ func TestNewCalibrateCmd(t *testing.T) {
 		})
 	}
 
+	t.Run("should refuse every run flag it names a reason for, with that reason", func(t *testing.T) {
+		t.Parallel()
+
+		runFlags := NewRootCmd(BuildInfo{}).Command.Flags()
+
+		for _, name := range slices.Sorted(maps.Keys(refusedReasons)) {
+			flag := runFlags.Lookup(name)
+			if flag == nil {
+				t.Errorf("refusedReasons names --%s, which a run does not have", name)
+
+				continue
+			}
+
+			typed := "--" + name + "=x"
+			if flag.Value.Type() == "bool" {
+				typed = "--" + name
+			}
+
+			spelled := "--" + name
+			if flag.Shorthand != "" {
+				spelled = "-" + flag.Shorthand + "/" + spelled
+			}
+
+			want := fmt.Sprintf("onesie: %s, so %s does not apply. Drop it\n", refusedReasons[name], spelled)
+
+			out, errOut, code := runOfflineStdin(t, with(typed), "")
+			if code != ExitUsage || out != "" || errOut != want {
+				t.Errorf("calibrate %s = exit %d, stdout %q, stderr %q, want exit 2 and %q",
+					typed, code, out, errOut, want)
+			}
+		}
+	})
+
 	t.Run("should refuse a label with a syntax error before reading any input", func(t *testing.T) {
 		t.Parallel()
 

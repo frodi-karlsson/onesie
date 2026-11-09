@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"fmt"
 	"io"
 	"maps"
@@ -29,6 +30,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/qfile"
 )
+
+var updateHelp = flag.Bool("update-help", false, "rewrite testdata/help from the help each command prints")
 
 func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
@@ -2869,11 +2872,6 @@ func TestNewRootCmd(t *testing.T) {
 			{args: []string{"cache", "--help"}, golden: "cache.golden"},
 			{args: []string{"cache", "clear", "--help"}, golden: "cache-clear.golden"},
 		} {
-			want, err := os.ReadFile(filepath.Join("testdata", "help", pin.golden))
-			if err != nil {
-				t.Fatal(err)
-			}
-
 			var out bytes.Buffer
 
 			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
@@ -2886,8 +2884,21 @@ func TestNewRootCmd(t *testing.T) {
 				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
 			}
 
+			path := filepath.Join("testdata", "help", pin.golden)
+			if *updateHelp {
+				if err := os.WriteFile(path, out.Bytes(), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+			want, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			if out.String() != string(want) {
-				t.Errorf("onesie %s differs from testdata/help/%s\ngot:\n%s", strings.Join(pin.args, " "), pin.golden, out.String())
+				t.Errorf("onesie %s differs from testdata/help/%s, rerun with -update-help for a change made on purpose\ngot:\n%s",
+					strings.Join(pin.args, " "), pin.golden, out.String())
 			}
 		}
 	})
