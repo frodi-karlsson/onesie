@@ -27,6 +27,10 @@ make settings-check # check those files are current, writing nothing
 brew install golangci-lint
 ```
 
+The help of every command is pinned in `internal/cli/testdata/help`. After a help change made on
+purpose, rewrite those files with `go test ./internal/cli -run TestNewRootCmd -update-help` and
+review the diff.
+
 ## Live suite
 
 The live suite asks the real APIs. It reads `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`,
