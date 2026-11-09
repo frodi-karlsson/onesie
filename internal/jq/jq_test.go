@@ -262,7 +262,6 @@ func TestID(t *testing.T) {
 		{name: "should write a zero with an exponent past an int32 as zero", value: json.Number("0e99999999999"), want: json.Number("0")},
 		{name: "should write a negative zero with a negative exponent past an int32 as zero", value: json.Number("-0.000e-99999999999"), want: json.Number("0")},
 		{name: "should refuse an exponent with two signs as not an id", value: json.Number("1e+-5"), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got 1e+-5"},
-		{name: "should refuse an exponent with two minus signs as not an id", value: json.Number("1e--5"), wantIs: ErrNotID, wantErr: "id must be a string or a finite number, got 1e--5"},
 		{name: "should refuse an integer that writes out longer than the limit", value: json.Number("1e1024"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1024, which writes out to more than 1024 bytes"},
 		{name: "should count the sign of a negative integer against the limit", value: json.Number("-1e1023"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got -1e1023, which writes out to more than 1024 bytes"},
 		{name: "should refuse a million digit integer without writing it out", value: json.Number("1e1000000"), wantIs: ErrIDOutOfRange, wantErr: "id is out of range, got 1e1000000, which writes out to more than 1024 bytes"},

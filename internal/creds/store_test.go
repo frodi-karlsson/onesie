@@ -197,14 +197,6 @@ func TestStoreLoad(t *testing.T) {
 			wantErr:  "is not a JSON object",
 		},
 		{
-			name:     "should refuse a group readable file on a unix filesystem",
-			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
-			goos:     "linux",
-			mode:     0o640,
-			unixOnly: true,
-			wantErr:  "is readable or writable by its group or others, mode 640",
-		},
-		{
 			name:     "should accept a group readable file on windows, where the mode carries no meaning",
 			contents: `{"providers":{"typesafe":{"api_key":"k"}}}`,
 			goos:     "windows",

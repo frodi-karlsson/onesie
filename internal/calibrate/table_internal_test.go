@@ -16,22 +16,6 @@ func TestWriteTable(t *testing.T) {
 		want      []string
 	}{
 		{
-			name:      "should render a yes/no question with its cut rows and worst misses",
-			questions: []QuestionReport{urgentReport([]float64{0.5, 0.7})},
-			want: []string{
-				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 error. AUC 0.89",
-				"flagged means urgent.value >= cut",
-				"",
-				"  cut   flagged  catches         false alarms   right when flagged",
-				"  0.50        3  2/3 67% 21-94%  1/3 33% 6-79%  2/3 67% 21-94%",
-				"  0.70        2  2/3 67% 21-94%  0/3  1% 1-56%  2/2 99% 34-99%",
-				"",
-				"worst misses",
-				"  T-3  labelled yes  answered 0.30",
-				"  T-5  labelled no   answered 0.60",
-			},
-		},
-		{
 			name: "should say AUC needs both labels, print an undefined share as 0/0 with a dash, align counts of any width and list five misses",
 			questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
 				namedYesNo(

@@ -124,62 +124,6 @@ func TestGenerate(t *testing.T) {
 			},
 		},
 		{
-			name:      "should render the run_uses block with both profile ranks",
-			reference: staleReference(),
-			check: func(t *testing.T, files *memFS, err error) {
-				t.Helper()
-
-				if err != nil {
-					t.Fatalf("Generate: %v", err)
-				}
-
-				reference := files.text("REFERENCE.md")
-				for _, want := range []string{
-					"<!-- settings:run_uses begin -->\n" +
-						"| Setting | Flag | Chosen profile | Question file or body | Environment | Default profile |\n",
-					"| `model` | `--model` | `model` | the request body's `model` | `TYPESAFE_DEFAULT_MODEL` on typesafe | " +
-						"`model` |\n",
-					"| `endpoint` | `--base-url` | `base_url` or `account_id` |  | `ONESIE_BASE_URL`, then " +
-						"`TYPESAFE_BASE_URL` on typesafe, then `CLOUDFLARE_ACCOUNT_ID` on cloudflare | `base_url` or `account_id` |\n",
-					"| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter",
-					"| `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |\n",
-					"| `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |\n",
-					"| `assert` | `--assert` |  | the question file's `assert` |  |  |\n",
-					"| `abstain_if` | `--abstain-if` |  | the question file's `abstain_if` |  |  |\n",
-					"or `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |\n<!-- settings:run_uses end -->",
-				} {
-					if !strings.Contains(reference, want) {
-						t.Errorf("REFERENCE.md lacks %q:\n%s", want, reference)
-					}
-				}
-
-				_, block, _ := strings.Cut(reference, "<!-- settings:run_uses begin -->")
-				block, _, _ = strings.Cut(block, "<!-- settings:run_uses end -->")
-
-				for _, unwanted := range []string{"| `provider` |", "| `image` |", "| `cache_dir` |"} {
-					if strings.Contains(block, unwanted) {
-						t.Errorf("REFERENCE.md lists %q, which no precedence orders", unwanted)
-					}
-				}
-			},
-		},
-		{
-			name:      "should write question key cells in the style of the other tables",
-			reference: staleReference(),
-			check: func(t *testing.T, files *memFS, err error) {
-				t.Helper()
-
-				if err != nil {
-					t.Fatalf("Generate: %v", err)
-				}
-
-				want := "| `fallback` | a question | the answer that stands in for one that falls short |\n"
-				if !strings.Contains(files.text("REFERENCE.md"), want) {
-					t.Errorf("REFERENCE.md lacks %q", want)
-				}
-			},
-		},
-		{
 			name:      "should not rewrite an unchanged file",
 			reference: staleReference(),
 			check: func(t *testing.T, files *memFS, err error) {

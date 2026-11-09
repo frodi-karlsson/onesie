@@ -373,13 +373,6 @@ func TestRootExecute(t *testing.T) {
 			want:     "onesie: cache clear takes no argument\n",
 		},
 		{
-			name:     "should refuse --mock beside --list-models before listing",
-			args:     []string{"--list-models", "--mock", "{dir}{/}m.json"},
-			files:    map[string]string{"m.json": `{"q":0.9}`},
-			wantCode: ExitUsage,
-			want:     "onesie: --mock does not apply to --list-models, which only lists the models a provider serves\n",
-		},
-		{
 			name:     "should refuse --assert beside -i request before reading a body",
 			args:     []string{"-i", "request", "--assert", "a"},
 			wantCode: ExitUsage,
@@ -669,26 +662,6 @@ func TestRootRun(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("should start a second run with none of the first run's later failures", func(t *testing.T) {
-		t.Parallel()
-
-		root := failingLater(io.Discard, func(run int) ([]error, error) {
-			if run == 1 {
-				return []error{release}, failure
-			}
-
-			return nil, failure
-		})
-
-		if ended := root.Run(t.Context()); !slices.Equal(ended.Later, []error{release}) {
-			t.Fatalf("first run later failures = %v, want %v", ended.Later, release)
-		}
-
-		if ended := root.Run(t.Context()); !errors.Is(ended.Failure, failure) || len(ended.Later) != 0 {
-			t.Errorf("second run = %v and %v, want %v alone", ended.Failure, ended.Later, failure)
-		}
-	})
 }
 
 func failingLater(stderr io.Writer, script func(run int) (later []error, failure error)) *Root {

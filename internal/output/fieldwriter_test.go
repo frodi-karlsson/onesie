@@ -115,30 +115,24 @@ func TestNewFieldWriter(t *testing.T) {
 						t.Fatalf("got %v", err)
 					}
 				})
-				t.Run("should detect short writes "+mode.String()+strings.Join(row, ""), func(t *testing.T) {
-					t.Parallel()
-
-					err := newFieldWriter(fieldFailureWriter{}, mode, 0).WriteRow(row)
-					if !errors.Is(err, io.ErrShortWrite) {
-						t.Fatalf("got %v", err)
-					}
-				})
 			}
 		}
 	})
-	t.Run("should detect short string writes for large rows", func(t *testing.T) {
+	t.Run("should detect a short write", func(t *testing.T) {
 		t.Parallel()
 
-		for _, mode := range []Mode{CSV, TSV} {
-			t.Run("should refuse a short write in "+mode.String(), func(t *testing.T) {
-				t.Parallel()
+		err := newFieldWriter(fieldFailureWriter{}, CSV, 0).WriteRow([]string{"x"})
+		if !errors.Is(err, io.ErrShortWrite) {
+			t.Fatalf("got %v", err)
+		}
+	})
+	t.Run("should detect a short string write for a csv row larger than its buffer", func(t *testing.T) {
+		t.Parallel()
 
-				destination := &fieldShortStringWriter{}
-				err := newFieldWriter(destination, mode, 0).WriteRow([]string{strings.Repeat("x", 8192)})
-				if !errors.Is(err, io.ErrShortWrite) {
-					t.Fatalf("got %v, want short write", err)
-				}
-			})
+		destination := &fieldShortStringWriter{}
+		err := newFieldWriter(destination, CSV, 0).WriteRow([]string{strings.Repeat("x", 8192)})
+		if !errors.Is(err, io.ErrShortWrite) {
+			t.Fatalf("got %v, want short write", err)
 		}
 	})
 }

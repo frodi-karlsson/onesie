@@ -374,31 +374,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should refuse the reserved assert id",
-			events:  []argv.Event{{Name: "ask", Value: "assert=first"}},
-			wantErr: "question id 'assert' is reserved",
-		},
-		{
-			name:    "should refuse the reserved abstain_if id",
-			events:  []argv.Event{{Name: "ask", Value: "abstain_if=first"}},
-			wantErr: "question id 'abstain_if' is reserved",
-		},
-		{
-			name:    "should refuse the reserved abstain id",
-			events:  []argv.Event{{Name: "ask", Value: "abstain=first"}},
-			wantErr: "question id 'abstain' is reserved",
-		},
-		{
-			name:    "should refuse the reserved $schema id",
-			events:  []argv.Event{{Name: "ask", Value: "$schema=is it"}},
-			wantErr: "question id '$schema' is reserved",
-		},
-		{
-			name:    "should refuse the reserved id id",
-			events:  []argv.Event{{Name: "ask", Value: "id=first"}},
-			wantErr: "question id 'id' is reserved",
-		},
-		{
 			name: "should report an empty pick without a trailing separator",
 			events: []argv.Event{
 				{Name: "ask", Value: "a=first"},

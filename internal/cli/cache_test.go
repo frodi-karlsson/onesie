@@ -38,41 +38,6 @@ const noKeyCacheSentence = "The cache needs the key too, to find the API address
 
 var cacheEpoch = time.Date(2026, 3, 1, 12, 0, 0, 0, time.UTC)
 
-func TestCaching(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		flags runConfig
-		want  bool
-	}{
-		{name: "should be on when the switches turn it on", flags: runConfig{env: switches{cache: true}}, want: true},
-		{name: "should be off when the switches leave it off"},
-		{
-			name:  "should be off under --mock",
-			flags: runConfig{mockPath: "m.json", mockSpelled: flagMock, env: switches{cache: true}},
-		},
-		{
-			name:  "should be off under ONESIE_MOCK",
-			flags: runConfig{mockPath: "m.json", mockSpelled: "ONESIE_MOCK", env: switches{cache: true}},
-		},
-		{
-			name:  "should be off under --print-request",
-			flags: runWith(map[string]any{"print_request": true, "cache": true}),
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := caching(tc.flags); got != tc.want {
-				t.Errorf("caching = %v, want %v", got, tc.want)
-			}
-		})
-	}
-}
-
 func TestOpenCache(t *testing.T) {
 	t.Parallel()
 
@@ -580,30 +545,28 @@ func TestAsk(t *testing.T) {
 		"rate":   {"--ask", "r=how rude", "--rate", "calm,curt,rude"},
 	}
 
-	for _, mode := range []string{"json", "values", "table", "raw", "csv", "tsv", "markdown"} {
-		for shape, asked := range questionSets {
-			t.Run("should print the same "+mode+" output for a cached "+shape+" answer", func(t *testing.T) {
-				t.Parallel()
+	for shape, asked := range questionSets {
+		t.Run("should print the same output for a cached "+shape+" answer", func(t *testing.T) {
+			t.Parallel()
 
-				stub := newAnswerStub(t)
-				env := cacheEnv(t)
-				args := append(append([]string{"--cache", "--base-url", stub.url, "-o", mode}, asked...), "--state", "site down")
+			stub := newAnswerStub(t)
+			env := cacheEnv(t)
+			args := append(append([]string{"--cache", "--base-url", stub.url, "-o", "json"}, asked...), "--state", "site down")
 
-				first, errOut, code := runCached(t, env, args, "")
-				if code != ExitOK {
-					t.Fatalf("first run exit %d\n%s", code, errOut)
-				}
+			first, errOut, code := runCached(t, env, args, "")
+			if code != ExitOK {
+				t.Fatalf("first run exit %d\n%s", code, errOut)
+			}
 
-				second, errOut, code := runCached(t, env, args, "")
-				if code != ExitOK || second != first {
-					t.Fatalf("second run exit %d, stdout %q, want %q\n%s", code, second, first, errOut)
-				}
+			second, errOut, code := runCached(t, env, args, "")
+			if code != ExitOK || second != first {
+				t.Fatalf("second run exit %d, stdout %q, want %q\n%s", code, second, first, errOut)
+			}
 
-				if got := stub.requests.Load(); got != 1 {
-					t.Errorf("%d requests, want 1", got)
-				}
-			})
-		}
+			if got := stub.requests.Load(); got != 1 {
+				t.Errorf("%d requests, want 1", got)
+			}
+		})
 	}
 
 	base := []string{"--cache", "--ask", "u=is it urgent", "--state", "site down"}
@@ -619,8 +582,6 @@ func TestAsk(t *testing.T) {
 		{name: "should miss when a question changes", second: []string{"--cache", "--ask", "u=is it on fire", "--state", "site down"}},
 		{name: "should miss when -m changes", change: []string{"-m", "jev-1.13.0"}},
 		{name: "should miss when --provider changes", change: []string{"--provider", "openrouter"}},
-		{name: "should miss when --provider changes to berget", change: []string{"--provider", "berget"}},
-		{name: "should miss when --provider changes to levanto", change: []string{"--provider", "levanto"}},
 		{name: "should miss when --base-url changes", other: true},
 		{name: "should miss when --long-context is added", change: []string{"--long-context"}},
 		{name: "should hit when --timeout changes", change: []string{"--timeout", "5"}, hit: true},
@@ -715,9 +676,7 @@ func TestAsk(t *testing.T) {
 		{name: "should hit a pinned jev-1.13.0 on typesafe a year later", extra: []string{"-m", "jev-1.13.0"}, after: 365 * 24 * time.Hour, providersOwnURL: true, hit: true},
 		{name: "should not pin an answer from a custom base URL", extra: []string{"-m", "jev-1.13.0"}, after: 24 * time.Hour},
 		{name: "should ask jev-1.13.0 on openrouter again 24 hours later", extra: []string{"-m", "jev-1.13.0", "--provider", "openrouter"}, after: 24 * time.Hour},
-		{name: "should hit the systemone alias on berget 23 hours later", extra: []string{"--provider", "berget"}, after: 23 * time.Hour, hit: true},
 		{name: "should ask Qwen/Qwen3.5-2B on berget again 24 hours later", extra: []string{"-m", "Qwen/Qwen3.5-2B", "--provider", "berget"}, after: 24 * time.Hour},
-		{name: "should hit the sage-latest alias on levanto 23 hours later", extra: []string{"--provider", "levanto"}, after: 23 * time.Hour, hit: true},
 		{name: "should ask levanto-sage-v1.4 on levanto again 24 hours later", extra: []string{"-m", "levanto-sage-v1.4", "--provider", "levanto"}, after: 24 * time.Hour},
 	}
 

@@ -24,6 +24,18 @@ func TestValidate(t *testing.T) {
 			skill: skillgen.Skill{Name: "my-skill", Description: "does a thing"},
 		},
 		{
+			name: "should accept a skill using every optional field",
+			skill: skillgen.Skill{
+				Name: "my-skill", Description: "does a thing", AllowedTools: "Bash(onesie:*)", ArgumentHint: "[file]",
+				Intro: "intro.md", Sections: []string{"sections/policy.md"},
+				Rules: []skillgen.Rule{
+					{ID: "r1", Short: "do it", Why: "because", Good: "ok", GoodFails: true},
+					{ID: "r2", Short: "do it", Why: "because", Bad: "not so ok", BadPasses: true},
+				},
+			},
+			wantFiles: []string{"intro.md", "sections/policy.md"},
+		},
+		{
 			name:    "should refuse a name that does not match the directory",
 			skill:   skillgen.Skill{Name: "other-name", Description: "does a thing"},
 			wantErr: "name 'other-name' must equal the directory name 'my-skill'",
@@ -62,17 +74,6 @@ func TestValidate(t *testing.T) {
 			name:    "should refuse a missing name",
 			skill:   skillgen.Skill{Description: "does a thing"},
 			wantErr: "name is required",
-		},
-		{
-			name:    "should refuse an empty name",
-			skill:   skillgen.Skill{Name: "", Description: "does a thing"},
-			wantErr: "name is required",
-		},
-		{
-			name: "should accept allowed_tools and argument_hint",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing", AllowedTools: "Bash(onesie:*)", ArgumentHint: "[file]",
-			},
 		},
 		{
 			name:    "should refuse a blank allowed_tools",
@@ -194,38 +195,6 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should accept a rule with good_fails set",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing",
-				Rules: []skillgen.Rule{
-					{ID: "r1", Short: "do it", Why: "because", Good: "ok", GoodFails: true},
-				},
-			},
-		},
-		{
-			name: "should default good_fails to false when absent",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing",
-				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "because", Good: "ok"}},
-			},
-		},
-		{
-			name: "should accept a rule with bad_passes set",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing",
-				Rules: []skillgen.Rule{
-					{ID: "r1", Short: "do it", Why: "because", Bad: "not so ok", BadPasses: true},
-				},
-			},
-		},
-		{
-			name: "should default bad_passes to false when absent",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing",
-				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "because", Bad: "not so ok"}},
-			},
-		},
-		{
 			name: "should accept a rule with bad_unverifiable set and no bad_passes",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
@@ -322,14 +291,6 @@ func TestValidate(t *testing.T) {
 				Sections: []string{"../outside.md"},
 			},
 			wantErr: "sections[0] '../outside.md' must be a relative path inside the skill directory",
-		},
-		{
-			name: "should accept an intro and a sections entry that exist",
-			skill: skillgen.Skill{
-				Name: "my-skill", Description: "does a thing",
-				Intro: "intro.md", Sections: []string{"sections/policy.md"},
-			},
-			wantFiles: []string{"intro.md", "sections/policy.md"},
 		},
 		{
 			name: "should refuse a sections entry listed twice",

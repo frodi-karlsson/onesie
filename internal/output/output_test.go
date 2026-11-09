@@ -369,19 +369,31 @@ func TestWrite(t *testing.T) {
 func TestParseMode(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should read back every mode by the name it writes", func(t *testing.T) {
+		t.Parallel()
+
+		read := 0
+
+		for mode := output.Mode(0); !strings.HasPrefix(mode.String(), "Mode("); mode++ {
+			got, err := output.ParseMode(mode.String())
+			if err != nil || got != mode {
+				t.Errorf("ParseMode(%q) = %v, %v, want %v", mode.String(), got, err, mode)
+			}
+
+			read++
+		}
+
+		if read == 0 {
+			t.Error("no mode was read back")
+		}
+	})
+
 	tests := []struct {
 		name    string
 		flag    string
 		want    output.Mode
 		wantErr bool
 	}{
-		{name: "should accept json", flag: "json", want: output.JSON},
-		{name: "should accept an explicit mode", flag: "values", want: output.Values},
-		{name: "should accept a table", flag: "table", want: output.Table},
-		{name: "should accept raw", flag: "raw", want: output.Raw},
-		{name: "should accept csv", flag: "csv", want: output.CSV},
-		{name: "should accept tsv", flag: "tsv", want: output.TSV},
-		{name: "should accept markdown", flag: "markdown", want: output.Markdown},
 		{name: "should accept md as the short form of markdown", flag: "md", want: output.Markdown},
 		{name: "should refuse auto, which the settings resolve first", flag: "auto", wantErr: true},
 		{name: "should refuse an unknown mode", flag: "yaml", wantErr: true},
@@ -415,30 +427,13 @@ func TestParseMode(t *testing.T) {
 func TestMode_String(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		mode output.Mode
-		want string
-	}{
-		{name: "should name json as -o spells it", mode: output.JSON, want: "json"},
-		{name: "should name values as -o spells it", mode: output.Values, want: "values"},
-		{name: "should name table as -o spells it", mode: output.Table, want: "table"},
-		{name: "should name raw as -o spells it", mode: output.Raw, want: "raw"},
-		{name: "should name csv as -o spells it", mode: output.CSV, want: "csv"},
-		{name: "should name tsv as -o spells it", mode: output.TSV, want: "tsv"},
-		{name: "should name markdown as -o spells it", mode: output.Markdown, want: "markdown"},
-		{name: "should name a mode outside the set by its number", mode: output.Mode(99), want: "Mode(99)"},
-	}
+	t.Run("should name a mode outside the set by its number", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.mode.String(); got != tc.want {
-				t.Errorf("String() = %q, want %q", got, tc.want)
-			}
-		})
-	}
+		if got := output.Mode(99).String(); got != "Mode(99)" {
+			t.Errorf("String() = %q, want %q", got, "Mode(99)")
+		}
+	})
 }
 
 func TestEncodeFailure(t *testing.T) {

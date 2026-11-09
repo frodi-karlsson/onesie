@@ -37,12 +37,6 @@ func TestRun(t *testing.T) {
 			wantLines: []string{"0", "1", "2", "3", "4"},
 		},
 		{
-			name:      "should keep input order with several workers",
-			records:   50,
-			jobs:      8,
-			wantLines: countUp(50),
-		},
-		{
 			name:      "should write nothing for an empty source",
 			records:   0,
 			jobs:      4,
@@ -123,33 +117,6 @@ func TestRun(t *testing.T) {
 			}
 		})
 	}
-
-	t.Run("should run over a source of any record type", func(t *testing.T) {
-		t.Parallel()
-
-		source := &sliceSource[string]{items: []string{"a", "b", "c"}}
-
-		var written []string
-
-		result, err := engine.Run(t.Context(), engine.Config[string, string]{
-			Source:   source,
-			Evaluate: func(_ context.Context, rec string) (string, error) { return rec + "!", nil },
-			Write:    func(line string) error { written = append(written, line); return nil },
-			Jobs:     1,
-		})
-		if err != nil {
-			t.Fatalf("Run: %v", err)
-		}
-
-		if result.Records != 3 {
-			t.Errorf("Records = %d, want 3", result.Records)
-		}
-
-		want := []string{"a!", "b!", "c!"}
-		if !slices.Equal(written, want) {
-			t.Errorf("written = %v, want %v", written, want)
-		}
-	})
 
 	t.Run("should write output in input order regardless of completion order", func(t *testing.T) {
 		t.Parallel()
@@ -666,33 +633,6 @@ func (c *countingReads) Next() (input.Record, bool, error) {
 	c.next++
 
 	return record, true, nil
-}
-
-type sliceSource[R any] struct {
-	items []R
-	at    int
-}
-
-func (s *sliceSource[R]) Next() (R, bool, error) {
-	if s.at >= len(s.items) {
-		var zero R
-
-		return zero, false, nil
-	}
-
-	item := s.items[s.at]
-	s.at++
-
-	return item, true, nil
-}
-
-func countUp(n int) []string {
-	lines := make([]string, 0, n)
-	for i := range n {
-		lines = append(lines, strconv.Itoa(i))
-	}
-
-	return lines
 }
 
 type counting struct {

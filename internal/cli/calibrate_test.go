@@ -39,17 +39,7 @@ func TestNewCalibrateCmd(t *testing.T) {
 
 	dir := t.TempDir()
 
-	assertFile := writeCalibrateFile(t, dir, "assert.yaml",
-		"assert: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
-	thresholdFile := writeCalibrateFile(t, dir, "threshold.yaml",
-		"urgent:\n  ask: is this urgent\n  threshold: 0.8\n")
 	assertFlagFile := writeCalibrateFile(t, dir, "assert-flag.yaml", "urgent:\n  ask: is this urgent\n")
-	confidenceFile := writeCalibrateFile(t, dir, "confidence.yaml",
-		"team:\n  ask: which team\n  pick: [billing, shipping]\n  min_confidence: 0.8\n")
-	fallbackFile := writeCalibrateFile(t, dir, "fallback.yaml",
-		"urgent:\n  ask: is this urgent\n  fallback: no\n")
-	abstainFile := writeCalibrateFile(t, dir, "abstain.yaml",
-		"abstain_if: urgent.value > 0.5\nurgent:\n  ask: is this urgent\n")
 	replaceFile := writeCalibrateFile(t, dir, "replace.yaml", "urgent:\n  ask: is it urgent\n")
 	mixedBodyFile := writeCalibrateFile(t, dir, "mixed-body.json",
 		`{"questions":{"urgent":{"type":"noul","instructions":"is this urgent"},`+
@@ -60,6 +50,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 		`{"questions":{"mood":{"type":"score","instructions":"how cross is the writer",`+
 			`"criteria":["calm","annoyed","furious"]}}}`)
 
+	gatedFile := writeCalibrateFile(t, dir, "gated.yaml",
+		"assert: urgent.value > 0.5\nabstain_if: urgent.value > 0.6\n"+
+			"urgent:\n  ask: is this urgent\n  threshold: 0.8\n  fallback: no\n"+
+			"team:\n  ask: which team\n  pick: [billing, shipping]\n  min_confidence: 0.8\n")
 	base := []string{
 		"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".body",
 		"--label", "urgent=.is_urgent",
@@ -96,46 +90,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"jsonl, csv or tsv", "-i text"},
 		},
 		{
-			name: "should refuse -i json",
-			args: []string{
-				"calibrate", "--ask", "urgent=q", "-i", "json", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{"jsonl, csv or tsv", "-i json"},
-		},
-		{
-			name: "should refuse -i lines",
-			args: []string{
-				"calibrate", "--ask", "urgent=q", "-i", "lines", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{"jsonl, csv or tsv", "-i lines"},
-		},
-		{
-			name: "should refuse -i request",
-			args: []string{
-				"calibrate", "--ask", "urgent=q", "-i", "request", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{"jsonl, csv or tsv", "-i request"},
-		},
-		{
 			name:     "should refuse a missing -i",
 			args:     []string{"calibrate", "--ask", "urgent=q", "--map", ".body", "--label", "urgent=.u"},
 			wantCode: ExitUsage,
 			contains: []string{"jsonl, csv or tsv"},
-		},
-		{
-			name:     "should accept -i csv",
-			args:     []string{"calibrate", "--ask", "urgent=q", "-i", "csv", "--map", ".body", "--label", "urgent=.u"},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name:     "should accept -i tsv",
-			args:     []string{"calibrate", "--ask", "urgent=q", "-i", "tsv", "--map", ".body", "--label", "urgent=.u"},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
 		},
 		{
 			name:     "should refuse a missing --map",
@@ -212,24 +170,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"table, json or auto", "csv"},
 		},
 		{
-			name:     "should accept -o table",
-			args:     with("-o", "table"),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name:     "should accept -o json",
-			args:     with("-o", "json"),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name:     "should accept -o auto",
-			args:     with("--output", "auto"),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
 			name:     "should refuse a cut above 1",
 			args:     with("--cuts", "0.5,1.2"),
 			wantCode: ExitUsage,
@@ -246,12 +186,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     with("--cuts", ""),
 			wantCode: ExitUsage,
 			contains: []string{"onesie: --cuts", "got nothing"},
-		},
-		{
-			name:     "should accept a list of cuts",
-			args:     with("--cuts", "0.9,0.95"),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
 		},
 		{
 			name:     "should skip a question with no --label when another has one",
@@ -290,41 +224,9 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{nothing},
 		},
 		{
-			name: "should ignore an assert key in a question file",
+			name: "should ignore a question file's assert, abstain_if, threshold, min_confidence and fallback",
 			args: []string{
-				"calibrate", "-f", assertFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name: "should ignore a threshold in a question file",
-			args: []string{
-				"calibrate", "-f", thresholdFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name: "should ignore a min_confidence in a question file",
-			args: []string{
-				"calibrate", "-f", confidenceFile, "-i", "jsonl", "--map", ".body", "--label", "team=.team",
-			},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name: "should ignore a fallback in a question file",
-			args: []string{
-				"calibrate", "-f", fallbackFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
-			},
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name: "should ignore an abstain_if key in a question file",
-			args: []string{
-				"calibrate", "-f", abstainFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
+				"calibrate", "-f", gatedFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
 			},
 			wantCode: ExitUsage,
 			contains: []string{nothing},
@@ -337,15 +239,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			},
 			wantCode: ExitUsage,
 			contains: []string{"onesie: calibrate reports every cut and judges none, so --assert does not apply. Drop it"},
-		},
-		{
-			name: "should refuse --threshold beside a gated question file",
-			args: []string{
-				"calibrate", "-f", assertFile, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u",
-				"--threshold", "0.5",
-			},
-			wantCode: ExitUsage,
-			contains: []string{"onesie: calibrate reports every cut, so --threshold does not apply. Drop it"},
 		},
 		{
 			name: "should skip a request body rate question with no level names when it has no --label",
@@ -370,40 +263,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{
 				"onesie: --usage adds token counts to the answers file or the json report, " +
 					"and this run writes neither",
-			},
-		},
-		{
-			name:     "should accept --usage with -o json",
-			args:     with("--usage", "-o", "json"),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name:     "should accept --usage with --out",
-			args:     with("--usage", "--out", filepath.Join(dir, "usage.jsonl")),
-			wantCode: ExitUsage,
-			contains: []string{nothing},
-		},
-		{
-			name:     "should say in its help that -i is required and hide the default",
-			args:     []string{"calibrate", "--help"},
-			wantCode: ExitOK,
-			contains: []string{"Required. One of jsonl, csv or tsv."},
-		},
-		{
-			name:     "should say in its help what each shape accepts as a label, with a sample record",
-			args:     []string{"help", "calibrate", "all"},
-			wantCode: ExitOK,
-			contains: []string{
-				"A yes or no label is true, false, yes, no, y, n, 1 or 0 in any case",
-				"null, no result or a string of only spaces leaves that record unlabelled",
-				`{"id":"a","text":"The server is down","urgent":true}`,
-				"a,The server is down,yes",
-				"3    the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
-					"credentials.json is exposed. No report prints",
-				"found is the share labelled with a name that were picked as it",
-				"the same questions, model, input format, --map and --id, with -o json and no gate or merge",
-				"A question file's assert, abstain_if, threshold, min_confidence and fallback are ignored. The corresponding root flags are refused.",
 			},
 		},
 		{

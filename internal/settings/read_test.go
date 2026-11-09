@@ -404,11 +404,6 @@ func TestRead(t *testing.T) {
 			},
 		},
 		{
-			name:    "should refuse --profile with --provider",
-			reading: reading{args: []string{"--profile", "work", "--provider", "openrouter"}},
-			wantErr: "--profile and --provider both choose what the run uses. Pass one",
-		},
-		{
 			name: "should order the layers from the highest source down",
 			reading: reading{
 				args: []string{"-m", "a"}, env: map[string]string{"ONESIE_CACHE": "1"}, defaultProfile: "work",

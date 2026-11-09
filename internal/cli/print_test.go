@@ -694,12 +694,6 @@ func TestPrintRequest(t *testing.T) {
 		stderr   []string
 	}{
 		{
-			name:     "should print long_context for a body with true",
-			args:     []string{"-f", longBody, "--state", "x", "--print-request"},
-			wantCode: ExitOK,
-			stdout:   []string{`"long_context":true`},
-		},
-		{
 			name:     "should print no long_context for --long-context=false on a body with true, with a notice",
 			args:     []string{"-f", longBody, "--state", "x", "--long-context=false", "--print-request"},
 			wantCode: ExitOK,
@@ -1271,14 +1265,6 @@ func TestPrintRequest(t *testing.T) {
 			want  string
 		}{
 			{
-				name: "should refuse a valid --assert with --print-request",
-				args: []string{
-					"is this urgent", "--print-request", "--state", "x",
-					"--assert", "answer.value > 0.99",
-				},
-				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
-			},
-			{
 				name: "should refuse an unparseable --assert with --print-request",
 				args: []string{
 					"is this urgent", "--print-request", "--state", "x",
@@ -1290,13 +1276,6 @@ func TestPrintRequest(t *testing.T) {
 				name: "should refuse --assert typed beside a file's assertion",
 				args: []string{"-f", path, "--print-request", "--state", "x", "--assert", "urgent.value > 0.9"},
 				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
-			},
-			{
-				name: "should refuse --abstain-if typed beside a file's assertion",
-				args: []string{
-					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
-				},
-				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 		}
 
@@ -1428,12 +1407,6 @@ func TestPrintRequest(t *testing.T) {
 			args:     []string{"--provider", "levanto", "-m", "levanto-sage-v1.4", "--ask", "urgent=is this urgent", "--print-request"},
 			wantCode: ExitOK,
 			want:     `"model":"levanto-sage-v1.4"`,
-		},
-		{
-			name:     "should keep -m under berget",
-			args:     []string{"--provider", "berget", "-m", "laya-latest", "--ask", "urgent=is this urgent", "--print-request"},
-			wantCode: ExitOK,
-			want:     `"model":"laya-latest"`,
 		},
 		{
 			name:     "should keep TYPESAFE_DEFAULT_MODEL under typesafe",

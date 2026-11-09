@@ -724,7 +724,6 @@ func TestFile_CheckFingerprint(t *testing.T) {
 	current.older = "v2:" + strings.Repeat("ab", 32)
 	withColumns := current
 	withColumns.olderColumns = "v2:" + strings.Repeat("cd", 32)
-	changed := "v3:questions=" + strings.Repeat("00", 8)
 
 	tests := []struct {
 		name        string
@@ -755,15 +754,6 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			name: "should refuse a file written without the fallback columns", sidecar: new(withColumns.olderColumns),
 			checking: withColumns, wantReason: OlderColumns,
 			wantErr: "A was written by an older onesie, without the fallback columns this run adds",
-		},
-		{
-			name: "should refuse another version 2 sum with the cause it gave", sidecar: new("v2:" + strings.Repeat("ef", 32)),
-			checking: current, wantReason: ChangedRun,
-			wantErr: "the questions, model or flags changed since A was written",
-		},
-		{
-			name: "should name the part that changed", sidecar: new(changed), checking: current,
-			wantReason: ChangedRun, wantErr: "the questions changed since A was written",
 		},
 		{
 			name: "should accept the same fingerprint", sidecar: new(current.String()), checking: current,

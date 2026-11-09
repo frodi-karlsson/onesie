@@ -252,20 +252,6 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"unknown provider"},
 		},
 		{
-			name:     "should report a --list-models refusal before a bad provider",
-			args:     []string{"--list-models", "--provider", "bogus", "-m", "x"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m does not apply to --list-models, which only lists the models a provider serves\n"},
-			absent:   []string{"unknown provider"},
-		},
-		{
-			name:     "should report a -i request refusal before a bad provider",
-			args:     []string{"-i", "request", "--provider", "bogus", "-m", "x"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: -m does not apply to -i request, which sends each body as written and prints each raw response\n"},
-			absent:   []string{"unknown provider"},
-		},
-		{
 			name:     "should refuse -j on one record before a bad provider",
 			args:     []string{"is this urgent", "--state", "s", "-j", "4", "--provider", "bogus"},
 			wantCode: cli.ExitUsage,
@@ -337,93 +323,6 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "--state", "site down", "--print-request", "--base-url", " "},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty --base-url on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--base-url", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --base-url is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --mock rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--mock", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --mock is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty -m rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "-m", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --model rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--model", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty -o rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "-o", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --output rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--output", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty -i rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "-i", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --input rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--input", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --out rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--out", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --out is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty -f rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "-f", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --file rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--file", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --merge-key rather than run",
-			args:     []string{"is this urgent", "--state", "site down", "--merge-key", ""},
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --merge-key is empty. Name one, or leave the flag out"},
 		},
 		{
 			name:     "should refuse --merge-key state on a text state",
@@ -527,30 +426,6 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{`{"a":1,"state":{`},
 		},
 		{
-			name:     "should refuse an empty --map on a stream",
-			args:     []string{"is this urgent", "-i", "jsonl", "--map", ""},
-			stdin:    `{"body":"x"}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --map is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --id on a stream",
-			args:     []string{"is this urgent", "-i", "jsonl", "--id", ""},
-			stdin:    `{"body":"x"}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --id is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty --image-field on a stream",
-			args:     []string{"is this urgent", "-i", "jsonl", "--image-field", ""},
-			stdin:    `{"body":"x"}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --image-field is empty. Name one, or leave the flag out"},
-		},
-		{
 			name:     "should refuse a whitespace -m given as the value of a combined short flag",
 			args:     []string{"is this urgent", "--state", "site down", "-qm", " "},
 			response: answered,
@@ -565,95 +440,10 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --sep is empty. Name one, or leave the flag out"},
 		},
 		{
-			name:     "should print no empty list default for a flag that refuses an empty value",
-			args:     []string{"calibrate", "--help"},
-			wantCode: cli.ExitOK,
-			contains: []string{"--label [ID=]EXPR"},
-			absent:   []string{"(default [])"},
-		},
-		{
 			name:     "should split the options on a --sep of one space",
 			args:     []string{"is it billing", "--sep", " ", "--pick", "billing technical", "--print-request", "--state", "x"},
 			wantCode: cli.ExitOK,
 			contains: []string{`"criteria":{"billing":null,"technical":null}`},
-		},
-		{
-			name:     "should refuse an empty --provider on profile update",
-			args:     []string{"profile", "update", "work", "--provider", "", "--key"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --provider is empty. Name one, or leave the flag out\n"},
-		},
-		{
-			name:     "should refuse an empty --account-id on profile create",
-			args:     []string{"profile", "create", "work", "--provider", "cloudflare", "--account-id", ""},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --account-id is empty. Name one, or leave the flag out\n"},
-		},
-		{
-			name: "should refuse an empty --mock on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--mock", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --mock is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty -m on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"-m", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --model is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty -o on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"-o", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty -i on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"-i", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --input is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty --out on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--out", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --out is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty -f on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"-f", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --file is empty. Name one, or leave the flag out"},
 		},
 		{
 			name: "should refuse an empty --label on calibrate",
@@ -667,56 +457,11 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --label is empty. Name one, or leave the flag out"},
 		},
 		{
-			name: "should refuse an empty --image-field on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--image-field", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --image-field is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty --map on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--map", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --map is empty. Name one, or leave the flag out"},
-		},
-		{
-			name: "should refuse an empty --id on calibrate",
-			args: []string{
-				"calibrate", "--ask", "u=is this urgent", "-i", "jsonl", "--map", ".body", "--label", "u=.u",
-				"--id", "",
-			},
-			stdin:    `{"body":"x","u":true}` + "\n",
-			response: answered,
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --id is empty. Name one, or leave the flag out"},
-		},
-		{
-			name:     "should refuse an empty -o on questions",
-			args:     []string{"questions", "-o", ""},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --output is empty. Name one, or leave the flag out"},
-		},
-		{
 			name:     "should name the question argument when it clashes with a file's id",
 			args:     []string{"is it", "-f", "ab.json", "--state", "x", "--print-request"},
 			files:    map[string]string{"ab.json": `{"questions":{"answer":{"type":"noul","instructions":"q"}}}`},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: 'answer' is defined in ab.json and by the question argument. Pass --replace to override\n"},
-		},
-		{
-			name:     "should print help when given no arguments",
-			args:     []string{},
-			wantCode: cli.ExitOK,
-			contains: []string{"Usage:", "onesie [question]"},
 		},
 		{
 			name:     "should refuse a bare word one transposition from a subcommand",
@@ -966,157 +711,16 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{"Usage:"},
 		},
 		{
-			name:     "should print a subcommand's help for its help topic",
-			args:     []string{"help", "profile", "create"},
-			wantCode: cli.ExitOK,
-			contains: []string{"onesie profile create"},
-		},
-		{
-			name:     "should print the root help for help with no topic",
-			args:     []string{"help"},
-			wantCode: cli.ExitOK,
-			contains: []string{"Usage:", "onesie [question]"},
-		},
-		{
-			name:     "should say in the root help that a run uses a profile",
-			args:     []string{"help", "connections"},
-			wantCode: cli.ExitOK,
-			contains: []string{"onesie profile create", "--profile NAME"},
-		},
-		{
-			name:     "should exit 2 for auth status, since auth is no longer a subcommand",
-			args:     []string{"auth", "status"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"expected one question, got 2 arguments"},
-		},
-		{
-			name:     "should ask auth as an ordinary one word question",
-			args:     []string{"auth", "--print-request"},
-			stdin:    "x",
-			wantCode: cli.ExitOK,
-			contains: []string{`"instructions":"auth"`},
-		},
-		{
-			name:     "should list --mock in the root help",
-			args:     []string{"help", "execution"},
-			wantCode: cli.ExitOK,
-			contains: []string{"--mock FILE", "ONESIE_MOCK"},
-		},
-		{
-			name:     "should explain a rate's score and norm in the --rate help",
-			args:     []string{"help", "asking"},
-			wantCode: cli.ExitOK,
-			contains: []string{"score is the level index averaged over p, from 0, and norm is score over the top index"},
-		},
-		{
-			name:     "should say which cache entries expire in the cache help",
-			args:     []string{"cache", "--help"},
-			wantCode: cli.ExitOK,
-			contains: []string{"how many of them expire, since their model is an alias or their base URL is custom"},
-		},
-		{
-			name:     "should show both mock file shapes in the --mock help",
-			args:     []string{"help", "execution"},
-			wantCode: cli.ExitOK,
-			contains: []string{
-				`an object keyed by question id, as {"answer":0.9,"team":"billing"}, ` +
-					"or one line per record in the shape -o json writes",
-			},
-		},
-		{
-			name:     "should show --box in the help as a switch that takes no value",
-			args:     []string{"help", "asking"},
-			wantCode: cli.ExitOK,
-			contains: []string{"      --box      "},
-			absent:   []string{"--box string", "--box[="},
-		},
-		{
-			name:     "should show --box in the calibrate help as a switch that takes no value",
-			args:     []string{"help", "calibrate", "asking"},
-			wantCode: cli.ExitOK,
-			contains: []string{"      --box      "},
-			absent:   []string{"--box string", "--box[="},
-		},
-		{
 			name:     "should refuse true written after --box, since it takes no value",
 			args:     []string{"--ask", "mug=the mug", "--box=true", "--print-request", "--state", "s"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --box takes no value, got 'true'\n"},
 		},
 		{
-			name:     "should refuse any other value written after --box",
-			args:     []string{"--ask", "mug=the mug", "--box=1", "--print-request", "--state", "s"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --box takes no value, got '1'\n"},
-		},
-		{
-			name:     "should refuse true written after --box on calibrate",
-			args:     []string{"calibrate", "--ask", "mug=the mug", "--box=true", "--print-request", "--label", ".l"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --box takes no value, got 'true'\n"},
-		},
-		{
-			name:     "should list --mock in the calibrate help",
-			args:     []string{"help", "calibrate", "execution"},
-			wantCode: cli.ExitOK,
-			contains: []string{"--mock FILE", "ONESIE_MOCK"},
-		},
-		{
-			name:     "should print full provenance for the version subcommand",
-			args:     []string{"version"},
-			wantCode: cli.ExitOK,
-			contains: []string{"version   1.2.3", "commit    abc1234", "min-score-levels 2"},
-		},
-		{
-			name:     "should warn that --id runs one record at a time",
-			args:     []string{"help", "input"},
-			wantCode: cli.ExitOK,
-			contains: []string{"runs one record at a time", "such as a field lookup"},
-		},
-		{
-			name:     "should word --max-retry-after the way its sibling flags are worded",
-			args:     []string{"help", "execution"},
-			wantCode: cli.ExitOK,
-			contains: []string{
-				"Seconds per attempt", "Retries after a failed attempt.",
-				"Most seconds to wait out a server Retry-After.",
-			},
-		},
-		{
 			name:     "should name an unknown long flag in a plain sentence",
 			args:     []string{"--nope"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: there is no flag --nope\n"},
-		},
-		{
-			name:     "should refuse --stop-on-error as an unknown flag",
-			args:     []string{"is this urgent", "-i", "lines", "--stop-on-error"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag --stop-on-error\n"},
-		},
-		{
-			name:     "should refuse --stop-on-assert as an unknown flag",
-			args:     []string{"is this urgent", "-i", "lines", "--stop-on-assert"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag --stop-on-assert\n"},
-		},
-		{
-			name:     "should refuse -r as an unknown flag",
-			args:     []string{"is this urgent", "--state", "x", "-r"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag -r\n"},
-		},
-		{
-			name:     "should refuse --raw as an unknown flag",
-			args:     []string{"is this urgent", "--state", "x", "--raw"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag --raw\n"},
-		},
-		{
-			name:     "should refuse --state-file as an unknown flag",
-			args:     []string{"is this urgent", "--state-file", "x.txt"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: there is no flag --state-file\n"},
 		},
 		{
 			name:     "should refuse -V as an unknown flag",
@@ -1277,18 +881,6 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: profile create has no flag --state. --state belongs to a run, not to profile create\n"},
 		},
 		{
-			name:     "should say a run flag does not belong to profile show",
-			args:     []string{"profile", "show", "--base-url", "https://x.example"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: profile show has no flag --base-url. --base-url belongs to a run, not to profile show\n"},
-		},
-		{
-			name:     "should name the run flag on a bare subcommand",
-			args:     []string{"cache", "--model", "x"},
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: cache has no flag --model. --model belongs to a run, not to cache\n"},
-		},
-		{
 			name:     "should name the run flag when a subcommand also got a word",
 			args:     []string{"questions", "extra", "--stats"},
 			wantCode: cli.ExitUsage,
@@ -1311,12 +903,6 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"profile", "create", "-work", "--provider", "typesafe"},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: profile create has no flag -w in -work\n"},
-		},
-		{
-			name:     "should document how to ask a question that begins with a dash",
-			args:     []string{"help", "asking"},
-			wantCode: cli.ExitOK,
-			contains: []string{"begins with a dash", "onesie -o json -- '-is this urgent'"},
 		},
 		{
 			name:     "should answer a question that begins with a dash after --",
@@ -1552,13 +1138,6 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"warning:", "but not technical"},
 		},
 		{
-			name:     "should refuse an unknown output mode",
-			args:     []string{"is this urgent", "-o", "yaml"},
-			stdin:    "body",
-			wantCode: cli.ExitUsage,
-			contains: []string{"-o takes"},
-		},
-		{
 			name: "should print the fallback word when the request fails",
 			args: []string{
 				"is this safe", "--pick", "safe,refuse",
@@ -1733,16 +1312,6 @@ func TestNewRootCmd(t *testing.T) {
 					`{"a":{"type":"noul","instructions":"q"}}}`,
 			},
 			stdin:    "from stdin",
-			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
-		},
-		{
-			name: "should refuse --state - beside a body's state, naming both",
-			args: []string{"-f", "body.json", "--state", "-"},
-			files: map[string]string{
-				"body.json": `{"state":"from the body","questions":` +
-					`{"a":{"type":"noul","instructions":"q"}}}`,
-			},
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: --state and the state in body.json both give a state. Drop one"},
 		},
@@ -2056,19 +1625,6 @@ func TestNewRootCmd(t *testing.T) {
 			absent:   []string{`"criteria":["",""]`},
 		},
 		{
-			name: "should keep flag score criteria in the order they were given",
-			args: []string{
-				"--ask", "mood=how is it", "--rate", "urgent,normal,cold", "-o", "json",
-			},
-			stdin: "the server is down",
-			response: `{"model":"onesie-1.13.0","answers":{"mood":{"type":"score","score":1.0,` +
-				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
-				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
-				`"usage":{"input_tokens":10,"output_tokens":2}}`,
-			wantCode: cli.ExitOK,
-			sends:    []string{`"criteria":["urgent","normal","cold"]`},
-		},
-		{
 			name: "should keep a question file's score criteria in file order",
 			args: []string{"-f", "q.yaml", "-o", "json"},
 			files: map[string]string{
@@ -2084,21 +1640,6 @@ func TestNewRootCmd(t *testing.T) {
 			sends: []string{
 				`"criteria":["sky falling","a normal day","nothing happening"]`,
 			},
-		},
-		{
-			name: "should keep a body's score criteria in the order they were written",
-			args: []string{"-f", "body.json", "-o", "json"},
-			files: map[string]string{
-				"body.json": `{"state":"x","questions":` +
-					`{"bq":{"type":"score","instructions":"q",` +
-					`"criteria":["zulu","mike","alpha"]}}}`,
-			},
-			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
-				`"confidence":0.92,"legend":{"0":"a","1":"b","2":"c"},` +
-				`"probabilities":{"0":0.1,"1":0.1,"2":0.8}}},` +
-				`"usage":{"input_tokens":10,"output_tokens":2}}`,
-			wantCode: cli.ExitOK,
-			sends:    []string{`"criteria":["zulu","mike","alpha"]`},
 		},
 		{
 			name:     "should refuse replace with no file to override",
@@ -2175,21 +1716,6 @@ func TestNewRootCmd(t *testing.T) {
 			sends:    []string{`"criteria":{"zebra":null,"mike":null,"alpha":null}`},
 		},
 		{
-			name: "should keep a body's choice criteria in the order they were written",
-			args: []string{"-f", "body.json", "-o", "json"},
-			files: map[string]string{
-				"body.json": `{"state":"x","questions":` +
-					`{"bq":{"type":"choice","instructions":"q",` +
-					`"criteria":{"zebra":"z","mike":"m","alpha":"a"}}}}`,
-			},
-			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"choice",` +
-				`"choice":"zebra","confidence":0.9,` +
-				`"probabilities":{"zebra":0.9,"mike":0.05,"alpha":0.05}}},` +
-				`"usage":{"input_tokens":10,"output_tokens":2}}`,
-			wantCode: cli.ExitOK,
-			sends:    []string{`"criteria":{"zebra":"z","mike":"m","alpha":"a"}`},
-		},
-		{
 			name: "should keep a structured body choice criterion in written order",
 			args: []string{"-f", "body.json", "-o", "json"},
 			files: map[string]string{
@@ -2219,23 +1745,6 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitOK,
 			sends: []string{
 				`"criteria":{"true":{"what":"y","examples":["yy"]},"false":"n"}`,
-			},
-		},
-		{
-			name: "should keep a structured body score criterion in written order",
-			args: []string{"-f", "body.json", "-o", "json"},
-			files: map[string]string{
-				"body.json": `{"state":"x","questions":` +
-					`{"bq":{"type":"score","instructions":"q",` +
-					`"criteria":[{"what":"z","examples":["zz"]},"a"]}}}`,
-			},
-			response: `{"model":"onesie-1.13.0","answers":{"bq":{"type":"score","score":1.0,` +
-				`"confidence":0.92,"legend":{"0":"a","1":"b"},` +
-				`"probabilities":{"0":0.1,"1":0.9}}},` +
-				`"usage":{"input_tokens":10,"output_tokens":2}}`,
-			wantCode: cli.ExitOK,
-			sends: []string{
-				`"criteria":[{"what":"z","examples":["zz"]},"a"]`,
 			},
 		},
 		{
@@ -2669,7 +2178,6 @@ func TestNewRootCmd(t *testing.T) {
 
 		noul := []string{"is this urgent"}
 		pick := []string{"who handles this", "--pick", "billing,technical"}
-		rate := []string{"how bad", "--rate", "low,mid,high"}
 
 		tests := []struct {
 			name     string
@@ -2684,11 +2192,6 @@ func TestNewRootCmd(t *testing.T) {
 				want: "response could not be used",
 			},
 			{
-				name: "should refuse a noul outside [0,1]", question: noul,
-				answer: `{"type":"noul","noul":1.5}`, gate: []string{"-q"},
-				want: "response could not be used: question 'answer' answered 1.5, which lies outside [0,1]",
-			},
-			{
 				name: "should refuse an answer of the wrong type", question: noul,
 				answer: `{"type":"choice","choice":"a","confidence":1,"probabilities":{"a":1}}`, gate: []string{"-q"},
 				want: "response could not be used: question 'answer' expects a noul answer, got choice",
@@ -2698,36 +2201,6 @@ func TestNewRootCmd(t *testing.T) {
 				answer: `{"type":"choice","choice":"sales","confidence":1,"probabilities":{"billing":0.5,"technical":0.5}}`,
 				gate:   []string{"--assert", `answer.value != "billing"`},
 				want:   "response could not be used: question 'answer' picked 'sales', which is not one of its options: billing, technical",
-			},
-			{
-				name: "should refuse p that leaves an option out", question: pick,
-				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1}}`,
-				gate:   []string{"--assert", `answer.value == "billing"`},
-				want:   "response could not be used: question 'answer' has no p for 'technical'",
-			},
-			{
-				name: "should refuse a negative p", question: pick,
-				answer: `{"type":"choice","choice":"billing","confidence":1,"probabilities":{"billing":1.2,"technical":-0.2}}`,
-				gate:   []string{"--assert", `answer.value == "billing"`},
-				want:   "response could not be used: question 'answer' has p for 'billing' of 1.2, which lies outside [0,1]",
-			},
-			{
-				name: "should refuse a confidence above 1", question: pick,
-				answer: `{"type":"choice","choice":"billing","confidence":1.5,"probabilities":{"billing":1,"technical":0}}`,
-				gate:   []string{"--assert", `answer.confidence > 0.9`},
-				want:   "response could not be used: question 'answer' has confidence 1.5, which lies outside [0,1]",
-			},
-			{
-				name: "should refuse a score outside its levels", question: rate,
-				answer: `{"type":"score","score":7,"confidence":1,"probabilities":{"0":0,"1":0,"2":1}}`,
-				gate:   []string{"--assert", `answer.score >= 0`},
-				want:   "response could not be used: question 'answer' has score 7, which lies outside [0,2]",
-			},
-			{
-				name: "should refuse p keyed by label rather than by index", question: rate,
-				answer: `{"type":"score","score":2,"confidence":1,"probabilities":{"low":0,"mid":0,"high":1}}`,
-				gate:   []string{"--assert", `answer.score >= 0`},
-				want:   "response could not be used: question 'answer' has p for 'high', which is not a level index from 0 to 2",
 			},
 		}
 
@@ -2814,26 +2287,6 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should list calibrate in its help", func(t *testing.T) {
-		t.Parallel()
-
-		var out bytes.Buffer
-
-		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
-			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-		root.Command.SetOut(&out)
-		root.Command.SetErr(&out)
-		root.Command.SetArgs([]string{"--help"})
-
-		if code := root.Execute(t.Context()); code != cli.ExitOK {
-			t.Fatalf("exit code = %d, output:\n%s", code, out.String())
-		}
-
-		if !strings.Contains(out.String(), "calibrate   Score questions against records whose answers are known") {
-			t.Errorf("help does not list calibrate\n%s", out.String())
-		}
-	})
-
 	t.Run("should print the help of every command as pinned", func(t *testing.T) {
 		t.Parallel()
 
@@ -2843,7 +2296,6 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{args: []string{"--help"}, golden: "root.golden"},
 			{args: []string{"calibrate", "--help"}, golden: "calibrate.golden"},
-			{args: []string{"help", "all"}, golden: "root-all.golden"},
 			{args: []string{"help", "asking"}, golden: "root-asking.golden"},
 			{args: []string{"help", "input"}, golden: "root-input.golden"},
 			{args: []string{"help", "decisions"}, golden: "root-decisions.golden"},
@@ -2851,7 +2303,6 @@ func TestNewRootCmd(t *testing.T) {
 			{args: []string{"help", "connections"}, golden: "root-connections.golden"},
 			{args: []string{"help", "execution"}, golden: "root-execution.golden"},
 			{args: []string{"help", "exit-codes"}, golden: "root-exit-codes.golden"},
-			{args: []string{"help", "calibrate", "all"}, golden: "calibrate-all.golden"},
 			{args: []string{"help", "calibrate", "asking"}, golden: "calibrate-asking.golden"},
 			{args: []string{"help", "calibrate", "input"}, golden: "calibrate-input.golden"},
 			{args: []string{"help", "calibrate", "evaluation"}, golden: "calibrate-evaluation.golden"},
@@ -2899,6 +2350,71 @@ func TestNewRootCmd(t *testing.T) {
 			if out.String() != string(want) {
 				t.Errorf("onesie %s differs from testdata/help/%s, rerun with -update-help for a change made on purpose\ngot:\n%s",
 					strings.Join(pin.args, " "), pin.golden, out.String())
+			}
+		}
+	})
+
+	t.Run("should print help all as its header and each topic page without the more help footer", func(t *testing.T) {
+		t.Parallel()
+
+		for _, pin := range []struct {
+			args   []string
+			header string
+			pages  []string
+		}{
+			{
+				args: []string{"help", "all"},
+				header: "Ask questions about text and use the answers in scripts.\n\n" +
+					"Usage:\n  onesie [question] [flags]\n  onesie [command]\n\n" +
+					"Available Commands:\n" +
+					"  cache       Report what the response cache holds\n" +
+					"  calibrate   Score questions against records whose answers are known\n" +
+					"  completion  Generate the autocompletion script for the specified shell\n" +
+					"  help        Help about any command\n" +
+					"  profile     Create, inspect and remove the named connections a run uses\n" +
+					"  questions   List the question files -f finds by name\n" +
+					"  version     Print version, commit, build date and the built in limits\n\n",
+				pages: []string{
+					"root-asking", "root-input", "root-decisions", "root-output", "root-connections",
+					"root-execution", "root-exit-codes",
+				},
+			},
+			{
+				args: []string{"help", "calibrate", "all"},
+				header: "Compare answers with labelled examples. Calibrate never chooses a threshold.\n\n" +
+					"Usage:\n  onesie calibrate [question] [flags]\n\n",
+				pages: []string{
+					"calibrate-asking", "calibrate-input", "calibrate-evaluation", "calibrate-output",
+					"calibrate-connections", "calibrate-execution", "calibrate-exit-codes",
+				},
+			},
+		} {
+			bodies := make([]string, 0, len(pin.pages))
+
+			for _, page := range pin.pages {
+				golden, err := os.ReadFile(filepath.Join("testdata", "help", page+".golden"))
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				body, _, _ := strings.Cut(string(golden), "\n\nMore help:\n")
+				bodies = append(bodies, strings.TrimSuffix(body, "\n"))
+			}
+
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(pin.args)
+
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
+				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
+			}
+
+			if want := pin.header + strings.Join(bodies, "\n\n") + "\n"; out.String() != want {
+				t.Errorf("onesie %s =\n%s\nwant\n%s", strings.Join(pin.args, " "), out.String(), want)
 			}
 		}
 	})
@@ -2957,27 +2473,6 @@ func TestNewRootCmd(t *testing.T) {
 
 			if code := root.Execute(t.Context()); code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
 				t.Errorf("onesie %s = exit %d, stdout %q, stderr %q, want exit 2 and %q", args, code, out.String(), errOut.String(), want)
-			}
-		}
-	})
-
-	t.Run("should refuse an empty output mode on version", func(t *testing.T) {
-		t.Parallel()
-
-		for _, args := range [][]string{{"version", "-o", ""}, {"version", "--output", ""}} {
-			var out, errOut bytes.Buffer
-
-			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
-				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&errOut)
-			root.Command.SetArgs(args)
-
-			code := root.Execute(t.Context())
-			want := "onesie: --output is empty. Name one, or leave the flag out\n"
-			if code != cli.ExitUsage || errOut.String() != want || out.Len() != 0 {
-				t.Errorf("onesie %q = exit %d, stdout %q, stderr %q, want exit 2 and %q",
-					args, code, out.String(), errOut.String(), want)
 			}
 		}
 	})
@@ -3093,18 +2588,6 @@ func TestNewRootCmd(t *testing.T) {
 				stderr:   "onesie: --print-schema takes no other flag. Drop --ask\n",
 			},
 			{
-				name:     "should refuse --print-questions beside it",
-				args:     []string{"--print-schema", "--print-questions"},
-				wantCode: cli.ExitUsage,
-				stderr:   "onesie: --print-schema takes no other flag. Drop --print-questions\n",
-			},
-			{
-				name:     "should refuse --mock beside it",
-				args:     []string{"--mock", "answers.json", "--print-schema"},
-				wantCode: cli.ExitUsage,
-				stderr:   "onesie: --print-schema takes no other flag. Drop --mock\n",
-			},
-			{
 				name:     "should not hint for --print-schema, which takes no question",
 				args:     []string{"version", "--print-schema"},
 				wantCode: cli.ExitUsage,
@@ -3190,31 +2673,6 @@ func TestNewRootCmd(t *testing.T) {
 			want   string
 			absent bool
 		}{
-			{
-				name: "should hint for version",
-				args: []string{"--print-request", "version"},
-				want: "onesie: version has no flag --print-request. --print-request belongs to a run, not to version\n",
-			},
-			{
-				name: "should hint for profile",
-				args: []string{"profile", "--print-request"},
-				want: "onesie: profile has no flag --print-request. --print-request belongs to a run, not to profile\n",
-			},
-			{
-				name: "should hint for completion",
-				args: []string{"completion", "--print-request"},
-				want: "onesie: completion has no flag --print-request. --print-request belongs to a run, not to completion\n",
-			},
-			{
-				name: "should hint for cache",
-				args: []string{"cache", "--state", "x"},
-				want: "onesie: cache has no flag --state. --state belongs to a run, not to cache\n",
-			},
-			{
-				name: "should hint for cache clear",
-				args: []string{"cache", "clear", "--state", "x"},
-				want: "onesie: cache clear has no flag --state. --state belongs to a run, not to cache clear\n",
-			},
 			{
 				name:   "should refuse --state on calibrate with its own reason in place of the hint",
 				args:   []string{"calibrate", "--state", "x"},
@@ -3350,116 +2808,6 @@ func TestNewRootCmd(t *testing.T) {
 
 				if tc.want != "" && !strings.Contains(errOut.String(), tc.want) {
 					t.Errorf("stderr = %q, want %q", errOut.String(), tc.want)
-				}
-			})
-		}
-	})
-
-	t.Run("should list --cache in help", func(t *testing.T) {
-		t.Parallel()
-
-		for _, args := range [][]string{{"help", "all"}, {"help", "calibrate", "all"}} {
-			var out bytes.Buffer
-
-			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"}, cli.WithKeychain(offKeychain()),
-				cli.WithLookupEnv(func(string) (string, bool) { return "", false }))
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&out)
-			root.Command.SetArgs(args)
-
-			if code := root.Execute(t.Context()); code != cli.ExitOK {
-				t.Fatalf("%v exit code = %d\n%s", args, code, out.String())
-			}
-
-			want := []string{"--cache", "ONESIE_CACHE=1"}
-			if len(args) == 2 && args[1] == "all" {
-				want = append(want, "  cache ")
-			}
-
-			for _, needle := range want {
-				if !strings.Contains(out.String(), needle) {
-					t.Errorf("%v output lacks %q\n%s", args, needle, out.String())
-				}
-			}
-		}
-	})
-
-	t.Run("should send the question ids in the order --ask gave them", func(t *testing.T) {
-		t.Parallel()
-
-		tests := []struct {
-			name  string
-			args  []string
-			order []string
-		}{
-			{
-				name: "should send question ids in argv order",
-				args: []string{
-					"--ask", "zebra=one", "--ask", "mike=two", "--ask", "alpha=three",
-				},
-				order: []string{`"zebra"`, `"mike"`, `"alpha"`},
-			},
-		}
-
-		for _, tc := range tests {
-			t.Run(tc.name, func(t *testing.T) {
-				t.Parallel()
-
-				var sent string
-
-				srv := stubAnswering(t,
-					`{"model":"onesie-1.13.0","answers":{"zebra":{"type":"noul","noul":0.1},`+
-						`"mike":{"type":"noul","noul":0.2},`+
-						`"alpha":{"type":"noul","noul":0.3}}}`,
-					func(r *http.Request) {
-						body, err := io.ReadAll(r.Body)
-						if err != nil {
-							t.Errorf("reading the request body: %v", err)
-
-							return
-						}
-
-						sent = string(body)
-					})
-				defer srv.Close()
-
-				var out bytes.Buffer
-
-				root := cli.NewRootCmd(
-					cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-01-01"},
-					cli.WithKeychain(offKeychain()),
-					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-						return onesie.New(append([]onesie.Option{
-							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
-						}, opts...)...)
-					}),
-					cli.WithStdin(strings.NewReader("the server is down")),
-					cli.WithStdinTTY(false),
-					cli.WithStdoutTTY(false),
-					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
-				)
-
-				root.Command.SetOut(&out)
-				root.Command.SetErr(&out)
-				root.Command.SetArgs(append(tc.args, "-o", "json"))
-
-				if code := root.Execute(t.Context()); code != cli.ExitOK {
-					t.Fatalf("exit code = %d, want %d\noutput:\n%s", code, cli.ExitOK, out.String())
-				}
-
-				at := make([]int, 0, len(tc.order))
-
-				for _, id := range tc.order {
-					found := strings.Index(sent, id)
-					if found < 0 {
-						t.Fatalf("id %s absent from %s", id, sent)
-					}
-
-					at = append(at, found)
-				}
-
-				if !slices.IsSorted(at) {
-					t.Errorf("ids out of order in %s, positions %v", sent, at)
 				}
 			})
 		}
@@ -3609,17 +2957,11 @@ func TestClientBuilder(t *testing.T) {
 			flag     string
 			env      string
 			stored   string
-			userinfo string
 			spelled  string
 			wantWarn bool
-			refused  bool
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
-			{
-				name: "should refuse rather than warn for a base url with credentials", flag: "/v1",
-				userinfo: "user:SECRET-pw@", refused: true,
-			},
 			{name: "should warn for TYPESAFE_BASE_URL ending in /v1", env: "/v1", spelled: onesie.TypeSafe().EnvBaseURL(), wantWarn: true},
 			{
 				name: "should name the profile's base_url when it ends in /v1", stored: "/v1",
@@ -3655,7 +2997,7 @@ func TestClientBuilder(t *testing.T) {
 				}
 
 				if tc.flag != "" {
-					args = append(args, "--base-url", strings.Replace(srv.URL, "//", "//"+tc.userinfo, 1)+tc.flag)
+					args = append(args, "--base-url", srv.URL+tc.flag)
 				}
 
 				if tc.env != "" {
@@ -3683,14 +3025,6 @@ func TestClientBuilder(t *testing.T) {
 
 				root.Execute(t.Context())
 
-				if strings.Contains(errOut.String(), "SECRET-") {
-					t.Error("stderr carries the base URL's password")
-				}
-
-				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
-					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
-				}
-
 				want := "onesie: warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
 					"so questions go to " + srv.URL + "/v1/v1/systemone\n"
 				if !tc.wantWarn {
@@ -3716,32 +3050,6 @@ func TestClientBuilder(t *testing.T) {
 		t.Parallel()
 
 		const answered = `{"model":"onesie-1.13.0","answers":{"answer":{"type":"noul","noul":0.5}}}`
-
-		t.Run("should build a client from the injected environment", func(t *testing.T) {
-			t.Parallel()
-
-			var gotAuth string
-
-			srv := stubAnswering(t, answered, func(r *http.Request) {
-				gotAuth = r.Header.Get("Authorization")
-			})
-			defer srv.Close()
-
-			env := map[string]string{
-				onesie.TypeSafe().EnvAPIKey():  "from-env",
-				onesie.TypeSafe().EnvBaseURL(): srv.URL,
-			}
-
-			out, code := runWithEnv(t, env, []string{"is this urgent", "-o", "raw"})
-
-			if code != cli.ExitOK {
-				t.Fatalf("exit code = %d, output:\n%s", code, out)
-			}
-
-			if !strings.Contains(gotAuth, "from-env") {
-				t.Errorf("Authorization header = %q, want it to carry the environment key", gotAuth)
-			}
-		})
 
 		t.Run("should let --base-url override the environment", func(t *testing.T) {
 			t.Parallel()

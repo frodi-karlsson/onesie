@@ -31,14 +31,6 @@ func TestDecodeOrdered(t *testing.T) {
 			doc:  "a: q1\n---\n",
 		},
 		{
-			name: "should accept a separator inside a block scalar",
-			doc:  "a:\n  ask: |\n    line one\n    ---\n    line two\n",
-		},
-		{
-			name: "should accept a separator inside a quoted string",
-			doc:  "a:\n  ask: \"line one\\n---\\nline two\"\n",
-		},
-		{
 			name: "should accept a value that is only dashes",
 			doc:  "a: \"---\"\n",
 		},

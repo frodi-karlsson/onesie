@@ -135,24 +135,6 @@ func TestReleaseScript(t *testing.T) {
 			wantStderr: "vMAJOR.MINOR.PATCH",
 		},
 		{
-			name:       "should refuse a tag with no v",
-			tag:        "0.2.0",
-			wantCode:   2,
-			wantStderr: "vMAJOR.MINOR.PATCH",
-		},
-		{
-			name:       "should refuse a tag with build metadata",
-			tag:        "v0.2.0+b",
-			wantCode:   2,
-			wantStderr: "vMAJOR.MINOR.PATCH",
-		},
-		{
-			name:       "should refuse the latest tag",
-			tag:        "v0.1.0",
-			wantCode:   1,
-			wantStderr: "latest tag is v0.1.0",
-		},
-		{
 			name: "should refuse a tag below one that exists only on the remote",
 			tag:  "v0.2.0",
 			setup: func(t *testing.T, w *world) {

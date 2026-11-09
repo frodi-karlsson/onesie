@@ -141,44 +141,44 @@ func TestLoad(t *testing.T) {
 			})
 		}
 	})
-}
 
-func TestCheckSingleDocument(t *testing.T) {
-	t.Parallel()
+	t.Run("should keep a document separator that sits inside the instructions", func(t *testing.T) {
+		t.Parallel()
 
-	tests := []struct {
-		name string
-		doc  string
-		want string
-	}{
-		{
-			name: "should keep a separator inside a block scalar in the instructions",
-			doc:  "a:\n  ask: |-\n    line one\n    ---\n    line two\n",
-			want: "line one\n---\nline two",
-		},
-		{
-			name: "should keep a separator inside a quoted string in the instructions",
-			doc:  "a:\n  ask: \"line one\\n---\\nline two\"\n",
-			want: "line one\n---\nline two",
-		},
-	}
+		tests := []struct {
+			name string
+			doc  string
+			want string
+		}{
+			{
+				name: "should keep a separator inside a block scalar in the instructions",
+				doc:  "a:\n  ask: |-\n    line one\n    ---\n    line two\n",
+				want: "line one\n---\nline two",
+			},
+			{
+				name: "should keep a separator inside a quoted string in the instructions",
+				doc:  "a:\n  ask: \"line one\\n---\\nline two\"\n",
+				want: "line one\n---\nline two",
+			},
+		}
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
 
-			file, err := qfile.Load([]byte(tc.doc))
-			if err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
+				file, err := qfile.Load([]byte(tc.doc))
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
 
-			if len(file.Questions) != 1 {
-				t.Fatalf("questions = %d, want 1", len(file.Questions))
-			}
+				if len(file.Questions) != 1 {
+					t.Fatalf("questions = %d, want 1", len(file.Questions))
+				}
 
-			if file.Questions[0].Instructions != tc.want {
-				t.Errorf("instructions = %q, want %q", file.Questions[0].Instructions, tc.want)
-			}
-		})
-	}
+				if file.Questions[0].Instructions != tc.want {
+					t.Errorf("instructions = %q, want %q", file.Questions[0].Instructions, tc.want)
+				}
+			})
+		}
+	})
 }

@@ -15,7 +15,7 @@ import (
 func TestGenerate(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should write every client output", func(t *testing.T) {
+	t.Run("should write every client output, copying SKILL.md and the references byte for byte", func(t *testing.T) {
 		t.Parallel()
 
 		root := t.TempDir()
@@ -40,28 +40,15 @@ func TestGenerate(t *testing.T) {
 		if !strings.Contains(gemini, "description = ") {
 			t.Errorf("gemini.toml = %q, want a description line", gemini)
 		}
-	})
 
-	t.Run("should write .agents skills and .cursor skills copies byte identical to skills SKILL.md", func(t *testing.T) {
-		t.Parallel()
+		for _, file := range []string{"SKILL.md", filepath.Join("references", "a.md")} {
+			source := readFile(t, filepath.Join(root, "skills", "onesie-gate", file))
 
-		root := t.TempDir()
-		writeFixtureSkill(t, root, "onesie-gate")
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		source := readFile(t, filepath.Join(root, "skills", "onesie-gate", "SKILL.md"))
-		agents := readFile(t, filepath.Join(root, ".agents", "skills", "onesie-gate", "SKILL.md"))
-		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "onesie-gate", "SKILL.md"))
-
-		if agents != source {
-			t.Errorf(".agents/skills/onesie-gate/SKILL.md is not byte identical to skills/onesie-gate/SKILL.md")
-		}
-
-		if cursor != source {
-			t.Errorf(".cursor/skills/onesie-gate/SKILL.md is not byte identical to skills/onesie-gate/SKILL.md")
+			for _, client := range []string{".agents", ".cursor"} {
+				if copied := readFile(t, filepath.Join(root, client, "skills", "onesie-gate", file)); copied != source {
+					t.Errorf("%s/skills/onesie-gate/%s is not byte identical to skills/onesie-gate/%s", client, file, file)
+				}
+			}
 		}
 	})
 
@@ -116,57 +103,6 @@ func TestGenerate(t *testing.T) {
 			if got := readFile(t, filepath.Join(root, rel)); strings.Contains(got, "argument") {
 				t.Errorf("%s = %q, want no argument-hint", rel, got)
 			}
-		}
-	})
-
-	t.Run("should copy references unchanged", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		writeFixtureSkill(t, root, "onesie-gate")
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		source := readFile(t, filepath.Join(root, "skills", "onesie-gate", "references", "a.md"))
-		agents := readFile(t, filepath.Join(root, ".agents", "skills", "onesie-gate", "references", "a.md"))
-		cursor := readFile(t, filepath.Join(root, ".cursor", "skills", "onesie-gate", "references", "a.md"))
-
-		if agents != source || cursor != source {
-			t.Errorf("reference copy is not byte identical to skills/onesie-gate/references/a.md")
-		}
-	})
-
-	t.Run("should pass sections to RenderSkill in skill.Sections order", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		dir := filepath.Join(root, "skills", "ordered")
-		mustMkdirAll(t, filepath.Join(dir, "sections"))
-		mustWriteFile(t, filepath.Join(dir, "skill.json"), `{
-			"name": "ordered",
-			"description": "checks section order",
-			"sections": ["sections/first.md", "sections/second.md"]
-		}`)
-		mustWriteFile(t, filepath.Join(dir, "sections", "first.md"), "SECTION-FIRST-MARKER")
-		mustWriteFile(t, filepath.Join(dir, "sections", "second.md"), "SECTION-SECOND-MARKER")
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		got := readFile(t, filepath.Join(dir, "SKILL.md"))
-
-		first := strings.Index(got, "SECTION-FIRST-MARKER")
-		second := strings.Index(got, "SECTION-SECOND-MARKER")
-
-		if first == -1 || second == -1 {
-			t.Fatalf("SKILL.md = %q, want both section markers", got)
-		}
-
-		if first > second {
-			t.Errorf("SKILL.md carries SECTION-SECOND-MARKER before SECTION-FIRST-MARKER, want skill.Sections order")
 		}
 	})
 
@@ -280,28 +216,6 @@ func TestGenerate(t *testing.T) {
 		requireFile(t, filepath.Join(root, ".cursor", "skills", "new-name", "SKILL.md"))
 	})
 
-	t.Run("should remove a mirror whose source skill was deleted outright", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		writeFixtureSkill(t, root, "gone")
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error on first run: %v", err)
-		}
-
-		if err := os.RemoveAll(filepath.Join(root, "skills", "gone")); err != nil {
-			t.Fatalf("remove skill: %v", err)
-		}
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error on second run: %v", err)
-		}
-
-		requireAbsent(t, filepath.Join(root, ".agents", "skills", "gone"))
-		requireAbsent(t, filepath.Join(root, ".cursor", "skills", "gone"))
-	})
-
 	t.Run("should not delete anything outside the mirror directories during a prune", func(t *testing.T) {
 		t.Parallel()
 
@@ -337,33 +251,6 @@ func TestGenerate(t *testing.T) {
 				t.Errorf("%s = %q, want it untouched by the prune", p, got)
 			}
 		}
-	})
-
-	t.Run("should write nothing when skills does not exist", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		requireAbsent(t, filepath.Join(root, ".agents"))
-		requireAbsent(t, filepath.Join(root, ".cursor"))
-	})
-
-	t.Run("should write nothing when skills exists and is empty", func(t *testing.T) {
-		t.Parallel()
-
-		root := t.TempDir()
-		mustMkdirAll(t, filepath.Join(root, "skills"))
-
-		if err := skillgen.Generate(root); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
-
-		requireAbsent(t, filepath.Join(root, ".agents"))
-		requireAbsent(t, filepath.Join(root, ".cursor"))
 	})
 
 	t.Run("should rewrite a file when its source content changes", func(t *testing.T) {

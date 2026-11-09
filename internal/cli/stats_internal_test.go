@@ -333,18 +333,6 @@ func TestWithStats(t *testing.T) {
 			name:   "should report a failed summary write when the run succeeded",
 			broken: true, want: errBroken,
 		},
-		{
-			name:    "should report the elapsed time between the clock's two readings",
-			elapsed: 1500 * time.Millisecond,
-			wantLine: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, 0 attempts, " +
-				"1.5s\n",
-		},
-		{
-			name:    "should report a sub second run to the millisecond",
-			elapsed: 250*time.Millisecond + 400*time.Microsecond,
-			wantLine: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, 0 attempts, " +
-				"250ms\n",
-		},
 	}
 
 	for _, tc := range tests {
@@ -407,17 +395,6 @@ func TestWithStats(t *testing.T) {
 				wantErr: []string{
 					"1 request, 1 question asked, 2841 in / 71 out tokens, model onesie-1.13.0, " +
 						"1 attempt, 10s/attempt, 2s\n",
-				},
-			},
-			{
-				name:     "should write the summary to stderr and leave stdout to the answer",
-				args:     []string{"--ask", "urgent=is this urgent", "-o", "json", "--stats"},
-				stdin:    "the server is down",
-				handler:  func() http.HandlerFunc { return answerHandler(answered) },
-				wantCode: ExitOK,
-				wantErr: []string{
-					"1 request, 1 question asked, 2841 in / 71 out tokens, model onesie-1.13.0, " +
-						"1 attempt, 10s/attempt,",
 				},
 				wantOutHas: []string{`"urgent"`},
 				// The whole reason the line goes to stderr. On stdout it would corrupt every

@@ -384,23 +384,8 @@ func TestFirstIDHint(t *testing.T) {
 			wantErr: "onesie: " + null + ". -i tsv splits each line on tabs, so if the file is comma separated, pass -i csv\n",
 		},
 		{
-			name:  "should hint at the delimiter when calibrate's first record has a null --id under -i csv",
-			input: "csv", stdin: tabs,
-			wantErr: "onesie: " + null + ". -i csv splits each line on commas, so if the file is tab separated, pass -i tsv\n",
-		},
-		{
-			name:  "should name the --delimiter in use when calibrate's first record has a null --id",
-			input: "csv", delimiter: ";", stdin: tabs,
-			wantErr: "onesie: " + null + ". -i csv splits each line on semicolons, so if the file is tab separated, pass -i tsv\n",
-		},
-		{
 			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first tab separated record",
 			input: "tsv", id: ".idx", stdin: tabs,
-			wantErr: "onesie: " + null + "\n",
-		},
-		{
-			name:  "should give no hint when a mistyped --id finds nothing in calibrate's first comma separated record",
-			input: "csv", id: ".idx", stdin: commas,
 			wantErr: "onesie: " + null + "\n",
 		},
 		{

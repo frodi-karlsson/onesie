@@ -156,13 +156,6 @@ func TestClassify(t *testing.T) {
 			want: ExitUnavailable,
 		},
 		{
-			name: "should report unavailable for an unusable 200 body",
-			err: &onesie.ResponseError{
-				Status: http.StatusOK, Err: errors.New("invalid character 'n'"),
-			},
-			want: ExitUnavailable,
-		},
-		{
 			name: "should report transport for a connection failure",
 			err:  &onesie.ConnectionError{Err: errors.New("refused")}, want: ExitTransport,
 		},

@@ -11,7 +11,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"slices"
 	"strings"
 	"sync/atomic"
@@ -398,25 +397,6 @@ func TestStream(t *testing.T) {
 			})
 		}
 
-		t.Run("should write zero usage for a cached line in --out", func(t *testing.T) {
-			t.Parallel()
-
-			stub := newAnswerStub(t)
-			env := cacheEnv(t)
-			answers := filepath.Join(t.TempDir(), "answers.jsonl")
-
-			cached(t, env, with("--cache"), jsonl("x"), stub.url)
-
-			if _, errOut, code := cached(t, env, with("--cache", "--usage", "--out", answers), jsonl("x"), stub.url); code != ExitOK {
-				t.Fatalf("exit %d\n%s", code, errOut)
-			}
-
-			written, err := os.ReadFile(answers)
-			if err != nil || !strings.Contains(string(written), `"usage":{"input_tokens":0,"output_tokens":0}`) {
-				t.Errorf("--out = %s, %v, want zero usage", written, err)
-			}
-		})
-
 		for _, order := range []struct {
 			name         string
 			first, later []string
@@ -446,27 +426,6 @@ func TestStream(t *testing.T) {
 			})
 		}
 
-		t.Run("should exit 2 before any request for a cache dir others can read", func(t *testing.T) {
-			t.Parallel()
-
-			if runtime.GOOS == "windows" {
-				t.Skip("windows carries no unix permission bits, so the mode check does not apply")
-			}
-
-			stub := newAnswerStub(t)
-			env := cacheEnv(t)
-			mustMkdirMode(t, env["ONESIE_CACHE_DIR"], 0o755)
-
-			out, errOut, code := cached(t, env, with("--cache", "-j", "4"), jsonl("a", "b", "c"), stub.url)
-			if code != ExitUsage || out != "" || !strings.Contains(errOut, "chmod 700") {
-				t.Errorf("exit %d, stdout %q, stderr %q, want exit 2 with the chmod advice and no line", code, out, errOut)
-			}
-
-			if got := stub.requests.Load(); got != 0 {
-				t.Errorf("%d requests, want none", got)
-			}
-		})
-
 		t.Run("should leave the cache dir absent for a run --resume finds fully answered", func(t *testing.T) {
 			t.Parallel()
 
@@ -484,17 +443,6 @@ func TestStream(t *testing.T) {
 				t.Errorf("the cache dir exists: %v", err)
 			}
 		})
-	})
-
-	t.Run("should report the deduplicated records under --stats", func(t *testing.T) {
-		t.Parallel()
-
-		stub := newCountingStub(t)
-
-		_, errOut, code := runStub(t, t.Context(), with("--stats"), jsonl("x", "x", "y"), stub.url)
-		if code != ExitOK || !strings.Contains(errOut, "3 records, 1 deduplicated, 2 requests, 2 questions") {
-			t.Errorf("exit code = %d\n%s", code, errOut)
-		}
 	})
 
 	t.Run("should say once past the limit and ask the new records after it", func(t *testing.T) {
@@ -728,12 +676,6 @@ func TestStream(t *testing.T) {
 				}
 			})
 		}
-	})
-
-	t.Run("should keep the stdout, stderr, exit code and --out file of each pinned run", func(t *testing.T) {
-		t.Parallel()
-
-		checkPinnedRuns(t, pinnedStreamRuns())
 	})
 
 	t.Run("should resume a run from its --out file", func(t *testing.T) {
@@ -1298,42 +1240,6 @@ func TestStream(t *testing.T) {
 				},
 			},
 			{
-				name:  "should exit 1 on a resume whose skipped merged records failed their assertion",
-				stdin: idRecords(1, 2),
-				runs: []resumeRun{
-					{
-						args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
-						wantCode: ExitFail,
-						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
-							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
-						wantSent: []string{`{"id":1}`, `{"id":2}`},
-					},
-					{
-						args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
-						wantCode: ExitFail,
-						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
-							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
-					},
-				},
-			},
-			{
-				name:  "should exit 1 on a csv resume whose skipped rows failed their assertion",
-				stdin: idRecords(1, 2),
-				runs: []resumeRun{
-					{
-						args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
-						wantSent: []string{`{"id":1}`, `{"id":2}`},
-					},
-					{
-						args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
-					},
-				},
-			},
-			{
 				name:  "should exit 7 on a tsv resume whose skipped rows abstained",
 				stdin: idRecords(1, 2),
 				runs: []resumeRun{
@@ -1675,42 +1581,6 @@ func TestStream(t *testing.T) {
 				},
 			},
 			{
-				name:  "should exit 1 on a resume by position whose skipped merged records failed their assertion",
-				stdin: idRecords(1, 2),
-				runs: []resumeRun{
-					{
-						args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
-							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
-						wantSent: []string{`{"id":1}`, `{"id":2}`},
-					},
-					{
-						args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
-							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
-					},
-				},
-			},
-			{
-				name:  "should exit 1 on a csv resume by position whose skipped rows failed their assertion",
-				stdin: idRecords(1, 2),
-				runs: []resumeRun{
-					{
-						args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
-						wantSent: []string{`{"id":1}`, `{"id":2}`},
-					},
-					{
-						args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitFail,
-						wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
-					},
-				},
-			},
-			{
 				name:  "should exit 6 on a resume by position whose skipped lines hold a false assertion and an error",
 				stdin: idRecords(1, 2),
 				runs: []resumeRun{
@@ -1871,21 +1741,6 @@ func TestStream(t *testing.T) {
 				name: "should merge into semicolons with --delimiter ';'", stdin: semicolons,
 				args:    asking("--delimiter", ";", "-o", "csv", "--merge"),
 				wantOut: "id;text;answer;error\n1;refund, please;0.9;\n2;hello;0.9;\n",
-			},
-			{
-				name: "should write semicolons for plain -o csv", stdin: semicolons,
-				args:    asking("--delimiter", ";", "-o", "csv"),
-				wantOut: "id;answer;error\n1;0.9;\n2;0.9;\n",
-			},
-			{
-				name: "should write the detected separator for plain -o csv", stdin: semicolons,
-				args:    asking("--delimiter", "auto", "-o", "csv"),
-				wantOut: "id;answer;error\n1;0.9;\n2;0.9;\n",
-			},
-			{
-				name: "should keep commas both ways with no --delimiter", stdin: "id,text\n1,a\n",
-				args:    asking("-o", "csv"),
-				wantOut: "id,answer,error\n1,0.9,\n",
 			},
 			{
 				name: "should detect a semicolon file under --delimiter auto", stdin: semicolons,

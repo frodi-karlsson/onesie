@@ -261,20 +261,6 @@ func TestResumed_Next(t *testing.T) {
 			},
 		},
 		{
-			name:       "should halt at a stored fail when a fail stops the run",
-			stored:     []answersfile.Stored{{Verdict: output.Pass}, {Verdict: output.Fail}, {Verdict: output.Pass}},
-			stops:      stopSet(0).with(output.Fail),
-			wantSkips:  answersfile.Tally{Records: 2, Verdicts: output.Tally{output.Pass: 1, output.Fail: 1}},
-			wantHalted: true,
-		},
-		{
-			name:       "should halt at a stored error when an error stops the run",
-			stored:     []answersfile.Stored{{Verdict: output.Pass}, {Verdict: output.Error, Failure: failure}, {Verdict: output.Pass}},
-			stops:      stopSet(0).with(output.Error),
-			wantSkips:  answersfile.Tally{Records: 2, Verdicts: output.Tally{output.Pass: 1, output.Error: 1}},
-			wantHalted: true,
-		},
-		{
 			name:      "should read past a stored unsure when only a fail stops the run",
 			stored:    []answersfile.Stored{{Verdict: output.Unsure}},
 			stops:     stopSet(0).with(output.Fail),

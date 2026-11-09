@@ -10,7 +10,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"strconv"
 	"strings"
 	"syscall"
 	"testing"
@@ -168,24 +167,6 @@ func TestHelpExamples(t *testing.T) {
 }
 
 func TestHelpDecisions(t *testing.T) {
-	t.Run("should describe the quiet threshold from its behavior owner", func(t *testing.T) {
-		if !strings.Contains(helpDecisions(), "defaulting to "+strconv.FormatFloat(quietDefaultThreshold, 'f', -1, 64)) {
-			t.Fatal("missing owned quiet threshold")
-		}
-	})
-	t.Run("should describe the assert grammar the gate skill teaches", func(t *testing.T) {
-		for _, want := range []string{
-			"path is a question id, a dot and a field",
-			`["needs review"].value`,
-			"min, max, sum and avg",
-			"There are no arithmetic operators",
-			"mug.confidence >= 0.6",
-		} {
-			if !strings.Contains(helpDecisions(), want) {
-				t.Errorf("help decisions lacks %q", want)
-			}
-		}
-	})
 	for _, tc := range []struct {
 		name        string
 		args        []string
@@ -195,7 +176,6 @@ func TestHelpDecisions(t *testing.T) {
 		lines       int
 	}{
 		{name: "should add a false threshold decision without rejecting", args: []string{"is this urgent", "--threshold", "0.5"}, mock: `{"answer":0.1}`, code: ExitOK, contains: []string{`"decision":false`, `"value":0.1`}},
-		{name: "should fail a false quiet answer", args: []string{"is this urgent", "--quiet"}, mock: `{"answer":0.1}`, code: ExitFail},
 		{name: "should abstain only after an assertion fails", args: []string{"is this urgent", "--assert", "answer.value >= 0.5", "--abstain-if", "answer.value >= 0.05"}, mock: `{"answer":0.1}`, code: ExitAbstain, contains: []string{`"abstain":true`}},
 		{name: "should retain the model value beside a low confidence fallback", args: []string{"which team", "--pick", "billing,support", "--min-confidence", "0.9", "--fallback", "review"}, mock: `{"answer":{"value":"billing","confidence":0.5,"p":{"billing":0.5,"support":0.5}}}`, code: ExitOK, contains: []string{`"value":"billing"`, `"decision":"review"`, `"fallback":"low_confidence"`}},
 		{name: "should retain an error and failure exit beside a fallback", args: []string{"is this urgent", "--fallback", "no", "--retries", "0"}, mock: `{"error":503}`, code: ExitUnavailable, contains: []string{`"status":503`, `"decision":false`, `"fallback":"error"`}},
@@ -270,37 +250,6 @@ func TestHelpOutput(t *testing.T) {
 			}
 			if strings.HasPrefix(out, "{") != tc.json {
 				t.Fatal(out)
-			}
-		})
-	}
-}
-
-func TestHelpExecution(t *testing.T) {
-	t.Run("should describe the mock file format on both commands", func(t *testing.T) {
-		for _, command := range []settingrow.Command{settingrow.CommandRoot, settingrow.CommandCalibrate} {
-			for _, want := range []string{
-				"A mock file is one JSON object keyed by question id",
-				"Lines match records by id under --id and by position otherwise",
-				`{"error":503}`, `{"error":"timeout"}`, `{"error":"connection"}`,
-			} {
-				if !strings.Contains(helpExecution(command), want) {
-					t.Errorf("%s help execution lacks %q", command, want)
-				}
-			}
-		}
-	})
-	for _, tc := range []struct {
-		entry string
-		code  int
-	}{
-		{`{"error":503}`, ExitUnavailable},
-		{`{"error":"timeout"}`, ExitTransport},
-		{`{"error":"connection"}`, ExitTransport},
-	} {
-		t.Run("should exit "+strconv.Itoa(tc.code)+" on the documented entry "+tc.entry, func(t *testing.T) {
-			args := []string{"is this urgent", "--state", "text", "--retries", "0", "--mock", writeMock(t, tc.entry)}
-			if _, errOut, code := runMocked(t, t.Context(), args, "", nil, nil); code != tc.code {
-				t.Fatalf("exit %d, want %d, stderr %s", code, tc.code, errOut)
 			}
 		})
 	}

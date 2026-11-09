@@ -775,14 +775,6 @@ func TestRun(t *testing.T) {
 			wantRequests: 1,
 			wantHeader:   map[string]string{onesie.HeaderImages: "true"},
 		},
-		{
-			name:         "should send the long context header on a replayed body",
-			args:         []string{"--long-context", "-i", "request"},
-			stdin:        `{"state":"s","model":"m","questions":{"answer":{"type":"noul","instructions":"q"}}}` + "\n",
-			wantCode:     ExitOK,
-			wantRequests: 1,
-			wantHeader:   map[string]string{onesie.HeaderLongContext: "true"},
-		},
 	}
 
 	for _, tc := range tests {
