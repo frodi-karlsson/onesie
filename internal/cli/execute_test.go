@@ -493,6 +493,106 @@ func TestRootExecute(t *testing.T) {
 			wantCode: ExitUsage,
 			want:     "onesie: calibrate has no flag --no-dedup. --no-dedup belongs to a run, not to calibrate\n",
 		},
+		{
+			name:     "should refuse --delimiter beside -i text",
+			args:     []string{"q", "--state", "s", "--delimiter", ";"},
+			wantCode: ExitUsage,
+			want:     "onesie: --delimiter applies to -i csv and -o csv. -i text has no delimiter\n",
+		},
+		{
+			name:     "should refuse a --delimiter of two characters",
+			args:     []string{"q", "-i", "csv", "--delimiter", ";;"},
+			wantCode: ExitUsage,
+			want:     "onesie: --delimiter takes auto or one character, got ';;'\n",
+		},
+		{
+			name:     "should refuse --resume without --out",
+			args:     []string{"q", "-i", "jsonl", "--resume"},
+			wantCode: ExitUsage,
+			want:     "onesie: --resume needs --out, the file it picks up from\n",
+		},
+		{
+			name:     "should refuse --resume by position beside --unordered",
+			args:     []string{"q", "-i", "jsonl", "--out", "{dir}{/}a.jsonl", "--resume", "--unordered"},
+			wantCode: ExitUsage,
+			want:     "onesie: --resume relies on input order, which --unordered gives up. Pass --id to resume by id\n",
+		},
+		{
+			name:     "should refuse --prune without --resume",
+			args:     []string{"q", "-i", "jsonl", "--out", "{dir}{/}a.jsonl", "--prune"},
+			wantCode: ExitUsage,
+			want:     "onesie: --prune applies to --resume, which was not given\n",
+		},
+		{
+			name:     "should refuse --prune without --id",
+			args:     []string{"q", "-i", "jsonl", "--out", "{dir}{/}a.jsonl", "--resume", "--prune"},
+			wantCode: ExitUsage,
+			want:     "onesie: --prune drops the answered ids the input no longer has, so it needs --id\n",
+		},
+		{
+			name:     "should refuse --skip-blank on one record",
+			args:     []string{"q", "--state", "s", "--skip-blank"},
+			wantCode: ExitUsage,
+			want:     "onesie: --skip-blank applies to streaming input. -i text reads one record\n",
+		},
+		{
+			name:     "should refuse --no-dedup on one record",
+			args:     []string{"q", "--state", "s", "--no-dedup"},
+			wantCode: ExitUsage,
+			want:     "onesie: --no-dedup applies to streaming input. -i text reads one record\n",
+		},
+		{
+			name:     "should refuse --unordered on one record",
+			args:     []string{"q", "--state", "s", "--unordered"},
+			wantCode: ExitUsage,
+			want:     "onesie: --unordered applies to streaming input. -i text reads one record\n",
+		},
+		{
+			name:     "should refuse --state on a stream",
+			args:     []string{"q", "-i", "jsonl", "--state", "s"},
+			wantCode: ExitUsage,
+			want:     "onesie: --state cannot be combined with -i jsonl\n",
+		},
+		{
+			name:     "should refuse -j above its ceiling",
+			args:     []string{"q", "-i", "jsonl", "-j", "257"},
+			wantCode: ExitUsage,
+			want:     "onesie: -j takes at most 256 records in flight, got 257\n",
+		},
+		{
+			name:     "should refuse --retries above its ceiling",
+			args:     []string{"q", "--state", "s", "--retries", "101"},
+			wantCode: ExitUsage,
+			want:     "onesie: --retries takes at most 100, got 101\n",
+		},
+		{
+			name:     "should refuse --map under -i request",
+			args:     []string{"-i", "request", "--map", ".x"},
+			wantCode: ExitUsage,
+			want: "onesie: --map does not apply to -i request, " +
+				"which sends each body as written and prints each raw response\n",
+		},
+		{
+			name:     "should refuse --id under -i request",
+			args:     []string{"-i", "request", "--id", ".x"},
+			wantCode: ExitUsage,
+			want: "onesie: --id does not apply to -i request, " +
+				"which sends each body as written and prints each raw response\n",
+		},
+		{
+			name:     "should refuse --image under -i request",
+			args:     []string{"-i", "request", "--image", "a.png"},
+			wantCode: ExitUsage,
+			want: "onesie: --image does not apply to -i request, " +
+				"which sends each body as written and prints each raw response\n",
+		},
+		{
+			name:     "should refuse --image-field under -i request",
+			args:     []string{"-i", "request", "--image-field", ".x"},
+			wantCode: ExitUsage,
+			want: "onesie: --image-field does not apply to -i request, " +
+				"which sends each body as written and prints each raw response\n",
+		},
 	}
 
 	for _, tc := range pins {
