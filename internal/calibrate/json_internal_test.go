@@ -339,7 +339,6 @@ func TestWriteJSON(t *testing.T) {
 			t.Errorf("models = %s, questions = %s, want [] for both", decoded["models"], decoded["questions"])
 		}
 	})
-
 }
 
 func TestShareMarshalJSON(t *testing.T) {

@@ -170,7 +170,6 @@ func TestProfilesPath(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestDir(t *testing.T) {

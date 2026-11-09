@@ -662,7 +662,6 @@ func TestRootRun(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func failingLater(stderr io.Writer, script func(run int) (later []error, failure error)) *Root {

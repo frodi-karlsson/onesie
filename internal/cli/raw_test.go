@@ -822,7 +822,6 @@ func TestStreamRaw(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func runRequestMode(

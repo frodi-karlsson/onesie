@@ -1021,7 +1021,6 @@ func TestFingerprint(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func writeSidecar(t *testing.T, path, content string, empty, dir bool) {

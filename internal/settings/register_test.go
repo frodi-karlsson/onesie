@@ -347,7 +347,6 @@ func TestGiven_Values(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestGiven_Within(t *testing.T) {

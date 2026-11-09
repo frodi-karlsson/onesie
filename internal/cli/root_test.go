@@ -2800,7 +2800,6 @@ func TestNewRootCmd(t *testing.T) {
 			})
 		}
 	})
-
 }
 
 func TestClientBuilder(t *testing.T) {
@@ -2877,7 +2876,6 @@ func TestClientBuilder(t *testing.T) {
 				t.Errorf("Authorization header = %q, want it to carry the environment key", gotAuth)
 			}
 		})
-
 	})
 
 	t.Run("should not warn under --allow-http for https, this machine or a refused base url", func(t *testing.T) {

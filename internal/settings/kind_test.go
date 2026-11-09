@@ -305,7 +305,6 @@ func TestProbability(t *testing.T) {
 			t.Errorf("Parse(high) = %v, %v, want no value and a refusal", got, err)
 		}
 	})
-
 }
 
 func TestOptions(t *testing.T) {
@@ -398,5 +397,4 @@ func TestTrueOnly(t *testing.T) {
 			t.Errorf("Parse(false) = %v, %v, want false", got, err)
 		}
 	})
-
 }

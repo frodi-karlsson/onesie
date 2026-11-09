@@ -388,8 +388,6 @@ func TestResolveRun(t *testing.T) {
 	t.Run("should resolve what the flags and variables choose", func(t *testing.T) {
 		t.Parallel()
 
-		const unknownWork = "unknown provider 'work'. Use typesafe, openrouter, berget, levanto or cloudflare"
-
 		profiles := creds.Profiles{Default: "work", Profiles: map[string]creds.Profile{
 			"work": {Provider: "openrouter", APIKey: "SECRET-WORK"},
 		}}

@@ -635,33 +635,6 @@ func (c *countingReads) Next() (input.Record, bool, error) {
 	return record, true, nil
 }
 
-type sliceSource[R any] struct {
-	items []R
-	at    int
-}
-
-func (s *sliceSource[R]) Next() (R, bool, error) {
-	if s.at >= len(s.items) {
-		var zero R
-
-		return zero, false, nil
-	}
-
-	item := s.items[s.at]
-	s.at++
-
-	return item, true, nil
-}
-
-func countUp(n int) []string {
-	lines := make([]string, 0, n)
-	for i := range n {
-		lines = append(lines, strconv.Itoa(i))
-	}
-
-	return lines
-}
-
 type counting struct {
 	total int
 	next  int
