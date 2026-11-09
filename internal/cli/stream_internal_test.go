@@ -368,7 +368,7 @@ func TestStream(t *testing.T) {
 			asked  int32
 		}{
 			{name: "should exit 0 on both runs", want: ExitOK, asked: 1},
-			{name: "should exit 1 for a false assertion on both runs", extra: []string{"--assert", "answer.value < 0.5"}, want: ExitRejected, asked: 1},
+			{name: "should exit 1 for a false assertion on both runs", extra: []string{"--assert", "answer.value < 0.5"}, want: ExitFail, asked: 1},
 			{
 				name: "should exit 7 for an abstain on both runs", want: ExitAbstain, asked: 1,
 				extra: []string{"--assert", "answer.value < 0.5", "--abstain-if", "answer.value > 0.5"},
@@ -765,7 +765,7 @@ func TestStream(t *testing.T) {
 		byIDAbstaining := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 		gateArgs := []string{"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4"}
 		abstaining.AbstainIf = "answer.value > 0.6"
-		byIDRejecting := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
+		byIDFailing := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, abstaining)
 
 		values := []string{"-i", "jsonl", "-o", "values", "--id", ".id", "--resume"}
 		csvCR := "id,answer,error\n,,\"line 1: --id: 'a\\rb' holds a carriage return, which -o csv cannot read back\"\n" +
@@ -1228,13 +1228,13 @@ func TestStream(t *testing.T) {
 				runs: []resumeRun{
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9"}, values...),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: rejectedLines(1, 2),
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
 						args:       append([]string{"--assert", "answer.value > 0.9", "--stats"}, values...),
-						wantCode:   ExitRejected,
+						wantCode:   ExitFail,
 						wantFile:   rejectedLines(1, 2),
 						wantStderr: "2 records, 2 skipped by --resume, 2 fail, ",
 					},
@@ -1281,7 +1281,7 @@ func TestStream(t *testing.T) {
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9"}, values...),
 						input:    idRecords(1, 1),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: rejectedLines(1, 1),
 						wantSent: []string{`{"id":1}`},
 					},
@@ -1303,14 +1303,14 @@ func TestStream(t *testing.T) {
 				runs: []resumeRun{
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9", "--merge"}, values...),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
 					},
@@ -1322,13 +1322,13 @@ func TestStream(t *testing.T) {
 				runs: []resumeRun{
 					{
 						args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
 						args:     []string{"-i", "jsonl", "-o", "csv", "--id", ".id", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "id,answer,assert,error\n1,0.5,false,\n2,0.5,false,\n",
 					},
 				},
@@ -1397,7 +1397,7 @@ func TestStream(t *testing.T) {
 				stdin:    idRecords(1, 4),
 				runs: []resumeRun{{
 					args:     append(append([]string{"--stop-on=fail"}, gateArgs...), values...),
-					wantCode: ExitRejected,
+					wantCode: ExitFail,
 					wantFile: rejectedLines(2, 2) + abstainedLines(1, 1),
 					wantSent: []string{`{"id":1}`},
 				}},
@@ -1409,13 +1409,13 @@ func TestStream(t *testing.T) {
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9", "--merge-key", "verdict"}, values...),
 						input:    idRecords(1, 1),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent: []string{`{"id":1}`},
 					},
 					{
 						args:     append([]string{"--assert", "answer.value > 0.9", "--merge-key", "verdict", "--stats"}, values...),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent:   []string{`{"id":2}`},
@@ -1432,7 +1432,7 @@ func TestStream(t *testing.T) {
 							"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume", "--assert", "answer.value > 0.9",
 						},
 						input:    "id,body\n1,a\n",
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "id,body,answer,assert,error\n1,a,0.5,false,\n",
 						wantSent: []string{`{"id":"1","body":"a"}`},
 					},
@@ -1441,7 +1441,7 @@ func TestStream(t *testing.T) {
 							"-i", "csv", "-o", "csv", "--merge", "--id", ".id", "--resume", "--assert", "answer.value > 0.9",
 							"--stats",
 						},
-						wantCode:   ExitRejected,
+						wantCode:   ExitFail,
 						wantFile:   "id,body,answer,assert,error\n1,a,0.5,false,\n2,b,0.5,false,\n",
 						wantSent:   []string{`{"id":"2","body":"b"}`},
 						wantStderr: "1 skipped by --resume, 2 fail, ",
@@ -1451,13 +1451,13 @@ func TestStream(t *testing.T) {
 			{
 				name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
 				existing: fileOf(abstainedLines(1, 1)),
-				sidecar:  byIDRejecting,
+				sidecar:  byIDFailing,
 				stdin:    idRecords(1, 2),
 				runs: []resumeRun{{
 					args: append([]string{
 						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.6", "--stats",
 					}, values...),
-					wantCode:   ExitRejected,
+					wantCode:   ExitFail,
 					wantFile:   abstainedLines(1, 1) + rejectedLines(2, 2),
 					wantSent:   []string{`{"id":2}`},
 					wantStderr: "1 skipped by --resume, 1 fail, 1 unsure, ",
@@ -1530,7 +1530,7 @@ func TestStream(t *testing.T) {
 					{
 						args:     []string{"-i", "jsonl", "-o", "raw", "--assert", "answer.value > 0.9"},
 						input:    idRecords(1, 1),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "0.5\n",
 						wantSent: []string{`{"id":1}`},
 					},
@@ -1601,7 +1601,7 @@ func TestStream(t *testing.T) {
 							"--assert", "answer.value > 0.9",
 						},
 						input:    idRecords(1, 1),
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent: []string{`{"id":1}`},
 					},
@@ -1610,7 +1610,7 @@ func TestStream(t *testing.T) {
 							"-i", "jsonl", "-o", "values", "--resume", "--merge-key", "verdict",
 							"--assert", "answer.value > 0.9", "--stats",
 						},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"verdict\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent:   []string{`{"id":2}`},
@@ -1625,7 +1625,7 @@ func TestStream(t *testing.T) {
 					{
 						args:     []string{"-i", "csv", "-o", "csv", "--merge", "--resume", "--assert", "answer.value > 0.9"},
 						input:    "id,body\n1,a\n",
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "id,body,answer,assert,error\n1,a,0.5,false,\n",
 						wantSent: []string{`{"id":"1","body":"a"}`},
 					},
@@ -1633,7 +1633,7 @@ func TestStream(t *testing.T) {
 						args: []string{
 							"-i", "csv", "-o", "csv", "--merge", "--resume", "--assert", "answer.value > 0.9", "--stats",
 						},
-						wantCode:   ExitRejected,
+						wantCode:   ExitFail,
 						wantFile:   "id,body,answer,assert,error\n1,a,0.5,false,\n2,b,0.5,false,\n",
 						wantSent:   []string{`{"id":"2","body":"b"}`},
 						wantStderr: "1 skipped by --resume, 2 fail, ",
@@ -1680,14 +1680,14 @@ func TestStream(t *testing.T) {
 				runs: []resumeRun{
 					{
 						args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
 						args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--merge", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "{\"id\":1,\"answers\":{\"assert\":false,\"answer\":0.5}}\n" +
 							"{\"id\":2,\"answers\":{\"assert\":false,\"answer\":0.5}}\n",
 					},
@@ -1699,13 +1699,13 @@ func TestStream(t *testing.T) {
 				runs: []resumeRun{
 					{
 						args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
 						wantSent: []string{`{"id":1}`, `{"id":2}`},
 					},
 					{
 						args:     []string{"-i", "jsonl", "-o", "csv", "--resume", "--assert", "answer.value > 0.9"},
-						wantCode: ExitRejected,
+						wantCode: ExitFail,
 						wantFile: "answer,assert,error\n0.5,false,\n0.5,false,\n",
 					},
 				},

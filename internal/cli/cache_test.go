@@ -1011,7 +1011,7 @@ func TestAsk(t *testing.T) {
 		wantFail bool
 	}{
 		{name: "should write the record the answerer gives", flags: map[string]any{"output": "values"}, noul: 0.9, wantOut: "{\"answer\":0.9}\n"},
-		{name: "should write nothing under -q and reject a no", flags: map[string]any{"quiet": true}, noul: 0.2, wantFail: true},
+		{name: "should write nothing under -q and judge a no a fail", flags: map[string]any{"quiet": true}, noul: 0.2, wantFail: true},
 	}
 
 	for _, tc := range direct {
@@ -1041,9 +1041,9 @@ func TestAsk(t *testing.T) {
 					return asker, nil
 				})
 
-			var rejected *rejectedError
-			if errors.As(err, &rejected) != tc.wantFail || (err != nil && !tc.wantFail) {
-				t.Fatalf("ask = %v, want a rejection %v", err, tc.wantFail)
+			var failed *failError
+			if errors.As(err, &failed) != tc.wantFail || (err != nil && !tc.wantFail) {
+				t.Fatalf("ask = %v, want a fail %v", err, tc.wantFail)
 			}
 
 			if out.String() != tc.wantOut {

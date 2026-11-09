@@ -157,6 +157,23 @@ Don't: Build metadata is stamped at link time (via ldflags) — nothing reads it
 **Do** keep identifiers and tool names as they are spelled. `golangci-lint`, `homebrew-tap` and
 `go-version-file` are names, not hyphenated prose.
 
+## Words
+
+**Do** name how a record ends with one of its five verdicts: answered, pass, fail, unsure or error.
+The same word goes in output, docs, test names and identifiers.
+
+**Do** say refuse when onesie declines to run, which exits 2 before any request. A provider that
+declines a key or a body refuses it too.
+
+**Don't** say reject. A reader can take it for a fail or for a refusal, so it names neither. A
+tool's own word stays as the tool says it, such as a push git rejects.
+
+```
+Do:    should refuse --resume without --out
+Do:    should exit 1 when the gate says fail
+Don't: should reject a false quiet answer
+```
+
 ## Commits
 
 **Do** write semantic commit messages. Start with a type, then a colon, then what changed. Types:

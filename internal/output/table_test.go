@@ -320,13 +320,13 @@ func TestWriteTable(t *testing.T) {
 			rec: output.Record{
 				Failure: &output.Failure{
 					Kind: "auth", Status: &unauthorized, Message: "401 status code, no body",
-					Sentence: "the key was rejected, status 401",
+					Sentence: "the key was refused, status 401",
 				},
 				Answers: []output.Named{
 					{ID: "answer", Answer: &answer.Answer{Fallback: "error", Decided: true, Decision: false}},
 				},
 			},
-			want: "error: the key was rejected, status 401\n\nanswer: no (fallback)\n",
+			want: "error: the key was refused, status 401\n\nanswer: no (fallback)\n",
 		},
 		{
 			name:    "should strip terminal escapes from the sentence",

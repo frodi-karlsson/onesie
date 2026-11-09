@@ -254,14 +254,14 @@ func TestWrite(t *testing.T) {
 			want: "team:\n  ask: who owns this\n  pick:\n    billing: |\n      first\n      second    \n",
 		},
 		{
-			name: "should reject the reserved positional id",
+			name: "should refuse the reserved positional id",
 			questions: []plan.Question{
 				{ID: "answer", Shape: plan.Noul, Instructions: "q"},
 			},
 			wantErr: "--print-questions needs a named question. Use --ask NAME=QUESTION",
 		},
 		{
-			name: "should reject a rubric on a pick question",
+			name: "should refuse a rubric on a pick question",
 			questions: []plan.Question{
 				{
 					ID: "team", Shape: plan.Pick, Instructions: "who owns this",
@@ -273,7 +273,7 @@ func TestWrite(t *testing.T) {
 				"A question is one or the other",
 		},
 		{
-			name: "should reject a rubric on a rate question",
+			name: "should refuse a rubric on a rate question",
 			questions: []plan.Question{
 				{
 					ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",

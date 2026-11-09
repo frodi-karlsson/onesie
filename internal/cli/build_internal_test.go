@@ -38,12 +38,12 @@ func TestBuild(t *testing.T) {
 		wantLong     bool
 	}{
 		{
-			name:    "should reject a whitespace only file assertion",
+			name:    "should refuse a whitespace only file assertion",
 			file:    "assert: '   '\nurgent:\n  ask: is it urgent\n",
 			wantErr: "'assert': the expression is empty",
 		},
 		{
-			name:    "should reject a whitespace only file abstain expression",
+			name:    "should refuse a whitespace only file abstain expression",
 			file:    "assert: urgent.value > 0.5\nabstain_if: '   '\nurgent:\n  ask: is it urgent\n",
 			wantErr: "'abstain_if': the expression is empty",
 		},

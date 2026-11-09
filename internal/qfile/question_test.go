@@ -39,7 +39,7 @@ func TestReadYesNo(t *testing.T) {
 				}
 
 				if q.Origin != plan.OriginFile {
-					t.Error("a file question must carry the file origin, so reserved ids are rejected")
+					t.Error("a file question must carry the file origin, so reserved ids are refused")
 				}
 			},
 		},
@@ -122,27 +122,27 @@ func TestReadYesNo(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a question that is neither a string nor a mapping",
+			name:    "should refuse a question that is neither a string nor a mapping",
 			doc:     "urgent: [1, 2]\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a mapping with no ask",
+			name:    "should refuse a mapping with no ask",
 			doc:     "urgent:\n  yes_means: something\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a file that is not a mapping",
+			name:    "should refuse a file that is not a mapping",
 			doc:     "- just\n- a list\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a yes rubric alongside pick",
+			name:    "should refuse a yes rubric alongside pick",
 			doc:     "team:\n  ask: q\n  yes_means: something\n  pick: [a, b]\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a false alias alongside rate",
+			name:    "should refuse a false alias alongside rate",
 			doc:     "severity:\n  ask: q\n  false: nope\n  rate: [a, b]\n",
 			wantErr: true,
 		},
@@ -250,12 +250,12 @@ func TestReadPick(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a pick that is neither a mapping nor a sequence",
+			name:    "should refuse a pick that is neither a mapping nor a sequence",
 			doc:     "team:\n  ask: Which team?\n  pick: billing\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a non string entry in a pick sequence",
+			name:    "should refuse a non string entry in a pick sequence",
 			doc:     "team:\n  ask: Which team?\n  pick: [billing, 7]\n",
 			wantErr: true,
 		},
@@ -370,17 +370,17 @@ func TestReadRate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a sequence entry with more than one key",
+			name:    "should refuse a sequence entry with more than one key",
 			doc:     "severity:\n  ask: q\n  rate:\n    - a: one\n      b: two\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject a rate that is neither a mapping nor a sequence",
+			name:    "should refuse a rate that is neither a mapping nor a sequence",
 			doc:     "severity:\n  ask: q\n  rate: critical\n",
 			wantErr: true,
 		},
 		{
-			name:    "should reject both pick and rate on one question",
+			name:    "should refuse both pick and rate on one question",
 			doc:     "severity:\n  ask: q\n  pick: [a, b]\n  rate: [c, d]\n",
 			wantErr: true,
 		},
@@ -499,7 +499,7 @@ func TestReadPolicy(t *testing.T) {
 			check: func(t *testing.T, q plan.Question) {
 				t.Helper()
 
-				// strconv.ParseBool rejects yes, so this is the case that catches the wrong
+				// strconv.ParseBool refuses yes, so this is the case that catches the wrong
 				// parser being used. It would silently resolve to false, the opposite decision.
 				if !q.Policy.Fallback.Boolean {
 					t.Error("a yes/no fallback of yes must resolve to Boolean true at load")
@@ -548,7 +548,7 @@ func TestReadPolicy(t *testing.T) {
 			wantErr: "'fallback' in question 'team' must be a string, got null",
 		},
 		{
-			name:    "should reject a non numeric threshold",
+			name:    "should refuse a non numeric threshold",
 			doc:     "urgent:\n  ask: q\n  threshold: soon\n",
 			wantErr: "'threshold' in question 'urgent' must be a number, got 'soon'",
 		},
@@ -558,12 +558,12 @@ func TestReadPolicy(t *testing.T) {
 			wantErr: "'min_confidence' in question 'team' must be a number, got a mapping",
 		},
 		{
-			name:    "should reject a non numeric min_confidence",
+			name:    "should refuse a non numeric min_confidence",
 			doc:     "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: high\n",
 			wantErr: "'min_confidence' in question 'team' must be a number, got 'high'",
 		},
 		{
-			name:    "should reject an unknown key in a question definition",
+			name:    "should refuse an unknown key in a question definition",
 			doc:     "urgent:\n  ask: q\n  thresold: 0.85\n",
 			wantErr: "thresold",
 		},
@@ -638,12 +638,12 @@ func TestReadGate(t *testing.T) {
 			wantQuestions: []string{"urgent"},
 		},
 		{
-			name:    "should reject a mapping assert",
+			name:    "should refuse a mapping assert",
 			doc:     "assert:\n  value: 1\nurgent: q\n",
 			wantErr: "'assert' must be a string, got a mapping",
 		},
 		{
-			name:    "should reject an empty assert as null",
+			name:    "should refuse an empty assert as null",
 			doc:     "assert:\nurgent: q\n",
 			wantErr: "'assert' must be a string, got null",
 		},
@@ -661,12 +661,12 @@ func TestReadGate(t *testing.T) {
 			wantQuestions: []string{"urgent"},
 		},
 		{
-			name:    "should reject a mapping abstain_if",
+			name:    "should refuse a mapping abstain_if",
 			doc:     "abstain_if:\n  value: 1\nurgent: q\n",
 			wantErr: "'abstain_if' must be a string, got a mapping",
 		},
 		{
-			name:    "should reject an empty abstain_if as null",
+			name:    "should refuse an empty abstain_if as null",
 			doc:     "abstain_if:\nurgent: q\n",
 			wantErr: "'abstain_if' must be a string, got null",
 		},

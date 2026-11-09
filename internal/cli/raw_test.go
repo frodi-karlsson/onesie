@@ -218,7 +218,7 @@ func TestStreamRaw(t *testing.T) {
 				wantCode: ExitRecords,
 			},
 			{
-				name:      "should send an object the API will reject rather than judging it",
+				name:      "should send an object the API will refuse rather than judging it",
 				args:      []string{"-i", "request"},
 				stdin:     "{\"hello\":1}\n",
 				status:    http.StatusUnprocessableEntity,
@@ -289,7 +289,7 @@ func TestStreamRaw(t *testing.T) {
 				wantCode: ExitRecords,
 			},
 			{
-				name:      "should write an error record when the server rejects a body",
+				name:      "should write an error record when the server refuses a body",
 				args:      []string{"-i", "request"},
 				stdin:     "{\"state\":\"one\"}\n",
 				status:    http.StatusUnprocessableEntity,

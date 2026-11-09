@@ -462,7 +462,7 @@ func (s *Stream) check(value any) error {
 	}
 
 	// A request body is forwarded opaquely, so only its outermost shape is checked. A body the API
-	// will reject for its contents is still sent, and the 422 is the answer.
+	// will refuse for its contents is still sent, and the 422 is the answer.
 	if _, object := value.(map[string]any); object {
 		return nil
 	}

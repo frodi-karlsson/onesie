@@ -189,14 +189,14 @@ func TestMockAnswers(t *testing.T) {
 			args:     []string{"is it urgent", "-q", "--state", "x"},
 			mock:     `{"answer":0.2}`,
 			wantOut:  fileOf(""),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 		},
 		{
 			name:     "should exit 1 for the shell-safety example",
 			args:     []string{"-f", shellSafety, "-q", "--state", "rm -rf /"},
 			mock:     `{"destroys": 0.93, "secrets": 0.02, "network": 0.1}`,
 			wantOut:  fileOf(""),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 		},
 		{
 			name:     "should exit 7 when the gate abstains",
@@ -215,7 +215,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("-o", "json", "--assert", "u.value < 0.5", "--state", "x"),
 			mock:     mockAll,
 			wantOut:  fileOf(`{"assert":false,"model":"jev-latest",` + mockAllJSON + "}\n"),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 		},
 		{
 			name: "should judge --abstain-if",
@@ -276,7 +276,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should write one record's failure as one sentence in the table",
 			args:     with("-o", "table", "--state", "x"),
 			mock:     `{"error":401}`,
-			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			wantOut:  fileOf("error: the key was refused, status 401\n"),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
@@ -285,7 +285,7 @@ func TestMockAnswers(t *testing.T) {
 			args:         with("--state", "x"),
 			mock:         `{"error":401}`,
 			opts:         onTerminal,
-			wantOut:      fileOf("error: the key was rejected, status 401\n"),
+			wantOut:      fileOf("error: the key was refused, status 401\n"),
 			wantCode:     ExitAuth,
 			stderrAbsent: []string{"onesie: "},
 		},
@@ -294,7 +294,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("--state", "x"),
 			mock:     `{"error":401}`,
 			opts:     []RootOption{WithStdoutTTY(true), withSharedTTY(false)},
-			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			wantOut:  fileOf("error: the key was refused, status 401\n"),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
@@ -303,7 +303,7 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("--state", "x", "-o", "table"),
 			mock:     `{"error":401}`,
 			opts:     []RootOption{WithStdoutTTY(false), withSharedTTY(true)},
-			wantOut:  fileOf("error: the key was rejected, status 401\n"),
+			wantOut:  fileOf("error: the key was refused, status 401\n"),
 			stderr:   []string{"onesie: 401 status code, no body"},
 			wantCode: ExitAuth,
 		},
@@ -891,12 +891,12 @@ func TestMockAnswers(t *testing.T) {
 			stdin := "{\"a\":1}\n"
 			out := filepath.Join(t.TempDir(), "answers.jsonl")
 
-			if _, errOut, code := runReal(t, append(args, "--out", out), stdin, srv.URL); code != ExitRejected {
+			if _, errOut, code := runReal(t, append(args, "--out", out), stdin, srv.URL); code != ExitFail {
 				t.Fatalf("real run exit %d, want 1\n%s", code, errOut)
 			}
 
 			replay, errOut, code := runMocked(t, t.Context(), append(args, "--mock", out), stdin, nil, nil)
-			if code != ExitRejected {
+			if code != ExitFail {
 				t.Errorf("replay exit %d, want 1\n%s\n%s", code, replay, errOut)
 			}
 

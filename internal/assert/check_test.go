@@ -30,7 +30,7 @@ func TestCheck(t *testing.T) {
 				ID: "decided", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
 				Policy: plan.Policy{MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "b"}},
 			},
-			// A pair validation rejects on its own. answer.Apply has nothing to substitute without
+			// A pair validation refuses on its own. answer.Apply has nothing to substitute without
 			// a fallback and leaves decision unset, so the message names the flag that is missing.
 			{
 				ID: "unsure", Shape: plan.Pick, Options: []plan.Option{{Name: "a"}, {Name: "b"}},
@@ -126,57 +126,57 @@ func TestCheck(t *testing.T) {
 			input: `not urgent.value < 0.5 or (team.value == "billing" and severity.norm > 0.5)`,
 		},
 		{
-			name:    "should reject an unknown question",
+			name:    "should refuse an unknown question",
 			input:   `sevrity.value < 1`,
 			wantErr: "unknown question 'sevrity'. Questions: " + questions,
 		},
 		{
-			name:    "should reject confidence on a yes/no question",
+			name:    "should refuse confidence on a yes/no question",
 			input:   `urgent.confidence > 0.5`,
 			wantErr: "'urgent' is a yes or no question and has no 'confidence'",
 		},
 		{
-			name:    "should reject a score on a yes/no question",
+			name:    "should refuse a score on a yes/no question",
 			input:   `urgent.score > 1`,
 			wantErr: "'urgent' is a yes or no question and has no 'score'",
 		},
 		{
-			name:    "should reject a probability on a yes/no question",
+			name:    "should refuse a probability on a yes/no question",
 			input:   `urgent.p["yes"] > 0.5`,
 			wantErr: "'urgent' is a yes or no question and has no 'p'",
 		},
 		{
-			name:    "should reject a score on a pick question",
+			name:    "should refuse a score on a pick question",
 			input:   `team.score > 1`,
 			wantErr: "'team' is a pick question and has no 'score'",
 		},
 		{
-			name:    "should reject an unknown option",
+			name:    "should refuse an unknown option",
 			input:   `team.p.bilingl > 0.2`,
 			wantErr: "'team' has no option 'bilingl'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject a pick value compared with a name that is not an option",
+			name:    "should refuse a pick value compared with a name that is not an option",
 			input:   `team.value == "biling"`,
 			wantErr: "'team' has no option 'biling'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject an option name that is not an option, whichever side it is on",
+			name:    "should refuse an option name that is not an option, whichever side it is on",
 			input:   `"biling" != team.value`,
 			wantErr: "'team' has no option 'biling'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject a list member that is not an option",
+			name:    "should refuse a list member that is not an option",
 			input:   `team.value in ["billing", "sals"]`,
 			wantErr: "'team' has no option 'sals'. --pick has: billing, technical, sales",
 		},
 		{
-			name:    "should reject a rate value compared with a name that is not a level",
+			name:    "should refuse a rate value compared with a name that is not a level",
 			input:   `severity.value == "lo"`,
 			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
 		},
 		{
-			name:    "should reject an unlabelled rate value compared with an index it does not have",
+			name:    "should refuse an unlabelled rate value compared with an index it does not have",
 			input:   `indexed.value == "9"`,
 			wantErr: "'indexed' has no level '9'. Its levels are numbered 0 to 2",
 		},
@@ -189,37 +189,37 @@ func TestCheck(t *testing.T) {
 			input: `decided.decision == "b" or decided.fallback == "low_confidence"`,
 		},
 		{
-			name:    "should reject an unknown rate level",
+			name:    "should refuse an unknown rate level",
 			input:   `severity.p.lo > 0.2`,
 			wantErr: "'severity' has no level 'lo'. --rate has: low, high",
 		},
 		{
-			name:    "should reject an index an unlabelled rate does not have",
+			name:    "should refuse an index an unlabelled rate does not have",
 			input:   `indexed.p["9"] > 0.2`,
 			wantErr: "'indexed' has no level '9'. Its levels are numbered 0 to 2",
 		},
 		{
-			name:    "should reject a label on an unlabelled rate",
+			name:    "should refuse a label on an unlabelled rate",
 			input:   `indexed.p.low > 0.2`,
 			wantErr: "'indexed' has no level 'low'. Its levels are numbered 0 to 2",
 		},
 		{
-			name:    "should reject p without a key",
+			name:    "should refuse p without a key",
 			input:   `team.p > 0.2`,
 			wantErr: "'team.p' needs an option name",
 		},
 		{
-			name:    "should reject p without a label",
+			name:    "should refuse p without a label",
 			input:   `severity.p > 0.2`,
 			wantErr: "'severity.p' needs a level name",
 		},
 		{
-			name:    "should reject p without an index",
+			name:    "should refuse p without an index",
 			input:   `indexed.p > 0.2`,
 			wantErr: "'indexed.p' needs a level index",
 		},
 		{
-			name:    "should reject decision without a policy",
+			name:    "should refuse decision without a policy",
 			input:   `team.decision == "billing"`,
 			wantErr: "'team.decision' needs --threshold or --min-confidence on 'team'",
 		},
@@ -229,47 +229,47 @@ func TestCheck(t *testing.T) {
 			wantErr: "'unsure.decision' needs --fallback on 'unsure'",
 		},
 		{
-			name:    "should reject fallback without a policy",
+			name:    "should refuse fallback without a policy",
 			input:   `team.fallback == ""`,
 			wantErr: "'team.fallback' needs --threshold, --min-confidence or --fallback on 'team'",
 		},
 		{
-			name:    "should reject comparing a string with a number",
+			name:    "should refuse comparing a string with a number",
 			input:   `team.value < 0.5`,
 			wantErr: "cannot compare 'team.value', a string, with 0.5, a number",
 		},
 		{
-			name:    "should reject comparing a yes/no decision with a string",
+			name:    "should refuse comparing a yes/no decision with a string",
 			input:   `gated.decision == "yes"`,
 			wantErr: `cannot compare 'gated.decision', a boolean, with "yes", a string`,
 		},
 		{
-			name:    "should reject comparing two paths of different types",
+			name:    "should refuse comparing two paths of different types",
 			input:   `team.value == urgent.value`,
 			wantErr: "cannot compare 'team.value', a string, with 'urgent.value', a number",
 		},
 		{
-			name:    "should reject an unknown field",
+			name:    "should refuse an unknown field",
 			input:   `urgent.velue < 0.5`,
 			wantErr: "'urgent' has no field 'velue'",
 		},
 		{
-			name:    "should reject a field below a resolved one",
+			name:    "should refuse a field below a resolved one",
 			input:   `team.value.x == "a"`,
 			wantErr: "'team.value' has no field 'x'",
 		},
 		{
-			name:    "should reject a field below a probability",
+			name:    "should refuse a field below a probability",
 			input:   `team.p.billing.x > 0.2`,
 			wantErr: "'team.p.billing' has no field 'x'",
 		},
 		{
-			name:    "should reject a field under model",
+			name:    "should refuse a field under model",
 			input:   `model.name == "x"`,
 			wantErr: "'model' has no field 'name'",
 		},
 		{
-			name:    "should reject a question with no field at all",
+			name:    "should refuse a question with no field at all",
 			input:   `team == "billing"`,
 			wantErr: "'team' needs a field. 'team' has: value, confidence, p",
 		},
@@ -279,22 +279,22 @@ func TestCheck(t *testing.T) {
 			wantErr: "'decided' needs a field. 'decided' has: value, confidence, p, decision, fallback",
 		},
 		{
-			name:    "should reject an ordering comparison on strings",
+			name:    "should refuse an ordering comparison on strings",
 			input:   `team.value < "billing"`,
 			wantErr: `cannot order 'team.value', a string. '<' takes two numbers`,
 		},
 		{
-			name:    "should reject an ordering comparison on booleans",
+			name:    "should refuse an ordering comparison on booleans",
 			input:   `gated.decision >= true`,
 			wantErr: `cannot order 'gated.decision', a boolean. '>=' takes two numbers`,
 		},
 		{
-			name:    "should reject a mixed list",
+			name:    "should refuse a mixed list",
 			input:   `team.value in ["billing", 1]`,
 			wantErr: `a list holds one type. Cannot compare 'team.value', a string, with 1, a number`,
 		},
 		{
-			name:    "should reject a list of another type than the operand",
+			name:    "should refuse a list of another type than the operand",
 			input:   `urgent.value in ["billing"]`,
 			wantErr: `a list holds one type. Cannot compare 'urgent.value', a number, with "billing", a string`,
 		},
@@ -333,27 +333,27 @@ func TestCheck(t *testing.T) {
 			input: `avg(urgent.value, 0.2) <= sum(min(severity.norm, 1), team.p["technical"]) and urgent.value in [max(urgent.value, 0.1)]`,
 		},
 		{
-			name:    "should reject an unknown function and list the functions",
+			name:    "should refuse an unknown function and list the functions",
 			input:   `mx(urgent.value) < 0.5`,
 			wantErr: "unknown function 'mx'. Functions: avg, max, min, sum",
 		},
 		{
-			name:      "should reject a call with no arguments",
+			name:      "should refuse a call with no arguments",
 			input:     `max() < 0.5`,
 			wantParse: "parse error at column 5, 'max' needs at least one number",
 		},
 		{
-			name:    "should reject a string argument",
+			name:    "should refuse a string argument",
 			input:   `max(team.value, urgent.value) < 0.5`,
 			wantErr: "'max' takes numbers, got 'team.value', a string",
 		},
 		{
-			name:    "should reject a string literal argument",
+			name:    "should refuse a string literal argument",
 			input:   `sum(urgent.value, "x") < 0.5`,
 			wantErr: `'sum' takes numbers, got "x", a string`,
 		},
 		{
-			name:    "should reject a boolean argument inside a nested call",
+			name:    "should refuse a boolean argument inside a nested call",
 			input:   `max(min(urgent.value, gated.decision)) < 0.5`,
 			wantErr: "'min' takes numbers, got 'gated.decision', a boolean",
 		},
@@ -363,12 +363,12 @@ func TestCheck(t *testing.T) {
 			wantErr: "unknown question 'sevrity'. Questions: " + questions,
 		},
 		{
-			name:    "should reject a call compared with a string",
+			name:    "should refuse a call compared with a string",
 			input:   `max(urgent.value, severity.norm) == "high"`,
 			wantErr: `cannot compare 'max(urgent.value, severity.norm)', a number, with "high", a string`,
 		},
 		{
-			name:    "should reject a call compared with a boolean",
+			name:    "should refuse a call compared with a boolean",
 			input:   `gated.decision == avg(urgent.value)`,
 			wantErr: `cannot compare 'gated.decision', a boolean, with 'avg(urgent.value)', a number`,
 		},
@@ -523,7 +523,7 @@ func TestCheck(t *testing.T) {
 		}
 	})
 
-	t.Run("should accept every path an assertion allows and reject the rest", func(t *testing.T) {
+	t.Run("should accept every path an assertion allows and refuse the rest", func(t *testing.T) {
 		t.Parallel()
 
 		options := []plan.Option{{Name: "billing"}, {Name: "technical"}}
@@ -541,7 +541,7 @@ func TestCheck(t *testing.T) {
 				{ID: "routed", Shape: plan.Pick, Options: options, Policy: plan.Policy{
 					MinConfidence: ptr(0.7), Fallback: &plan.Fallback{Text: "human"},
 				}},
-				// A pair validation rejects on its own. answer.Apply has nothing to substitute
+				// A pair validation refuses on its own. answer.Apply has nothing to substitute
 				// without a fallback and leaves decision unset, so Check cannot promise the path
 				// either.
 				{
@@ -673,18 +673,18 @@ func TestCheck(t *testing.T) {
 			}
 		})
 
-		t.Run("should reject a question the plan does not have", func(t *testing.T) {
+		t.Run("should refuse a question the plan does not have", func(t *testing.T) {
 			t.Parallel()
 
 			for _, path := range []string{"nothing", "nothing.value", "model.value", `["team"].value.x`} {
 				if got, ok := probe(t, built, path); ok {
-					t.Errorf("Check over %q typed it %v, want it rejected", path, got)
+					t.Errorf("Check over %q typed it %v, want it refused", path, got)
 				}
 			}
 		})
 	})
 
-	// The group above includes a question validation rejects, so this holds the table over a plan
+	// The group above includes a question validation refuses, so this holds the table over a plan
 	// the pipeline accepts.
 	t.Run("should hold the path table over an assembled plan", func(t *testing.T) {
 		t.Parallel()
@@ -784,7 +784,7 @@ func runPathCases(t *testing.T, built *plan.Plan, records []pathRecord, cases []
 	t.Helper()
 
 	// Every field name a record could carry, including ones belonging to another question, so a
-	// path a case does not list as allowed is asserted to be rejected.
+	// path a case does not list as allowed is asserted to be refused.
 	universe := []string{
 		"value", "confidence", "score", "norm", "p", "decision", "fallback", "legend",
 		"p.billing", "p.low", `p["0"]`, "p.nope", "value.x",
@@ -824,12 +824,12 @@ func runPathCases(t *testing.T, built *plan.Plan, records []pathRecord, cases []
 
 				path := tc.id + "." + field
 				if got, ok := probe(t, built, path); ok {
-					t.Errorf("Check over %q typed it %v, want it rejected", path, got)
+					t.Errorf("Check over %q typed it %v, want it refused", path, got)
 				}
 			}
 
 			if got, ok := probe(t, built, tc.id); ok {
-				t.Errorf("Check over %q typed it %v, want it rejected", tc.id, got)
+				t.Errorf("Check over %q typed it %v, want it refused", tc.id, got)
 			}
 		})
 	}

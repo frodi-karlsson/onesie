@@ -148,7 +148,7 @@ func TestPrintQuestions(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name: "should reject --state with --print-questions",
+			name: "should refuse --state with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "--state", "x", "--print-questions",
 			},
@@ -158,7 +158,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject -i with --print-questions",
+			name: "should refuse -i with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-i", "json", "--print-questions",
 			},
@@ -168,7 +168,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject --usage with --print-questions",
+			name: "should refuse --usage with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "--usage", "--print-questions",
 			},
@@ -178,7 +178,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject -j with --print-questions",
+			name: "should refuse -j with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-j", "8", "--print-questions",
 			},
@@ -188,7 +188,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name:     "should reject --cache with --print-questions",
+			name:     "should refuse --cache with --print-questions",
 			args:     []string{"--ask", "urgent=is this urgent", "--cache", "--print-questions"},
 			wantCode: ExitUsage,
 			stderr: []string{
@@ -196,7 +196,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name:     "should reject --mock with --print-questions",
+			name:     "should refuse --mock with --print-questions",
 			args:     []string{"--ask", "urgent=is this urgent", "--mock", "m.json", "--print-questions"},
 			wantCode: ExitUsage,
 			stderr: []string{
@@ -204,7 +204,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject -m with --print-questions",
+			name: "should refuse -m with --print-questions",
 			args: []string{
 				"--ask", "urgent=is this urgent", "-m", "onesie-9", "--print-questions",
 			},
@@ -234,7 +234,7 @@ func TestPrintQuestions(t *testing.T) {
 			},
 		},
 		{
-			name:     "should reject print-questions for a positional question",
+			name:     "should refuse print-questions for a positional question",
 			args:     []string{"is this urgent", "--print-questions"},
 			wantCode: ExitUsage,
 			stderr:   []string{"--print-questions needs a named question"},
@@ -872,14 +872,14 @@ func TestPrintRequest(t *testing.T) {
 		{
 			name: "should print a body for a positional question",
 			args: []string{"is this urgent", "--print-request"},
-			// A positional question is rejected by --print-questions and accepted here, because a
+			// A positional question is refused by --print-questions and accepted here, because a
 			// request body needs no name a caller has to type.
 			stdin:    "the server is down",
 			wantCode: ExitOK,
 			stdout:   []string{`"answer":{"type":"noul","instructions":"is this urgent"}`},
 		},
 		{
-			name: "should reject --usage with --print-request",
+			name: "should refuse --usage with --print-request",
 			args: []string{"--ask", "urgent=is this urgent", "--usage", "--print-request"},
 			// A printed body has no usage object to add one to, so the flag is as inert here as
 			// it is under --print-questions.
@@ -1304,7 +1304,7 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject --merge with --print-request", func(t *testing.T) {
+	t.Run("should refuse --merge with --print-request", func(t *testing.T) {
 		t.Parallel()
 
 		const message = "onesie: --merge does not apply to --print-request, which writes the request bodies and sends none"
@@ -1315,21 +1315,21 @@ func TestPrintRequest(t *testing.T) {
 			stdin string
 		}{
 			{
-				name: "should reject merge on a single body",
+				name: "should refuse merge on a single body",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
 				},
 				stdin: `{"answers":1}`,
 			},
 			{
-				name: "should reject merge on a streamed body",
+				name: "should refuse merge on a streamed body",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
 				},
 				stdin: `{"answers":1}` + "\n",
 			},
 			{
-				name: "should reject merge-key on a streamed body",
+				name: "should refuse merge-key on a streamed body",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
 					"--merge-key", "onesie",
@@ -1365,7 +1365,7 @@ func TestPrintRequest(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject --assert with --print-request", func(t *testing.T) {
+	t.Run("should refuse --assert with --print-request", func(t *testing.T) {
 		t.Parallel()
 
 		dir := t.TempDir()
@@ -1383,7 +1383,7 @@ func TestPrintRequest(t *testing.T) {
 			want  string
 		}{
 			{
-				name: "should reject a valid --assert with --print-request",
+				name: "should refuse a valid --assert with --print-request",
 				args: []string{
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "answer.value > 0.99",
@@ -1391,7 +1391,7 @@ func TestPrintRequest(t *testing.T) {
 				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name: "should reject an unparseable --assert with --print-request",
+				name: "should refuse an unparseable --assert with --print-request",
 				args: []string{
 					"is this urgent", "--print-request", "--state", "x",
 					"--assert", "nonsense syntax here !!",
@@ -1399,19 +1399,19 @@ func TestPrintRequest(t *testing.T) {
 				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name: "should reject --assert typed beside a file's assertion",
+				name: "should refuse --assert typed beside a file's assertion",
 				args: []string{"-f", path, "--print-request", "--state", "x", "--assert", "urgent.value > 0.9"},
 				want: "onesie: --assert does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name: "should reject --abstain-if typed beside a file's assertion",
+				name: "should refuse --abstain-if typed beside a file's assertion",
 				args: []string{
 					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
 				},
 				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
 			},
 			{
-				name:  "should reject --stop-on=fail with --print-request in a stream",
+				name:  "should refuse --stop-on=fail with --print-request in a stream",
 				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on=fail"},
 				stdin: "a\nb\n",
 				want:  "onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",

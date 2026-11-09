@@ -19,7 +19,7 @@ func TestCheckKeys(t *testing.T) {
 			}
 		}
 	})
-	t.Run("should reject run row keys inside a question", func(t *testing.T) {
+	t.Run("should refuse run row keys inside a question", func(t *testing.T) {
 		for _, row := range settingrow.Table() {
 			if row.Scope != settingrow.ScopeRun || row.FileKey == "" {
 				continue

@@ -224,7 +224,7 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a body question with no instructions",
+			name:    "should refuse a body question with no instructions",
 			doc:     `{"questions":{"a":{"type":"noul"}}}`,
 			wantErr: "question 'a' in a request body has no 'instructions'",
 		},
@@ -235,32 +235,32 @@ func TestLoadBody(t *testing.T) {
 				"'instructions'",
 		},
 		{
-			name:    "should reject an unknown key in a noul criteria",
+			name:    "should refuse an unknown key in a noul criteria",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":{"true":"y","maybe":"m"}}}}`,
 			wantErr: "question 'a' in a request body has an unknown criteria key 'maybe'",
 		},
 		{
-			name:    "should reject a noul criteria that is not a mapping",
+			name:    "should refuse a noul criteria that is not a mapping",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":"shouting"}}}`,
 			wantErr: "noul question 'a' needs criteria as an object, or none",
 		},
 		{
-			name:    "should reject a noul criteria sequence",
+			name:    "should refuse a noul criteria sequence",
 			doc:     `{"questions":{"a":{"type":"noul","criteria":["y","n"]}}}`,
 			wantErr: "noul question 'a' needs criteria as an object, or none",
 		},
 		{
-			name:    "should reject a choice criteria sequence",
+			name:    "should refuse a choice criteria sequence",
 			doc:     `{"questions":{"a":{"type":"choice","instructions":"q","criteria":["y","n"]}}}`,
 			wantErr: "choice question 'a' needs criteria as an object",
 		},
 		{
-			name:    "should reject a score criteria mapping",
+			name:    "should refuse a score criteria mapping",
 			doc:     `{"questions":{"a":{"type":"score","instructions":"q","criteria":{"y":"n"}}}}`,
 			wantErr: "score question 'a' needs criteria as an array",
 		},
 		{
-			name:    "should reject a box question with criteria",
+			name:    "should refuse a box question with criteria",
 			doc:     `{"questions":{"a":{"type":"box","instructions":"q","criteria":{"y":"n"}}}}`,
 			wantErr: "box question 'a' in a request body takes no criteria",
 		},
@@ -270,18 +270,18 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "question 'a' in a request body cannot be sent: json: unsupported value: NaN",
 		},
 		{
-			name:    "should reject a question key YAML spells twice",
+			name:    "should refuse a question key YAML spells twice",
 			doc:     "questions:\n  1: {type: noul, instructions: a}\n  \"1\": {type: box, instructions: b}\n",
 			wantErr: `mapping key "1" already defined`,
 		},
 		{
-			name: "should reject two question keys that name the same question",
+			name: "should refuse two question keys that name the same question",
 			doc: "questions:\n  0x1: {type: noul, instructions: a}\n" +
 				"  \"1\": {type: box, instructions: b, criteria: {x: y}}\n",
 			wantErr: "question '1' is given twice in a request body",
 		},
 		{
-			name:    "should reject a question that is not a mapping",
+			name:    "should refuse a question that is not a mapping",
 			doc:     `{"questions":{"a":"is it urgent"}}`,
 			wantErr: "question 'a' is not an object",
 		},
@@ -297,27 +297,27 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject an unknown question type",
+			name:    "should refuse an unknown question type",
 			doc:     `{"questions":{"a":{"type":"vibes","instructions":"q"}}}`,
 			wantErr: "vibes",
 		},
 		{
-			name:    "should reject a question with no type",
+			name:    "should refuse a question with no type",
 			doc:     `{"questions":{"a":{"instructions":"q"}}}`,
 			wantErr: "type",
 		},
 		{
-			name:    "should reject a questions key that is not a mapping",
+			name:    "should refuse a questions key that is not a mapping",
 			doc:     `{"questions":[1,2]}`,
 			wantErr: "questions",
 		},
 		{
-			name:    "should reject a top level assert in a request body",
+			name:    "should refuse a top level assert in a request body",
 			doc:     `{"assert":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
 			wantErr: "a request body carries no 'assert'. Pass --assert on the command line",
 		},
 		{
-			name:    "should reject a top level abstain_if in a request body",
+			name:    "should refuse a top level abstain_if in a request body",
 			doc:     `{"abstain_if":"a.value > 0.5","questions":{"a":{"type":"noul"}}}`,
 			wantErr: "a request body carries no 'abstain_if'. Pass --abstain-if on the command line",
 		},

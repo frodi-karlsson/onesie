@@ -83,7 +83,7 @@ onesie --ask d='does this destroy data' --ask c='does this send credentials' --a
 
 ### -q on its own gates one question on one record. Add --assert for several questions, and use --assert alone for a stream.
 
-Without an assertion, `-q` is the gate over one question, and onesie rejects it when more than one question was asked, naming them and `--assert`, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is rejected under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
+Without an assertion, `-q` is the gate over one question, and onesie refuses it when more than one question was asked, naming them and `--assert`, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is refused under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
 
 **Bad:**
 
@@ -115,7 +115,7 @@ onesie --ask team='which team owns this incident' --pick billing,shipping,suppor
 
 ### Check an assertion with --print-questions before you spend anything.
 
-`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. It checks paths, option names under `p` and types, but not the text of a string literal, so `team.value == "biling"` passes and is simply never true. `--print-questions` needs named questions and refuses a positional one. `answer` is reserved for the positional question, so give it another id with `--ask` and rename the paths to match. `--print-request` rejects `--assert` and ignores the gate in a `-f` file, so use `--print-questions`.
+`--print-questions` writes the assertion into the file it prints and checks every path and type against the questions, so a typo or a type error exits 2 naming the real question ids and makes no network call. The good example below keeps the typo on purpose, so it exits 2 naming the real id `urgent` rather than running for real. It checks paths, option names under `p` and types, but not the text of a string literal, so `team.value == "biling"` passes and is simply never true. `--print-questions` needs named questions and refuses a positional one. `answer` is reserved for the positional question, so give it another id with `--ask` and rename the paths to match. `--print-request` refuses `--assert` and ignores the gate in a `-f` file, so use `--print-questions`.
 
 **Bad:**
 

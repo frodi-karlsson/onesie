@@ -70,7 +70,7 @@ type Runner struct {
 	book    *helpBook
 }
 
-// DryRun strips the flags a dry run rejects from command, adds the print flag and runs it without a
+// DryRun strips the flags a dry run refuses from command, adds the print flag and runs it without a
 // shell. A command that is not a onesie invocation is not run, and Skipped says why.
 func (r *Runner) DryRun(ctx context.Context, command string) (DryRunResult, error) {
 	tokens, args, reason, err := r.prepare(command)

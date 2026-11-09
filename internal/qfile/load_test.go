@@ -36,17 +36,17 @@ func TestLoad(t *testing.T) {
 			same: "urgent: is this urgent\n",
 		},
 		{
-			name:    "should reject a $schema that is a number",
+			name:    "should refuse a $schema that is a number",
 			doc:     "$schema: 3\nurgent: is this urgent\n",
 			wantErr: "'$schema' must be a string, got '3'",
 		},
 		{
-			name:    "should reject a $schema that is a boolean, which only a gate takes",
+			name:    "should refuse a $schema that is a boolean, which only a gate takes",
 			doc:     "$schema: true\nurgent: is this urgent\n",
 			wantErr: "'$schema' must be a string, got 'true'",
 		},
 		{
-			name:    "should reject a $schema that is a mapping",
+			name:    "should refuse a $schema that is a mapping",
 			doc:     `{"$schema": {"url": "x"}, "urgent": "is this urgent"}`,
 			wantErr: "'$schema' must be a string, got a mapping",
 		},

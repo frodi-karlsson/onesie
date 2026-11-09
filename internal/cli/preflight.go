@@ -251,9 +251,9 @@ func safeReadinessError(err error) string {
 	if errors.As(err, &readable) {
 		return "Configuration is readable or writable by its group or others. Set mode 600 on the file named by onesie profile show."
 	}
-	var rejected *setting.EnvironmentError
-	if errors.As(err, &rejected) {
-		return "Unset or correct " + rejected.Name + ". Run onesie profile show for manual inspection."
+	var invalid *setting.EnvironmentError
+	if errors.As(err, &invalid) {
+		return "Unset or correct " + invalid.Name + ". Run onesie profile show for manual inspection."
 	}
 	return "Run onesie profile show for manual inspection, then correct the selected profile, provider or endpoint."
 }

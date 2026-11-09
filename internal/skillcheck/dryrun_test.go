@@ -30,7 +30,7 @@ func TestNewCatalog(t *testing.T) {
 		}
 	})
 
-	t.Run("should refuse a rejected flag the tree does not have", func(t *testing.T) {
+	t.Run("should refuse a stripped flag the tree does not have", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := NewCatalog(&cobra.Command{Use: "onesie"}, []string{"quiet"}, nil)

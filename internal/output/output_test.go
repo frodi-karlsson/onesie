@@ -384,7 +384,7 @@ func TestParseMode(t *testing.T) {
 		{name: "should accept markdown", flag: "markdown", want: output.Markdown},
 		{name: "should accept md as the short form of markdown", flag: "md", want: output.Markdown},
 		{name: "should refuse auto, which the settings resolve first", flag: "auto", wantErr: true},
-		{name: "should reject an unknown mode", flag: "yaml", wantErr: true},
+		{name: "should refuse an unknown mode", flag: "yaml", wantErr: true},
 	}
 
 	for _, tc := range tests {

@@ -55,28 +55,28 @@ func TestAsk(t *testing.T) {
 				name:     "should print the record and exit one when the assertion is false",
 				args:     []string{"is this urgent", "-o", "json", "--assert", "answer.value > 0.95"},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				contains: []string{`"assert":false`, `"answer":{"value":0.9}`, `"model":"onesie-1.13.0"`},
 			},
 			{
 				name:     "should carry the key in values mode",
 				args:     []string{"is this urgent", "-o", "values", "--assert", "answer.value > 0.95"},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				wantOut:  "{\"assert\":false,\"answer\":0.9}\n",
 			},
 			{
 				name:     "should print assert false beside the model in table mode",
 				args:     []string{"is this urgent", "-o", "table", "--assert", "answer.value > 0.95"},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				contains: []string{"model: onesie-1.13.0\nverdict: fail\n", "answer: 0.9\n"},
 			},
 			{
 				name:     "should print the bare scalar and nothing else in raw mode",
 				args:     []string{"is this urgent", "-o", "raw", "--assert", "answer.value > 0.95"},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				wantOut:  "0.9\n",
 			},
 			{
@@ -96,7 +96,7 @@ func TestAsk(t *testing.T) {
 					"--assert", "answer.value > 0.5", "--assert", "answer.value > 0.95",
 				},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				contains: []string{`"assert":false`},
 			},
 			{
@@ -116,7 +116,7 @@ func TestAsk(t *testing.T) {
 					"--assert", "answer.value > 0.95",
 				},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				wantOut: "{\"state\":\"a ticket\",\"answers\":{\"assert\":false," +
 					"\"model\":\"onesie-1.13.0\",\"answer\":{\"value\":0.9}}}\n",
 			},
@@ -126,12 +126,12 @@ func TestAsk(t *testing.T) {
 					"is this urgent", "-o", "json", "--assert", "answer.value > 0.95", "--stats",
 				},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				contains: []string{`"assert":false`},
 				wantErr:  "1 request, 1 fail, 1 question asked",
 			},
 			{
-				name:      "should reject a bad expression before any request",
+				name:      "should refuse a bad expression before any request",
 				args:      []string{"is this urgent", "--assert", "answer.value >"},
 				response:  urgent,
 				wantCode:  cli.ExitUsage,
@@ -140,7 +140,7 @@ func TestAsk(t *testing.T) {
 				noRequest: true,
 			},
 			{
-				name:      "should reject an unknown question before any request",
+				name:      "should refuse an unknown question before any request",
 				args:      []string{"is this urgent", "--assert", "sevrity.value > 0.5"},
 				response:  urgent,
 				wantCode:  cli.ExitUsage,
@@ -149,7 +149,7 @@ func TestAsk(t *testing.T) {
 				noRequest: true,
 			},
 			{
-				name: "should reject a pick value compared with a name that is not an option",
+				name: "should refuse a pick value compared with a name that is not an option",
 				args: []string{
 					"--ask", "a=hi", "--pick", "x,y", "--state", "x", "--assert", `a.value in ["x", "q"]`,
 				},
@@ -193,7 +193,7 @@ func TestAsk(t *testing.T) {
 				name:     "should fail for the constant false",
 				args:     []string{"is this urgent", "-o", "json", "--assert", "false"},
 				response: urgent,
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				contains: []string{`"assert":false`},
 			},
 			{
@@ -282,19 +282,19 @@ func TestAsk(t *testing.T) {
 				name:      "should exit one when the policy accepts and the assertion is false",
 				assertion: fails,
 				response:  routed,
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 			},
 			{
-				name:      "should follow the assertion alone when the policy rejects and the assertion holds",
+				name:      "should follow the assertion alone when the policy says no and the assertion holds",
 				assertion: holds,
 				response:  unsure,
 				wantCode:  cli.ExitOK,
 			},
 			{
-				name:      "should exit one when the policy rejects and the assertion is false",
+				name:      "should exit one when the policy says no and the assertion is false",
 				assertion: fails,
 				response:  unsure,
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 			},
 			{
 				name:      "should exit unavailable when the request failed",
@@ -362,7 +362,7 @@ func TestAsk(t *testing.T) {
 				name:      "should exit one on a no",
 				gate:      fails,
 				abstain:   fails,
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
 				wantStats: "1 request, 1 fail, 1 question asked",
 			},
@@ -417,7 +417,7 @@ func TestAsk(t *testing.T) {
 		}{
 			{
 				name: "should count a yes or no below the threshold", args: []string{"is this urgent"}, response: low,
-				wantCode: cli.ExitRejected, wantStats: "1 request, 1 fail, 1 question asked",
+				wantCode: cli.ExitFail, wantStats: "1 request, 1 fail, 1 question asked",
 			},
 			{
 				name: "should count nothing beside a yes or no above the threshold", args: []string{"is this urgent"}, response: urgent,
@@ -425,7 +425,7 @@ func TestAsk(t *testing.T) {
 			},
 			{
 				name: "should count a low confidence pick", args: picked, response: unsure,
-				wantCode: cli.ExitRejected, wantStats: "1 request, 1 fail, 1 question asked",
+				wantCode: cli.ExitFail, wantStats: "1 request, 1 fail, 1 question asked",
 			},
 			{
 				name: "should count nothing beside a confident pick", args: picked, response: routed,
@@ -534,7 +534,7 @@ func TestBuild(t *testing.T) {
 			wantCode: cli.ExitOK,
 		},
 		{
-			name:     "should reject a pick under quiet with neither a policy nor an assertion",
+			name:     "should refuse a pick under quiet with neither a policy nor an assertion",
 			args:     []string{"which team", "--pick", "billing,technical", "-q"},
 			wantCode: cli.ExitUsage,
 			wantErr: "onesie: -q on 'answer' needs --min-confidence and --fallback, or --assert. " +
@@ -585,7 +585,7 @@ func TestGateOf(t *testing.T) {
 			name:     "should exit one when the file's assertion is false",
 			file:     "assert: urgent.value > 0.95\n" + question,
 			args:     []string{"-o", "json"},
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			contains: []string{`"assert":false`, `"urgent":{"value":0.9}`},
 		},
 		{
@@ -600,7 +600,7 @@ func TestGateOf(t *testing.T) {
 			name:     "should exit one when the command line's assertion is false",
 			file:     "assert: urgent.value > 0.5\n" + question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.95"},
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			contains: []string{`"assert":false`},
 			wantErr:  "onesie: --assert overrides the question file's assert\n",
 		},
@@ -616,14 +616,14 @@ func TestGateOf(t *testing.T) {
 			name:     "should combine two typed --assert with and",
 			file:     question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5", "--assert", "urgent.value > 0.95"},
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			contains: []string{`"assert":false`},
 		},
 		{
 			name:     "should replace the file's abstain_if with --abstain-if",
 			file:     "assert: urgent.value > 0.95\nabstain_if: urgent.value > 0.5\n" + question,
 			args:     []string{"-o", "json", "--abstain-if", "urgent.value < 0.5"},
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			contains: []string{`"assert":false`},
 			missing:  []string{"abstain"},
 			wantErr:  "onesie: --abstain-if overrides the question file's abstain_if\n",
@@ -704,7 +704,7 @@ func TestGateOf(t *testing.T) {
 			noRequest: true,
 		},
 		{
-			name:      "should reject a file's abstain expression with no assertion anywhere",
+			name:      "should refuse a file's abstain expression with no assertion anywhere",
 			file:      "abstain_if: urgent.value > 0.5\n" + question,
 			wantCode:  cli.ExitUsage,
 			wantErr:   "onesie: 'abstain_if' needs --assert, since without one every record is a yes",
@@ -1044,9 +1044,9 @@ func runStoppedStream(t *testing.T) string {
 		"--assert", "answer.value < 0.5", "--stop-on=fail", "--stats",
 	})
 
-	if code := root.Execute(t.Context()); code != cli.ExitRejected {
+	if code := root.Execute(t.Context()); code != cli.ExitFail {
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s",
-			code, cli.ExitRejected, out.String(), errOut.String())
+			code, cli.ExitFail, out.String(), errOut.String())
 	}
 
 	return errOut.String()

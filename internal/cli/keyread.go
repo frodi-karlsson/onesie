@@ -71,7 +71,7 @@ func firstLine(r io.Reader, command string) (string, error) {
 		key = strings.TrimSpace(scanner.Text())
 	} else if err := scanner.Err(); err != nil {
 		// Without this a key over the scanner's 64KiB cap leaves the first Scan empty and the loop
-		// below hands back the remainder, which reads as a second line and is rejected as one.
+		// below hands back the remainder, which reads as a second line and is refused as one.
 		return "", fmt.Errorf("reading the key from stdin: %w", err)
 	}
 

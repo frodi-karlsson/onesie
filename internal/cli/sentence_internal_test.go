@@ -30,15 +30,15 @@ func TestSentence(t *testing.T) {
 		want  string
 	}{
 		{
-			name:  "should say the key was rejected for a 401 with no body",
+			name:  "should say the key was refused for a 401 with no body",
 			cause: refusal(typesafe, http.StatusUnauthorized, ""),
-			want:  "the key was rejected, status 401",
+			want:  "the key was refused, status 401",
 		},
 		{
 			name: "should keep the provider's words and name the key's variable for a refused key",
 			cause: keyHint(refusal(typesafe, http.StatusUnauthorized,
 				`{"error":{"message":"Cannot authenticate with the server. Please check your API key and try again."}}`), fromEnv),
-			want: "the key was rejected, status 401. Cannot authenticate with the server. Please check your API key " +
+			want: "the key was refused, status 401. Cannot authenticate with the server. Please check your API key " +
 				"and try again. The key came from TYPESAFE_API_KEY",
 		},
 		{
@@ -46,24 +46,24 @@ func TestSentence(t *testing.T) {
 			cause: keyHint(refusal(onesie.OpenRouter(), http.StatusUnauthorized,
 				`{"error":{"message":"No auth credentials found","code":401}}`),
 				resolution{provider: onesie.OpenRouter(), profile: "work"}),
-			want: "the key was rejected, status 401. No auth credentials found. " +
+			want: "the key was refused, status 401. No auth credentials found. " +
 				"Replace the key with onesie profile update 'work' --key",
 		},
 		{
 			name:  "should keep a refused key's text body",
 			cause: keyHint(refusal(typesafe, http.StatusUnauthorized, "bad key\n"), fromEnv),
-			want:  "the key was rejected, status 401. bad key. The key came from TYPESAFE_API_KEY",
+			want:  "the key was refused, status 401. bad key. The key came from TYPESAFE_API_KEY",
 		},
 		{
-			name:  "should say the key was rejected for a 403 with no body",
+			name:  "should say the key was refused for a 403 with no body",
 			cause: refusal(typesafe, http.StatusForbidden, ""),
-			want:  "the key was rejected, status 403",
+			want:  "the key was refused, status 403",
 		},
 		{
-			name: "should say the key was rejected for cloudflare's 400 that refuses the token",
+			name: "should say the key was refused for cloudflare's 400 that refuses the token",
 			cause: refusal(onesie.Cloudflare(), http.StatusBadRequest,
 				`{"success":false,"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}`),
-			want: "the key was rejected, status 400. Authentication failed (status: 400)",
+			want: "the key was refused, status 400. Authentication failed (status: 400)",
 		},
 		{
 			name:  "should say the account is out of credits for a 402",

@@ -31,7 +31,7 @@ func TestWriteRecord(t *testing.T) {
 		{
 			name:     "should open with the assertion that failed",
 			args:     []string{"is this urgent", "-o", "md", "--assert", "answer.value > 0.9"},
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 			want: "> [!CAUTION]\n" +
 				"> **Fail:** `answer.value > 0.9` did not hold.\n" +
 				"\n" +

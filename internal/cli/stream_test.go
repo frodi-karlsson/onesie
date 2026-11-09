@@ -25,12 +25,12 @@ import (
 func TestStream(t *testing.T) {
 	t.Parallel()
 
-	t.Run("should reject invalid header bytes before preview or provider requests", func(t *testing.T) {
+	t.Run("should refuse invalid header bytes before preview or provider requests", func(t *testing.T) {
 		for _, mode := range []string{"csv", "tsv"} {
 			for _, preview := range []bool{false, true} {
-				name := "should reject " + mode + " headers during execution"
+				name := "should refuse " + mode + " headers during execution"
 				if preview {
-					name = "should reject " + mode + " headers during preview"
+					name = "should refuse " + mode + " headers during preview"
 				}
 				t.Run(name, func(t *testing.T) {
 					var requests atomic.Int32
@@ -490,7 +490,7 @@ func TestStream(t *testing.T) {
 				name:      "should print every line and exit one when one assertion is false",
 				args:      []string{"is this urgent", "-i", "lines", "--assert", gate},
 				stdin:     "cold\nhot\ncold\n",
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantLines: 3,
 				wantFalse: 1,
 				contains:  []string{`"answer":{"value":0.9}`, `"answer":{"value":0.1}`},
@@ -509,7 +509,7 @@ func TestStream(t *testing.T) {
 					"is this urgent", "-i", "lines", "--assert", gate, "--stats", "--no-dedup",
 				},
 				stdin:     "cold\nhot\ncold\n",
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantLines: 3,
 				wantFalse: 1,
 				wantErr:   "3 records, 1 fail, 3 requests, 3 questions",
@@ -520,7 +520,7 @@ func TestStream(t *testing.T) {
 					"is this urgent", "-i", "lines", "--assert", gate, "--stats",
 				},
 				stdin:     "hot\ncold\nhot\n",
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantLines: 3,
 				wantFalse: 2,
 				wantErr:   "3 records, 1 deduplicated, 2 fail, 2 requests, 2 questions",
@@ -560,7 +560,7 @@ func TestStream(t *testing.T) {
 					"is this urgent", "-i", "lines", "--assert", gate, "--stop-on=fail",
 				},
 				stdin:     "cold\nhot\ncold\n",
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantLines: 2,
 				wantFalse: 1,
 			},
@@ -571,7 +571,7 @@ func TestStream(t *testing.T) {
 					"--stop-on=fail", "--unordered",
 				},
 				stdin:     "cold\nhot\ncold\n",
-				wantCode:  cli.ExitRejected,
+				wantCode:  cli.ExitFail,
 				wantLines: 2,
 				wantFalse: 1,
 			},
@@ -1473,7 +1473,7 @@ func TestStream(t *testing.T) {
 					"--stop-on=fail",
 				},
 				stdin:    "site down\nslow\nfine\n",
-				wantCode: cli.ExitRejected,
+				wantCode: cli.ExitFail,
 				want: "| `answer` | gate | error |\n" +
 					"|---|---|---|\n" +
 					"| 0.5 | fail | |\n" +
@@ -1771,7 +1771,7 @@ func TestWriteMerged(t *testing.T) {
 				requests: 1,
 			},
 			{
-				name:     "should reject a taken merge key before any request",
+				name:     "should refuse a taken merge key before any request",
 				args:     []string{"is this urgent", "-i", "json", "--merge"},
 				stdin:    `{"answers":1}`,
 				wantCode: cli.ExitUsage,

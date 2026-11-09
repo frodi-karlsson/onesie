@@ -24,47 +24,47 @@ func TestValidate(t *testing.T) {
 			skill: skillgen.Skill{Name: "my-skill", Description: "does a thing"},
 		},
 		{
-			name:    "should reject a name that does not match the directory",
+			name:    "should refuse a name that does not match the directory",
 			skill:   skillgen.Skill{Name: "other-name", Description: "does a thing"},
 			wantErr: "name 'other-name' must equal the directory name 'my-skill'",
 		},
 		{
-			name:  "should reject a name over 64 characters",
+			name:  "should refuse a name over 64 characters",
 			skill: skillgen.Skill{Name: strings.Repeat("a", 65), Description: "does a thing"},
 			wantErr: "name '" + strings.Repeat("a", 65) +
 				"' must be at most 64 characters",
 		},
 		{
-			name:  "should reject a name with an uppercase letter",
+			name:  "should refuse a name with an uppercase letter",
 			skill: skillgen.Skill{Name: "My-Skill", Description: "does a thing"},
 			wantErr: "name 'My-Skill' must be lowercase letters, digits and " +
 				"single hyphens, with no leading, trailing or consecutive hyphen",
 		},
 		{
-			name:  "should reject a name with a leading hyphen",
+			name:  "should refuse a name with a leading hyphen",
 			skill: skillgen.Skill{Name: "-my-skill", Description: "does a thing"},
 			wantErr: "name '-my-skill' must be lowercase letters, digits and " +
 				"single hyphens, with no leading, trailing or consecutive hyphen",
 		},
 		{
-			name:  "should reject a name with a trailing hyphen",
+			name:  "should refuse a name with a trailing hyphen",
 			skill: skillgen.Skill{Name: "my-skill-", Description: "does a thing"},
 			wantErr: "name 'my-skill-' must be lowercase letters, digits and " +
 				"single hyphens, with no leading, trailing or consecutive hyphen",
 		},
 		{
-			name:  "should reject a name with consecutive hyphens",
+			name:  "should refuse a name with consecutive hyphens",
 			skill: skillgen.Skill{Name: "my--skill", Description: "does a thing"},
 			wantErr: "name 'my--skill' must be lowercase letters, digits and " +
 				"single hyphens, with no leading, trailing or consecutive hyphen",
 		},
 		{
-			name:    "should reject a missing name",
+			name:    "should refuse a missing name",
 			skill:   skillgen.Skill{Description: "does a thing"},
 			wantErr: "name is required",
 		},
 		{
-			name:    "should reject an empty name",
+			name:    "should refuse an empty name",
 			skill:   skillgen.Skill{Name: "", Description: "does a thing"},
 			wantErr: "name is required",
 		},
@@ -75,32 +75,32 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a blank allowed_tools",
+			name:    "should refuse a blank allowed_tools",
 			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", AllowedTools: "  "},
 			wantErr: "allowed_tools must not be blank, leave it out instead",
 		},
 		{
-			name:    "should reject an argument_hint over one line",
+			name:    "should refuse an argument_hint over one line",
 			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", ArgumentHint: "[a]\n[b]"},
 			wantErr: "argument_hint must be one line",
 		},
 		{
-			name:    "should reject an argument_hint over 1024 characters",
+			name:    "should refuse an argument_hint over 1024 characters",
 			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", ArgumentHint: strings.Repeat("a", 1025)},
 			wantErr: "argument_hint must be at most 1024 characters",
 		},
 		{
-			name:    "should reject a control character in allowed_tools",
+			name:    "should refuse a control character in allowed_tools",
 			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing", AllowedTools: "Bash\x01"},
 			wantErr: "allowed_tools has a control character",
 		},
 		{
-			name:    "should reject an empty description",
+			name:    "should refuse an empty description",
 			skill:   skillgen.Skill{Name: "my-skill"},
 			wantErr: "description is required",
 		},
 		{
-			name:    "should reject a description over 1024 characters",
+			name:    "should refuse a description over 1024 characters",
 			skill:   skillgen.Skill{Name: "my-skill", Description: strings.Repeat("a", 1025)},
 			wantErr: "description must be at most 1024 characters",
 		},
@@ -111,7 +111,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name:    "should reject a description containing a control character",
+			name:    "should refuse a description containing a control character",
 			skill:   skillgen.Skill{Name: "my-skill", Description: "does a thing\x01"},
 			wantErr: "description has a control character",
 		},
@@ -120,7 +120,7 @@ func TestValidate(t *testing.T) {
 			skill: skillgen.Skill{Name: "my-skill", Description: "does a thing\nwith a\ttab"},
 		},
 		{
-			name: "should reject a metadata value containing a control character",
+			name: "should refuse a metadata value containing a control character",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Metadata: map[string]string{"version": "0.1.0\x01"},
@@ -128,7 +128,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "metadata 'version' has a control character",
 		},
 		{
-			name: "should reject a rule missing id",
+			name: "should refuse a rule missing id",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{Short: "do it", Why: "because"}},
@@ -136,7 +136,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0]: id is required",
 		},
 		{
-			name: "should reject a rule missing short",
+			name: "should refuse a rule missing short",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{ID: "r1", Why: "because"}},
@@ -144,7 +144,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': short is required",
 		},
 		{
-			name: "should reject a rule missing why",
+			name: "should refuse a rule missing why",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{ID: "r1", Short: "do it"}},
@@ -152,7 +152,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': why is required",
 		},
 		{
-			name: "should reject a rule with a whitespace only why",
+			name: "should refuse a rule with a whitespace only why",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "   "}},
@@ -160,7 +160,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': why is required",
 		},
 		{
-			name: "should reject a rule short containing a control character",
+			name: "should refuse a rule short containing a control character",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{ID: "r1", Short: "do it\x01", Why: "because"}},
@@ -168,7 +168,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': short has a control character",
 		},
 		{
-			name: "should reject a rule why containing a control character",
+			name: "should refuse a rule why containing a control character",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{{ID: "r1", Short: "do it", Why: "because\x01"}},
@@ -176,7 +176,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': why has a control character",
 		},
 		{
-			name: "should reject two rules sharing an id",
+			name: "should refuse two rules sharing an id",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{
@@ -250,7 +250,7 @@ func TestValidate(t *testing.T) {
 			},
 		},
 		{
-			name: "should reject a rule setting both bad_passes and bad_unverifiable",
+			name: "should refuse a rule setting both bad_passes and bad_unverifiable",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{
@@ -263,7 +263,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': bad_passes and bad_unverifiable contradict, keep one",
 		},
 		{
-			name: "should reject a rule setting both good_fails and good_unverifiable",
+			name: "should refuse a rule setting both good_fails and good_unverifiable",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Rules: []skillgen.Rule{
@@ -276,14 +276,14 @@ func TestValidate(t *testing.T) {
 			wantErr: "rules[0] 'r1': good_fails and good_unverifiable contradict, keep one",
 		},
 		{
-			name: "should reject an intro entry naming a file that does not exist",
+			name: "should refuse an intro entry naming a file that does not exist",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing", Intro: "intro.md",
 			},
 			wantErr: "intro 'intro.md' does not exist",
 		},
 		{
-			name: "should reject a sections entry naming a file that does not exist",
+			name: "should refuse a sections entry naming a file that does not exist",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Sections: []string{"sections/missing.md"},
@@ -291,7 +291,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "sections[0] 'sections/missing.md' does not exist",
 		},
 		{
-			name: "should reject a references entry naming a file that does not exist",
+			name: "should refuse a references entry naming a file that does not exist",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				References: []string{"references/missing.md"},
@@ -299,7 +299,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "references[0] 'references/missing.md' does not exist",
 		},
 		{
-			name: "should reject an empty sections entry",
+			name: "should refuse an empty sections entry",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Sections: []string{""},
@@ -307,7 +307,7 @@ func TestValidate(t *testing.T) {
 			wantErr: "sections[0] '' must be a relative path inside the skill directory",
 		},
 		{
-			name: "should reject a sections entry naming a directory",
+			name: "should refuse a sections entry naming a directory",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Sections: []string{"sections"},
@@ -316,7 +316,7 @@ func TestValidate(t *testing.T) {
 			wantErr:  "sections[0] 'sections' must be a regular file",
 		},
 		{
-			name: "should reject a sections entry that escapes the skill directory",
+			name: "should refuse a sections entry that escapes the skill directory",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Sections: []string{"../outside.md"},
@@ -332,7 +332,7 @@ func TestValidate(t *testing.T) {
 			wantFiles: []string{"intro.md", "sections/policy.md"},
 		},
 		{
-			name: "should reject a sections entry listed twice",
+			name: "should refuse a sections entry listed twice",
 			skill: skillgen.Skill{
 				Name: "my-skill", Description: "does a thing",
 				Sections: []string{"sections/a.md", "sections/a.md"},
@@ -419,7 +419,7 @@ func TestLoad(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject an unknown field", func(t *testing.T) {
+	t.Run("should refuse an unknown field", func(t *testing.T) {
 		t.Parallel()
 
 		dir := filepath.Join(t.TempDir(), "my-skill")
@@ -445,7 +445,7 @@ func TestLoad(t *testing.T) {
 		}
 	})
 
-	t.Run("should reject trailing content after the skill object", func(t *testing.T) {
+	t.Run("should refuse trailing content after the skill object", func(t *testing.T) {
 		t.Parallel()
 
 		dir := filepath.Join(t.TempDir(), "my-skill")

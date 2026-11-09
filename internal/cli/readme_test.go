@@ -137,8 +137,8 @@ func TestReadme(t *testing.T) {
 		}
 
 		_, errOut, code := runReadme(t, "", "-f", "shell-safety", "-q", "--state", "rm -rf /", "--mock", mock)
-		if code != cli.ExitRejected {
-			t.Errorf("exit code = %d, want %d for the blocked branch\nstderr:\n%s", code, cli.ExitRejected, errOut)
+		if code != cli.ExitFail {
+			t.Errorf("exit code = %d, want %d for the blocked branch\nstderr:\n%s", code, cli.ExitFail, errOut)
 		}
 	})
 

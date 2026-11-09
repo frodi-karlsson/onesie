@@ -67,7 +67,7 @@ func TestNewFieldWriter(t *testing.T) {
 			})
 		}
 	})
-	t.Run("should reject invalid rows before writing bytes", func(t *testing.T) {
+	t.Run("should refuse invalid rows before writing bytes", func(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
@@ -76,13 +76,13 @@ func TestNewFieldWriter(t *testing.T) {
 			comma rune
 			row   []string
 		}{
-			{"should reject no fields", CSV, 0, nil},
-			{"should reject no tsv fields", TSV, 0, nil},
-			{"should reject one empty tsv field", TSV, 0, []string{""}},
-			{"should reject a tsv tab", TSV, 0, []string{"valid", "a\tb"}},
-			{"should reject a tsv line feed", TSV, 0, []string{"valid", "a\nb"}},
-			{"should reject other modes", JSON, 0, []string{"x"}},
-			{"should reject invalid csv separators for an empty cell", CSV, '\n', []string{""}},
+			{"should refuse no fields", CSV, 0, nil},
+			{"should refuse no tsv fields", TSV, 0, nil},
+			{"should refuse one empty tsv field", TSV, 0, []string{""}},
+			{"should refuse a tsv tab", TSV, 0, []string{"valid", "a\tb"}},
+			{"should refuse a tsv line feed", TSV, 0, []string{"valid", "a\nb"}},
+			{"should refuse other modes", JSON, 0, []string{"x"}},
+			{"should refuse invalid csv separators for an empty cell", CSV, '\n', []string{""}},
 		}
 		for _, tc := range tests {
 			t.Run(tc.name, func(t *testing.T) {
@@ -130,7 +130,7 @@ func TestNewFieldWriter(t *testing.T) {
 		t.Parallel()
 
 		for _, mode := range []Mode{CSV, TSV} {
-			t.Run("should reject a short write in "+mode.String(), func(t *testing.T) {
+			t.Run("should refuse a short write in "+mode.String(), func(t *testing.T) {
 				t.Parallel()
 
 				destination := &fieldShortStringWriter{}
