@@ -96,22 +96,22 @@ func TestTokenize(t *testing.T) {
 		},
 		{
 			name:       "should refuse a command carrying a glob",
-			command:    "onesie --state-file data/*.json",
+			command:    "onesie --mock data/*.json",
 			wantReason: "contains a glob",
 		},
 		{
 			name:       "should refuse a command carrying a bare question mark glob",
-			command:    "onesie --state-file data?.json",
+			command:    "onesie --mock data?.json",
 			wantReason: "contains a glob",
 		},
 		{
 			name:       "should refuse a command carrying a brace expansion",
-			command:    "onesie --state-file data/{a,b}.json",
+			command:    "onesie --mock data/{a,b}.json",
 			wantReason: "contains a brace expansion",
 		},
 		{
 			name:       "should refuse a command carrying a home directory expansion",
-			command:    "onesie --state-file ~/data.json",
+			command:    "onesie --mock ~/data.json",
 			wantReason: "contains a home directory expansion",
 		},
 		{

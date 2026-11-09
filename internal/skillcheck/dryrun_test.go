@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+
+	"github.com/frodi-karlsson/onesie/internal/cli"
 )
 
 func TestNewCatalog(t *testing.T) {
@@ -52,8 +54,8 @@ func TestDryRunArgs(t *testing.T) {
 		wantReason string
 	}{
 		{
-			name:   "should strip -o, -r, -q, --usage, --merge and --stats from a command",
-			tokens: []string{"onesie", "--ask", "a=x", "-o", "json", "-r", "-q", "--usage", "--merge", "--stats"},
+			name:   "should strip -o, -q, --usage, --merge and --stats from a command",
+			tokens: []string{"onesie", "--ask", "a=x", "-o", "json", "-q", "--usage", "--merge", "--stats"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
@@ -76,15 +78,15 @@ func TestDryRunArgs(t *testing.T) {
 			want: []string{"--print-request", "--ask", "a=x"},
 		},
 		{
-			name: "should strip -i, -j, -m, --state and --state-file when the dry run is --print-questions",
+			name: "should strip -i, -j, -m and --state when the dry run is --print-questions",
 			tokens: []string{
 				"onesie", "--ask", "a=x", "--assert", "a > 0", "-i", "json", "-j", "4", "-m", "jev-latest",
-				"--state", "s", "--state-file", "f",
+				"--state", "s",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
-			name:   "should leave -i, -j, -m, --state and --state-file alone for --print-request",
+			name:   "should leave -i, -j, -m and --state alone for --print-request",
 			tokens: []string{"onesie", "--ask", "a=x", "-i", "json", "-j", "4", "-m", "jev-latest", "--state", "s"},
 			want: []string{
 				"--print-request",
@@ -92,33 +94,33 @@ func TestDryRunArgs(t *testing.T) {
 			},
 		},
 		{
-			name: "should strip --stop-on-assert regardless of mode, since it is fatal under both",
+			name: "should strip --stop-on regardless of mode, since it is fatal under both",
 			tokens: []string{
-				"onesie", "--ask", "a=x", "--stop-on-assert",
+				"onesie", "--ask", "a=x", "--stop-on=fail",
 			},
 			want: []string{"--print-request", "--ask", "a=x"},
 		},
 		{
-			name: "should strip --stop-on-assert under --print-questions too",
+			name: "should strip --stop-on and its value under --print-questions too",
 			tokens: []string{
-				"onesie", "--ask", "a=x", "--assert", "a > 0", "--stop-on-assert",
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "--stop-on", "error",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
-			name: "should strip --unordered, --stop-on-error and --skip-blank under --print-questions",
+			name: "should strip --unordered and --skip-blank under --print-questions",
 			tokens: []string{
-				"onesie", "--ask", "a=x", "--assert", "a > 0", "--unordered", "--stop-on-error", "--skip-blank",
+				"onesie", "--ask", "a=x", "--assert", "a > 0", "--unordered", "--skip-blank",
 			},
 			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
 		},
 		{
-			name: "should leave --unordered, --stop-on-error and --skip-blank alone for --print-request",
+			name: "should leave --unordered and --skip-blank alone for --print-request",
 			tokens: []string{
-				"onesie", "--ask", "a=x", "--unordered", "--stop-on-error", "--skip-blank",
+				"onesie", "--ask", "a=x", "--unordered", "--skip-blank",
 			},
 			want: []string{
-				"--print-request", "--ask", "a=x", "--unordered", "--stop-on-error", "--skip-blank",
+				"--print-request", "--ask", "a=x", "--unordered", "--skip-blank",
 			},
 		},
 		{
@@ -169,8 +171,8 @@ func TestDryRunArgs(t *testing.T) {
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
-			name:   "should strip a cluster of short boolean flags, as in -rq",
-			tokens: []string{"onesie", "--ask", "a=x", "-rq"},
+			name:   "should strip a cluster of short flags that ends in a value, as in -qojson",
+			tokens: []string{"onesie", "--ask", "a=x", "-qojson"},
 			want:   []string{"--print-request", "--ask", "a=x"},
 		},
 		{
@@ -346,7 +348,7 @@ func TestProvenDryRun(t *testing.T) {
 
 	catalog := testCatalog(t)
 
-	always, _ := testRejected()
+	_, always, _ := cli.DryRunRules()
 
 	strip, err := catalog.named(append(append([]string{}, printFlags...), always...))
 	if err != nil {
@@ -449,51 +451,12 @@ func TestPairingProblem(t *testing.T) {
 func testCatalog(t *testing.T) *Catalog {
 	t.Helper()
 
-	root := &cobra.Command{Use: "onesie"}
-	root.PersistentFlags().String("mock", "", "")
-
-	for _, name := range []string{
-		"ask", "pick", "rate", "desc", "sep", "threshold", "min-confidence", "fallback", "assert", "abstain-if",
-		"state", "state-file", "map", "id", "merge-key", "out",
-	} {
-		root.Flags().String(name, "", "")
-	}
-
-	for _, name := range []string{
-		"box", "usage", "merge", "stats", "stop-on-assert", "resume", "prune", "unordered", "stop-on-error",
-		"skip-blank", "print-request", "print-questions", "cache",
-	} {
-		root.Flags().Bool(name, false, "")
-	}
-
-	root.Flags().StringP("output", "o", "", "")
-	root.Flags().StringP("input", "i", "text", "")
-	root.Flags().IntP("jobs", "j", 1, "")
-	root.Flags().StringP("model", "m", "", "")
-	root.Flags().StringP("file", "f", "", "")
-	root.Flags().BoolP("raw", "r", false, "")
-	root.Flags().BoolP("quiet", "q", false, "")
-
-	calibrate := &cobra.Command{Use: "calibrate"}
-	calibrate.Flags().Bool("offline", false, "")
-	calibrate.Flags().String("label", "", "")
-	root.AddCommand(calibrate)
-
-	always, questionsOnly := testRejected()
-
-	catalog, err := NewCatalog(root, always, questionsOnly)
+	catalog, err := NewCatalog(cli.DryRunRules())
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	return catalog
-}
-
-func testRejected() (always, questionsOnly []string) {
-	return []string{"output", "raw", "quiet", "usage", "merge", "merge-key", "stats", "stop-on-assert", "mock", "cache"},
-		[]string{
-			"input", "jobs", "model", "state", "state-file", "unordered", "stop-on-error", "skip-blank", "map", "id",
-		}
 }
 
 func TestJudgingFlags(t *testing.T) {
