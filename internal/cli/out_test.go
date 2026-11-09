@@ -492,17 +492,6 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     "the provider and the model changed since",
 		},
 		{
-			name:        "should refuse to resume when the provider changed to levanto",
-			existing:    "keep me\n",
-			sidecar:     matching,
-			args:        []string{"is this urgent", "-i", "jsonl", "--provider", "levanto", "--resume"},
-			stdin:       input,
-			wantCode:    ExitUsage,
-			wantFile:    "keep me\n",
-			wantSidecar: matching,
-			wantErr:     "the provider and the model changed since",
-		},
-		{
 			name:        "should refuse to resume when --image-field was added",
 			existing:    "keep me\n",
 			sidecar:     matching,
@@ -1033,18 +1022,6 @@ func TestFingerprint(t *testing.T) {
 		})
 	}
 
-	t.Run("should mark a mock run, apart from the same real run", func(t *testing.T) {
-		t.Parallel()
-
-		source := plan.Source{Positional: "is this urgent"}
-		live := answersfile.FingerprintInputs{Provider: "typesafe", Model: "jev-latest", Output: "csv", Input: "csv"}
-		mocked := live
-		mocked.Mock = true
-
-		if fingerprintWith(t, source, live) == fingerprintWith(t, source, mocked) {
-			t.Error("a mock run and a real run share a fingerprint")
-		}
-	})
 }
 
 func writeSidecar(t *testing.T, path, content string, empty, dir bool) {

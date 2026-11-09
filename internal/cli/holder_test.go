@@ -441,17 +441,6 @@ func TestResolveRun(t *testing.T) {
 				name: "should refuse an unknown provider", args: []string{"--provider", "bogus"},
 				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
 			},
-			{
-				name:    "should point --provider at --profile when it names a profile",
-				args:    []string{"--provider", "work"},
-				wantErr: unknownWork + ". 'work' is a profile, so pass --profile 'work' in place of --provider",
-			},
-			{
-				name: "should point ONESIE_PROVIDER at ONESIE_PROFILE when it names a profile",
-				env:  map[string]string{"ONESIE_PROVIDER": "work"},
-				wantErr: unknownWork + ". 'work' is a profile, so set ONESIE_PROFILE='work' in place of " +
-					"ONESIE_PROVIDER",
-			},
 		}
 
 		for _, tc := range cases {

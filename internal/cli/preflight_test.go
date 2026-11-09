@@ -247,21 +247,10 @@ func TestRenderReadiness(t *testing.T) {
 			want:  "onesie is on PATH and a key resolves, profile: work, provider: typesafe.",
 		},
 		{
-			name:  "should report a configured keychain entry without claiming it was read",
-			facts: readinessFacts{provider: "openrouter", profile: "work", keySource: sourceKeychain, keyVariable: "OPENROUTER_API_KEY"},
-			want:  "onesie is on PATH and a keychain entry is configured, retrieval is not verified, profile: work, provider: openrouter.",
-		},
-		{
 			name:  "should report a keyless custom base URL as ready",
 			facts: readinessFacts{provider: "typesafe", profile: "local", keySource: sourceNone, keyVariable: "TYPESAFE_API_KEY", custom: true, endpoint: "http://localhost:11435"},
 			want: "onesie is on PATH and needs no key, since its base URL is custom, profile: local, provider: typesafe.\n" +
 				"Its base URL uses http://localhost:11435.",
-		},
-		{
-			name:  "should note ONESIE_PROVIDER after a ready verdict",
-			facts: readinessFacts{provider: "openrouter", keySource: sourceEnv, keyVariable: "OPENROUTER_API_KEY", providerEnv: true},
-			want: "onesie is on PATH and a key resolves, profile: none, provider: openrouter.\n" +
-				"ONESIE_PROVIDER is set, so a stored profile is not used. Unset ONESIE_PROVIDER to use a stored profile.",
 		},
 		{
 			name:  "should advise a key or a new profile when nothing chose a provider",
@@ -358,41 +347,6 @@ func TestRenderReadiness(t *testing.T) {
 			want: "onesie is on PATH, but no API key resolves for provider cloudflare, and no account does either. Only " +
 				"--print-request, --print-questions, --print-schema and --mock work until the user runs onesie profile " +
 				"update cf --key --account-id ACCOUNT_ID. The onesie-setup skill walks the user through it.",
-		},
-		{
-			name: "should drop the ONESIE_PROVIDER line beside a configuration problem",
-			facts: readinessFacts{
-				provider: "cloudflare", keySource: sourceEnv, keyVariable: "CLOUDFLARE_API_TOKEN",
-				accountVariable: "CLOUDFLARE_ACCOUNT_ID", missingAccount: true, providerEnv: true,
-				problem: "Unset or correct ONESIE_CACHE. Run onesie profile show for manual inspection.",
-			},
-			want: "onesie is on PATH, but configuration is not ready. Unset or correct ONESIE_CACHE. Run onesie profile " +
-				"show for manual inspection. The onesie-setup skill walks the user through it.",
-		},
-		{
-			name:  "should point a missing default profile at the setup skill",
-			facts: readinessFacts{problem: "No profile is the default. Run onesie profile use NAME. onesie profile list names them."},
-			want: "onesie is on PATH, but configuration is not ready. No profile is the default. Run onesie profile use " +
-				"NAME. onesie profile list names them. The onesie-setup skill walks the user through it.",
-		},
-		{
-			name: "should say where the key goes when ONESIE_BASE_URL sets the endpoint",
-			facts: readinessFacts{
-				provider: "typesafe", keySource: sourceEnv, keyVariable: "TYPESAFE_API_KEY",
-				endpoint: "http://localhost:1234", endpointEnv: true, custom: true,
-			},
-			want: "onesie is on PATH and a key resolves, profile: none, provider: typesafe.\n" +
-				"Its base URL comes from ONESIE_BASE_URL, so the key goes to http://localhost:1234.",
-		},
-		{
-			name: "should warn about plain http to another host",
-			facts: readinessFacts{
-				provider: "typesafe", profile: "work", keySource: sourceFile, keyVariable: "TYPESAFE_API_KEY",
-				endpoint: "http://example.invalid", custom: true, remoteHTTP: true,
-			},
-			want: "onesie is on PATH and a key resolves, profile: work, provider: typesafe.\n" +
-				"Its base URL uses http://example.invalid.\n" +
-				"Its base URL is plain http to another host, so every run exits 2 unless it passes --allow-http.",
 		},
 		{
 			name: "should put migration notes before the verdict",

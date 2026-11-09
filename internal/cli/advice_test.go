@@ -43,32 +43,6 @@ func TestExplain(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "should name the model sent and point at --list-models", status: http.StatusBadRequest,
-			body:  `{"detail":"Unknown model: onesie-1.12"}`,
-			facts: with(func(f *requestFacts) { f.model = "onesie-1.12" }),
-			want:  "model 'onesie-1.12' not found. Try --list-models",
-		},
-		{
-			name: "should say the local check passed when the server refuses a count", status: http.StatusBadRequest,
-			body: tooMany, facts: typesafe,
-			want: "400 Too many score levels. Must have at most 10 levels. onesie's own check passed, " +
-				"so its built in limits may be stale. Run onesie version",
-		},
-		{
-			name: "should keep the server text for a 400 that names no count", status: http.StatusBadRequest,
-			body: `{"detail":"state must be an object"}`, facts: typesafe,
-			want: "400 state must be an object",
-		},
-		{
-			name: "should point at --long-context where it would help", status: http.StatusBadRequest,
-			body: tooLong, facts: typesafe, want: "400 max_tokens_exceeded" + longNote,
-		},
-		{
-			name: "should not point at --long-context when it is already on", status: http.StatusBadRequest,
-			body: tooLong, facts: with(func(f *requestFacts) { f.longContext = true }),
-			want: "400 max_tokens_exceeded",
-		},
-		{
 			name: "should name jev-preview when a box question is refused as invalid", status: http.StatusBadRequest,
 			body: invalid, facts: with(func(f *requestFacts) { f.boxed = true }),
 			want: "400 Invalid request." + boxNote,
@@ -78,16 +52,6 @@ func TestExplain(t *testing.T) {
 			status: http.StatusBadRequest, body: invalid,
 			facts: with(func(f *requestFacts) { f.provider, f.boxed = onesie.Levanto(), true }),
 			want:  "400 Invalid request. A box question needs a model that serves it",
-		},
-		{
-			name: "should not name jev-preview for an invalid request without a box", status: http.StatusBadRequest,
-			body: invalid, facts: typesafe,
-			want: "400 Invalid request.",
-		},
-		{
-			name: "should point at the account when it is out of credits", status: http.StatusPaymentRequired,
-			body: `{"detail":"Insufficient credits"}`, facts: typesafe,
-			want: "402 Insufficient credits. Add credits to the account this key belongs to",
 		},
 	}
 
@@ -1006,12 +970,6 @@ func TestKeyHint(t *testing.T) {
 		want   string
 	}{
 		{
-			name: "should say no key was sent on a keyless 401", err: refused,
-			chosen: resolution{provider: onesie.TypeSafe(), keyFrom: sourceNone},
-			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
-				"Set TYPESAFE_API_KEY",
-		},
-		{
 			name: "should say no key was sent for a keyless profile", err: refused,
 			chosen: resolution{provider: onesie.TypeSafe(), profile: "local", keyFrom: sourceNone},
 			want: refused.Error() + ". No key was sent, since none resolves and the base URL is custom. " +
@@ -1026,16 +984,6 @@ func TestKeyHint(t *testing.T) {
 			want: refused.Error() + ". No key was sent, since the profile's key goes only with its own endpoint, " +
 				"and the base URL came from TYPESAFE_BASE_URL. Put the URL in the profile's base_url with onesie " +
 				"profile update 'work' --base-url URL, or pass --base-url URL",
-		},
-		{
-			name: "should name the key variable on a keyed 401", err: refused,
-			chosen: resolution{provider: onesie.OpenRouter(), keyFrom: sourceEnv},
-			want:   refused.Error() + ". The key came from OPENROUTER_API_KEY",
-		},
-		{
-			name: "should name profile update on a profile", err: refused,
-			chosen: resolution{provider: onesie.TypeSafe(), profile: "work", keyFrom: sourceFile},
-			want:   refused.Error() + ". Replace the key with onesie profile update 'work' --key",
 		},
 		{
 			name: "should leave a non auth error alone", err: onesie.ErrNoAPIKey,

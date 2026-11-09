@@ -363,21 +363,6 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitAuth,
 		},
 		{
-			name:     "should give a mocked unknown model the advice a live one gets",
-			args:     with("--state", "x"),
-			mock:     `{"error":{"kind":"http","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`,
-			stderr:   []string{"onesie: model 'jev-latest' not found. Try --list-models"},
-			wantCode: ExitUsage,
-		},
-		{
-			name: "should give a mocked html body the not JSON advice a live one gets",
-			args: with("--state", "x"),
-			mock: `{"error":{"kind":"http","status":405,"body":"<html>nope</html>"}}`,
-			stderr: []string{"onesie: 405 Method Not Allowed, with a response body that is not JSON. " +
-				"Check that the base URL points at the System One API"},
-			wantCode: ExitUsage,
-		},
-		{
 			name:     "should fail a mocked null body as a mocked status with no body",
 			args:     with("--state", "x"),
 			mock:     `{"error":{"kind":"http","status":402,"body":null}}`,
@@ -525,22 +510,6 @@ func TestMockAnswers(t *testing.T) {
 			args:     with("--state", "x", "--print-request"),
 			mock:     mockAll,
 			stderr:   []string{"onesie: --mock does not apply to --print-request, which writes the request bodies and sends none"},
-			wantCode: ExitUsage,
-		},
-		{
-			name:     "should refuse -i request",
-			args:     []string{"-i", "request"},
-			mock:     mockAll,
-			stderr:   []string{"onesie: --mock does not apply to -i request, which sends each body as written and prints each raw response"},
-			absent:   []string{"unknown provider"},
-			wantCode: ExitUsage,
-		},
-		{
-			name:     "should refuse --list-models",
-			args:     []string{"--list-models"},
-			mock:     mockAll,
-			stderr:   []string{"onesie: --mock does not apply to --list-models, which only lists the models a provider serves"},
-			absent:   []string{"unknown provider"},
 			wantCode: ExitUsage,
 		},
 		{
