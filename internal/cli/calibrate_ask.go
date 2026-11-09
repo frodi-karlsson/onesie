@@ -227,7 +227,7 @@ func reportLabelled(
 	}
 
 	if unmet {
-		return &rejectedError{}
+		return &failError{}
 	}
 
 	return nil

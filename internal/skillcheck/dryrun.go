@@ -77,7 +77,7 @@ func (c *Catalog) named(names []string) ([]flagSpec, error) {
 }
 
 // DryRunArgs turns a tokenized onesie command into the argv of its dry run. It strips the flags a
-// dry run rejects and adds --print-request, or --print-questions for a command with a typed gate or policy.
+// dry run refuses and adds --print-request, or --print-questions for a command with a typed gate or policy.
 func (c *Catalog) DryRunArgs(tokens []string) (args []string, reason string, err error) {
 	if len(tokens) == 0 || tokens[0] != "onesie" {
 		return nil, "is not a onesie invocation", nil
@@ -283,7 +283,7 @@ func matchShortCluster(token string, specs []flagSpec) ([]flagMatch, bool) {
 
 	for i := 0; i < len(body); i++ {
 		spec, found := shortSpec(body[i], specs)
-		// One unrecognised character rejects the whole token, since a partial read cannot be
+		// One unrecognised character refuses the whole token, since a partial read cannot be
 		// trusted to mean what the rest of it says.
 		if !found {
 			return nil, false

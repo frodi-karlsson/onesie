@@ -370,7 +370,7 @@ func (f File) complete() bool {
 }
 
 func (s Store) checkMode(path, kind string, mode os.FileMode) error {
-	// Windows does not carry unix permission bits, so the check would reject every file or accept
+	// Windows does not carry unix permission bits, so the check would refuse every file or accept
 	// every file depending on how the bits happen to be reported.
 	if s.goos == "windows" {
 		return nil

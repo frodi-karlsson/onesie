@@ -209,7 +209,7 @@ type Resolved struct {
 	Wire any
 }
 
-// CheckState rejects a state the API would refuse or the model cannot answer, so a caller holding a
+// CheckState refuses a state the API would refuse or the model cannot answer, so a caller holding a
 // state that never passed through Resolve can still check it.
 func CheckState(value any) error {
 	switch typed := value.(type) {

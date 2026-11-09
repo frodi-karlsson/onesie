@@ -125,7 +125,7 @@ func run(
 	}
 
 	// Before the output mode, because a question file is not an output mode and -o has no meaning
-	// for it. After validation, because a dry run that accepted a plan the real run would reject
+	// for it. After validation, because a dry run that accepted a plan the real run would refuse
 	// would be worse than useless.
 	if setting.Get(flags.merged, setting.PrintQuestions) {
 		out.BindWithoutFingerprint()
@@ -644,7 +644,7 @@ func streamResult(result engine.Result, judged output.Tally) error {
 	// After the errors and before the successful return. A stream carrying both exits 6, since a
 	// record that never answered says more than a gate that answered no.
 	if judged[output.Fail] > 0 {
-		return &rejectedError{}
+		return &failError{}
 	}
 
 	// Last, since a gate that could not decide says less than one that answered no.
@@ -762,9 +762,9 @@ type singleState struct {
 func verdictResult(verdict output.Verdict) error {
 	switch verdict {
 	case output.Fail:
-		// A false assertion is the same statement a policy rejection makes over one answer, so it
+		// A false assertion is the same statement -q makes when it judges one answer no, so it
 		// takes the same error and the same exit code.
-		return &rejectedError{}
+		return &failError{}
 	case output.Unsure:
 		return &abstainError{}
 	default:

@@ -886,7 +886,7 @@ func TestWithKeyHint(t *testing.T) {
 			status:   http.StatusUnauthorized,
 			wantCode: ExitAuth,
 			wantErr:  "onesie: 401 the key was refused. Replace the key with onesie profile update 'work' --key",
-			wantOut: "error: the key was rejected, status 401. the key was refused. " +
+			wantOut: "error: the key was refused, status 401. the key was refused. " +
 				"Replace the key with onesie profile update 'work' --key\n",
 		},
 		{

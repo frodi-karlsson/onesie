@@ -1493,7 +1493,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "-q", "--threshold", "0.95"},
 			stdin:    "the server is down",
 			response: answered,
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 		},
 		{
 			name:     "should reject a state-less invocation, saying the stdin it read was empty",

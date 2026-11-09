@@ -19,8 +19,8 @@ import (
 const (
 	// ExitOK means the question was answered.
 	ExitOK = 0
-	// ExitRejected means a fail: an assertion was false and no abstain expression held, or -q alone judged no.
-	ExitRejected = 1
+	// ExitFail means a fail: an assertion was false and no abstain expression held, or -q alone judged no.
+	ExitFail = 1
 	// ExitUsage means a usage or validation error, or a 4xx response no other exit code claims.
 	ExitUsage = 2
 	// ExitAuth means authentication, permission or payment failed.
@@ -41,7 +41,7 @@ const (
 
 var rootExitCodes = []exitCodeLine{
 	{ExitOK, "answered"},
-	{ExitRejected, "fail: an --assert was false and no --abstain-if held, or under -q alone the answer was judged no"},
+	{ExitFail, "fail: an --assert was false and no --abstain-if held, or under -q alone the answer was judged no"},
 	{ExitUsage, "usage or validation error, including a missing key on the provider's own base URL, or a " +
 		"plain http base URL to another host without --allow-http"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
@@ -57,7 +57,7 @@ var rootExitCodes = []exitCodeLine{
 
 var calibrateExitCodes = []exitCodeLine{
 	{ExitOK, "every record was answered and every --require held"},
-	{ExitRejected, "a --require did not hold"},
+	{ExitFail, "a --require did not hold"},
 	{ExitUsage, "usage or validation error, including a bad label or record"},
 	{ExitAuth, "the key was refused, the account is out of credits, the keychain failed, or profiles.json or " +
 		"credentials.json is exposed. No report prints"},
@@ -152,11 +152,11 @@ func runFailure(err error) (failure, bool) {
 		return failure{kind: output.KindInput, code: stored.freshRunCode()}, true
 	}
 
-	var rejected *rejectedError
-	if errors.As(err, &rejected) {
-		// A rejection is carried by the exit code alone. Under -q nothing is printed at all, and a
+	var failed *failError
+	if errors.As(err, &failed) {
+		// A fail is carried by the exit code alone. Under -q nothing is printed at all, and a
 		// false assertion has already printed the record.
-		return failure{kind: output.KindInput, code: ExitRejected, quiet: true}, true
+		return failure{kind: output.KindInput, code: ExitFail, quiet: true}, true
 	}
 
 	var abstained *abstainError
@@ -373,9 +373,9 @@ func (*recordsError) Error() string {
 	return "one or more records ended in an error"
 }
 
-type rejectedError struct{}
+type failError struct{}
 
-func (*rejectedError) Error() string {
+func (*failError) Error() string {
 	return "the answer was judged a fail"
 }
 

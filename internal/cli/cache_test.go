@@ -1041,7 +1041,7 @@ func TestAsk(t *testing.T) {
 					return asker, nil
 				})
 
-			var rejected *rejectedError
+			var rejected *failError
 			if errors.As(err, &rejected) != tc.wantFail || (err != nil && !tc.wantFail) {
 				t.Fatalf("ask = %v, want a rejection %v", err, tc.wantFail)
 			}

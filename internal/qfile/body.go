@@ -47,7 +47,7 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	}
 
 	if value, found := lookup(top, "state"); found {
-		// Present and null is not absent. Validation rejects a null state, and folding the two
+		// Present and null is not absent. Validation refuses a null state, and folding the two
 		// together would hide the mistake.
 		file.State = plain(value)
 		file.HasState = true

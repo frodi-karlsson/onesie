@@ -539,7 +539,7 @@ func envError(row settingrow.Row, variable settingrow.EnvSpec, raw string, err e
 	return &EnvironmentError{Name: variable.Name, Cause: envErrorText(row, variable, raw, err)}
 }
 
-// EnvironmentError identifies the rejected variable without exposing its value.
+// EnvironmentError identifies the refused variable without exposing its value.
 type EnvironmentError struct {
 	Name  string
 	Cause error

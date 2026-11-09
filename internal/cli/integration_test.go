@@ -860,7 +860,7 @@ func TestAssertIntegration(t *testing.T) {
 				"--assert", "urgent.value > 0.5", "-o", "json",
 			},
 			stdin:    calmState,
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			wantKeys: []string{"assert", "urgent"},
 		},
 		{
@@ -873,7 +873,7 @@ func TestAssertIntegration(t *testing.T) {
 				"--assert", "urgent.value > 0.5", "-o", "json",
 			},
 			stdin:    calmState,
-			wantCode: cli.ExitRejected,
+			wantCode: cli.ExitFail,
 			wantKeys: []string{"assert", "urgent"},
 		},
 		{
@@ -904,7 +904,7 @@ func TestAssertIntegration(t *testing.T) {
 				}
 			}
 
-			if tc.wantCode != cli.ExitRejected {
+			if tc.wantCode != cli.ExitFail {
 				return
 			}
 

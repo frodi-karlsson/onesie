@@ -141,7 +141,7 @@ func TestStreamResult(t *testing.T) {
 		},
 		{
 			name:   "should exit one when a fail sits beside an unsure",
-			judged: output.Tally{output.Fail: 1, output.Unsure: 1}, want: ExitRejected,
+			judged: output.Tally{output.Fail: 1, output.Unsure: 1}, want: ExitFail,
 		},
 		{name: "should exit seven when an unsure is all the stream holds", judged: output.Tally{output.Unsure: 2}, want: ExitAbstain},
 		{
@@ -480,7 +480,7 @@ func TestVerdictResult(t *testing.T) {
 	}{
 		{name: "should exit zero for an answer with no gate", verdict: output.Answered, want: ExitOK},
 		{name: "should exit zero for a pass", verdict: output.Pass, want: ExitOK},
-		{name: "should exit one for a fail", verdict: output.Fail, want: ExitRejected},
+		{name: "should exit one for a fail", verdict: output.Fail, want: ExitFail},
 		{name: "should exit seven for an unsure", verdict: output.Unsure, want: ExitAbstain},
 	}
 

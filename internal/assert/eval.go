@@ -125,7 +125,7 @@ func (e *evaluator) resolve(n *pathNode) any {
 
 	f, ok := lookup(segment(n, 1))
 	if !ok {
-		// Check rejects an unknown field before Eval runs, so this is unreachable by design and
+		// Check refuses an unknown field before Eval runs, so this is unreachable by design and
 		// exists only so the lookup is total.
 		return nil
 	}

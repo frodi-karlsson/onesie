@@ -385,7 +385,7 @@ func (o *File) CompactInto(lines []Span, mode output.Mode) {
 
 // Write appends to the file, opening it on the first write.
 func (o *File) Write(p []byte) (int, error) {
-	// A command rejected before its first write leaves the file untouched, and with it the answers
+	// A command refused before its first write leaves the file untouched, and with it the answers
 	// a resume needs.
 	if o.file == nil {
 		if err := o.create(); err != nil {

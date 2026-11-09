@@ -153,7 +153,7 @@ func pinnedStreamRuns() []pinnedRun {
 					"> 4 records: 2 pass, 2 fail.\n" +
 					"\n" +
 					"_`jev-latest`_\n",
-				code: ExitRejected,
+				code: ExitFail,
 			}},
 		},
 		{
@@ -170,7 +170,7 @@ func pinnedStreamRuns() []pinnedRun {
 					"> stopped after 2 records: 1 pass, 1 fail.\n" +
 					"\n" +
 					"_`jev-latest`_\n",
-				code: ExitRejected,
+				code: ExitFail,
 			}},
 		},
 		{
@@ -184,7 +184,7 @@ func pinnedStreamRuns() []pinnedRun {
 					"{\"id\":4,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.9}}\n",
 				stderr: "4 records answered from the mock, 2 fail, 4 questions asked, 0 in / 0 out tokens, " +
 					"model jev-latest, 4 attempts, 10s/attempt, 0s\n",
-				code: ExitRejected,
+				code: ExitFail,
 			}},
 		},
 		{
@@ -194,7 +194,7 @@ func pinnedStreamRuns() []pinnedRun {
 				stdin: pinnedRecords, mock: pinnedByID,
 				stdout: "{\"id\":1,\"model\":\"jev-latest\",\"answer\":{\"value\":0.1}}\n" +
 					"{\"id\":2,\"assert\":false,\"model\":\"jev-latest\",\"answer\":{\"value\":0.8}}\n",
-				code: ExitRejected,
+				code: ExitFail,
 			}},
 		},
 		{

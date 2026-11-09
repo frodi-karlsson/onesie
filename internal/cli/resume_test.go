@@ -409,7 +409,7 @@ func TestResumed(t *testing.T) {
 					"-i", "jsonl", "-o", "values", "--resume", "--stats",
 					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.6",
 				},
-				wantCode:   ExitRejected,
+				wantCode:   ExitFail,
 				wantFile:   "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
 				wantSent:   []string{`{"id":2}`},
 				wantStderr: "1 skipped by --resume, 1 fail, 1 unsure, ",
@@ -425,7 +425,7 @@ func TestResumed(t *testing.T) {
 					"-i", "jsonl", "-o", "values", "--resume", "--stop-on=fail",
 					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
 				},
-				wantCode: ExitRejected,
+				wantCode: ExitFail,
 				wantFile: stored,
 			}},
 		},
@@ -449,7 +449,7 @@ func TestResumed(t *testing.T) {
 			runs: []resumeRun{
 				{
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
-					wantCode: ExitRejected,
+					wantCode: ExitFail,
 					wantFile: strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
@@ -457,7 +457,7 @@ func TestResumed(t *testing.T) {
 					args: []string{
 						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
 					},
-					wantCode:   ExitRejected,
+					wantCode:   ExitFail,
 					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
 					wantStderr: "2 records, 2 skipped by --resume, 2 fail, ",
 				},
@@ -531,7 +531,7 @@ func TestResumed(t *testing.T) {
 				{
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
 					input:    idRecords(1, 1),
-					wantCode: ExitRejected,
+					wantCode: ExitFail,
 					wantFile: "{\"assert\":false,\"answer\":0.5}\n",
 					wantSent: []string{`{"id":1}`},
 				},
@@ -539,7 +539,7 @@ func TestResumed(t *testing.T) {
 					args: []string{
 						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
 					},
-					wantCode:   ExitRejected,
+					wantCode:   ExitFail,
 					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 3),
 					wantSent:   []string{`{"id":2}`, `{"id":3}`},
 					wantStderr: "3 records, 1 skipped by --resume, 3 fail, ",

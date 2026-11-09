@@ -45,7 +45,7 @@ func TestDelimited(t *testing.T) {
 			name:     "should add an assert column and exit 1 on a false assertion",
 			args:     []string{"is this urgent", "-i", "tsv", "-o", "csv", "--assert", "answer.value > 0.9"},
 			stdin:    "body\nsite down\n",
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 			want:     "answer,assert,error\n0.5,false,\n",
 		},
 		{

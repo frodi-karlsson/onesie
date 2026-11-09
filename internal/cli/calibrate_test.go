@@ -1946,7 +1946,7 @@ func TestCalibrateRun(t *testing.T) {
 
 		_, errOut, code := runMocked(t, t.Context(),
 			calibrating(answers, "--resume", "--offline", "--require", "urgent.catches >= 0.9 at 0.5"), urgentSet, nil, nil)
-		if code != ExitRejected || !strings.Contains(errOut, "did not hold: 2/3") {
+		if code != ExitFail || !strings.Contains(errOut, "did not hold: 2/3") {
 			t.Errorf("exit %d, want 1\nstderr:\n%s", code, errOut)
 		}
 	})
@@ -3012,7 +3012,7 @@ func TestCalibrateAnswers(t *testing.T) {
 		{
 			name:     "should name a failing requirement on stderr and exit 1",
 			args:     base(mockFile, "--require", "u.catches >= 0.9", "--require", "u.auc >= 0.5"),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 			stdout:   []string{"u, yes/no: labelled 8"},
 			stderr:   []string{"onesie: 'u.catches >= 0.9' did not hold: 3/4 is 0.75, interval 0.3006 to 0.9544, at cut 0.50\n"},
 			noStderr: []string{"u.auc"},
@@ -3043,7 +3043,7 @@ func TestCalibrateAnswers(t *testing.T) {
 		{
 			name:     "should read the cut from the file's assert without at",
 			args:     base(mockFile, "-o", "json", "--require", "lower(u.catches) >= 0.5"),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 			wantReport: []requireJSON{
 				{Expr: "lower(u.catches) >= 0.5", Value: ptr(0.75), Interval: true, Cut: ptr(0.5)},
 			},
@@ -3052,7 +3052,7 @@ func TestCalibrateAnswers(t *testing.T) {
 			name: "should write null for what a measure lacks, and a reason for no records",
 			args: base(mockFile, "-o", "json", "--require", "u.auc >= 0.5", "--require", "t.agreement >= 0.5",
 				"--require", "u.right_when_flagged >= 0.5 at 0.95"),
-			wantCode: ExitRejected,
+			wantCode: ExitFail,
 			wantReport: []requireJSON{
 				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125)},
 				{Expr: "t.agreement >= 0.5", Held: true, Value: ptr(0.875), Interval: true},
