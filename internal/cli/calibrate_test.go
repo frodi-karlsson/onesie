@@ -26,7 +26,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
 	"github.com/frodi-karlsson/onesie/internal/calibrate"
 	"github.com/frodi-karlsson/onesie/internal/input"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 	"github.com/frodi-karlsson/onesie/internal/plan"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
@@ -539,6 +538,7 @@ func TestReadLabelled(t *testing.T) {
 		wantStates []string
 		wantAsked  []string
 		contains   []string
+		opts       []RootOption
 	}{
 		{
 			name:       "should print one body per labelled jsonl record",
@@ -682,15 +682,17 @@ func TestReadLabelled(t *testing.T) {
 		{
 			name:     "should refuse more records than the cap",
 			args:     jsonl(),
-			stdin:    strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords+1),
+			stdin:    strings.Repeat("{\"body\":\"a\",\"u\":true}\n", 4),
+			opts:     []RootOption{func(s *rootSettings) { s.calibrateCap = 3 }},
 			wantCode: ExitUsage,
-			contains: []string{"onesie: calibrate reads at most 100000 records, and onesie version lists the cap"},
+			contains: []string{"onesie: calibrate reads at most 3 records, and onesie version lists the cap"},
 		},
 		{
 			name:       "should read as many records as the cap",
 			args:       jsonl(),
-			stdin:      strings.Repeat("{\"body\":\"a\",\"u\":true}\n", limits.MaxCalibrateRecords),
-			wantStates: slices.Repeat([]string{`"a"`}, limits.MaxCalibrateRecords),
+			stdin:      strings.Repeat("{\"body\":\"a\",\"u\":true}\n", 3),
+			opts:       []RootOption{func(s *rootSettings) { s.calibrateCap = 3 }},
+			wantStates: slices.Repeat([]string{`"a"`}, 3),
 			wantAsked:  []string{"urgent"},
 		},
 		{
@@ -703,7 +705,7 @@ func TestReadLabelled(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin)
+			out, errOut, code := runOfflineStdin(t, tc.args, tc.stdin, tc.opts...)
 
 			if code != tc.wantCode {
 				t.Fatalf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, tc.wantCode, out, errOut)

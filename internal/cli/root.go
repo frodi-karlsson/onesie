@@ -321,6 +321,7 @@ func defaultSettings(info BuildInfo) rootSettings {
 		readSecret:    func() (string, error) { return readHiddenSecret(os.Stdin) },
 		schemaURL:     schemaURLOf(info),
 		dedupLimit:    limits.MaxDedupRequests,
+		calibrateCap:  limits.MaxCalibrateRecords,
 		readBuiltIn:   questions.Read,
 		builtIns:      questions.Names,
 		transport:     http.DefaultTransport,
@@ -715,6 +716,7 @@ type rootSettings struct {
 	readSecret    func() (string, error)
 	schemaURL     string
 	dedupLimit    int
+	calibrateCap  int
 	readBuiltIn   func(name string) ([]byte, bool)
 	builtIns      func() []string
 	transport     http.RoundTripper

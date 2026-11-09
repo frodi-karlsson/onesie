@@ -2041,7 +2041,7 @@ func runOffline(t *testing.T, args []string) (string, string, int) {
 	return runOfflineStdin(t, args, "")
 }
 
-func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string, int) {
+func runOfflineStdin(t *testing.T, args []string, stdin string, opts ...RootOption) (string, string, int) {
 	t.Helper()
 
 	var out, errOut bytes.Buffer
@@ -2053,11 +2053,13 @@ func runOfflineStdin(t *testing.T, args []string, stdin string) (string, string,
 	// read the developer's own key into these tests.
 	root := NewRootCmd(
 		BuildInfo{Version: "1.2.3"},
-		withKeychain(noKeychain()),
-		WithStdin(strings.NewReader(stdin)),
-		WithStdinTTY(false),
-		WithStdoutTTY(false),
-		WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		append([]RootOption{
+			withKeychain(noKeychain()),
+			WithStdin(strings.NewReader(stdin)),
+			WithStdinTTY(false),
+			WithStdoutTTY(false),
+			WithLookupEnv(lookupFrom(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		}, opts...)...,
 	)
 
 	root.Command.SetOut(&out)
