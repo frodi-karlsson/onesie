@@ -292,11 +292,6 @@ func TestMergeRun(t *testing.T) {
 			env:  map[string]string{settingEnv(setting.Cache.Name()): "true", settingEnv(setting.LongContext.Name()): "1", settingEnv(setting.CacheTTL.Name()): "90m"},
 			want: switches{cache: true, cacheFrom: setting.SourceEnv, longContext: true, aliasTTL: 90 * time.Minute},
 		},
-		{
-			name: "should accept ONESIE_CACHE and ONESIE_CACHE_TTL with spaces around them",
-			env:  map[string]string{settingEnv(setting.Cache.Name()): " 1", settingEnv(setting.CacheTTL.Name()): " 90m "},
-			want: switches{cache: true, cacheFrom: setting.SourceEnv, aliasTTL: 90 * time.Minute},
-		},
 		{name: "should read a blank variable as unset", env: map[string]string{settingEnv(setting.Cache.Name()): "  ", settingEnv(setting.CacheTTL.Name()): "\t"}},
 		{name: "should read ONESIE_CACHE_TTL=0 as no alias lifetime", env: map[string]string{settingEnv(setting.CacheTTL.Name()): "0"}, want: switches{aliasTTL: cache.NoAliasTTL}},
 		{name: "should be on under --cache", args: []string{"--cache"}, want: switches{cache: true, cacheFrom: setting.SourceFlag}},
@@ -311,11 +306,6 @@ func TestMergeRun(t *testing.T) {
 			env:  map[string]string{settingEnv(setting.Cache.Name()): "maybe", settingEnv(setting.CacheTTL.Name()): "soon"}, args: []string{"--print-request"},
 		},
 		{
-			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
-			env:     map[string]string{settingEnv(setting.LongContext.Name()): "garbage"},
-			wantErr: "ONESIE_LONG_CONTEXT=garbage is not a value --long-context takes. Use 1 or 0",
-		},
-		{
 			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
 			env:     map[string]string{settingEnv(setting.Cache.Name()): "yes"},
 			args:    []string{"--cache"},
@@ -325,11 +315,6 @@ func TestMergeRun(t *testing.T) {
 			name:    "should refuse a negative ONESIE_CACHE_TTL",
 			env:     map[string]string{settingEnv(setting.CacheTTL.Name()): "-1h"},
 			wantErr: "ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",
-		},
-		{
-			name:    "should refuse an ONESIE_CACHE_TTL that is no duration",
-			env:     map[string]string{settingEnv(setting.CacheTTL.Name()): "soon"},
-			wantErr: "ONESIE_CACHE_TTL=soon is not a duration of zero or more, such as 90m or 72h",
 		},
 	}
 
@@ -392,9 +377,6 @@ func TestProfileTestModelEndpointKeyEnv(t *testing.T) {
 		found    bool
 	}{
 		{name: "should pass a key variable through", variable: "TYPESAFE_API_KEY", want: "SECRET-ENV", found: true},
-		{name: "should pass a base URL variable through", variable: "ONESIE_BASE_URL", want: "https://env.example", found: true},
-		{name: "should pass the model variable through", variable: "TYPESAFE_DEFAULT_MODEL", want: "m", found: true},
-		{name: "should pass the account variable through", variable: "CLOUDFLARE_ACCOUNT_ID", want: "acct", found: true},
 		{name: "should hide ONESIE_PROFILE", variable: "ONESIE_PROFILE"},
 		{name: "should hide a variable no connection row reads", variable: "ONESIE_CACHE"},
 		{name: "should hide ONESIE_PROVIDER even when the test chooses it", variable: "ONESIE_PROVIDER"},

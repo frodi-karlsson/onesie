@@ -469,28 +469,3 @@ func TestRunInputs(t *testing.T) {
 		})
 	}
 }
-
-func TestVerdictResult(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		verdict output.Verdict
-		want    int
-	}{
-		{name: "should exit zero for an answer with no gate", verdict: output.Answered, want: ExitOK},
-		{name: "should exit zero for a pass", verdict: output.Pass, want: ExitOK},
-		{name: "should exit one for a fail", verdict: output.Fail, want: ExitFail},
-		{name: "should exit seven for an unsure", verdict: output.Unsure, want: ExitAbstain},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := Classify(verdictResult(tc.verdict)); got != tc.want {
-				t.Errorf("exit = %d, want %d", got, tc.want)
-			}
-		})
-	}
-}

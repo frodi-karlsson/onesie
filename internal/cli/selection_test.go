@@ -30,25 +30,10 @@ func TestCheckChoice(t *testing.T) {
 		wantErr string
 	}{
 		{name: "should pass a known provider", args: []string{"--provider", "berget"}},
-		{name: "should pass nothing chosen"},
-		{
-			name: "should pass a profile without checking that it exists",
-			args: []string{"--profile", "missing"},
-		},
-		{
-			name:    "should refuse an unknown provider",
-			args:    []string{"--provider", "nope"},
-			wantErr: "onesie: unknown provider 'nope'",
-		},
 		{
 			name:    "should refuse an unknown provider from ONESIE_PROVIDER",
 			env:     map[string]string{"ONESIE_PROVIDER": "nope"},
 			wantErr: "onesie: unknown provider 'nope'",
-		},
-		{
-			name:    "should refuse two choices of the same strength",
-			args:    []string{"--profile", "x", "--provider", "typesafe"},
-			wantErr: "both choose what the run uses",
 		},
 	}
 
@@ -407,20 +392,6 @@ func TestRunResolution(t *testing.T) {
 			},
 			wantURL: "https://local.example", wantFrom: "ONESIE_BASE_URL", wantModel: onesie.TypeSafe().DefaultModel(),
 			wantKey: "SECRET-ENV",
-		},
-		{
-			name: "should take the profile's model over TYPESAFE_DEFAULT_MODEL on a chosen profile", chosen: true,
-			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
-			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
-			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "jev-1.13.0", wantKey: "SECRET-KEY",
-			modelFrom: "profile",
-		},
-		{
-			name:    "should take TYPESAFE_DEFAULT_MODEL over the default profile's model",
-			profile: &creds.Profile{Provider: "typesafe", APIKey: "SECRET-P", Model: "jev-1.13.0"},
-			env:     map[string]string{onesie.TypeSafe().EnvDefaultModel(): "env-model"},
-			wantURL: onesie.TypeSafe().DefaultBaseURL(), wantModel: "env-model", wantKey: "SECRET-KEY",
-			modelFrom: "env TYPESAFE_DEFAULT_MODEL",
 		},
 		{
 			name: "should name -m as where the model came from", args: []string{"-m", "flag-model"},

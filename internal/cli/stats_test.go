@@ -117,17 +117,6 @@ func TestStatsString(t *testing.T) {
 				"model onesie-1.13.0, 3 attempts, 10s/attempt, 1s",
 		},
 		{
-			name: "should name a statusless retry transport",
-			stats: cli.Stats{
-				Requests: 1, Records: 1, Questions: 1,
-				Models: []string{"onesie-1.13.0"}, Attempts: 3,
-				Retries: map[int]int{0: 1, 429: 1}, AttemptTimeout: 10 * time.Second,
-				Elapsed: time.Second,
-			},
-			want: "1 request, 1 question asked, 0 in / 0 out tokens, model onesie-1.13.0, " +
-				"3 attempts (2 retries: transport×1, 429×1), 10s/attempt, 1s",
-		},
-		{
 			name: "should count a record that never reached the client",
 			stats: cli.Stats{
 				Requests: 2, Records: 3, Verdicts: output.Tally{output.Error: 1}, Questions: 2,

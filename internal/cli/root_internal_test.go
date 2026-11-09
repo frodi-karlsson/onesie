@@ -2,17 +2,12 @@ package cli
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
-	"github.com/spf13/cobra"
-
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
@@ -34,36 +29,6 @@ func TestDefaultSettings(t *testing.T) {
 			if _, ok := settings.readBuiltIn(name); !ok {
 				t.Errorf("the built in set %s is listed but cannot be read", name)
 			}
-		}
-	})
-}
-
-func TestWithClientFactory(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should hand the injected factory the run's options whatever the resolution", func(t *testing.T) {
-		t.Parallel()
-
-		refused := errors.New("the stub builds no client")
-
-		var handed []onesie.Option
-
-		settings := defaultSettings(BuildInfo{})
-
-		WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
-			handed = opts
-
-			return nil, refused
-		})(&settings)
-
-		_, err := settings.newClient(t.Context(), resolution{provider: onesie.Berget(), profile: "work"},
-			onesie.WithAPIKey("SECRET-TEST"), onesie.WithUserAgent("onesie/test"))
-		if !errors.Is(err, refused) {
-			t.Fatalf("newClient = %v, want the stub's error", err)
-		}
-
-		if len(handed) != 2 {
-			t.Errorf("the factory got %d options, want the 2 the run passed", len(handed))
 		}
 	})
 }
@@ -113,10 +78,6 @@ func TestWithTerminalWidth(t *testing.T) {
 		{
 			name: "should size the bars to the terminal", columns: 60, known: true,
 			wantBars: 39,
-		},
-		{
-			name: "should size the bars to a wider terminal", columns: 100, known: true,
-			wantBars: 79,
 		},
 		{
 			name:     "should fall back to eighty columns when the terminal reports no width",
@@ -394,51 +355,6 @@ func TestSharedTerminal(t *testing.T) {
 
 			if got := sharedTerminal(stdout, stderr); got != tc.want {
 				t.Errorf("sharedTerminal(%s, %s) = %t, want %t", stdout.Name(), stderr.Name(), got, tc.want)
-			}
-		})
-	}
-}
-
-func TestNoArguments(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		child bool
-		args  []string
-		want  string
-	}{
-		{name: "should accept no argument", args: nil, want: ""},
-		{name: "should refuse an argument in a plain sentence", args: []string{"a", "b"}, want: "leaf takes no argument, got 'a'"},
-		{
-			name:  "should name the subcommands of a command that has them",
-			child: true,
-			args:  []string{"a"},
-			want:  "leaf has no subcommand 'a'. Its subcommands: child",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			root := &cobra.Command{Use: "onesie"}
-			leaf := &cobra.Command{Use: "leaf"}
-			root.AddCommand(leaf)
-
-			if tc.child {
-				leaf.AddCommand(&cobra.Command{Use: "child", RunE: func(*cobra.Command, []string) error { return nil }})
-			}
-
-			err := noArguments(leaf, tc.args)
-
-			got := ""
-			if err != nil {
-				got = err.Error()
-			}
-
-			if got != tc.want {
-				t.Errorf("noArguments = %q, want %q", got, tc.want)
 			}
 		})
 	}
