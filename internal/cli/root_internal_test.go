@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie/internal/input"
+	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/output"
 )
 
@@ -29,6 +30,14 @@ func TestDefaultSettings(t *testing.T) {
 			if _, ok := settings.readBuiltIn(name); !ok {
 				t.Errorf("the built in set %s is listed but cannot be read", name)
 			}
+		}
+	})
+
+	t.Run("should cap calibrate at the record limit onesie version reports", func(t *testing.T) {
+		t.Parallel()
+
+		if got := defaultSettings(BuildInfo{}).calibrateCap; got != limits.MaxCalibrateRecords {
+			t.Errorf("calibrateCap = %d, want %d", got, limits.MaxCalibrateRecords)
 		}
 	})
 }
