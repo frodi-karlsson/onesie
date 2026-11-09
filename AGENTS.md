@@ -124,7 +124,7 @@ func TestNewRootCmd(t *testing.T) {
 		name string
 	}{
 		{name: "should print help when given no arguments"},
-		{name: "should fail on an unknown command"},
+		{name: "should refuse an unknown command"},
 	}
 
 	for _, tc := range tests {
@@ -136,6 +136,24 @@ func TestNewRootCmd(t *testing.T) {
 func TestRootCmd(t *testing.T) {
 	t.Run("bare invocation prints help", func(t *testing.T) {})
 }
+```
+
+**Do** test a case at the layer that owns it. A parser's edge cases belong to the parser's tests.
+What a user sees, the exit code, stdout and stderr, belongs to the command's tests.
+
+**Don't** repeat a case at a second layer unless it covers something the first cannot. The wiring
+between two layers is such a thing, and one case per wiring path covers it.
+
+**Do** pin a rule that holds for every row of a table with one loop over the table, not one case
+per row.
+
+```go
+// Do
+// settings: one loop refuses every row outside each mode.
+// cli: one corpus line per mode and refused flag, for the exit code and stderr.
+
+// Don't
+// settings, view_test and print_test each refusing --usage beside --print-request.
 ```
 
 ## Writing
