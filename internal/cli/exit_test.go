@@ -317,23 +317,39 @@ func TestAborting(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		status int
-		want   bool
+		name string
+		err  error
+		want bool
 	}{
-		{name: "should abort on a refused key", status: http.StatusUnauthorized, want: true},
-		{name: "should abort on a forbidden key", status: http.StatusForbidden, want: true},
-		{name: "should abort when the account is out of credits", status: http.StatusPaymentRequired, want: true},
-		{name: "should carry on after a bad request", status: http.StatusBadRequest},
-		{name: "should carry on after a server error", status: http.StatusInternalServerError},
+		{name: "should abort on a refused key", err: &onesie.APIError{Status: http.StatusUnauthorized}, want: true},
+		{name: "should abort on a forbidden key", err: &onesie.APIError{Status: http.StatusForbidden}, want: true},
+		{
+			name: "should abort when the account is out of credits",
+			err:  &onesie.APIError{Status: http.StatusPaymentRequired}, want: true,
+		},
+		{
+			name: "should abort on a record the mock file does not answer",
+			err:  fmt.Errorf("record 2: %w", &uncoveredError{}), want: true,
+		},
+		{
+			name: "should abort on a cache the run cannot use",
+			err:  fmt.Errorf("record 1: %w", &cacheRefusedError{err: errors.New("cache dir is shared")}), want: true,
+		},
+		{
+			name: "should abort on a repeated record key",
+			err:  &input.LineError{Line: 3, Err: &repeatedKeyError{cause: errors.New("id 'a' repeats")}}, want: true,
+		},
+		{name: "should carry on after a bad request", err: &onesie.APIError{Status: http.StatusBadRequest}},
+		{name: "should carry on after a server error", err: &onesie.APIError{Status: http.StatusInternalServerError}},
+		{name: "should carry on after a bad input line", err: &input.LineError{Line: 3, Err: errors.New("not json")}},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := aborting(&onesie.APIError{Status: tc.status}); got != tc.want {
-				t.Errorf("aborting(%d) = %v, want %v", tc.status, got, tc.want)
+			if got := aborting(tc.err); got != tc.want {
+				t.Errorf("aborting(%v) = %v, want %v", tc.err, got, tc.want)
 			}
 		})
 	}
