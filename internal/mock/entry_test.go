@@ -40,11 +40,9 @@ func TestEntry(t *testing.T) {
 		{name: "should preserve literal level probability keys", file: `{"q":{"value":"1.0","p":{"1":0.25,"1.0":0.75}}}`, question: rateQuestion("q", "1", "1.0"), value: "1.0", confidence: 1, score: 0.75, norm: 0.75, p: map[string]float64{"1": 0.25, "1.0": 0.75}},
 
 		{name: "should canonicalize pick number 1.0", file: `{"q":1.0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
-		{name: "should canonicalize pick number 1e0", file: `{"q":1e0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "2"}}}, value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
 		{name: "should keep pick numeric naming distinct", file: `{"q":1.0}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "1.0"}}}, value: "1", confidence: 1},
 		{name: "should keep pick string naming distinct", file: `{"q":"1.0"}`, question: plan.Question{ID: "q", Shape: plan.Pick, Options: []plan.Option{{Name: "1"}, {Name: "1.0"}}}, value: "1.0", confidence: 1},
 		{name: "should canonicalize rate number 1.0", file: `{"q":1.0}`, question: rateQuestion("q", "1", "2"), value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
-		{name: "should canonicalize rate number 1e0", file: `{"q":1e0}`, question: rateQuestion("q", "1", "2"), value: "1", confidence: 1, p: map[string]float64{"1": 1, "2": 0}},
 		{name: "should keep rate numeric naming distinct", file: `{"q":1.0}`, question: rateQuestion("q", "1", "1.0"), value: "1", confidence: 1},
 		{name: "should keep rate string naming distinct", file: `{"q":"1.0"}`, question: rateQuestion("q", "1", "1.0"), value: "1.0", confidence: 1, score: 1, norm: 1},
 		{

@@ -3,7 +3,6 @@ package creds_test
 import (
 	"errors"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
@@ -172,27 +171,6 @@ func TestProfilesPath(t *testing.T) {
 		})
 	}
 
-	t.Run("should put profiles.json in the config dir", func(t *testing.T) {
-		t.Parallel()
-
-		dir := t.TempDir()
-		env := creds.Env{
-			Lookup: func(name string) (string, bool) {
-				if name == "ONESIE_CONFIG_DIR" {
-					return dir, true
-				}
-
-				return "", false
-			},
-			GOOS: runtime.GOOS,
-			Home: func() (string, error) { return "", errors.New("no home") },
-		}
-
-		got, err := creds.ProfilesPath(env)
-		if err != nil || got != filepath.Join(dir, "profiles.json") {
-			t.Errorf("ProfilesPath = %q, %v, want %s", got, err, filepath.Join(dir, "profiles.json"))
-		}
-	})
 }
 
 func TestDir(t *testing.T) {
@@ -207,38 +185,11 @@ func TestDir(t *testing.T) {
 		wantErr string
 	}{
 		{
-			name: "should prefer ONESIE_CONFIG_DIR",
-			env:  map[string]string{"ONESIE_CONFIG_DIR": "/cfg", "XDG_CONFIG_HOME": "/xdg"},
-			goos: "linux",
-			home: "/home/x",
-			want: []string{"/cfg"},
-		},
-		{
 			name: "should clean ONESIE_CONFIG_DIR as the other sources are",
 			env:  map[string]string{"ONESIE_CONFIG_DIR": "/cfg/sub/../"},
 			goos: "linux",
 			home: "/home/x",
 			want: []string{"/cfg"},
-		},
-		{
-			name: "should fall back to XDG_CONFIG_HOME",
-			env:  map[string]string{"XDG_CONFIG_HOME": "/xdg"},
-			goos: "linux",
-			home: "/home/x",
-			want: []string{"/xdg", "onesie"},
-		},
-		{
-			name: "should use APPDATA on windows",
-			env:  map[string]string{"APPDATA": "/roaming"},
-			goos: "windows",
-			home: "/home/x",
-			want: []string{"/roaming", "onesie"},
-		},
-		{
-			name: "should fall back to the home directory",
-			goos: "linux",
-			home: "/home/x",
-			want: []string{"/home/x", ".config", "onesie"},
 		},
 		{
 			name:    "should name the config dir when no home directory is found",

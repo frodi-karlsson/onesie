@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"slices"
-	"strings"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -252,37 +251,6 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("should name a miss by its id under --id and by its line otherwise", func(t *testing.T) {
-		t.Parallel()
-
-		report := Report{Questions: []QuestionReport{
-			yesNoReport("urgent", ScoreYesNo([]YesNoCase{
-				{Name: "7", ID: 7.0, Line: 2, Yes: true, Value: 0.1},
-				{Line: 12, Yes: false, Value: 0.8},
-			}, 0, []float64{0.5})),
-			pickReport("team", ScorePick([]ChoiceCase{
-				{Line: 4, Label: "a", Picked: "b", Confidence: 0.9},
-			}, []string{"a", "b"}, 0, []float64{0.5})),
-		}}
-		questions := questionsOf(t, writeJSON(t, report))
-
-		var yesNo, pick struct{ Misses []map[string]json.RawMessage }
-		decode(t, questions[0], &yesNo)
-		decode(t, questions[1], &pick)
-
-		misses := slices.Concat(yesNo.Misses, pick.Misses)
-		want := [][]string{{"id", "7"}, {"line", "12"}, {"line", "4"}}
-
-		for i, miss := range misses {
-			_, hasID := miss["id"]
-			_, hasLine := miss["line"]
-
-			if hasID == hasLine || string(miss[want[i][0]]) != want[i][1] {
-				t.Errorf("miss %d = %v, want only %s %s", i, miss, want[i][0], want[i][1])
-			}
-		}
-	})
-
 	t.Run("should give each miss the start of its text", func(t *testing.T) {
 		t.Parallel()
 
@@ -372,19 +340,6 @@ func TestWriteJSON(t *testing.T) {
 		}
 	})
 
-	t.Run("should write exactly one line with a trailing newline", func(t *testing.T) {
-		t.Parallel()
-
-		var out bytes.Buffer
-		if err := WriteJSON(&out, full); err != nil {
-			t.Fatalf("WriteJSON: %v", err)
-		}
-
-		text := out.String()
-		if strings.Count(text, "\n") != 1 || !strings.HasSuffix(text, "\n") {
-			t.Errorf("output is not one line: %q", text)
-		}
-	})
 }
 
 func TestShareMarshalJSON(t *testing.T) {

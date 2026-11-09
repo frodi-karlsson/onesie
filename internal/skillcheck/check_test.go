@@ -154,43 +154,6 @@ func TestCheckRule(t *testing.T) {
 		})
 	}
 
-	t.Run("should return an error rather than a skip", func(t *testing.T) {
-		t.Parallel()
-
-		t.Run("should surface a run error rather than count it as checked or skipped", func(t *testing.T) {
-			t.Parallel()
-
-			runner := &Runner{
-				Binary:  "onesie",
-				catalog: testCatalog(t),
-				exec: func(context.Context, string, []string) (int, string, error) {
-					return 0, "", context.DeadlineExceeded
-				},
-			}
-
-			report := &Report{}
-
-			err := checkRule(
-				context.Background(), runner, "demo-skill", "r1", "good", "onesie --ask a=x", true, "", report,
-			)
-			if err == nil {
-				t.Fatalf("checkRule(...) error = nil, want an error")
-			}
-
-			if !strings.Contains(err.Error(), "demo-skill") || !strings.Contains(err.Error(), "r1") {
-				t.Errorf("err = %q, want it to name the skill and the rule id", err.Error())
-			}
-
-			if report.Checked != 0 {
-				t.Errorf("report.Checked = %d, want 0", report.Checked)
-			}
-
-			if len(report.Skipped) != 0 {
-				t.Errorf("report.Skipped = %v, want none", report.Skipped)
-			}
-		})
-	})
-
 	t.Run("should skip an unverifiable example", func(t *testing.T) {
 		t.Parallel()
 

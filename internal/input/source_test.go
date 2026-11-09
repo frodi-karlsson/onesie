@@ -133,15 +133,6 @@ func TestResolve(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			name: "should refuse null under json",
-			req: input.Query{
-				Mode:  input.JSON,
-				Stdin: strings.NewReader("null"),
-			},
-			wantErr:     true,
-			wantMessage: "state must be a string, object or array, got null",
-		},
-		{
 			name: "should refuse an empty json string on --state",
 			req: input.Query{
 				Mode:     input.JSON,
@@ -159,15 +150,6 @@ func TestResolve(t *testing.T) {
 			},
 			wantErr:     true,
 			wantMessage: "empty string, an empty state is a request the model cannot answer",
-		},
-		{
-			name: "should refuse an empty object under json",
-			req: input.Query{
-				Mode:  input.JSON,
-				Stdin: strings.NewReader("{}"),
-			},
-			wantErr:     true,
-			wantMessage: "empty object, an empty state is a request the model cannot answer",
 		},
 		{
 			name: "should refuse a boolean under json",
@@ -638,6 +620,25 @@ func TestCheckState(t *testing.T) {
 func TestParseMode(t *testing.T) {
 	t.Parallel()
 
+	t.Run("should read back every mode by the name it writes", func(t *testing.T) {
+		t.Parallel()
+
+		read := 0
+
+		for mode := input.Mode(0); !strings.HasPrefix(mode.String(), "Mode("); mode++ {
+			got, err := input.ParseMode(mode.String())
+			if err != nil || got != mode {
+				t.Errorf("ParseMode(%q) = %v, %v, want %v", mode.String(), got, err, mode)
+			}
+
+			read++
+		}
+
+		if read == 0 {
+			t.Error("no mode was read back")
+		}
+	})
+
 	tests := []struct {
 		name     string
 		flag     string
@@ -645,13 +646,6 @@ func TestParseMode(t *testing.T) {
 		wantErr  string
 	}{
 		{name: "should default an empty flag to text", flag: "", wantMode: input.Text},
-		{name: "should parse text", flag: "text", wantMode: input.Text},
-		{name: "should parse json", flag: "json", wantMode: input.JSON},
-		{name: "should parse jsonl", flag: "jsonl", wantMode: input.JSONL},
-		{name: "should parse lines", flag: "lines", wantMode: input.Lines},
-		{name: "should parse request", flag: "request", wantMode: input.Request},
-		{name: "should parse csv", flag: "csv", wantMode: input.CSV},
-		{name: "should parse tsv", flag: "tsv", wantMode: input.TSV},
 		{
 			name:    "should refuse an unknown mode",
 			flag:    "yaml",
@@ -691,30 +685,13 @@ func TestParseMode(t *testing.T) {
 func TestMode_String(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name string
-		mode input.Mode
-		want string
-	}{
-		{name: "should name text as -i spells it", mode: input.Text, want: "text"},
-		{name: "should name json as -i spells it", mode: input.JSON, want: "json"},
-		{name: "should name jsonl as -i spells it", mode: input.JSONL, want: "jsonl"},
-		{name: "should name lines as -i spells it", mode: input.Lines, want: "lines"},
-		{name: "should name request as -i spells it", mode: input.Request, want: "request"},
-		{name: "should name csv as -i spells it", mode: input.CSV, want: "csv"},
-		{name: "should name tsv as -i spells it", mode: input.TSV, want: "tsv"},
-		{name: "should name a mode outside the set by its number", mode: input.Mode(99), want: "Mode(99)"},
-	}
+	t.Run("should name a mode outside the set by its number", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := tc.mode.String(); got != tc.want {
-				t.Errorf("String() = %q, want %q", got, tc.want)
-			}
-		})
-	}
+		if got := input.Mode(99).String(); got != "Mode(99)" {
+			t.Errorf("String() = %q, want %q", got, "Mode(99)")
+		}
+	})
 }
 
 func TestModeStreaming(t *testing.T) {

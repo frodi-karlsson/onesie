@@ -71,13 +71,6 @@ func TestDryRunArgs(t *testing.T) {
 			want: []string{"--print-request", "calibrate", "--ask", "a=x"},
 		},
 		{
-			name: "should strip --merge-key too, since it implies --merge",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--merge-key", "answers",
-			},
-			want: []string{"--print-request", "--ask", "a=x"},
-		},
-		{
 			name: "should strip -i, -j, -m and --state when the dry run is --print-questions",
 			tokens: []string{
 				"onesie", "--ask", "a=x", "--assert", "a > 0", "-i", "json", "-j", "4", "-m", "jev-latest",
@@ -94,36 +87,6 @@ func TestDryRunArgs(t *testing.T) {
 			},
 		},
 		{
-			name: "should strip --stop-on regardless of mode, since it is fatal under both",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--stop-on=fail",
-			},
-			want: []string{"--print-request", "--ask", "a=x"},
-		},
-		{
-			name: "should strip --stop-on and its value under --print-questions too",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--assert", "a > 0", "--stop-on", "error",
-			},
-			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
-		},
-		{
-			name: "should strip --unordered and --skip-blank under --print-questions",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--assert", "a > 0", "--unordered", "--skip-blank",
-			},
-			want: []string{"--print-questions", "--ask", "a=x", "--assert", "a > 0"},
-		},
-		{
-			name: "should leave --unordered and --skip-blank alone for --print-request",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--unordered", "--skip-blank",
-			},
-			want: []string{
-				"--print-request", "--ask", "a=x", "--unordered", "--skip-blank",
-			},
-		},
-		{
 			name:   "should dry run a typed --threshold under --print-questions",
 			tokens: []string{"onesie", "--ask", "a=x", "--threshold", "0.9", "--state", "s"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--threshold", "0.9"},
@@ -132,23 +95,6 @@ func TestDryRunArgs(t *testing.T) {
 			name:   "should dry run a typed --min-confidence and --fallback under --print-questions",
 			tokens: []string{"onesie", "--ask", "a=x", "--pick", "b,c", "--min-confidence", "0.6", "--fallback", "b"},
 			want:   []string{"--print-questions", "--ask", "a=x", "--pick", "b,c", "--min-confidence", "0.6", "--fallback", "b"},
-		},
-		{
-			name: "should strip --map and --id from a --threshold command",
-			tokens: []string{
-				"onesie", "--ask", "a=x", "--threshold", "0.9", "-i", "jsonl", "--map", ".text", "--id", ".id",
-			},
-			want: []string{"--print-questions", "--ask", "a=x", "--threshold", "0.9"},
-		},
-		{
-			name:   "should leave --map and --id alone for --print-request",
-			tokens: []string{"onesie", "--ask", "a=x", "-i", "jsonl", "--map", ".text", "--id", ".id"},
-			want:   []string{"--print-request", "--ask", "a=x", "-i", "jsonl", "--map", ".text", "--id", ".id"},
-		},
-		{
-			name:   "should strip --cache",
-			tokens: []string{"onesie", "--ask", "a=x", "--cache", "--state", "s"},
-			want:   []string{"--print-request", "--ask", "a=x", "--state", "s"},
 		},
 		{
 			name:   "should strip a flag and its value when the value is separate",

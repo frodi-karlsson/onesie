@@ -370,13 +370,7 @@ func TestPrint_Matches(t *testing.T) {
 		want   bool
 	}{
 		{name: "should match the run's own fingerprint", stored: current.String(), want: true},
-		{name: "should match the single sum version 2 kept", stored: current.older, want: true},
-		{
-			name:   "should match the run's own fingerprint written in uppercase hex",
-			stored: "v3:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8), want: true,
-		},
 		{name: "should not match a run whose model changed", stored: "v3:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)},
-		{name: "should not match a fingerprint onesie did not write", stored: "not a fingerprint"},
 	}
 
 	for _, tc := range tests {

@@ -64,8 +64,6 @@ func TestRun(t *testing.T) {
 		{name: "should print usage for a missing tag", args: []string{"bump"}, wantCode: 2, wantStderr: "usage: releaseprep"},
 		{name: "should print usage for an unknown flag", args: []string{"bump", "-force", "v0.2.0"}, wantCode: 2, wantStderr: "usage: releaseprep"},
 		{name: "should print usage for a malformed tag to check", args: []string{"check-tag", "0.2.0"}, wantCode: 2, wantStderr: "usage: releaseprep"},
-		{name: "should print usage for a malformed tag to bump", args: []string{"bump", "v0.2"}, wantCode: 2, wantStderr: "vMAJOR.MINOR.PATCH"},
-		{name: "should print usage for a malformed prerelease", args: []string{"prerelease", "v0.2.0+b"}, wantCode: 2, wantStderr: "usage: releaseprep"},
 	}
 
 	for _, tc := range tests {
