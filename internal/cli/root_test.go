@@ -1182,7 +1182,7 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode: cli.ExitUnavailable,
 			contains: []string{
 				`"error"`, `"kind":"response"`, `"status":200`,
-				`"decision":"human"`, `"fallback":"error"`,
+				`"decision":"human"`, `"fallback":"error"`, "the response is not JSON, check the base URL",
 			},
 			absent: []string{`"kind":"transport"`, `"kind":"http"`},
 		},

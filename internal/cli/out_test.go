@@ -57,6 +57,10 @@ func TestOpenOut(t *testing.T) {
 		})
 	}
 	malformed := "does not hold a fingerprint onesie wrote"
+	onAccount := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
+		Provider: "cloudflare", Model: onesie.Cloudflare().DefaultModel(), Output: "values", Input: "jsonl",
+		AccountID: strings.Repeat("a", 32),
+	})
 
 	tests := []struct {
 		name        string
@@ -490,6 +494,31 @@ func TestOpenOut(t *testing.T) {
 			wantFile:    "keep me\n",
 			wantSidecar: matching,
 			wantErr:     "the provider and the model changed since",
+		},
+		{
+			name:        "should refuse to resume when the base URL changed",
+			existing:    "keep me\n",
+			sidecar:     matching,
+			args:        []string{"is this urgent", "-i", "jsonl", "--base-url", "https://proxy.example.com", "--resume"},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: matching,
+			wantErr:     "the base URL changed since",
+		},
+		{
+			name:     "should refuse to resume when the account changed",
+			existing: "keep me\n",
+			sidecar:  onAccount,
+			args:     []string{"is this urgent", "-i", "jsonl", "--provider", "cloudflare", "--resume"},
+			env: map[string]string{
+				onesie.Cloudflare().EnvAccountID(): strings.Repeat("b", 32), onesie.Cloudflare().EnvAPIKey(): "k",
+			},
+			stdin:       input,
+			wantCode:    ExitUsage,
+			wantFile:    "keep me\n",
+			wantSidecar: onAccount,
+			wantErr:     "the cloudflare account changed since",
 		},
 		{
 			name:        "should refuse to resume when --image-field was added",
