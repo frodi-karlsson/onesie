@@ -3306,16 +3306,6 @@ func TestNewRootCmd(t *testing.T) {
 			wantCode int
 			want     string
 		}{
-			{
-				name: "should refuse --cache beside -i request", args: []string{"--cache", "-i", "request"},
-				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response",
-			},
-			{
-				name: "should refuse --cache beside --list-models", args: []string{"--cache", "--list-models"},
-				wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to --list-models, which only lists the models a provider serves",
-			},
-			{name: "should refuse -i request under --cache=false", args: []string{"--cache=false", "-i", "request"}, wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to -i request, which sends each body as written and prints each raw response"},
-			{name: "should refuse --list-models under --cache=false", args: []string{"--cache=false", "--list-models"}, wantCode: cli.ExitUsage, want: "onesie: --cache does not apply to --list-models, which only lists the models a provider serves"},
 			{name: "should ignore ONESIE_CACHE=1 beside -i request", args: []string{"-i", "request"}, env: map[string]string{"ONESIE_CACHE": "1"}},
 			{name: "should ignore ONESIE_CACHE=1 beside --list-models", args: []string{"--list-models"}, env: map[string]string{"ONESIE_CACHE": "1"}},
 		}

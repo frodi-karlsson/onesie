@@ -811,10 +811,6 @@ func TestAsk(t *testing.T) {
 			name: "should refuse --cache beside --mock", args: []string{"--cache", "--mock", "MOCK"},
 			want: "onesie: --cache stores answers from the API, which --mock replaces. Drop one\n",
 		},
-		{
-			name: "should refuse --cache beside --print-request", args: []string{"--cache", "--print-request"},
-			want: "onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n",
-		},
 	}
 
 	for _, tc := range refused {

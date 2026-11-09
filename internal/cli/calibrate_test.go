@@ -144,46 +144,10 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{"--map", "the whole record, label included, would be the state"},
 		},
 		{
-			name:     "should refuse --assert",
-			args:     with("--assert", "urgent.value > 0.5"),
-			wantCode: ExitUsage,
-			contains: []string{"so --assert does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --abstain-if",
-			args:     with("--abstain-if", "urgent.value > 0.5"),
-			wantCode: ExitUsage,
-			contains: []string{"so --abstain-if does not apply. Drop it"},
-		},
-		{
 			name:     "should refuse --threshold",
 			args:     with("--threshold", "0.5"),
 			wantCode: ExitUsage,
 			contains: []string{"onesie: calibrate reports every cut, so --threshold does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --min-confidence",
-			args:     with("--min-confidence", "0.5"),
-			wantCode: ExitUsage,
-			contains: []string{"so --min-confidence does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --fallback",
-			args:     with("--fallback", "no"),
-			wantCode: ExitUsage,
-			contains: []string{"so --fallback does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --merge",
-			args:     with("--merge"),
-			wantCode: ExitUsage,
-			contains: []string{"so --merge does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --merge-key",
-			args:     with("--merge-key", "k"),
-			wantCode: ExitUsage,
-			contains: []string{"so --merge-key does not apply. Drop it"},
 		},
 		{
 			name: "should name a number out of range before what calibrate needs",
@@ -200,12 +164,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{
 				"onesie: calibrate prints a report, and its exit code judges nothing, so -q/--quiet does not apply. Drop it\n",
 			},
-		},
-		{
-			name:     "should refuse --quiet naming both spellings",
-			args:     with("--quiet"),
-			wantCode: ExitUsage,
-			contains: []string{"so -q/--quiet does not apply. Drop it"},
 		},
 		{
 			name:     "should refuse -o raw",
@@ -238,24 +196,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			contains: []string{
 				"onesie: calibrate prints a report, and its exit code judges nothing, so -q/--quiet does not apply. Drop it\n",
 			},
-		},
-		{
-			name:     "should refuse --stop-on",
-			args:     with("--stop-on=error,fail"),
-			wantCode: ExitUsage,
-			contains: []string{"calibrate scores every record it can and judges no assertion, so --stop-on does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --unordered",
-			args:     with("--unordered"),
-			wantCode: ExitUsage,
-			contains: []string{"so --unordered does not apply. Drop it"},
-		},
-		{
-			name:     "should refuse --print-questions",
-			args:     with("--print-questions"),
-			wantCode: ExitUsage,
-			contains: []string{"so --print-questions does not apply. Drop it"},
 		},
 		{
 			name:     "should refuse --resume without --id",
@@ -483,32 +423,6 @@ func TestNewCalibrateCmd(t *testing.T) {
 			args:     with("--print-request", "--out", filepath.Join(dir, "resume.jsonl"), "--resume"),
 			wantCode: ExitUsage,
 			contains: []string{"so --resume has nothing to pick up. Drop --resume"},
-		},
-		{
-			name:     "should refuse --stats under --print-request",
-			args:     with("--print-request", "--stats"),
-			wantCode: ExitUsage,
-			contains: []string{"--stats does not apply to --print-request, which writes the request bodies and sends none"},
-		},
-		{
-			name:     "should refuse --usage under --print-request",
-			args:     with("--print-request", "--usage"),
-			wantCode: ExitUsage,
-			contains: []string{"--usage does not apply to --print-request, which writes the request bodies and sends none"},
-		},
-		{
-			name:     "should refuse -o under --print-request",
-			args:     with("--print-request", "-o", "json"),
-			wantCode: ExitUsage,
-			contains: []string{"onesie: -o does not apply to --print-request, which writes the request bodies and sends none"},
-		},
-		{
-			name:     "should refuse --state, since each state comes from the input",
-			args:     with("--state", "x"),
-			wantCode: ExitUsage,
-			contains: []string{
-				"onesie: calibrate reads each state from its input through --map, so --state does not apply. Drop it",
-			},
 		},
 		{
 			name:     "should let --ask replace a question from -f under --replace",

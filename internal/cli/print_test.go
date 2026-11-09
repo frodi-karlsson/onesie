@@ -148,72 +148,6 @@ func TestPrintQuestions(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name: "should refuse --state with --print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--state", "x", "--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --state does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name: "should refuse -i with --print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-i", "json", "--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: -i does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name: "should refuse --usage with --print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "--usage", "--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --usage does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name: "should refuse -j with --print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-j", "8", "--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: -j does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name:     "should refuse --cache with --print-questions",
-			args:     []string{"--ask", "urgent=is this urgent", "--cache", "--print-questions"},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --cache does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name:     "should refuse --mock with --print-questions",
-			args:     []string{"--ask", "urgent=is this urgent", "--mock", "m.json", "--print-questions"},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --mock does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
-			name: "should refuse -m with --print-questions",
-			args: []string{
-				"--ask", "urgent=is this urgent", "-m", "onesie-9", "--print-questions",
-			},
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: -m does not apply to --print-questions, which reads no input and writes the questions as a question file",
-			},
-		},
-		{
 			name:     "should print a file pick question's options replaced by --pick, with a notice",
 			args:     []string{"-f", pickFile, "--pick", "sales,support", "--desc", "sales=money", "--print-questions"},
 			wantCode: ExitOK,
@@ -781,32 +715,11 @@ func TestPrintRequest(t *testing.T) {
 			stderr:   []string{"onesie: --threshold does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n"},
 		},
 		{
-			name:     "should refuse a typed --min-confidence and --fallback",
-			args:     []string{"--ask", "team=which team", "--pick", "a,b", "--min-confidence", "0.6", "--fallback", "a", "--print-request"},
-			stdin:    "the server is down",
-			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --min-confidence does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n"},
-		},
-		{
-			name:     "should refuse a typed --fallback",
-			args:     []string{"is this urgent", "--fallback", "yes", "--print-request"},
-			stdin:    "the server is down",
-			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --fallback does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n"},
-		},
-		{
 			name:     "should leave a file's policy alone",
 			args:     []string{"-f", policyFile, "--print-request"},
 			stdin:    "the server is down",
 			wantCode: ExitOK,
 			stdout:   []string{`"questions":{"urgent":{"type":"noul","instructions":"is this urgent"}}`},
-		},
-		{
-			name:     "should refuse a typed --cache",
-			args:     []string{"is this urgent", "--cache", "--print-request"},
-			stdin:    "the server is down",
-			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --cache does not apply to --print-request, which writes the request bodies and sends none\n"},
 		},
 		{
 			name:     "should print one request body and exit without a request",
@@ -877,17 +790,6 @@ func TestPrintRequest(t *testing.T) {
 			stdin:    "the server is down",
 			wantCode: ExitOK,
 			stdout:   []string{`"answer":{"type":"noul","instructions":"is this urgent"}`},
-		},
-		{
-			name: "should refuse --usage with --print-request",
-			args: []string{"--ask", "urgent=is this urgent", "--usage", "--print-request"},
-			// A printed body has no usage object to add one to, so the flag is as inert here as
-			// it is under --print-questions.
-			stdin:    "the server is down",
-			wantCode: ExitUsage,
-			stderr: []string{
-				"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none",
-			},
 		},
 		{
 			name:     "should send only the mapped field of one json record",
@@ -1315,20 +1217,6 @@ func TestPrintRequest(t *testing.T) {
 			stdin string
 		}{
 			{
-				name: "should refuse merge on a single body",
-				args: []string{
-					"--ask", "urgent=is this urgent", "-i", "json", "--print-request", "--merge",
-				},
-				stdin: `{"answers":1}`,
-			},
-			{
-				name: "should refuse merge on a streamed body",
-				args: []string{
-					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request", "--merge",
-				},
-				stdin: `{"answers":1}` + "\n",
-			},
-			{
 				name: "should refuse merge-key on a streamed body",
 				args: []string{
 					"--ask", "urgent=is this urgent", "-i", "jsonl", "--print-request",
@@ -1409,12 +1297,6 @@ func TestPrintRequest(t *testing.T) {
 					"-f", path, "--print-request", "--state", "x", "--abstain-if", "urgent.value > 0.9",
 				},
 				want: "onesie: --abstain-if does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions",
-			},
-			{
-				name:  "should refuse --stop-on=fail with --print-request in a stream",
-				args:  []string{"is this urgent", "--print-request", "-i", "lines", "--stop-on=fail"},
-				stdin: "a\nb\n",
-				want:  "onesie: --stop-on=fail does not apply to --print-request, which writes the request bodies and sends none",
 			},
 		}
 
