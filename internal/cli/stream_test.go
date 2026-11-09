@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"io/fs"
 	"math"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"syscall"
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -1514,6 +1516,57 @@ func TestStream(t *testing.T) {
 				t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, cli.ExitRecords, errOut.String())
 			}
 		})
+	})
+
+	t.Run("should exit 0 with nothing on stderr when the consumer stops reading a stream", func(t *testing.T) {
+		t.Parallel()
+
+		for _, mode := range []string{"json", "values", "csv", "tsv"} {
+			t.Run("should stop quietly under -o "+mode, func(t *testing.T) {
+				t.Parallel()
+
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+					if _, err := w.Write([]byte(answered)); err != nil {
+						t.Errorf("writing stub response: %v", err)
+					}
+				}))
+				defer srv.Close()
+
+				var writes atomic.Int32
+
+				closed := writerFunc(func(p []byte) (int, error) {
+					if writes.Add(1) > 1 {
+						return 0, &fs.PathError{Op: "write", Path: "/dev/stdout", Err: syscall.EPIPE}
+					}
+
+					return len(p), nil
+				})
+
+				var errOut bytes.Buffer
+
+				root := cli.NewRootCmd(
+					cli.BuildInfo{Version: "1.2.3"},
+					cli.WithKeychain(offKeychain()),
+					cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+						return onesie.New(append([]onesie.Option{
+							onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL),
+						}, opts...)...)
+					}),
+					cli.WithStdin(strings.NewReader("\"one\"\n\"two\"\n\"three\"\n\"four\"\n")),
+					cli.WithStdinTTY(false),
+					cli.WithStdoutTTY(false),
+					cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+				)
+
+				root.Command.SetOut(closed)
+				root.Command.SetErr(&errOut)
+				root.Command.SetArgs([]string{"is this urgent", "-i", "jsonl", "-o", mode})
+
+				if code := root.Execute(t.Context()); code != cli.ExitOK || errOut.Len() != 0 {
+					t.Errorf("exit code = %d, stderr %q, want exit 0 and nothing", code, errOut.String())
+				}
+			})
+		}
 	})
 
 	t.Run("should rank records by the weighted sum the README recipe gives", func(t *testing.T) {
