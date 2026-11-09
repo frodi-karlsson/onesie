@@ -386,75 +386,38 @@ func TestWrite(t *testing.T) {
 				},
 			},
 			{
-				name: "should reload a tab in a question id",
+				name: "should reload a tab and a carriage return in a question id, an option name and a level label",
 				questions: []plan.Question{
-					{ID: "a\tb", Shape: plan.Noul, Instructions: "is this urgent"},
-				},
-			},
-			{
-				name: "should reload a carriage return in a question id",
-				questions: []plan.Question{
-					{ID: "a\rb", Shape: plan.Noul, Instructions: "is this urgent"},
-				},
-			},
-			{
-				name: "should reload a tab in a pick option name",
-				questions: []plan.Question{
+					{ID: "a\tb\rc", Shape: plan.Noul, Instructions: "is this urgent"},
 					{
 						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
 						Options: []plan.Option{
-							{Name: "bil\tling", Desc: "money"},
+							{Name: "bil\tli\rng", Desc: "money"},
 							{Name: "platform", Desc: "systems"},
 						},
 					},
-				},
-			},
-			{
-				name: "should reload a carriage return in a pick option name",
-				questions: []plan.Question{
-					{
-						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-						Options: []plan.Option{
-							{Name: "bil\rling", Desc: "money"},
-							{Name: "platform", Desc: "systems"},
-						},
-					},
-				},
-			},
-			{
-				name: "should reload a tab in a rate level label",
-				questions: []plan.Question{
 					{
 						ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
 						Levels: []plan.Level{
-							{Label: "ca\tlm", Desc: "nothing"},
+							{Label: "ca\tl\rm", Desc: "nothing"},
 							{Label: "angry", Desc: "everything"},
 						},
 					},
 				},
 			},
 			{
-				name: "should reload a carriage return in a rate level label",
+				name: "should reload a tab and a carriage return in an instruction",
+				questions: []plan.Question{
+					{ID: "urgent", Shape: plan.Noul, Instructions: "col\tvalue\rline two"},
+				},
+			},
+			{
+				name: "should reload a tab and a carriage return in a description",
 				questions: []plan.Question{
 					{
-						ID: "mood", Shape: plan.Rate, Labelled: true, Instructions: "how is it",
-						Levels: []plan.Level{
-							{Label: "ca\rlm", Desc: "nothing"},
-							{Label: "angry", Desc: "everything"},
-						},
+						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
+						Options: []plan.Option{{Name: "billing", Desc: "col\tvalue\rline two"}},
 					},
-				},
-			},
-			{
-				name: "should reload a tab in an instruction",
-				questions: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: "col\tvalue"},
-				},
-			},
-			{
-				name: "should reload a carriage return in an instruction",
-				questions: []plan.Question{
-					{ID: "urgent", Shape: plan.Noul, Instructions: "line one\rline two"},
 				},
 			},
 			{
@@ -505,24 +468,6 @@ func TestWrite(t *testing.T) {
 					{
 						ID: "a\x00b", Shape: plan.Pick, Instructions: "who owns this",
 						Options: []plan.Option{{Name: "bill\x01ing", Desc: "x"}},
-					},
-				},
-			},
-			{
-				name: "should reload a tab in a description",
-				questions: []plan.Question{
-					{
-						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-						Options: []plan.Option{{Name: "billing", Desc: "col\tvalue"}},
-					},
-				},
-			},
-			{
-				name: "should reload a carriage return in a description",
-				questions: []plan.Question{
-					{
-						ID: "team", Shape: plan.Pick, Instructions: "who owns this",
-						Options: []plan.Option{{Name: "billing", Desc: "line one\rline two"}},
 					},
 				},
 			},

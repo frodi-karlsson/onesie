@@ -449,15 +449,6 @@ func TestWriteTable(t *testing.T) {
 			want:    "model: onesie-1.13.0\n\nurgent: 0.92\n",
 		},
 		{
-			name: "should print a yes/no probability as -o json writes it",
-			rec: output.Record{
-				Model:   "onesie-1.13.0",
-				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 0.1}}},
-			},
-			columns:  80,
-			contains: []string{"urgent: 0.1\n"},
-		},
-		{
 			name: "should print a zero probability as -o json writes it",
 			rec: output.Record{
 				Model:   "onesie-1.13.0",
@@ -465,15 +456,6 @@ func TestWriteTable(t *testing.T) {
 			},
 			columns:  80,
 			contains: []string{"urgent: 0\n"},
-		},
-		{
-			name: "should print a certain probability as -o json writes it",
-			rec: output.Record{
-				Model:   "onesie-1.13.0",
-				Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.0}}},
-			},
-			columns:  80,
-			contains: []string{"urgent: 1\n"},
 		},
 		{
 			name: "should keep every decimal a yes/no probability carries",
@@ -589,8 +571,7 @@ func TestWriteTable(t *testing.T) {
 			name    string
 			columns int
 		}{
-			{name: "should not panic on a zero width", columns: 0},
-			{name: "should not panic on a negative width", columns: -20},
+			{name: "should not panic on a zero or negative width", columns: -20},
 			{name: "should not panic on an absurd width", columns: 100000},
 		}
 

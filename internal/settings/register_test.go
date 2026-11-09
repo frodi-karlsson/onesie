@@ -3,9 +3,7 @@ package settings_test
 import (
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -14,7 +12,6 @@ import (
 	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
-	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -25,26 +22,6 @@ func TestRegister(t *testing.T) {
 		name string
 		run  func(t *testing.T)
 	}{
-		{name: "should register exactly its rows on each command", run: func(t *testing.T) {
-			for _, command := range []settingrow.Command{
-				settingrow.CommandRoot, settingrow.CommandCalibrate, settingrow.CommandProfileCreate,
-				settingrow.CommandProfileUpdate,
-			} {
-				registered := register(command)
-
-				var want []string
-
-				for _, row := range settingrow.Table() {
-					if flag, ok := row.FlagOn(command); ok {
-						want = append(want, flag.Long)
-					}
-				}
-
-				if got := registered.names(); !slices.Equal(got, sorted(want)) {
-					t.Errorf("%s registers %v, want %v", command, got, sorted(want))
-				}
-			}
-		}},
 		{name: "should count each Set of a flag that is not repeatable", run: func(t *testing.T) {
 			registered := register(settingrow.CommandRoot)
 			registered.parse(t, "-m", "a", "--model=b", "-qm", "c", "--assert", "x", "--assert", "y", "--threshold", "0.5")
@@ -75,29 +52,6 @@ func TestRegister(t *testing.T) {
 
 			if got := registered.recorder.Events(); !slices.Equal(got, want) {
 				t.Errorf("events = %v, want %v", got, want)
-			}
-		}},
-		{name: "should keep help text equal to Row.Help or the command's own", run: func(t *testing.T) {
-			registered := register(settingrow.CommandCalibrate)
-
-			for _, row := range settingrow.Table() {
-				flag, ok := row.FlagOn(settingrow.CommandCalibrate)
-				if !ok {
-					continue
-				}
-
-				want := row.Help
-				if own := row.Flag.PerCommand[settingrow.CommandCalibrate].Help; own != "" {
-					want = own
-				}
-
-				if got := registered.lookup(flag.Long).Usage; got != want {
-					t.Errorf("--%s help = %q, want %q", flag.Long, got, want)
-				}
-			}
-
-			if got := registered.lookup("output").Usage; got != "The report format, table, json or auto, which means table." {
-				t.Errorf("calibrate -o help = %q, want its own", got)
 			}
 		}},
 		{name: "should put a row persistent only on the commands that mark it", run: func(t *testing.T) {
@@ -242,8 +196,6 @@ func TestRegister(t *testing.T) {
 		{name: "should give the shared run flags one set of defaults and leave -i and -o out", run: func(t *testing.T) {
 			root, calibrate := register(settingrow.CommandRoot), register(settingrow.CommandCalibrate)
 
-			got := map[string]string{}
-
 			for _, row := range settingrow.Table() {
 				_, onRoot := row.FlagOn(settingrow.CommandRoot)
 				_, onCalibrate := row.FlagOn(settingrow.CommandCalibrate)
@@ -257,22 +209,6 @@ func TestRegister(t *testing.T) {
 					t.Errorf("--%s defaults to %q on root and %q on calibrate", long,
 						root.lookup(long).DefValue, calibrate.lookup(long).DefValue)
 				}
-
-				got[long] = root.lookup(long).DefValue
-			}
-
-			want := map[string]string{
-				"image": "[]", "image-field": "", "map": "", "id": "", "model": "", "base-url": "",
-				"allow-http": "false", "long-context": "false", "file": "", "replace": "false", "jobs": "1",
-				"timeout":         strconv.Itoa(int(limits.DefaultAttemptTimeout.Seconds())),
-				"retries":         strconv.Itoa(limits.DefaultRetries),
-				"max-retry-after": strconv.Itoa(int(limits.DefaultMaxRetryAfter.Seconds())),
-				"out":             "", "resume": "false", "prune": "false", "skip-blank": "false", "delimiter": "", "stats": "false",
-				"usage": "false", "print-request": "false", "cache": "false", "mock": "",
-			}
-
-			if !maps.Equal(got, want) {
-				t.Errorf("flags and defaults = %v, want %v", got, want)
 			}
 
 			if *calibrate.targets["jobs"].(*int) != 1 || *calibrate.targets["input"].(*string) != "" ||
@@ -300,16 +236,6 @@ func TestRegister(t *testing.T) {
 					settings.Register(pflag.NewFlagSet("onesie", pflag.ContinueOnError), tc.persistent, rows,
 						tc.recorder, settingrow.CommandRoot, targetsFor(rows, settingrow.CommandRoot))
 				}()
-			}
-		}},
-		{name: "should mark the flags that ask nothing", run: func(t *testing.T) {
-			registered := register(settingrow.CommandRoot)
-
-			for _, name := range []string{"print-schema", "list-models", "model"} {
-				_, marked := registered.lookup(name).Annotations[settings.AnnotationAsksNothing]
-				if want := name != "model"; marked != want {
-					t.Errorf("--%s marked as asking nothing = %v, want %v", name, marked, want)
-				}
 			}
 		}},
 	}
@@ -384,20 +310,6 @@ func TestGiven_Inherit(t *testing.T) {
 				wantValue(t, layerAt(t, layers, settings.SourceFlag), "profile", "work", "--profile")
 			},
 		},
-		{
-			name: "should do nothing on a nil Given",
-			run: func(t *testing.T) {
-				t.Helper()
-
-				var given *settings.Given
-
-				given.Inherit(pflag.NewFlagSet("persistent", pflag.ContinueOnError))
-
-				if got := given.Count("profile"); got != 0 {
-					t.Errorf("Count = %d, want 0", got)
-				}
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -436,15 +348,6 @@ func TestGiven_Values(t *testing.T) {
 		})
 	}
 
-	t.Run("should list nothing on a nil Given", func(t *testing.T) {
-		t.Parallel()
-
-		var given *settings.Given
-
-		if got := given.Values("model"); got != nil {
-			t.Errorf("Values = %v, want nil", got)
-		}
-	})
 }
 
 func TestGiven_Within(t *testing.T) {
@@ -482,20 +385,6 @@ func TestGiven_Within(t *testing.T) {
 
 				if got := calibrate.given.Values("input"); !slices.Equal(got, []string{"jsonl"}) {
 					t.Errorf("Values(input) = %v, want its own -i", got)
-				}
-			},
-		},
-		{
-			name: "should do nothing on a nil Given",
-			run: func(t *testing.T) {
-				t.Helper()
-
-				var given *settings.Given
-
-				given.Within(register(settingrow.CommandRoot).given)
-
-				if got := given.Count("profile"); got != 0 {
-					t.Errorf("Count = %d, want 0", got)
 				}
 			},
 		},

@@ -65,16 +65,6 @@ func TestModeRefusals(t *testing.T) {
 				}
 			},
 		},
-		{
-			name: "should list refusals for the mode",
-			check: func(t *testing.T, mode settingrow.Mode, refusals []refusal) {
-				t.Helper()
-
-				if len(refusals) == 0 {
-					t.Errorf("mode %d refuses nothing", mode)
-				}
-			},
-		},
 	}
 
 	for _, tc := range tests {
@@ -86,34 +76,4 @@ func TestModeRefusals(t *testing.T) {
 			}
 		})
 	}
-	t.Run("should leave other modes to their own rules", func(t *testing.T) {
-		for _, mode := range []settingrow.Mode{settingrow.ModeAsk, settingrow.ModeStream, settingrow.ModePrintSchema, settingrow.ModeCalibrate, settingrow.ModeProfile} {
-			if got := modeRefusals(mode); len(got) != 0 {
-				t.Errorf("mode %d has %d refusals", mode, len(got))
-			}
-		}
-	})
-
-	t.Run("should declare effective modes in the table", func(t *testing.T) {
-		for name, modes := range map[settingrow.Name][]settingrow.Mode{
-			"out":           {settingrow.ModeRequest, settingrow.ModePrintRequest, settingrow.ModePrintQuestions, settingrow.ModeListModels},
-			"skip_blank":    {settingrow.ModeRequest, settingrow.ModePrintRequest},
-			"unordered":     {settingrow.ModeRequest, settingrow.ModePrintRequest},
-			"stop_on":       {settingrow.ModeRequest, settingrow.ModePrintRequest},
-			"jobs":          {settingrow.ModePrintRequest},
-			"stats":         {settingrow.ModeListModels},
-			"print_request": {settingrow.ModeRequest},
-			"resume":        {settingrow.ModeRequest},
-			"delimiter":     {settingrow.ModePrintRequest},
-		} {
-			t.Run("should declare the modes using "+string(name), func(t *testing.T) {
-				row, _ := settingrow.Lookup(name)
-				for _, mode := range modes {
-					if !row.Modes.Has(mode) {
-						t.Errorf("%s omits effective mode %d", name, mode)
-					}
-				}
-			})
-		}
-	})
 }

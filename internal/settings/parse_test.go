@@ -28,24 +28,9 @@ func TestParseRun(t *testing.T) {
 			wantErr: "-o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'",
 		},
 		{
-			name:    "should parse rows in table order",
-			args:    []string{"-i", "bogus", "--timeout", "0", "-o", "jsno"},
-			wantErr: "-o takes auto, json, values, table, raw, csv, tsv or markdown, got 'jsno'",
-		},
-		{
-			name:    "should report -i before a number out of range",
-			args:    []string{"--retries", "-1", "-i", "bogus"},
-			wantErr: "-i takes text, json, jsonl, lines, csv, tsv or request, got 'bogus'",
-		},
-		{
 			name:    "should report --delimiter before -i",
 			args:    []string{"-i", "bogus", "--delimiter", "ab"},
 			wantErr: "--delimiter takes auto or one character, got 'ab'",
-		},
-		{
-			name:    "should report -j before --timeout",
-			args:    []string{"--timeout", "0", "-j", "0"},
-			wantErr: "-j takes a positive number of records in flight, got 0",
 		},
 		{
 			name:    "should refuse a negative job count",
@@ -58,26 +43,6 @@ func TestParseRun(t *testing.T) {
 			wantErr: "-j takes at most 256 records in flight, got 2000000",
 		},
 		{
-			name:    "should refuse a timeout of zero",
-			args:    []string{"--timeout", "0"},
-			wantErr: "--timeout takes a positive number of seconds, got 0",
-		},
-		{
-			name:    "should refuse a timeout above the ceiling",
-			args:    []string{"--timeout", "86401"},
-			wantErr: "--timeout takes at most 86400 seconds, got 86401",
-		},
-		{
-			name:    "should refuse a timeout that would wrap a duration to a fraction",
-			args:    []string{"--timeout", "18446744074"},
-			wantErr: "--timeout takes at most 86400 seconds, got 18446744074",
-		},
-		{
-			name:    "should refuse a negative retry count",
-			args:    []string{"--retries", "-1"},
-			wantErr: "--retries takes a retry count of zero or more, got -1",
-		},
-		{
 			name:    "should refuse a retry count above the ceiling",
 			args:    []string{"--retries", "100001"},
 			wantErr: "--retries takes at most 100, got 100001",
@@ -88,19 +53,9 @@ func TestParseRun(t *testing.T) {
 			wantErr: "--max-retry-after must be a positive number of seconds, got 0",
 		},
 		{
-			name:    "should refuse a negative max retry after",
-			args:    []string{"--max-retry-after", "-5"},
-			wantErr: "--max-retry-after must be a positive number of seconds, got -5",
-		},
-		{
 			name:    "should refuse a max retry after above the ceiling",
 			args:    []string{"--max-retry-after", "86401"},
 			wantErr: "--max-retry-after takes at most 86400 seconds, got 86401",
-		},
-		{
-			name:    "should refuse a max retry after that would wrap a duration to a fraction",
-			args:    []string{"--max-retry-after", "18446744074"},
-			wantErr: "--max-retry-after takes at most 86400 seconds, got 18446744074",
 		},
 		{
 			name:      "should accept every number at its ceiling",

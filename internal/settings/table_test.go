@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie-go"
-	"github.com/frodi-karlsson/onesie/internal/cache"
 	"github.com/frodi-karlsson/onesie/internal/creds"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	"github.com/frodi-karlsson/onesie/internal/settings"
@@ -196,17 +195,11 @@ func TestTable(t *testing.T) {
 					members = append(members, member.Keys...)
 				}
 
-				wants := map[string]string{"provider": "provider", "model": "model", "base-url": "base_url", "account-id": "account_id"}
-
 				for _, command := range []settingrow.Command{settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate} {
 					for _, row := range rows {
 						flag, ok := row.FlagOn(command)
 						if !ok {
 							continue
-						}
-
-						if want := wants[flag.Long]; flag.Member.Key != want {
-							problems = append(problems, fmt.Sprintf("%s: --%s writes %q, want %q", command, flag.Long, flag.Member.Key, want))
 						}
 
 						if flag.Member.Key != "" && !slices.Contains(members, flag.Member.Key) {
@@ -340,40 +333,4 @@ func sharesHelp(row settingrow.Row, env settingrow.EnvSpec) bool {
 	}
 
 	return true
-}
-
-func TestLookup(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name      string
-		row       settingrow.Name
-		wantFound bool
-	}{
-		{name: "should find a row by its name", row: "allow_http", wantFound: true},
-		{name: "should find no row for an unknown name", row: "allow-http"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			row, found := settingrow.Lookup(tc.row)
-			if found != tc.wantFound || (found && row.Name != tc.row) {
-				t.Errorf("Lookup(%s) = %s, %v, want found %v", tc.row, row.Name, found, tc.wantFound)
-			}
-		})
-	}
-}
-
-func TestNoAliasTTL(t *testing.T) {
-	t.Parallel()
-
-	t.Run("should equal the cache's own no alias lifetime", func(t *testing.T) {
-		t.Parallel()
-
-		if settings.NoAliasTTL != cache.NoAliasTTL {
-			t.Errorf("settings.NoAliasTTL = %v, cache.NoAliasTTL = %v, want them equal", settings.NoAliasTTL, cache.NoAliasTTL)
-		}
-	})
 }

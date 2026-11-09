@@ -1,9 +1,9 @@
 package settings
 
-import "time"
+import "github.com/frodi-karlsson/onesie/internal/cache"
 
 // NoAliasTTL disables reading and storing alias cache entries.
-const NoAliasTTL time.Duration = -1
+const NoAliasTTL = cache.NoAliasTTL
 
 func autoOutput(v View) (any, bool) {
 	if name := Get(v.Merged, Output); name != "" && name != "auto" {

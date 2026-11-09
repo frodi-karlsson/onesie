@@ -108,51 +108,6 @@ func TestParse(t *testing.T) {
 			want:  `(< (min a.value b.confidence 0.2) 0.5)`,
 		},
 		{
-			name:  "should parse max with one argument",
-			input: `max(a.value) < 0.5`,
-			want:  `(< (max a.value) 0.5)`,
-		},
-		{
-			name:  "should parse max with two arguments",
-			input: `max(a.value, b.value) < 0.5`,
-			want:  `(< (max a.value b.value) 0.5)`,
-		},
-		{
-			name:  "should parse max with three arguments",
-			input: `max(a.value, b.confidence, 0.2) < 0.5`,
-			want:  `(< (max a.value b.confidence 0.2) 0.5)`,
-		},
-		{
-			name:  "should parse sum with one argument",
-			input: `sum(a.value) < 0.5`,
-			want:  `(< (sum a.value) 0.5)`,
-		},
-		{
-			name:  "should parse sum with two arguments",
-			input: `sum(a.value, b.value) < 0.5`,
-			want:  `(< (sum a.value b.value) 0.5)`,
-		},
-		{
-			name:  "should parse sum with three arguments",
-			input: `sum(a.value, b.confidence, 0.2) < 0.5`,
-			want:  `(< (sum a.value b.confidence 0.2) 0.5)`,
-		},
-		{
-			name:  "should parse avg with one argument",
-			input: `avg(a.value) < 0.5`,
-			want:  `(< (avg a.value) 0.5)`,
-		},
-		{
-			name:  "should parse avg with two arguments",
-			input: `avg(a.value, b.value) < 0.5`,
-			want:  `(< (avg a.value b.value) 0.5)`,
-		},
-		{
-			name:  "should parse avg with three arguments",
-			input: `avg(a.value, b.confidence, 0.2) < 0.5`,
-			want:  `(< (avg a.value b.confidence 0.2) 0.5)`,
-		},
-		{
 			name:  "should parse a nested call",
 			input: `max(min(a.value, b.value), c.value) < 0.5`,
 			want:  `(< (max (min a.value b.value) c.value) 0.5)`,

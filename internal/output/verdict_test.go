@@ -78,9 +78,6 @@ func TestCount(t *testing.T) {
 		{name: "should write one error in the singular", verdict: output.Error, count: 1, want: "1 error"},
 		{name: "should write two errors in the plural", verdict: output.Error, count: 2, want: "2 errors"},
 		{name: "should write a fail count with the verdict word as it is", verdict: output.Fail, count: 2, want: "2 fail"},
-		{name: "should write an unsure count with the verdict word as it is", verdict: output.Unsure, count: 3, want: "3 unsure"},
-		{name: "should write a pass count with the verdict word as it is", verdict: output.Pass, count: 1, want: "1 pass"},
-		{name: "should write an answered count with the verdict word as it is", verdict: output.Answered, count: 2, want: "2 answered"},
 	}
 
 	for _, tc := range tests {

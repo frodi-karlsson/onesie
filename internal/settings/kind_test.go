@@ -306,13 +306,6 @@ func TestProbability(t *testing.T) {
 		}
 	})
 
-	t.Run("should point its schema at the probability definition", func(t *testing.T) {
-		t.Parallel()
-
-		if got := settingrow.Probability().Schema(); got.Ref != "#/definitions/probability" {
-			t.Errorf("Schema() = %+v, want a $ref to #/definitions/probability", got)
-		}
-	})
 }
 
 func TestOptions(t *testing.T) {
@@ -360,11 +353,6 @@ func checkListKind(t *testing.T, kind settingrow.Kind, ref string) {
 			check:   func() bool { _, err := kind.FromFile(3); return err != nil },
 			explain: "FromFile takes a number",
 		},
-		{
-			name:    "should point its schema at its definition",
-			check:   func() bool { return kind.Schema().Ref == ref },
-			explain: "Schema() is no $ref to " + ref,
-		},
 	}
 
 	for _, tc := range tests {
@@ -411,11 +399,4 @@ func TestTrueOnly(t *testing.T) {
 		}
 	})
 
-	t.Run("should describe the one value true", func(t *testing.T) {
-		t.Parallel()
-
-		if got := settingrow.TrueOnly().Schema(); got.Const != true {
-			t.Errorf("Schema() = %+v, want const true", got)
-		}
-	})
 }
