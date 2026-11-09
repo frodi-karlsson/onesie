@@ -1,0 +1,30 @@
+{"id": "t01", "text": "checkout is down for everyone, customers cannot pay", "urgent": true}
+{"id": "t02", "text": "please update the billing address on my invoice", "urgent": false}
+{"id": "t03", "text": "our whole team is locked out after the password reset", "urgent": true}
+{"id": "t04", "text": "how do I export my data to csv", "urgent": false}
+{"id": "t05", "text": "you charged my card three times this morning, I need this reversed today", "urgent": true}
+{"id": "t06", "text": "love the new dark mode, thanks", "urgent": false}
+{"id": "t07", "text": "the api returns 500 on every request since the deploy", "urgent": true}
+{"id": "t08", "text": "can you add a dutch translation at some point", "urgent": false}
+{"id": "t09", "text": "I think someone else logged into my account and changed the email", "urgent": true}
+{"id": "t10", "text": "the dashboard feels a bit slow on mondays", "urgent": false}
+{"id": "t11", "text": "payments webhook stopped firing an hour ago, orders are piling up", "urgent": true}
+{"id": "t12", "text": "where can I find last year's receipts", "urgent": false}
+{"id": "t13", "text": "our production database credentials were posted in a public issue", "urgent": true}
+{"id": "t14", "text": "is there a student discount", "urgent": false}
+{"id": "t15", "text": "the mobile app crashes on launch for all android users", "urgent": true}
+{"id": "t16", "text": "please cancel my subscription at the end of the month", "urgent": false}
+{"id": "t17", "text": "emails to customers are bouncing, we have a launch in two hours", "urgent": true}
+{"id": "t18", "text": "the logo looks blurry on the invoice pdf", "urgent": false}
+{"id": "t19", "text": "a customer says they can see another customer's orders", "urgent": true}
+{"id": "t20", "text": "could you explain the difference between the pro and team plans", "urgent": false}
+{"id": "t21", "text": "sso login fails for our entire company since this morning", "urgent": true}
+{"id": "t22", "text": "the search sometimes misses items with accents", "urgent": false}
+{"id": "t23", "text": "we were billed for 400 seats instead of 40", "urgent": true}
+{"id": "t24", "text": "can I change the date format in reports", "urgent": false}
+{"id": "t25", "text": "file uploads fail intermittently, maybe one in twenty", "urgent": false}
+{"id": "t26", "text": "our account was suspended and our store is offline", "urgent": true}
+{"id": "t27", "text": "the help page link in the footer is broken", "urgent": false}
+{"id": "t28", "text": "exports are taking much longer than usual, we need the report by friday", "urgent": false}
+{"id": "t29", "text": "two factor codes are not arriving and admins cannot log in", "urgent": true}
+{"id": "t30", "text": "please add an option to hide the welcome tour", "urgent": false}

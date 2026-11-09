@@ -1,6 +1,13 @@
 # onesie
 
-Use model judgments in shell scripts. Pipe in text and get a score, a choice or an exit code.
+[![CI](https://github.com/frodi-karlsson/onesie/actions/workflows/ci.yml/badge.svg)](https://github.com/frodi-karlsson/onesie/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/frodi-karlsson/onesie)](https://github.com/frodi-karlsson/onesie/releases)
+[![License](https://img.shields.io/github/license/frodi-karlsson/onesie)](LICENSE)
+[![Go Reference](https://pkg.go.dev/badge/github.com/frodi-karlsson/onesie.svg)](https://pkg.go.dev/github.com/frodi-karlsson/onesie)
+
+Gate scripts and CI on fast, calibrated System One judgments: a score, a choice or an exit code.
+
+![onesie scores a ticket, picks a team, gates on a saved question and calibrates it](.github/assets/demo.gif)
 
 Route a support ticket by naming the teams that can handle it.
 
