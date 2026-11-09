@@ -112,10 +112,7 @@ func decodeOrdered(data []byte) (any, error) {
 
 		// goccy expands an alias as it decodes, so a few hundred bytes of nested aliases would
 		// decode to gigabytes.
-		refusal := &aliases{}
-		ast.Walk(refusal, document.Body)
-
-		if refusal.found {
+		if HoldsAlias(document.Body) {
 			return nil, errors.New("a question file cannot use a YAML alias, since onesie does " +
 				"not expand one. Write the value out in full")
 		}
@@ -191,6 +188,14 @@ func decodeJSONValue(decoder *json.Decoder) (any, error) {
 	default:
 		return tok, nil
 	}
+}
+
+// HoldsAlias reports whether a parsed YAML node holds an alias, which goccy expands as it decodes.
+func HoldsAlias(node ast.Node) bool {
+	found := &aliases{}
+	ast.Walk(found, node)
+
+	return found.found
 }
 
 type aliases struct {

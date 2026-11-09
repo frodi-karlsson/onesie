@@ -24,6 +24,7 @@ import (
 
 	"github.com/goccy/go-yaml"
 	"github.com/goccy/go-yaml/lexer"
+	"github.com/goccy/go-yaml/parser"
 	"github.com/goccy/go-yaml/token"
 	"github.com/santhosh-tekuri/jsonschema/v6"
 
@@ -604,6 +605,12 @@ func plainExponent(doc string) bool {
 func schemaInstance(doc string) (any, bool, bool) {
 	encoded := []byte(doc)
 	if !json.Valid(encoded) {
+		// Refused as the loader refuses it, since decoding expands an alias, and a nested one grows
+		// past any size a question file may have.
+		if holdsAlias(encoded) {
+			return nil, false, false
+		}
+
 		var decoded any
 		if err := yaml.Unmarshal(encoded, &decoded); err != nil {
 			return nil, false, false
@@ -627,6 +634,21 @@ func schemaInstance(doc string) (any, bool, bool) {
 	}
 
 	return instance, false, true
+}
+
+func holdsAlias(data []byte) bool {
+	parsed, err := parser.ParseBytes(data, 0)
+	if err != nil {
+		return false
+	}
+
+	for _, document := range parsed.Docs {
+		if document.Body != nil && qfile.HoldsAlias(document.Body) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func loaderOnlyRule(stderr string) (string, bool) {
