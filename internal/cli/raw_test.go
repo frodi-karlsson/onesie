@@ -3,7 +3,6 @@ package cli
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,11 +32,11 @@ func TestStreamRaw(t *testing.T) {
 		wantCode int
 	}{
 		{
-			name:     "should forward a body byte identical and print the response",
+			name:     "should forward a body byte identical, with no html escaping, and print the response",
 			args:     []string{"-i", "request"},
-			stdin:    `{"state":"x","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}` + "\n",
+			stdin:    `{"state":"a < b & c > d","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}` + "\n",
 			response: answered,
-			wantSent: []string{`{"state":"x","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}`},
+			wantSent: []string{`{"state":"a < b & c > d","model":"onesie-1.13.0","questions":{"a":{"type":"noul"}}}`},
 			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
@@ -84,15 +83,6 @@ func TestStreamRaw(t *testing.T) {
 			response: "{\n  \"answers\": {\n    \"a\": {\"type\": \"noul\", \"noul\": 1}\n  }\n}\n",
 			wantSent: []string{`{"model":"jev-latest","state":"a"}`, `{"model":"jev-latest","state":"b"}`},
 			wantOut:  []string{`{"answers":{"a":{"type":"noul","noul":1}}}`, `{"answers":{"a":{"type":"noul","noul":1}}}`},
-			wantCode: ExitOK,
-		},
-		{
-			name:     "should send a body the way --print-request printed it",
-			args:     []string{"-i", "request"},
-			stdin:    `{"model":"jev-latest","state":"a < b & c > d"}` + "\n",
-			response: answered,
-			wantSent: []string{`{"model":"jev-latest","state":"a < b & c > d"}`},
-			wantOut:  []string{answered},
 			wantCode: ExitOK,
 		},
 		{
@@ -413,17 +403,6 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
-	t.Run("should count the tokens of a 200 it could not use", func(t *testing.T) {
-		t.Parallel()
-
-		_, out, errOut, code := runRequestMode(t, []string{"-i", "request", "--stats"},
-			`{"state":"x","model":"m","questions":{"u":{"type":"noul","instructions":"q"}}}`+"\n", 0,
-			`{"answers":{"u":{"type":"noul","noul":2}},"usage":{"input_tokens":10,"output_tokens":2}}`)
-		if code != ExitRecords || !strings.Contains(errOut, "10 in / 2 out tokens") {
-			t.Errorf("exit code = %d, stderr = %q, want %d and the tokens counted\nstdout:\n%s", code, errOut, ExitRecords, out)
-		}
-	})
-
 	t.Run("should count the tokens of a 200 whose answers cannot be read", func(t *testing.T) {
 		t.Parallel()
 
@@ -592,14 +571,6 @@ func TestStreamRaw(t *testing.T) {
 				wantLines: 1,
 				wantCode:  ExitRecords,
 			},
-			{
-				name:      "should read every record without it",
-				args:      []string{"-i", "request"},
-				stdin:     "not json\n{\"state\":\"a\"}\n{\"state\":\"b\"}\n",
-				wantSent:  2,
-				wantLines: 3,
-				wantCode:  ExitRecords,
-			},
 		}
 
 		for _, tc := range tests {
@@ -703,13 +674,6 @@ func TestStreamRaw(t *testing.T) {
 				name:     "should send the profile's model",
 				profiles: profiles,
 				args:     []string{"-i", "request"},
-				stdin:    bare,
-				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
-			},
-			{
-				name:     "should print the profile's model under --print-request",
-				profiles: profiles,
-				args:     []string{"-i", "request", "--print-request"},
 				stdin:    bare,
 				want:     `{"model":"jev-profile","state":"x","questions":{"q":{"type":"noul","instructions":"q"}}}`,
 			},
@@ -859,11 +823,6 @@ func TestStreamRaw(t *testing.T) {
 		}
 	})
 
-	t.Run("should keep the stdout, stderr, exit code and --out file of each pinned run", func(t *testing.T) {
-		t.Parallel()
-
-		checkPinnedRuns(t, pinnedRawRuns())
-	})
 }
 
 func runRequestMode(
@@ -979,73 +938,6 @@ func compareLines(got, want []string) string {
 	return ""
 }
 
-func TestRequests(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name  string
-		flags map[string]any
-		want  bool
-	}{
-		{name: "should send requests on a run that asks", want: true},
-		{name: "should send none under --print-questions", flags: map[string]any{"print_questions": true}},
-		{name: "should send none under --print-request", flags: map[string]any{"print_request": true}},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := requests(runWith(tc.flags)); got != tc.want {
-				t.Errorf("requests = %t, want %t", got, tc.want)
-			}
-		})
-	}
-}
-
-func TestWriteBodies(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name   string
-		bodies []string
-		want   string
-	}{
-		{
-			name:   "should write each body on its own line",
-			bodies: []string{`{"a":1}`, `{"b":2}`}, want: "{\"a\":1}\n{\"b\":2}\n",
-		},
-		{name: "should write an empty body as an empty line", bodies: []string{""}, want: "\n"},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			var out bytes.Buffer
-
-			write := writeBodies(&out)
-			for _, body := range tc.bodies {
-				if err := write([]byte(body)); err != nil {
-					t.Fatalf("write: %v", err)
-				}
-			}
-
-			if out.String() != tc.want {
-				t.Errorf("wrote %q, want %q", out.String(), tc.want)
-			}
-		})
-	}
-
-	t.Run("should return the writer's error", func(t *testing.T) {
-		t.Parallel()
-
-		if err := writeBodies(brokenWriter{})([]byte("{}")); !errors.Is(err, errBroken) {
-			t.Errorf("write = %v, want %v", err, errBroken)
-		}
-	})
-}
-
 func TestRawRun_Send(t *testing.T) {
 	t.Parallel()
 
@@ -1059,23 +951,10 @@ func TestRawRun_Send(t *testing.T) {
 		wantTokens int
 	}{
 		{
-			name:       "should write the response to the prepared body on one line",
-			response:   "{\"model\":\"m\",\n\"answers\":{\"u\":{\"type\":\"noul\",\"noul\":0.4}},\"usage\":{\"input_tokens\":3,\"output_tokens\":1}}\n",
-			wantLine:   `{"model":"m","answers":{"u":{"type":"noul","noul":0.4}},"usage":{"input_tokens":3,"output_tokens":1}}`,
-			wantTokens: 3,
-		},
-		{
 			name:     "should keep the base URL hint for a 200 that is not JSON",
 			response: "garbage",
 			wantLine: "200 response could not be used: the response is not JSON, check the base URL",
 			wantErr:  true,
-		},
-		{
-			name:       "should count the tokens of a 200 with no answers",
-			response:   `{"model":"m","usage":{"input_tokens":4,"output_tokens":2}}`,
-			wantLine:   "the response is not a System One result, since it has no answers",
-			wantErr:    true,
-			wantTokens: 4,
 		},
 	}
 

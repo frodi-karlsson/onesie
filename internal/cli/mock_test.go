@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -1046,6 +1047,13 @@ func TestMockAnswers(t *testing.T) {
 			})
 		}
 	})
+}
+
+func sortedLines(text string) string {
+	lines := strings.SplitAfter(text, "\n")
+	slices.Sort(lines)
+
+	return strings.Join(lines, "")
 }
 
 func TestMockSource(t *testing.T) {

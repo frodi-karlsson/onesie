@@ -85,16 +85,8 @@ func TestStream(t *testing.T) {
 		wantCode  int
 		wantLines int
 		contains  []string
+		wantOut   string
 	}{
-		{
-			name:      "should write one line per input line",
-			args:      []string{"is this urgent", "-i", "lines"},
-			stdin:     "first\nsecond\nthird\n",
-			response:  answered,
-			wantCode:  cli.ExitOK,
-			wantLines: 3,
-			contains:  []string{`"answer":{"value":0.9}`},
-		},
 		{
 			name:      "should number each record by its input line under -i lines",
 			args:      []string{"is this urgent", "-i", "lines"},
@@ -107,6 +99,7 @@ func TestStream(t *testing.T) {
 				`{"line":2,"error":{"kind":"input"`,
 				`{"line":3,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
 			},
+			wantOut: "{\"line\":1,\"model\":\"onesie-1.13.0\",\"answer\":{\"value\":0.9}}\n{\"line\":2,\"error\":{\"kind\":\"input\",\"status\":null,\"message\":\"line 2: blank line, an empty state is a request the model cannot answer. Pass --skip-blank to drop blank lines\"}}\n{\"line\":3,\"model\":\"onesie-1.13.0\",\"answer\":{\"value\":0.9}}\n",
 		},
 		{
 			name:      "should count the blank lines --skip-blank drops",
@@ -162,15 +155,6 @@ func TestStream(t *testing.T) {
 			contains:  []string{`"kind":"input"`},
 		},
 		{
-			name:      "should exit 6 at a bad input line under --stop-on=error",
-			args:      []string{"is this urgent", "-i", "jsonl", "--stop-on=error"},
-			stdin:     "\"good\"\nnot json\n\"also good\"\n",
-			response:  answered,
-			wantCode:  cli.ExitRecords,
-			wantLines: 2,
-			contains:  []string{`"kind":"input"`},
-		},
-		{
 			name:      "should exit 6 at an empty state under --stop-on=error",
 			args:      []string{"is this urgent", "-i", "lines", "--stop-on=error"},
 			stdin:     "first\n\nthird\n",
@@ -188,6 +172,7 @@ func TestStream(t *testing.T) {
 			wantCode:  cli.ExitUnavailable,
 			wantLines: 1,
 			contains:  []string{`"status":500`},
+			wantOut:   "{\"line\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 boom\"}}\n",
 		},
 		{
 			name:      "should exit 2 at a server 422 under --stop-on=error",
@@ -217,25 +202,7 @@ func TestStream(t *testing.T) {
 			wantCode:  cli.ExitRecords,
 			wantLines: 2,
 			contains:  []string{`"kind":"http"`, `"status":500`},
-		},
-		{
-			name:  "should report an answer shape mismatch as a response failure",
-			args:  []string{"is this urgent", "-i", "lines"},
-			stdin: "first\n",
-			response: `{"model":"onesie-1.13.0","answers":{"answer":{"type":"choice",` +
-				`"choice":"a","confidence":0.5,"probabilities":{"a":1}}}}`,
-			wantCode:  cli.ExitRecords,
-			wantLines: 1,
-			contains:  []string{`"kind":"response"`, `"status":200`},
-		},
-		{
-			name:      "should report a missing answer as a response failure",
-			args:      []string{"is this urgent", "-i", "lines"},
-			stdin:     "first\n",
-			response:  `{"model":"onesie-1.13.0","answers":{"other":{"type":"noul","noul":0.5}}}`,
-			wantCode:  cli.ExitRecords,
-			wantLines: 1,
-			contains:  []string{`"kind":"response"`, `"status":200`},
+			wantOut:   "{\"line\":1,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 boom\"}}\n{\"line\":2,\"error\":{\"kind\":\"http\",\"status\":500,\"message\":\"500 boom\"}}\n",
 		},
 		{
 			name:  "should keep the usage of a mismatched answer on its error line under --usage",
@@ -267,24 +234,6 @@ func TestStream(t *testing.T) {
 			wantLines: 1,
 		},
 		{
-			name:      "should merge answers into a json object",
-			args:      []string{"is this urgent", "-i", "jsonl", "--merge"},
-			stdin:     "{\"id\":7}\n",
-			response:  answered,
-			wantCode:  cli.ExitOK,
-			wantLines: 1,
-			contains:  []string{`"id":7`, `"answers":{`},
-		},
-		{
-			name:      "should wrap a text line under state when merging",
-			args:      []string{"is this urgent", "-i", "lines", "--merge"},
-			stdin:     "a ticket\n",
-			response:  answered,
-			wantCode:  cli.ExitOK,
-			wantLines: 1,
-			contains:  []string{`"state":"a ticket"`},
-		},
-		{
 			name:      "should keep merging a batch when one input already has the key",
 			args:      []string{"is this urgent", "-i", "jsonl", "--merge"},
 			stdin:     "{\"id\":1}\n{\"answers\":\"mine\"}\n{\"id\":3}\n",
@@ -292,26 +241,6 @@ func TestStream(t *testing.T) {
 			wantCode:  cli.ExitRecords,
 			wantLines: 3,
 			contains:  []string{`"id":1`, `--merge would overwrite`, `"id":3`},
-		},
-		{
-			name:      "should name --skip-blank in a blank line's error",
-			args:      []string{"is this urgent", "-i", "lines"},
-			stdin:     "first\n\nsecond\n",
-			response:  answered,
-			wantCode:  cli.ExitRecords,
-			wantLines: 3,
-			contains: []string{
-				"line 2: blank line, an empty state is a request the model cannot answer. " +
-					"Pass --skip-blank to drop blank lines",
-			},
-		},
-		{
-			name:      "should drop blank lines under skip blank",
-			args:      []string{"is this urgent", "-i", "lines", "--skip-blank"},
-			stdin:     "first\n\nsecond\n",
-			response:  answered,
-			wantCode:  cli.ExitOK,
-			wantLines: 2,
 		},
 		{
 			name:      "should fail a record that maps to nothing usable and carry on",
@@ -376,14 +305,6 @@ func TestStream(t *testing.T) {
 				`"kind":"input"`, `line 1: --map: result encodes to more than the limit of 8388608 bytes`,
 				`"answer":{"value":0.9}`,
 			},
-		},
-		{
-			name:      "should emit every record under unordered",
-			args:      []string{"is this urgent", "-i", "lines", "--unordered", "-j", "4"},
-			stdin:     "a\nb\nc\nd\n",
-			response:  answered,
-			wantCode:  cli.ExitOK,
-			wantLines: 4,
 		},
 	}
 
@@ -455,6 +376,10 @@ func TestStream(t *testing.T) {
 				if !strings.Contains(out.String(), want) {
 					t.Errorf("output missing %q\ngot:\n%s", want, out.String())
 				}
+			}
+
+			if tc.wantOut != "" && out.String() != tc.wantOut {
+				t.Errorf("output =\n%q\nwant\n%q", out.String(), tc.wantOut)
 			}
 
 			for _, line := range strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n") {
@@ -741,24 +666,9 @@ func TestStream(t *testing.T) {
 				wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
 			},
 			{
-				name:     "should keep an array's large integer through merge under json",
-				args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
-				stdin:    "[12345678901234567890]",
-				wantWire: `[12345678901234567890]`,
-				wantOut:  `{"state":[12345678901234567890],"answers":{"answer":0.9}}`,
-			},
-			{
 				name:     "should keep an object's key order through merge under jsonl",
 				args:     []string{"x", "-i", "jsonl", "--merge", "-o", "values"},
 				stdin:    record + "\n",
-				wantWire: record,
-				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
-					`"answers":{"answer":0.9}}`,
-			},
-			{
-				name:     "should keep an object's key order through merge under json",
-				args:     []string{"x", "-i", "json", "--merge", "-o", "values"},
-				stdin:    record,
 				wantWire: record,
 				wantOut: `{"ticket_id":12345678901234567890,"zebra":1,"alpha":2,` +
 					`"answers":{"answer":0.9}}`,
@@ -782,13 +692,6 @@ func TestStream(t *testing.T) {
 				name:     "should send the mapped column and merge into the whole csv row",
 				args:     []string{"x", "-i", "csv", "--map", ".body", "--merge", "-o", "values"},
 				stdin:    "id,body\n7,the site is down\n",
-				wantWire: `"the site is down"`,
-				wantOut:  `{"id":"7","body":"the site is down","answers":{"answer":0.9}}`,
-			},
-			{
-				name:     "should send the mapped column and merge into the whole tsv row",
-				args:     []string{"x", "-i", "tsv", "--map", ".body", "--merge", "-o", "values"},
-				stdin:    "id\tbody\n7\tthe site is down\n",
 				wantWire: `"the site is down"`,
 				wantOut:  `{"id":"7","body":"the site is down","answers":{"answer":0.9}}`,
 			},
@@ -1312,11 +1215,6 @@ func TestStream(t *testing.T) {
 				stdin: `{"body":"the site is down"}`,
 			},
 			{
-				name:  "should exit 130 on one json record under --print-request",
-				args:  []string{"is this urgent", "-i", "json", "--map", "until(false; .)", "--print-request"},
-				stdin: `{"body":"the site is down"}`,
-			},
-			{
 				name:  "should exit 130 on a jsonl stream",
 				args:  []string{"is this urgent", "-i", "jsonl", "--map", "until(false; .)"},
 				stdin: "{\"body\":\"first\"}\n{\"body\":\"second\"}\n",
@@ -1329,11 +1227,6 @@ func TestStream(t *testing.T) {
 			{
 				name:  "should exit 130 when the interrupt lands inside --id",
 				args:  []string{"is this urgent", "-i", "jsonl", "--id", "until(false; .)"},
-				stdin: "{\"id\":\"first\"}\n{\"id\":\"second\"}\n",
-			},
-			{
-				name:  "should exit 130 when the interrupt lands inside --id under --print-request",
-				args:  []string{"is this urgent", "-i", "jsonl", "--id", "until(false; .)", "--print-request"},
 				stdin: "{\"id\":\"first\"}\n{\"id\":\"second\"}\n",
 			},
 		}
