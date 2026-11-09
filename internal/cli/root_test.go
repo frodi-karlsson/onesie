@@ -2284,7 +2284,6 @@ func TestNewRootCmd(t *testing.T) {
 		}{
 			{args: []string{"--help"}, golden: "root.golden"},
 			{args: []string{"calibrate", "--help"}, golden: "calibrate.golden"},
-			{args: []string{"help", "all"}, golden: "root-all.golden"},
 			{args: []string{"help", "asking"}, golden: "root-asking.golden"},
 			{args: []string{"help", "input"}, golden: "root-input.golden"},
 			{args: []string{"help", "decisions"}, golden: "root-decisions.golden"},
@@ -2292,7 +2291,6 @@ func TestNewRootCmd(t *testing.T) {
 			{args: []string{"help", "connections"}, golden: "root-connections.golden"},
 			{args: []string{"help", "execution"}, golden: "root-execution.golden"},
 			{args: []string{"help", "exit-codes"}, golden: "root-exit-codes.golden"},
-			{args: []string{"help", "calibrate", "all"}, golden: "calibrate-all.golden"},
 			{args: []string{"help", "calibrate", "asking"}, golden: "calibrate-asking.golden"},
 			{args: []string{"help", "calibrate", "input"}, golden: "calibrate-input.golden"},
 			{args: []string{"help", "calibrate", "evaluation"}, golden: "calibrate-evaluation.golden"},
@@ -2340,6 +2338,71 @@ func TestNewRootCmd(t *testing.T) {
 			if out.String() != string(want) {
 				t.Errorf("onesie %s differs from testdata/help/%s, rerun with -update-help for a change made on purpose\ngot:\n%s",
 					strings.Join(pin.args, " "), pin.golden, out.String())
+			}
+		}
+	})
+
+	t.Run("should print help all as its header and each topic page without the more help footer", func(t *testing.T) {
+		t.Parallel()
+
+		for _, pin := range []struct {
+			args   []string
+			header string
+			pages  []string
+		}{
+			{
+				args: []string{"help", "all"},
+				header: "Ask questions about text and use the answers in scripts.\n\n" +
+					"Usage:\n  onesie [question] [flags]\n  onesie [command]\n\n" +
+					"Available Commands:\n" +
+					"  cache       Report what the response cache holds\n" +
+					"  calibrate   Score questions against records whose answers are known\n" +
+					"  completion  Generate the autocompletion script for the specified shell\n" +
+					"  help        Help about any command\n" +
+					"  profile     Create, inspect and remove the named connections a run uses\n" +
+					"  questions   List the question files -f finds by name\n" +
+					"  version     Print version, commit, build date and the built in limits\n\n",
+				pages: []string{
+					"root-asking", "root-input", "root-decisions", "root-output", "root-connections",
+					"root-execution", "root-exit-codes",
+				},
+			},
+			{
+				args: []string{"help", "calibrate", "all"},
+				header: "Compare answers with labelled examples. Calibrate never chooses a threshold.\n\n" +
+					"Usage:\n  onesie calibrate [question] [flags]\n\n",
+				pages: []string{
+					"calibrate-asking", "calibrate-input", "calibrate-evaluation", "calibrate-output",
+					"calibrate-connections", "calibrate-execution", "calibrate-exit-codes",
+				},
+			},
+		} {
+			bodies := make([]string, 0, len(pin.pages))
+
+			for _, page := range pin.pages {
+				golden, err := os.ReadFile(filepath.Join("testdata", "help", page+".golden"))
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				body, _, _ := strings.Cut(string(golden), "\n\nMore help:\n")
+				bodies = append(bodies, strings.TrimSuffix(body, "\n"))
+			}
+
+			var out bytes.Buffer
+
+			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3"},
+				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+			root.Command.SetOut(&out)
+			root.Command.SetErr(&out)
+			root.Command.SetArgs(pin.args)
+
+			if code := root.Execute(t.Context()); code != cli.ExitOK {
+				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
+			}
+
+			if want := pin.header + strings.Join(bodies, "\n\n") + "\n"; out.String() != want {
+				t.Errorf("onesie %s =\n%s\nwant\n%s", strings.Join(pin.args, " "), out.String(), want)
 			}
 		}
 	})
