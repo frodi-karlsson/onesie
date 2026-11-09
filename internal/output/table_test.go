@@ -571,7 +571,7 @@ func TestWriteTable(t *testing.T) {
 			name    string
 			columns int
 		}{
-			{name: "should not panic on a zero or negative width", columns: -20},
+			{name: "should not panic on a negative width, which clamps to zero", columns: -20},
 			{name: "should not panic on an absurd width", columns: 100000},
 		}
 

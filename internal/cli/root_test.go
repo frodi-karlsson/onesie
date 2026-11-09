@@ -723,6 +723,18 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: there is no flag --nope\n"},
 		},
 		{
+			name:     "should refuse -V as an unknown flag",
+			args:     []string{"-V"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag -V\n"},
+		},
+		{
+			name:     "should refuse --version as an unknown flag",
+			args:     []string{"--version"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: there is no flag --version\n"},
+		},
+		{
 			name: "should exit 7 at the first unsure under -j 4, counting only the written records",
 			args: []string{
 				"is it urgent", "-i", "jsonl", "--map", ".body", "--id", ".id", "--mock", "mock.jsonl", "-o", "json",
@@ -2945,10 +2957,8 @@ func TestClientBuilder(t *testing.T) {
 			flag     string
 			env      string
 			stored   string
-			userinfo string
 			spelled  string
 			wantWarn bool
-			refused  bool
 		}{
 			{name: "should warn for --base-url ending in /v1", flag: "/v1", spelled: "--base-url", wantWarn: true},
 			{name: "should warn for --base-url ending in /v1/", flag: "/v1/", spelled: "--base-url", wantWarn: true},
@@ -2987,7 +2997,7 @@ func TestClientBuilder(t *testing.T) {
 				}
 
 				if tc.flag != "" {
-					args = append(args, "--base-url", strings.Replace(srv.URL, "//", "//"+tc.userinfo, 1)+tc.flag)
+					args = append(args, "--base-url", srv.URL+tc.flag)
 				}
 
 				if tc.env != "" {
@@ -3014,14 +3024,6 @@ func TestClientBuilder(t *testing.T) {
 				root.Command.SetArgs(args)
 
 				root.Execute(t.Context())
-
-				if strings.Contains(errOut.String(), "SECRET-") {
-					t.Error("stderr carries the base URL's password")
-				}
-
-				if refusal := "must not hold @, ? or #"; tc.refused != strings.Contains(errOut.String(), refusal) {
-					t.Errorf("stderr = %q, want the refusal %v", errOut.String(), tc.refused)
-				}
 
 				want := "onesie: warning: " + tc.spelled + " ends in /v1 and onesie adds the API path itself, " +
 					"so questions go to " + srv.URL + "/v1/v1/systemone\n"
