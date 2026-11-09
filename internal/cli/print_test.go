@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"net/http"
@@ -16,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -343,64 +345,70 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 
 	schema := compiledSchema(t)
 	twins := jsonTwins(fixtures)
-	refused := 0
+	var refused atomic.Int32
 
-	for _, fixture := range fixtures {
-		doc := fixture.doc
+	t.Run("should agree on each fixture", func(t *testing.T) {
+		for i, fixture := range fixtures {
+			t.Run(fmt.Sprintf("should agree on fixture %d", i), func(t *testing.T) {
+				t.Parallel()
 
-		_, errOut, code := runPrintQuestions(t, fixtureName(doc), []byte(doc), fixture.flags...)
-		loaderAccepts := code == ExitOK
+				doc := fixture.doc
 
-		if len(fixture.flags) > 0 && !loaderAccepts {
-			t.Errorf("the fixture does not run beside %v\n%s\nstderr:\n%s", fixture.flags, doc, errOut)
+				_, errOut, code := runPrintQuestions(t, fixtureName(doc), []byte(doc), fixture.flags...)
+				loaderAccepts := code == ExitOK
+
+				if len(fixture.flags) > 0 && !loaderAccepts {
+					t.Errorf("the fixture does not run beside %v\n%s\nstderr:\n%s", fixture.flags, doc, errOut)
+				}
+
+				// goccy reads a plain scalar such as 1e-7 as a string, where the loader reads a float, so a
+				// fixture holding one is left to its JSON twin.
+				if plainExponent(doc) {
+					if !twins[twinKey(fixture.flags, exponentsAsFloats(doc))] {
+						t.Errorf("a fixture with a plain exponent needs a JSON twin for the schema to check\n%s", doc)
+					}
+
+					return
+				}
+
+				instance, isBody, ok := schemaInstance(doc)
+				if !ok {
+					if loaderAccepts {
+						t.Errorf("the schema cannot read a fixture the loader accepts\n%s", doc)
+					} else if _, known := loaderOnlyRule(errOut); !known {
+						t.Errorf("the schema cannot read a fixture the loader refuses with no listed rule\n%s\nstderr:\n%s", doc, errOut)
+					}
+
+					return
+				}
+
+				if isBody {
+					return
+				}
+
+				verdict := schema.Validate(instance)
+				if verdict != nil {
+					refused.Add(1)
+				}
+
+				if fixture.typo != "" && (verdict == nil || loaderAccepts) {
+					t.Errorf("want both the schema and the loader to refuse %s, schema %v, loader exit %d\n%s",
+						fixture.typo, verdict, code, doc)
+				}
+
+				switch {
+				case verdict != nil && loaderAccepts:
+					t.Errorf("the schema refuses a fixture the loader accepts beside %v: %v\n%s", fixture.flags, verdict, doc)
+				case verdict == nil && !loaderAccepts:
+					if _, known := loaderOnlyRule(errOut); !known {
+						t.Errorf("the loader refuses a fixture the schema accepts, and no listed rule explains it\n%s\nstderr:\n%s", doc, errOut)
+					}
+				}
+			})
 		}
+	})
 
-		// goccy reads a plain scalar such as 1e-7 as a string, where the loader reads a float, so a
-		// fixture holding one is left to its JSON twin.
-		if plainExponent(doc) {
-			if !twins[twinKey(fixture.flags, exponentsAsFloats(doc))] {
-				t.Errorf("a fixture with a plain exponent needs a JSON twin for the schema to check\n%s", doc)
-			}
-
-			continue
-		}
-
-		instance, isBody, ok := schemaInstance(doc)
-		if !ok {
-			if loaderAccepts {
-				t.Errorf("the schema cannot read a fixture the loader accepts\n%s", doc)
-			} else if _, known := loaderOnlyRule(errOut); !known {
-				t.Errorf("the schema cannot read a fixture the loader refuses with no listed rule\n%s\nstderr:\n%s", doc, errOut)
-			}
-
-			continue
-		}
-
-		if isBody {
-			continue
-		}
-
-		verdict := schema.Validate(instance)
-		if verdict != nil {
-			refused++
-		}
-
-		if fixture.typo != "" && (verdict == nil || loaderAccepts) {
-			t.Errorf("want both the schema and the loader to refuse %s, schema %v, loader exit %d\n%s",
-				fixture.typo, verdict, code, doc)
-		}
-
-		switch {
-		case verdict != nil && loaderAccepts:
-			t.Errorf("the schema refuses a fixture the loader accepts beside %v: %v\n%s", fixture.flags, verdict, doc)
-		case verdict == nil && !loaderAccepts:
-			if _, known := loaderOnlyRule(errOut); !known {
-				t.Errorf("the loader refuses a fixture the schema accepts, and no listed rule explains it\n%s\nstderr:\n%s", doc, errOut)
-			}
-		}
-	}
-
-	if refused == 0 {
+	if refused.Load() == 0 {
 		t.Errorf("the schema refused none of %d fixtures, so it cannot be telling them apart", len(fixtures))
 	}
 }
