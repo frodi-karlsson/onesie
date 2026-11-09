@@ -46,7 +46,7 @@ Output keeps input order under any `-j`, so line N answers record N. A record wi
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
-Answers sit at the top level keyed by question id. `--merge` folds them under an `answers` key instead, and `--merge-key` renames that key, which matters when the record already has one called `answers`. A record that is not an object merges as `{"state":RECORD,"answers":ANSWERS}`, so `--merge-key state` exits 2 on it. Folding only means something in a structured output, so `-o table`, `-o raw` and `-o markdown` are rejected under `--merge`.
+Answers sit at the top level keyed by question id. `--merge` folds them under an `answers` key instead, and `--merge-key` renames that key, which matters when the record already has one called `answers`. A record that is not an object merges as `{"state":RECORD,"answers":ANSWERS}`, so `--merge-key state` exits 2 on it. Folding only means something in a structured output, so `-o table`, `-o raw` and `-o markdown` are refused under `--merge`.
 
 ### On live input, filter each line on its answer, since a stream's exit code arrives only at the end.
 

@@ -272,12 +272,12 @@ abstain_if: hostile.value < 0.85 and spam.value < 0.5
 A comment is published when `hostile` sits below 0.3 and `spam` below 0.15. Every labelled hostile
 comment scored 0.81 or more and every labelled spam 0.85 or more, so both cuts leave wide room.
 Sarcasm and blunt complaints scored between the two `hostile` cuts, and those go to a person. A
-comment is rejected when `hostile` reaches 0.85, 0.07 above the highest clean comment, or when
+comment is blocked when `hostile` reaches 0.85, 0.07 above the highest clean comment, or when
 `spam` reaches 0.5, 0.24 above the highest clean comment. Two hostile comments scored below the
 `hostile` block cut, `Shut up.` at 0.81 among them, and went to a person.
 
 On the sample, 12 comments were published and all were clean. 17 hostile or spam comments were
-rejected, and the other 2 went to a person. 5 clean comments went to a person, mostly sarcasm and
+blocked, and the other 2 went to a person. 5 clean comments went to a person, mostly sarcasm and
 blunt complaints.
 
 ```

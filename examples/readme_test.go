@@ -261,7 +261,7 @@ func claimsOf(name string) []claim {
 			of("`spam` reaches 0.5, %.2f above the highest clean comment", blockMargin("spam")),
 			of("`Shut up.` at %.2f among them", scoreOf("shut-up", "hostile")),
 			of("%d comments were published and all were clean", counted("pass")),
-			of("%d hostile or spam comments were rejected, and the other %d went to a person",
+			of("%d hostile or spam comments were blocked, and the other %d went to a person",
 				counted("block"), count("person", true)),
 			of("%d clean comments went to a person", count("person", false)),
 			of("though it gave it only %.2f on `hostile`", scoreOf("sarcasm-update", "hostile")),
