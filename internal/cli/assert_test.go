@@ -537,7 +537,7 @@ func TestBuild(t *testing.T) {
 			name:     "should refuse a pick under quiet with neither a policy nor an assertion",
 			args:     []string{"which team", "--pick", "billing,technical", "-q"},
 			wantCode: cli.ExitUsage,
-			wantErr: "onesie: -q on 'answer' needs --min-confidence and --fallback, or --assert. " +
+			wantErr: "onesie: -q on the question needs --min-confidence and --fallback, or --assert. " +
 				"Without one the exit code is always 0",
 		},
 	}

@@ -41,12 +41,12 @@ func TestValidate(t *testing.T) {
 		{
 			name:    "should refuse --desc on a box",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "desc", Value: "a=b"}},
-			wantErr: "--desc does not apply to box question 'mug', which has no options",
+			wantErr: "--desc does not apply to 'mug', which is a box question with no options",
 		},
 		{
 			name:    "should refuse --min-confidence on a box",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "min-confidence", Value: "0.5"}},
-			wantErr: "--min-confidence does not apply to box question 'mug'. Gate a box with --assert",
+			wantErr: "--min-confidence does not apply to 'mug', which is a box question. Gate a box with --assert",
 		},
 		{
 			name:       "should refuse a positional combined with ask",
@@ -262,7 +262,7 @@ func TestValidate(t *testing.T) {
 				{Name: "min-confidence", Value: "0.7"},
 				{Name: "fallback", Value: "true"},
 			},
-			wantErr: "--min-confidence needs a confidence value. 'urgent' is a yes or no question",
+			wantErr: "--min-confidence needs a confidence value, and 'urgent' is a yes or no question",
 		},
 		{
 			name: "should refuse threshold on a pick question",
@@ -271,7 +271,7 @@ func TestValidate(t *testing.T) {
 				{Name: "pick", Value: "x,y"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "--threshold cuts a yes or no probability. 'team' has options",
+			wantErr: "--threshold cuts a yes or no probability, and 'team' has options",
 		},
 		{
 			name: "should refuse threshold on a rate question",
@@ -280,7 +280,7 @@ func TestValidate(t *testing.T) {
 				{Name: "rate", Value: "low,high"},
 				{Name: "threshold", Value: "0.5"},
 			},
-			wantErr: "--threshold cuts a yes or no probability. 'severity' has levels",
+			wantErr: "--threshold cuts a yes or no probability, and 'severity' has levels",
 		},
 		{
 			name: "should refuse min-confidence with no fallback",
@@ -401,7 +401,7 @@ func TestValidate(t *testing.T) {
 				{Name: "desc", Value: "billing=payments"},
 				{Name: "desc", Value: "technical=bugs"},
 			},
-			wantWarning: "'answer' describes billing, technical but not sales",
+			wantWarning: "the question describes billing, technical but not sales",
 		},
 		{
 			name:       "should accept a plain positional question",
@@ -552,8 +552,8 @@ func TestValidate(t *testing.T) {
 			file: withPolicy(filePick("billing", "technical"), plan.Policy{
 				Threshold: pointerTo(0.8),
 			}),
-			wantExact: "'threshold' cuts a yes or no probability. 'team' has options, " +
-				"use 'min_confidence' with 'fallback'",
+			wantExact: "'threshold' cuts a yes or no probability, and 'team' has options. " +
+				"Use 'min_confidence' with 'fallback'",
 		},
 		{
 			name: "should name the file's keys when min_confidence lands on a yes/no question, with no shape to add",
@@ -561,8 +561,8 @@ func TestValidate(t *testing.T) {
 				ID: "urgent", Shape: plan.Noul, Instructions: "q", Origin: plan.OriginFile,
 				Policy: plan.Policy{MinConfidence: pointerTo(0.7)},
 			}},
-			wantExact: "'min_confidence' needs a confidence value. 'urgent' is a yes or no " +
-				"question, use 'threshold'",
+			wantExact: "'min_confidence' needs a confidence value, and 'urgent' is a yes or no " +
+				"question. Use 'threshold'",
 		},
 		{
 			name: "should refuse a threshold of nan",
@@ -673,6 +673,50 @@ func TestValidate(t *testing.T) {
 		// An empty plan is the one such refusal today. The CLI refuses it earlier as no question given.
 		if _, err := plan.Validate(&plan.Plan{}); err == nil || err.Error() != "at least one question is required" {
 			t.Errorf("Validate = %v, want onesie-go's reason", err)
+		}
+	})
+
+	t.Run("should mention the positional question without the id the user never typed", func(t *testing.T) {
+		t.Parallel()
+
+		ev := func(pairs ...string) []argv.Event {
+			events := make([]argv.Event, 0, len(pairs)/2)
+			for i := 0; i < len(pairs); i += 2 {
+				events = append(events, argv.Event{Name: pairs[i], Value: pairs[i+1]})
+			}
+
+			return events
+		}
+
+		for _, tc := range []struct {
+			events []argv.Event
+			want   string
+		}{
+			{ev("pick", "x,y,x"), "--pick option 'x' is listed twice"},
+			{ev("rate", "lo,hi,lo"), "--rate label 'lo' is listed twice"},
+			{ev("pick", "x,y", "desc", "z=w"), "--desc names an unknown key 'z'. --pick has: x, y"},
+			{ev("box", "true", "desc", "a=b"), "--desc does not apply to the question, which is a box question with no options"},
+			{ev("box", "true", "threshold", "0.5"), "--threshold does not apply to the question, which is a box question. Gate a box with --assert"},
+			{ev("pick", "x,y", "threshold", "0.5"), "--threshold cuts a yes or no probability, and the question has options. Use --min-confidence with --fallback"},
+			{ev("min-confidence", "0.5"), "--min-confidence needs a confidence value, and the question is a yes or no question. Use --threshold, or add --pick or --rate"},
+			{ev("pick", "x,y", "min-confidence", "0.5"), "--min-confidence needs --fallback, nothing to substitute for the question"},
+			{ev("pick", "x,y", "desc", "x=one"), "the question describes x but not y"},
+		} {
+			built, err := plan.Assemble(plan.Source{Events: tc.events, Positional: "which", ReadFile: readFile})
+			if err != nil {
+				t.Fatalf("assembling %v: %v", tc.events, err)
+			}
+
+			warnings, err := plan.Validate(built)
+
+			got := strings.Join(warnings, "\n")
+			if err != nil {
+				got = err.Error()
+			}
+
+			if got != tc.want || strings.Contains(got, "'answer'") {
+				t.Errorf("%v: got %q, want %q", tc.events, got, tc.want)
+			}
 		}
 	})
 }

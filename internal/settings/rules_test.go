@@ -37,6 +37,20 @@ func TestValidate(t *testing.T) {
 			wantErr: "-q on 'mug' needs --assert. A box has no policy that could fail it",
 		},
 		{
+			name:       "should mention a positional box under -q without the id the user never typed",
+			positional: "where is the mug",
+			events:     []argv.Event{{Name: "box", Value: "true"}},
+			set:        values{"quiet": true, "jobs": 1},
+			wantExact:  "-q on the question needs --assert. A box has no policy that could fail it",
+		},
+		{
+			name:       "should mention a positional pick under -q without the id the user never typed",
+			positional: "which team",
+			events:     []argv.Event{{Name: "pick", Value: "x,y"}},
+			set:        values{"quiet": true},
+			wantExact:  "-q on the question needs --min-confidence and --fallback, or --assert. Without one the exit code is always 0",
+		},
+		{
 			name: "should refuse a question named like a box column under -o csv",
 			events: []argv.Event{
 				{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "ask", Value: "mug_left=y"},
@@ -347,8 +361,8 @@ func TestValidate(t *testing.T) {
 			name:   "should suggest no shape for --min-confidence on a yes or no file question",
 			file:   fileNouls("urgent"),
 			events: []argv.Event{{Name: "min-confidence", Value: "0.5"}},
-			wantExact: "--min-confidence needs a confidence value. 'urgent' is a yes or no question, " +
-				"use --threshold",
+			wantExact: "--min-confidence needs a confidence value, and 'urgent' is a yes or no question. " +
+				"Use --threshold",
 		},
 		{
 			name:   "should accept --pick on a file pick question",
