@@ -346,13 +346,12 @@ func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLi
 	// misses print.
 	sent, assets, imageErr := r.run.images.attach(rec.sent)
 	if imageErr != nil {
-		bad := &input.LineError{Line: rec.line, Err: imageErr}
-		r.stats.recordFailure(bad, false, 0)
+		r.stats.recordFailure(imageErr, false, 0)
 
-		failed := failureRecord(asked, bad)
+		failed := failureRecord(asked, imageErr)
 		failed.ID = rec.id
 
-		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
+		return askedLine{index: rec.index, slot: rec.slot, record: failed}, imageErr
 	}
 
 	record, _, err := askAndRecord(ctx, asking{

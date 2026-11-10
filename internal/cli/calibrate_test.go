@@ -2413,6 +2413,29 @@ func TestLiveCalibration(t *testing.T) {
 		}
 	})
 
+	t.Run("should name a record whose image cannot be read once", func(t *testing.T) {
+		t.Parallel()
+
+		gif := writeImage(t, t.TempDir(), "x.gif", []byte("GIF89a"))
+		stdin := `{"id":"a","photo":` + jsonText(t, gif) + `,"red":true}` + "\n"
+		args := []string{
+			"calibrate", "--ask", "red=is `photo` red", "-i", "jsonl", "--map", "{photo}", "--image-field", "photo",
+			"--label", "red=.red",
+		}
+
+		for extra, want := range map[string]string{"": "onesie: line 1: --image-field photo: ", "--id": "onesie: record a: --image-field photo: "} {
+			run := args
+			if extra != "" {
+				run = append(slices.Clone(args), extra, ".id")
+			}
+
+			got := runImaged(t, run, stdin, noulAnswer("red"), nil)
+			if got.code != ExitRecords || !strings.Contains(got.stderr, want) {
+				t.Errorf("%v exit code = %d\nstderr:\n%s\nwant %d and %q", run, got.code, got.stderr, ExitRecords, want)
+			}
+		}
+	})
+
 	t.Run("should not refuse a provider for an unlabelled box question", func(t *testing.T) {
 		t.Parallel()
 
