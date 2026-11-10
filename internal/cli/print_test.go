@@ -670,7 +670,7 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "a file that holds nothing", pattern: regexp.MustCompile(`^onesie: the question file \S+ holds no questions`)},
 		{name: "abstain_if with no assert, which --assert completes", pattern: regexp.MustCompile(`^onesie: 'abstain_if' needs --assert, `)},
 		{name: "min_confidence with no fallback, which --fallback completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs 'fallback', `)},
-		{name: "min_confidence on a yes/no question, which --pick or --rate completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs a confidence value\. `)},
+		{name: "min_confidence on a yes/no question, which --pick or --rate completes", pattern: regexp.MustCompile(`^onesie: 'min_confidence' needs a confidence value, `)},
 		{name: "a yes/no fallback, which --fallback replaces", pattern: regexp.MustCompile(`^onesie: 'fallback' on a yes or no question takes true, false, yes or no, `)},
 		{name: "a partly described rate, which --desc completes", pattern: regexp.MustCompile(`^onesie: 'rate' levels must all be described or all bare in question `)},
 		{name: "a NaN, which JSON cannot hold", pattern: regexp.MustCompile(`^onesie: '(threshold|min_confidence)' must be between 0 and 1, got NaN\n$`)},

@@ -104,14 +104,14 @@ func quietNeedsAGateRule() Rule {
 			only := v.Plan.Questions[0]
 			if only.Shape == plan.Box {
 				return fmt.Errorf(
-					"-q on '%s' needs %s. A box has no policy that could fail it",
-					only.ID, plan.Spelling(only.Origin, "--assert"))
+					"-q on %s needs %s. A box has no policy that could fail it",
+					only.Mention(), plan.Spelling(only.Origin, "--assert"))
 			}
 
 			if only.Shape != plan.Noul && only.Policy.MinConfidence == nil {
 				return fmt.Errorf(
-					"-q on '%s' needs %s and %s, or --assert. Without one the exit code is always 0",
-					only.ID, plan.Spelling(only.Origin, "--min-confidence"), plan.Spelling(only.Origin, "--fallback"))
+					"-q on %s needs %s and %s, or --assert. Without one the exit code is always 0",
+					only.Mention(), plan.Spelling(only.Origin, "--min-confidence"), plan.Spelling(only.Origin, "--fallback"))
 			}
 
 			return nil

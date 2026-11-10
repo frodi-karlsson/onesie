@@ -2110,7 +2110,7 @@ func TestNewRootCmd(t *testing.T) {
 				name:     "should print the warnings when validation fails",
 				args:     []string{"--pick", "a,b", "--desc", "a=first", "-q"},
 				code:     cli.ExitUsage,
-				contains: "onesie: warning: 'answer' describes a but not b",
+				contains: "onesie: warning: the question describes a but not b",
 			},
 			{
 				name: "should reach the request with every flag in range",

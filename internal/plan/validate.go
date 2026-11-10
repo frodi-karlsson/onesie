@@ -250,7 +250,7 @@ func checkPick(q *Question) (string, error) {
 
 	if dupe, found := firstDuplicate(names); found {
 		return "", fmt.Errorf(
-			"%s option '%s' is listed twice in question '%s'", pick, dupe, q.ID)
+			"%s option '%s' is listed twice%s", pick, dupe, questionClause(q))
 	}
 
 	if err := checkUnknownDesc(q, names, pick); err != nil {
@@ -329,7 +329,7 @@ func checkRubric(q *Question, rate string, labels []string) error {
 	}
 
 	if dupe, found := firstDuplicate(labels); found {
-		return fmt.Errorf("%s label '%s' is listed twice in question '%s'", rate, dupe, q.ID)
+		return fmt.Errorf("%s label '%s' is listed twice%s", rate, dupe, questionClause(q))
 	}
 
 	if err := checkUnknownDesc(q, labels, rate); err != nil {
@@ -357,7 +357,7 @@ func questionClause(q *Question) string {
 		return ""
 	}
 
-	return " in question '" + q.ID + "'"
+	return " in question " + q.Mention()
 }
 
 func checkNoul(q *Question) error {
@@ -374,7 +374,7 @@ func checkNoul(q *Question) error {
 func checkBox(q *Question) error {
 	if len(q.DescOrder) > 0 {
 		return fmt.Errorf(
-			"--desc does not apply to box question '%s', which has no options", q.ID)
+			"--desc does not apply to %s, which is a box question with no options", q.Mention())
 	}
 
 	for _, flag := range []struct {
@@ -386,8 +386,8 @@ func checkBox(q *Question) error {
 		{"--fallback", q.Policy.Fallback != nil},
 	} {
 		if flag.set {
-			return fmt.Errorf("%s does not apply to box question '%s'. Gate a box with %s",
-				spelledAs(q, flag.name, flag.name), q.ID, spelledAs(q, flag.name, "--assert"))
+			return fmt.Errorf("%s does not apply to %s, which is a box question. Gate a box with %s",
+				spelledAs(q, flag.name, flag.name), q.Mention(), spelledAs(q, flag.name, "--assert"))
 		}
 	}
 
@@ -419,8 +419,8 @@ func checkPolicy(q *Question, yesNo bool) error {
 			}
 
 			return fmt.Errorf(
-				"%s cuts a yes or no probability. '%s' has %s, use %s with %s",
-				threshold, q.ID, noun, spelledAs(q, "--threshold", "--min-confidence"),
+				"%s cuts a yes or no probability, and %s has %s. Use %s with %s",
+				threshold, q.Mention(), noun, spelledAs(q, "--threshold", "--min-confidence"),
 				spelledAs(q, "--threshold", "--fallback"))
 		}
 
@@ -438,13 +438,13 @@ func checkPolicy(q *Question, yesNo bool) error {
 
 			// A flag never reshapes a question from a file, so only a flag question can take a shape.
 			if q.Origin.FromFile() {
-				return fmt.Errorf("%s needs a confidence value. '%s' is a yes or no question, use %s",
-					confidence, q.ID, remedy)
+				return fmt.Errorf("%s needs a confidence value, and %s is a yes or no question. Use %s",
+					confidence, q.Mention(), remedy)
 			}
 
 			return fmt.Errorf(
-				"%s needs a confidence value. '%s' is a yes or no question, use %s, or add --pick or --rate",
-				confidence, q.ID, remedy)
+				"%s needs a confidence value, and %s is a yes or no question. Use %s, or add --pick or --rate",
+				confidence, q.Mention(), remedy)
 		}
 
 		if outOfRange(policyKind("min_confidence"), *policy.MinConfidence) {
@@ -453,8 +453,8 @@ func checkPolicy(q *Question, yesNo bool) error {
 		}
 
 		if policy.Fallback == nil {
-			return fmt.Errorf("%s needs %s, nothing to substitute for '%s'",
-				confidence, spelledAs(q, "--min-confidence", "--fallback"), q.ID)
+			return fmt.Errorf("%s needs %s, nothing to substitute for %s",
+				confidence, spelledAs(q, "--min-confidence", "--fallback"), q.Mention())
 		}
 	}
 
@@ -483,8 +483,8 @@ func checkUnknownDesc(q *Question, vocabulary []string, shape string) error {
 
 		// The key itself always comes from --desc, since a file has no way to name one. Only the
 		// vocabulary it missed is spelled the way the question was written.
-		return fmt.Errorf("--desc names an unknown key '%s' in question '%s'. %s has: %s",
-			key, q.ID, shape, strings.Join(vocabulary, ", "))
+		return fmt.Errorf("--desc names an unknown key '%s'%s. %s has: %s",
+			key, questionClause(q), shape, strings.Join(vocabulary, ", "))
 	}
 
 	return nil
@@ -531,8 +531,8 @@ func describedHint(q *Question, names, have []string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("'%s' describes %s but not %s",
-		q.ID, strings.Join(have, ", "), strings.Join(missing(names, have), ", "))
+	return fmt.Sprintf("%s describes %s but not %s",
+		q.Mention(), strings.Join(have, ", "), strings.Join(missing(names, have), ", "))
 }
 
 func described(q *Question) []string {

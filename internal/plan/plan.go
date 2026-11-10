@@ -83,6 +83,16 @@ type Question struct {
 	UnknownDesc map[string]any
 }
 
+// Mention is how a message refers to the question: its quoted id, or "the question" for the
+// positional one, whose id the user never typed.
+func (q Question) Mention() string {
+	if q.Origin == OriginPositional {
+		return "the question"
+	}
+
+	return "'" + q.ID + "'"
+}
+
 // Shape is the question type, which the shape flags determine.
 type Shape = settingrow.Shape
 
