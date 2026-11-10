@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"math"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -345,35 +344,19 @@ func TestDedup_NoticeError(t *testing.T) {
 func TestAskOnce(t *testing.T) {
 	t.Parallel()
 
-	questions := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}}
 	answered := output.Record{Model: "m"}
+	key := [sha256.Size]byte{1}
 
 	tests := []struct {
 		name        string
 		group       bool
-		sents       []any
-		salts       []string
 		wantAsked   int32
 		wantDedups  int
 		wantRecords int
 		wantCalls   bool
 	}{
-		{
-			name: "should ask a repeated request once and count the duplicate", group: true,
-			sents: []any{"x", "x"}, salts: []string{"", ""}, wantAsked: 1, wantDedups: 1, wantRecords: 1, wantCalls: true,
-		},
-		{
-			name: "should ask each salt apart", group: true,
-			sents: []any{"x", "x"}, salts: []string{"a", "b"}, wantAsked: 2, wantCalls: true,
-		},
-		{
-			name:  "should ask every record through no group",
-			sents: []any{"x", "x"}, salts: []string{"", ""}, wantAsked: 2,
-		},
-		{
-			name: "should ask a state that cannot be encoded alone", group: true,
-			sents: []any{math.Inf(1), math.Inf(1)}, salts: []string{"", ""}, wantAsked: 2,
-		},
+		{name: "should ask a repeated key once and count the duplicate", group: true, wantAsked: 1, wantDedups: 1, wantRecords: 1, wantCalls: true},
+		{name: "should ask every record through no group", wantAsked: 2},
 	}
 
 	for _, tc := range tests {
@@ -390,13 +373,12 @@ func TestAskOnce(t *testing.T) {
 				asked atomic.Int32
 			)
 
-			for i, sent := range tc.sents {
-				record, call, err := askOnce(t.Context(), shared, &stats, onesie.Request{State: sent, Model: "m", Questions: questions}, tc.salts[i],
-					func() (output.Record, error) {
-						asked.Add(1)
+			for i := range 2 {
+				record, call, err := askOnce(t.Context(), shared, &stats, key, func() (output.Record, error) {
+					asked.Add(1)
 
-						return answered, nil
-					})
+					return answered, nil
+				})
 				if err != nil || record.Model != "m" {
 					t.Errorf("record %d = %+v, %v, want the answer", i, record, err)
 				}
@@ -462,80 +444,47 @@ func TestBillOnce(t *testing.T) {
 	}
 }
 
-func TestRequestKey(t *testing.T) {
+func TestPrepared_Key(t *testing.T) {
 	t.Parallel()
 
 	questions := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}}
-	other := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this rude"}}}
-	state := json.RawMessage(`{"a":1,"b":2}`)
-
-	base, err := requestKey(onesie.Request{State: state, Model: "m", Questions: questions}, "")
-	if err != nil {
-		t.Fatalf("requestKey: %v", err)
+	stated := func(state json.RawMessage) prepared {
+		return preparedFor(t, onesie.TypeSafe(), onesie.Request{State: state, Model: "m", Questions: questions})
 	}
 
+	base := stated(json.RawMessage(`{"a":1,"b":2}`))
+
 	tests := []struct {
-		name      string
-		sent      any
-		model     string
-		questions onesie.Questions
-		salt      string
-		long      bool
-		wantSame  bool
+		name     string
+		ready    prepared
+		salt     string
+		wantSame bool
 	}{
-		{
-			name: "should give one key to a state that differs only in whitespace",
-			sent: json.RawMessage("{ \"a\": 1,\n \"b\": 2 }"), model: "m", questions: questions, wantSame: true,
-		},
-		{name: "should give another key to a different key order", sent: json.RawMessage(`{"b":2,"a":1}`), model: "m", questions: questions},
-		{name: "should give another key to a different model", sent: state, model: "n", questions: questions},
-		{name: "should give another key to a different question", sent: state, model: "m", questions: other},
-		{name: "should give another key to a different salt", sent: state, model: "m", questions: questions, salt: "answers {}"},
-		{name: "should give another key to long context", sent: state, model: "m", questions: questions, long: true},
+		{name: "should give one key to a state that differs only in whitespace", ready: stated(json.RawMessage("{ \"a\": 1,\n \"b\": 2 }")), wantSame: true},
+		{name: "should give another key to a different body", ready: stated(json.RawMessage(`{"a":1,"b":3}`))},
+		{name: "should give another key to a different salt", ready: base, salt: "answers {}"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, keyErr := requestKey(onesie.Request{
-				State: tc.sent, Model: tc.model, Questions: tc.questions, LongContext: tc.long,
-			}, tc.salt)
-			if keyErr != nil {
-				t.Fatalf("requestKey: %v", keyErr)
-			}
-
-			if (got == base) != tc.wantSame {
-				t.Errorf("same key = %t, want %t", got == base, tc.wantSame)
+			if same := tc.ready.key(tc.salt) == base.key(""); same != tc.wantSame {
+				t.Errorf("same key = %t, want %t", same, tc.wantSame)
 			}
 		})
 	}
+}
 
-	t.Run("should change when an image changes behind the same reference", func(t *testing.T) {
-		t.Parallel()
+func preparedFor(t *testing.T, provider onesie.Provider, req onesie.Request) prepared {
+	t.Helper()
 
-		key := func(data byte) [32]byte {
-			got, keyErr := requestKey(onesie.Request{
-				State: map[string]any{"photo": "ref"}, Model: "m", Questions: questions,
-				Assets: onesie.Assets{"ref": {Format: "png", Data: []byte{data}}},
-			}, "")
-			if keyErr != nil {
-				t.Fatalf("requestKey: %v", keyErr)
-			}
+	body, err := provider.Prepare(req)
+	if err != nil {
+		t.Fatalf("Prepare: %v", err)
+	}
 
-			return got
-		}
-
-		first := key(1)
-
-		if first == key(2) {
-			t.Error("keys are equal, want an image's bytes in the key")
-		}
-
-		if first != key(1) {
-			t.Error("keys differ for one request")
-		}
-	})
+	return newPrepared(body)
 }
 
 func together(

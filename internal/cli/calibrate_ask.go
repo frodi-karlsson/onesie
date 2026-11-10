@@ -31,10 +31,12 @@ func calibrateRun(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, scope calibrateScope, bound []boundRequirement, base []float64,
 ) (err error) {
-	model, err := resolveModel(settings, flags, scope.scored.Model)
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
 	}
+
+	model := chosen.modelFor(scope.scored.Model)
 
 	cuts := cutsFor(base, bound, len(scope.scored.Questions))
 
@@ -67,13 +69,13 @@ func calibrateRun(
 		return err
 	}
 
-	answers, err := answersFor(cmd, settings, flags, asked, scope.full.Questions, model)
+	answers, err := answersFor(cmd, settings, flags, asked, scope.full.Questions)
 	if err != nil {
 		return err
 	}
 
 	runErr := calibrateAnswers(cmd, settings, flags, calib, inputMode, inv, calibrateAsk{
-		scope: scope, asked: asked, model: model, inputs: inputs, cuts: cuts, bound: bound,
+		scope: scope, asked: asked, provider: chosen.provider, model: model, inputs: inputs, cuts: cuts, bound: bound,
 		out: out, answers: answers, images: inv.images,
 	})
 	if out == nil || calib.offline {
@@ -108,15 +110,16 @@ func askedPlan(
 }
 
 type calibrateAsk struct {
-	scope   calibrateScope
-	asked   *plan.Plan
-	model   string
-	inputs  answersfile.FingerprintInputs
-	cuts    [][]float64
-	bound   []boundRequirement
-	out     *answersfile.File
-	answers answererFactory
-	images  *imaging
+	scope    calibrateScope
+	asked    *plan.Plan
+	provider onesie.Provider
+	model    string
+	inputs   answersfile.FingerprintInputs
+	cuts     [][]float64
+	bound    []boundRequirement
+	out      *answersfile.File
+	answers  answererFactory
+	images   *imaging
 }
 
 func calibrateAnswers(
@@ -336,7 +339,10 @@ func (r *labelledRun) evaluate(ctx context.Context, rec labelledRecord) (askedLi
 		return askedLine{index: rec.index, slot: rec.slot, record: failed}, bad
 	}
 
-	record, err := askAndRecord(ctx, r.asker, key, asked, r.run.model, r.questions, sent, assets, r.usage, r.stats)
+	record, _, err := askAndRecord(ctx, asking{
+		provider: r.run.provider, asker: r.asker, built: asked, model: r.run.model, questions: r.questions,
+		withUsage: r.usage, stats: r.stats,
+	}, key, sent, assets)
 	record.ID = rec.id
 
 	return askedLine{index: rec.index, slot: rec.slot, record: record, halted: halting(err)}, err

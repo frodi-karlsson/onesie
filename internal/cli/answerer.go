@@ -25,7 +25,7 @@ func liveAnswers(settings rootSettings, flags runConfig) answererFactory {
 type answererFactory func(ctx context.Context, stats *collector) (answerer, error)
 
 type answerer interface {
-	answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error)
+	answer(ctx context.Context, key recordKey, ready prepared) (reply, error)
 	salt(key recordKey) (string, bool)
 }
 
@@ -44,11 +44,11 @@ func newLiveAnswerer(client *onesie.Client) liveAnswerer {
 	return liveAnswerer{client: client}
 }
 
-func (a liveAnswerer) answer(ctx context.Context, _ recordKey, req onesie.Request) (reply, error) {
-	result, err := a.client.SystemOne(ctx, req)
+func (a liveAnswerer) answer(ctx context.Context, _ recordKey, ready prepared) (reply, error) {
+	result, _, err := a.client.SendPrepared(ctx, ready.body)
 
 	return reply{result: result}, explain(err, requestFacts{
-		provider: a.client.Provider(), model: req.Model, longContext: req.LongContext, boxed: req.Needs().Box,
+		provider: a.client.Provider(), model: ready.body.Model(), longContext: ready.body.LongContext(), boxed: ready.body.Box(),
 	})
 }
 

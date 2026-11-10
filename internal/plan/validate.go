@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
@@ -113,6 +114,10 @@ func checkQuestion(q *Question) (string, error) {
 		return "", err
 	}
 
+	if !validQuestionText(q) {
+		return "", fmt.Errorf("question '%s' is not valid UTF-8", strings.ToValidUTF8(q.ID, "\uFFFD"))
+	}
+
 	if shapes := countTrue(len(q.Options) > 0, len(q.Levels) > 0, q.Boxed); shapes > 1 {
 		if q.Boxed {
 			return "", errors.New(
@@ -133,6 +138,32 @@ func checkQuestion(q *Question) (string, error) {
 	default:
 		return "", checkNoul(q)
 	}
+}
+
+func validQuestionText(q *Question) bool {
+	texts := []any{q.ID, q.Instructions}
+
+	for _, option := range q.Options {
+		texts = append(texts, option.Name, option.Desc)
+	}
+
+	for _, level := range q.Levels {
+		texts = append(texts, level.Label, level.Desc)
+	}
+
+	if q.Criteria != nil {
+		texts = append(texts, q.Criteria.Yes, q.Criteria.No)
+	}
+
+	return !slices.ContainsFunc(texts, func(text any) bool { return !validText(text) })
+}
+
+func validText(value any) bool {
+	// A question file and a request body are decoded with U+FFFD in place of bad bytes, so only text
+	// from the command line can reach here invalid.
+	text, isText := value.(string)
+
+	return !isText || utf8.ValidString(text)
 }
 
 func checkBlankQuestion(q *Question) error {

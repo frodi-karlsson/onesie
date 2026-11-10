@@ -63,7 +63,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
-	model, err := resolveModel(in.settings, in.flags, inv.plan.Model)
+	chosen, err := connected(in.settings, in.flags)
 	if err != nil {
 		return nil, err
 	}
@@ -88,7 +88,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 	out := cmd.OutOrStdout()
 	run := &streamRun{
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
-		abstain: inv.abstain, asker: asker, model: model, questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
+		abstain: inv.abstain, provider: chosen.provider, asker: asker, model: chosen.modelFor(inv.plan.Model), questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
 		source: records(cmd.Context(), in.settings, in.flags.inputMode, in.flags, inv.namer, book, resume, in.outputMode, stops),
 		book:   book, answers: in.answers, out: out, errOut: cmd.ErrOrStderr(), outputMode: in.outputMode,
 		delimited:     in.outputMode == output.CSV || in.outputMode == output.TSV,
@@ -118,6 +118,7 @@ type streamRun struct {
 	images        *imaging
 	gate          *assert.Expr
 	abstain       *assert.Expr
+	provider      onesie.Provider
 	asker         answerer
 	model         string
 	questions     onesie.Questions
@@ -254,20 +255,10 @@ func wrapRepeated(rec namedRecord) error {
 func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets onesie.Assets) (line, error) {
 	key := recordKey{position: rec.Index + 1, line: rec.Line, id: rec.id}
 
-	// A record the mock file does not answer shares with nothing, so its error names its own line.
-	group := r.shared
-
-	salt, shares := r.asker.salt(key)
-	if !shares {
-		group = nil
-	}
-
-	req := requestFor(r.built, r.model, r.questions, sent, assets)
-
-	record, call, err := askOnce(ctx, group, r.stats, req, salt,
-		func() (output.Record, error) {
-			return askAndRecord(ctx, r.asker, key, r.built, r.model, r.questions, sent, assets, setting.Get(r.flags.merged, setting.Usage), r.stats)
-		})
+	record, call, err := askAndRecord(ctx, asking{
+		provider: r.provider, asker: r.asker, built: r.built, model: r.model, questions: r.questions,
+		withUsage: setting.Get(r.flags.merged, setting.Usage), stats: r.stats, shared: r.shared, numbered: true,
+	}, key, sent, assets)
 	if err != nil {
 		// Returned before the gate is asked. A failed record reads as all zeros, so a gate such as
 		// answer.value < 0.5 would hold for a request that never happened.

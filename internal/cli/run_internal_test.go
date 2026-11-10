@@ -313,8 +313,9 @@ func TestAnswered(t *testing.T) {
 			return result
 		}}
 
-		record, _, _, err := answered(t.Context(), asker, recordKey{position: 1, line: 1}, built, "m",
-			plan.WireAll(built.Questions), "x", nil, true)
+		ready := preparedFor(t, onesie.TypeSafe(), onesie.Request{State: "x", Model: "m", Questions: plan.WireAll(built.Questions)})
+
+		record, _, _, err := answered(t.Context(), asker, recordKey{position: 1, line: 1}, built, ready, true)
 		if err != nil {
 			t.Fatalf("answered: %v", err)
 		}
@@ -347,7 +348,7 @@ func released(collected <-chan struct{}) bool {
 	return false
 }
 
-func (a resultAnswerer) answer(context.Context, recordKey, onesie.Request) (reply, error) {
+func (a resultAnswerer) answer(context.Context, recordKey, prepared) (reply, error) {
 	return reply{result: a.result()}, nil
 }
 

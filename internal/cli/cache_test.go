@@ -138,9 +138,9 @@ func TestOpenCache(t *testing.T) {
 func TestCachedAnswerer(t *testing.T) {
 	t.Parallel()
 
-	request := onesie.Request{
+	ready := preparedFor(t, onesie.TypeSafe(), onesie.Request{
 		State: json.RawMessage(`"site down"`), Questions: plan.WireAll([]plan.Question{{ID: "u", Shape: plan.Noul}}),
-	}
+	})
 	key := recordKey{position: 1, line: 1}
 
 	build := func(t *testing.T, stub *answerStub, warn func(error), extra ...onesie.Option) (answererFactory, string) {
@@ -164,7 +164,7 @@ func TestCachedAnswerer(t *testing.T) {
 			warn = func(err error) { t.Errorf("unexpected cache warning: %v", err) }
 		}
 
-		return cachedAnswers(settings, runConfig{}, onesie.TypeSafe().DefaultModel(), warn), dir
+		return cachedAnswers(settings, runConfig{}, warn), dir
 	}
 
 	t.Run("should ask on a miss, store the answer and answer the next call from it", func(t *testing.T) {
@@ -178,12 +178,12 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		first, err := asker.answer(t.Context(), key, request)
+		first, err := asker.answer(t.Context(), key, ready)
 		if err != nil || first.cached {
 			t.Fatalf("first answer = %+v, %v, want a live answer", first, err)
 		}
 
-		second, err := asker.answer(t.Context(), key, request)
+		second, err := asker.answer(t.Context(), key, ready)
 		if err != nil || !second.cached {
 			t.Fatalf("second answer = %+v, %v, want a cached answer", second, err)
 		}
@@ -222,19 +222,14 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		id, err := requestKey(onesie.Request{
-			State: request.State, Model: cached.model, Questions: request.Questions,
-		}, cached.origin)
-		if err != nil {
-			t.Fatal(err)
-		}
-
+		model := ready.body.Model()
 		outOfRange := &onesie.Result{Model: "m", Answers: map[string]onesie.Answer{"u": &onesie.NoulAnswer{Noul: 1.5}}}
-		if putErr := cached.put(store, cache.Key(id), outOfRange); putErr != nil {
+
+		if putErr := put(store, cache.Key(ready.key(cached.origin)), model, cached.pinned(model), outOfRange); putErr != nil {
 			t.Fatal(putErr)
 		}
 
-		got, err := asker.answer(t.Context(), key, request)
+		got, err := asker.answer(t.Context(), key, ready)
 		if err != nil || got.cached {
 			t.Fatalf("answer = %+v, %v, want a fresh answer past the refused entry", got, err)
 		}
@@ -266,11 +261,12 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.answer(t.Context(), key, ready); err != nil {
 			t.Fatal(err)
 		}
 
-		sum := sha256.Sum256(append(stub.body(0), []byte("typesafe\x00"+stub.url)...))
+		body := sha256.Sum256(stub.body(0))
+		sum := sha256.Sum256(append(body[:], []byte("typesafe\x00"+stub.url)...))
 		name := hex.EncodeToString(sum[:])
 
 		if _, err := os.Stat(filepath.Join(dir, name[:2], name+".alias.json")); err != nil {
@@ -305,7 +301,7 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 
 			for range 2 {
-				if got, _ := asker.answer(t.Context(), key, request); got.cached {
+				if got, _ := asker.answer(t.Context(), key, ready); got.cached {
 					t.Fatalf("answer = %+v, want no cached answer", got)
 				}
 			}
@@ -334,7 +330,7 @@ func TestCachedAnswerer(t *testing.T) {
 			}
 
 			for range 2 {
-				if got, answerErr := asker.answer(t.Context(), key, request); got.cached || !errors.Is(answerErr, onesie.ErrTimeout) {
+				if got, answerErr := asker.answer(t.Context(), key, ready); got.cached || !errors.Is(answerErr, onesie.ErrTimeout) {
 					t.Fatalf("answer = %+v, %v, want a timeout and no cached answer", got, answerErr)
 				}
 			}
@@ -376,7 +372,7 @@ func TestCachedAnswerer(t *testing.T) {
 		}
 
 		for range 2 {
-			if got, answerErr := asker.answer(t.Context(), key, request); answerErr != nil || got.cached || got.result == nil {
+			if got, answerErr := asker.answer(t.Context(), key, ready); answerErr != nil || got.cached || got.result == nil {
 				t.Fatalf("answer = %+v, %v, want a live answer", got, answerErr)
 			}
 		}
@@ -428,11 +424,12 @@ func TestCachedAnswerer(t *testing.T) {
 
 		// The key is only known from the body the first request sends, so a first answer finds it,
 		// and the entry it stored is swapped for a directory the next Put cannot rename over.
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.answer(t.Context(), key, ready); err != nil {
 			t.Fatal(err)
 		}
 
-		sum := sha256.Sum256(append(stub.body(0), []byte("typesafe\x00"+stub.url)...))
+		body := sha256.Sum256(stub.body(0))
+		sum := sha256.Sum256(append(body[:], []byte("typesafe\x00"+stub.url)...))
 		name := hex.EncodeToString(sum[:])
 		entry := filepath.Join(dir, name[:2], name+".alias.json")
 
@@ -446,7 +443,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		got, answerErr := asker.answer(t.Context(), key, request)
+		got, answerErr := asker.answer(t.Context(), key, ready)
 		if answerErr != nil || got.result == nil || got.cached {
 			t.Fatalf("answer beside the failing Put = %+v, %v, want the live answer", got, answerErr)
 		}
@@ -455,7 +452,7 @@ func TestCachedAnswerer(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if _, err := asker.answer(t.Context(), key, request); err != nil {
+		if _, err := asker.answer(t.Context(), key, ready); err != nil {
 			t.Fatal(err)
 		}
 

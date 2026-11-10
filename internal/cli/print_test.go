@@ -1188,6 +1188,11 @@ func TestPrintRequest(t *testing.T) {
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
 			},
 			{
+				name:  "should print what a jsonl stream record sends",
+				args:  []string{"--ask", "urgent=is this urgent", "-i", "jsonl"},
+				stdin: `{"body":"a <b> & caf\u00e9 at 1.0"}`,
+			},
+			{
 				name: "should print the resolved model a tab only request body sends",
 				file: `{"state":"the server is down","model":"\t","questions":` +
 					`{"urgent":{"type":"noul","instructions":"is this urgent"}}}`,
@@ -1839,45 +1844,6 @@ func TestStreamRequests(t *testing.T) {
 
 			if errOut != "" {
 				t.Errorf("stderr should be empty, got:\n%s", errOut)
-			}
-		})
-	}
-}
-
-func TestRequestLine(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name    string
-		state   any
-		want    string
-		wantErr bool
-	}{
-		{
-			name:  "should encode the request body",
-			state: "the site is down",
-			want:  `{"state":"the site is down","model":"m","questions":{}}`,
-		},
-		{
-			name:    "should write an error line for a state that cannot be encoded",
-			state:   make(chan int),
-			want:    `{"error":{"kind":"input","status":null,"message":"line 3: encoding the request: `,
-			wantErr: true,
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := requestLine(3, onesie.Request{State: tc.state, Model: "m"})
-
-			if (err != nil) != tc.wantErr {
-				t.Fatalf("requestLine() error = %v, want an error %t", err, tc.wantErr)
-			}
-
-			if !strings.HasPrefix(string(got), tc.want) {
-				t.Errorf("requestLine() = %s, want it to start with %s", got, tc.want)
 			}
 		})
 	}
