@@ -27,7 +27,7 @@ import (
 
 const maxCauses = 5
 
-func calibrateRun(
+func liveCalibration(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, scope calibrateScope, bound []boundRequirement, base []float64,
 ) (err error) {
@@ -69,6 +69,10 @@ func calibrateRun(
 		return err
 	}
 
+	if askErr := prepareAsked(cmd, settings, flags, inv, asked, !calib.offline); askErr != nil {
+		return askErr
+	}
+
 	answers, err := answersFor(cmd, settings, flags, asked, scope.full.Questions)
 	if err != nil {
 		return err
@@ -107,6 +111,18 @@ func askedPlan(
 	}
 
 	return scope.scored, nil
+}
+
+func prepareAsked(cmd *cobra.Command, settings rootSettings, flags runConfig, inv *invocation, asked *plan.Plan, online bool) error {
+	if err := noteOverriddenBodyState(cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(asked.Questions)); err != nil {
+		return err
+	}
+
+	if !online {
+		return nil
+	}
+
+	return checkProviderNeeds(settings, flags, asked, inv.images)
 }
 
 type calibrateAsk struct {

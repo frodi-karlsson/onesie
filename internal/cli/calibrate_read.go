@@ -19,13 +19,21 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func calibrateRequests(
+func printCalibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {
 	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
+	}
+
+	if askErr := prepareAsked(cmd, settings, flags, inv, scope.scored, true); askErr != nil {
+		return askErr
+	}
+
+	if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
+		return noteErr
 	}
 
 	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, scope.labels)

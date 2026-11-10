@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
 	"github.com/spf13/cobra"
@@ -129,23 +130,12 @@ func runCalibrate(
 		return noticeErr
 	}
 
-	if noteErr := noteOverriddenBodyState(
-		cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(inv.plan.Questions)); noteErr != nil {
-		return noteErr
-	}
-
-	if !calib.offline {
-		if refuseErr := checkProviderNeeds(settings, flags, inv.plan, inv.images); refuseErr != nil {
-			return refuseErr
-		}
-	}
-
 	scope, err := scopeOf(inv.plan, calib.labels)
 	if err != nil {
 		return err
 	}
 
-	if refuseErr := refuseUnlabelledBody(settings, setting.Get(flags.merged, setting.File), scope.scored); refuseErr != nil {
+	if refuseErr := refuseUnlabelledBody(inv.loaded, scope.scored); refuseErr != nil {
 		return refuseErr
 	}
 
@@ -155,14 +145,10 @@ func runCalibrate(
 	}
 
 	if setting.Get(flags.merged, setting.PrintRequest) {
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
-			return noteErr
-		}
-
-		return calibrateRequests(cmd, settings, flags, inputMode, inv, scope)
+		return printCalibrateRequests(cmd, settings, flags, inputMode, inv, scope)
 	}
 
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
+	return liveCalibration(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
 }
 
 func refusedOnCalibrate(root *cobra.Command, err error) error {
@@ -189,19 +175,9 @@ func refusedOnCalibrate(root *cobra.Command, err error) error {
 	return &plainError{cause: err, message: fmt.Sprintf("%s, so %s does not apply. Drop it", reason, spelled)}
 }
 
-func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan) error {
-	if name == "" {
+func refuseUnlabelledBody(loaded *qfile.File, scored *plan.Plan) error {
+	if loaded == nil {
 		return nil
-	}
-
-	data, path, hides, err := readQuestionFile(settings, name)
-	if err != nil {
-		return err
-	}
-
-	loaded, err := loadQuestionFile(data, path, hides, false)
-	if err != nil {
-		return err
 	}
 
 	for _, question := range loaded.Questions {
