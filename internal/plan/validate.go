@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/limits"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
@@ -25,7 +26,15 @@ func Validate(p *Plan) ([]string, error) {
 		return nil, err
 	}
 
-	if err := checkDuplicateIDs(p); err != nil {
+	// What each question is comes before the API's rules, so a count never hides two shapes or a
+	// reserved id.
+	for i := range p.Questions {
+		if err := checkForm(&p.Questions[i]); err != nil {
+			return nil, err
+		}
+	}
+
+	if err := checkAPIRules(p); err != nil {
 		return nil, err
 	}
 
@@ -86,43 +95,84 @@ func BoxColumns(id string) []string {
 	return []string{id + "_left", id + "_top", id + "_right", id + "_bottom"}
 }
 
-func checkDuplicateIDs(p *Plan) error {
-	ids := make([]string, 0, len(p.Questions))
-	for _, question := range p.Questions {
-		ids = append(ids, question.ID)
+func checkAPIRules(p *Plan) error {
+	err := onesie.ValidateQuestions(WireAll(p.Questions))
+
+	var refused *onesie.ValidationError
+	if !errors.As(err, &refused) {
+		return err
 	}
 
-	// The request body is keyed by id, so a repeated one would collapse into a single question
-	// while the output still carries the key twice.
-	if dupe, found := firstDuplicate(ids); found {
-		return fmt.Errorf("question id '%s' is given twice", dupe)
+	switch {
+	case errors.Is(err, onesie.ErrDuplicateQuestion):
+		return fmt.Errorf("question id '%s' is given twice", refused.Question)
+	case errors.Is(err, onesie.ErrQuestionLimit):
+		// Worded only when the plan's count agrees, so a limit onesie does not know keeps the
+		// library's words rather than a wrong sentence.
+		if worded := countRefusal(questionNamed(p, refused.Question)); worded != nil {
+			return worded
+		}
+	}
+
+	return errors.New(refused.Reason())
+}
+
+func questionNamed(p *Plan, id string) *Question {
+	for i := range p.Questions {
+		if p.Questions[i].ID == id {
+			return &p.Questions[i]
+		}
+	}
+
+	return nil
+}
+
+func countRefusal(q *Question) error {
+	switch {
+	case q == nil:
+		return nil
+	case q.Shape == Pick && len(q.Options) > limits.MaxChoiceOptions:
+		return tooMany(q, ShapeName(q, "--pick"), "options", limits.MaxChoiceOptions, len(q.Options))
+	case q.Shape != Rate:
+		return nil
+	}
+
+	rate := ShapeName(q, "--rate")
+
+	switch {
+	case len(q.Levels) < limits.MinScoreLevels:
+		return tooFew(q, rate, "levels", len(q.Levels), levelLabels(q))
+	case len(q.Levels) > limits.MaxScoreLevels:
+		return tooMany(q, rate, "levels", limits.MaxScoreLevels, len(q.Levels))
+	default:
+		return nil
+	}
+}
+
+func checkForm(q *Question) error {
+	// The positional question is keyed answer by design, so the reserved list only applies to an
+	// id the user chose. A request body may carry answer, since --print-request writes a positional
+	// question under it and -f reads that body back.
+	if q.Origin.chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
+		return fmt.Errorf("question id '%s' is reserved", q.ID)
+	}
+
+	if err := checkBlankQuestion(q); err != nil {
+		return err
+	}
+
+	if shapes := countTrue(len(q.Options) > 0, len(q.Levels) > 0, q.Boxed); shapes > 1 {
+		if q.Boxed {
+			return errors.New("--box, --pick and --rate are mutually exclusive. A question is one of them")
+		}
+
+		return errors.New("--pick and --rate are mutually exclusive. A question is one or the other")
 	}
 
 	return nil
 }
 
 func checkQuestion(q *Question) (string, error) {
-	// The positional question is keyed answer by design, so the reserved list only applies to an
-	// id the user chose. A request body may carry answer, since --print-request writes a positional
-	// question under it and -f reads that body back.
-	if q.Origin.chosen() && (reserved(q.ID) || (q.ID == PositionalID && q.Origin != OriginBody)) {
-		return "", fmt.Errorf("question id '%s' is reserved", q.ID)
-	}
-
-	if err := checkBlankQuestion(q); err != nil {
-		return "", err
-	}
-
-	if shapes := countTrue(len(q.Options) > 0, len(q.Levels) > 0, q.Boxed); shapes > 1 {
-		if q.Boxed {
-			return "", errors.New(
-				"--box, --pick and --rate are mutually exclusive. A question is one of them")
-		}
-
-		return "", errors.New(
-			"--pick and --rate are mutually exclusive. A question is one or the other")
-	}
-
 	switch q.Shape {
 	case Pick:
 		return checkPick(q)
@@ -190,11 +240,8 @@ func checkPick(q *Question) (string, error) {
 
 	pick := ShapeName(q, "--pick")
 
-	switch {
-	case len(q.Options) < limits.MinChoiceOptions:
+	if len(q.Options) < limits.MinChoiceOptions {
 		return "", tooFew(q, pick, "options", len(q.Options), names)
-	case len(q.Options) > limits.MaxChoiceOptions:
-		return "", tooMany(q, pick, "options", limits.MaxChoiceOptions, len(q.Options))
 	}
 
 	if err := checkBlankNames(q, pick, "option", names); err != nil {
@@ -224,33 +271,28 @@ func checkPick(q *Question) (string, error) {
 }
 
 func checkRate(q *Question) error {
-	var labels []string
-
-	// A body's levels carry no labels at all, so every rule written around them is skipped and
-	// nothing prints an empty list.
 	if q.Labelled {
-		labels = make([]string, 0, len(q.Levels))
-		for _, level := range q.Levels {
-			labels = append(labels, level.Label)
-		}
-	}
-
-	rate := ShapeName(q, "--rate")
-
-	switch {
-	case len(q.Levels) < limits.MinScoreLevels:
-		return tooFew(q, rate, "levels", len(q.Levels), labels)
-	case len(q.Levels) > limits.MaxScoreLevels:
-		return tooMany(q, rate, "levels", limits.MaxScoreLevels, len(q.Levels))
-	}
-
-	if q.Labelled {
-		if err := checkRubric(q, rate, labels); err != nil {
+		if err := checkRubric(q, ShapeName(q, "--rate"), levelLabels(q)); err != nil {
 			return err
 		}
 	}
 
 	return checkPolicy(q, false)
+}
+
+func levelLabels(q *Question) []string {
+	// A body's levels carry no labels at all, so every rule written around them is skipped and
+	// nothing prints an empty list.
+	if !q.Labelled {
+		return nil
+	}
+
+	labels := make([]string, 0, len(q.Levels))
+	for _, level := range q.Levels {
+		labels = append(labels, level.Label)
+	}
+
+	return labels
 }
 
 func checkBlankNames(q *Question, shape, noun string, names []string) error {

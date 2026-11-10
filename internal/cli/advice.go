@@ -163,7 +163,9 @@ func (e *advisedError) Unwrap() error {
 }
 
 func adviseLimits(err error) error {
-	if !errors.Is(err, onesie.ErrQuestionLimit) {
+	// Only the server's refusal. A local one means the check before sending refused, not passed.
+	var api *onesie.APIError
+	if !errors.As(err, &api) || !errors.Is(err, onesie.ErrQuestionLimit) {
 		return err
 	}
 

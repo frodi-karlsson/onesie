@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	// MinChoiceOptions is onesie's own floor. A one option choice has nothing to decide.
+	// MinChoiceOptions is onesie's floor on options per choice question. A one option choice has
+	// nothing to decide.
 	MinChoiceOptions = 2
 	// MaxChoiceOptions is the API's ceiling on options per choice question.
 	MaxChoiceOptions = onesie.MaxChoiceOptions
-	// MinScoreLevels is onesie's own floor. A one level score has nothing to rank.
-	MinScoreLevels = 2
+	// MinScoreLevels is the API's floor on levels per score question.
+	MinScoreLevels = onesie.MinScoreLevels
 	// MaxScoreLevels is the API's ceiling on levels per score question.
 	MaxScoreLevels = onesie.MaxScoreLevels
 
