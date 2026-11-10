@@ -488,13 +488,14 @@ type Record struct {
 	// Line is the input line number, counting from one. It differs from Index as soon as
 	// --skip-blank drops a line, and it is the number a message must quote.
 	Line int
-	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
+	// State is the parsed value, which the pre flight checks read. It is nil when Err is set, and
+	// in request mode, which parses nothing.
 	State any
-	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
-	// key order, and the parsed value for a text mode.
+	// Wire is the state that reaches the API. It is the raw bytes for a JSON mode, keeping large
+	// integers and key order, the parsed value for a text mode, and nil in request mode.
 	Wire any
-	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
-	// it is the row as a JSON object, which is what was sent.
+	// Raw is the line exactly as read, which --merge folds the answers into and request mode sends.
+	// For a csv or tsv row it is the row as a JSON object, which is what was sent.
 	Raw string
 	// Header is the csv or tsv header the row was read under, nil for every other mode.
 	Header []string
