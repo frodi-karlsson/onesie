@@ -20,17 +20,21 @@ func TestCompile(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name    string
-		source  string
-		wantErr string
+		name   string
+		source string
+		// A syntax error ends with the column onesie names. gojq words the rest, so only a refusal is pinned.
+		wantColumn string
+		refused    bool
+		// gojq's sentence, kept only where it is the proof that no module loader is configured.
+		wantExact string
 	}{
 		{name: "should compile a path", source: ".ticket.body"},
-		{name: "should name the column of an unexpected token", source: ".body | }", wantErr: "at column 9"},
-		{name: "should name the column past the end of an unfinished expression", source: "{subject, body", wantErr: "unexpected EOF at column 15"},
-		{name: "should count the column in characters", source: `"é" | }`, wantErr: "at column 7"},
-		{name: "should refuse an undefined function", source: ".body | nope", wantErr: "function not defined: nope/0"},
-		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantErr: `cannot load module: "lib"`},
-		{name: "should refuse to include a module", source: `include "lib"; .`, wantErr: `cannot load module: "lib"`},
+		{name: "should name the column of an unexpected token", source: ".body | }", wantColumn: "at column 9"},
+		{name: "should name the column past the end of an unfinished expression", source: "{subject, body", wantColumn: "at column 15"},
+		{name: "should count the column in characters", source: `"é" | }`, wantColumn: "at column 7"},
+		{name: "should refuse an undefined function", source: ".body | nope", refused: true},
+		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantExact: `cannot load module: "lib"`},
+		{name: "should refuse to include a module", source: `include "lib"; .`, wantExact: `cannot load module: "lib"`},
 	}
 
 	for _, tc := range tests {
@@ -39,7 +43,15 @@ func TestCompile(t *testing.T) {
 
 			expr, err := Compile(tc.source)
 
-			if tc.wantErr == "" {
+			if tc.wantExact != "" {
+				if err == nil || err.Error() != tc.wantExact {
+					t.Fatalf("Compile(%q) error = %v, want exactly %q", tc.source, err, tc.wantExact)
+				}
+
+				return
+			}
+
+			if tc.wantColumn == "" && !tc.refused {
 				if err != nil || expr == nil {
 					t.Fatalf("Compile(%q) = %v, %v, want an expression", tc.source, expr, err)
 				}
@@ -47,8 +59,8 @@ func TestCompile(t *testing.T) {
 				return
 			}
 
-			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
-				t.Fatalf("Compile(%q) error = %v, want one containing %q", tc.source, err, tc.wantErr)
+			if err == nil || !strings.HasSuffix(err.Error(), tc.wantColumn) {
+				t.Fatalf("Compile(%q) error = %v, want a refusal ending %q", tc.source, err, tc.wantColumn)
 			}
 		})
 	}
@@ -61,6 +73,7 @@ func TestCompile(t *testing.T) {
 			t.Fatalf("Compile() = %v, want no expression", expr)
 		}
 
+		// gojq's sentence for no module loader, which is what keeps the file unread.
 		const want = `cannot load module: "/etc/passwd"`
 		if err == nil || err.Error() != want {
 			t.Fatalf("Compile() error = %v, want exactly %q", err, want)

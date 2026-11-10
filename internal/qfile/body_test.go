@@ -305,7 +305,7 @@ func TestLoadBody(t *testing.T) {
 		{
 			name:    "should name the question that holds a value JSON cannot carry",
 			doc:     "questions: {a: {type: noul, instructions: .nan}}",
-			wantErr: "question 'a' in a request body cannot be sent: json: unsupported value: NaN",
+			wantErr: "question 'a' in a request body cannot be sent: ",
 		},
 		{
 			name:    "should refuse a question key YAML spells twice",

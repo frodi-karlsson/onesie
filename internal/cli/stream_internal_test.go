@@ -804,12 +804,12 @@ func TestStream(t *testing.T) {
 				name:     "should keep the line of a record with no id in its input place",
 				existing: fileOf(idLines(1, 1)),
 				sidecar:  byID,
-				stdin:    "{\"id\":1}\nnot json\n{\"body\":\"x\"}\n{\"id\":2}\n",
+				stdin:    "{\"id\":1}\n\xff\n{\"body\":\"x\"}\n{\"id\":2}\n",
 				runs: []resumeRun{{
 					args:     values,
 					wantCode: ExitRecords,
 					wantFile: idLines(1, 1) +
-						`{"error":{"kind":"input","status":null,"message":"line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')"}}` + "\n" +
+						`{"error":{"kind":"input","status":null,"message":"line 2: line is not valid UTF-8"}}` + "\n" +
 						`{"error":{"kind":"input","status":null,"message":"line 3: --id: id must be a string or a finite number, got null"}}` + "\n" +
 						idLines(2, 2),
 					wantSent: []string{`{"id":2}`},
