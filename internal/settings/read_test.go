@@ -192,6 +192,11 @@ func TestRead(t *testing.T) {
 			wantErr: "ONESIE_LONG_CONTEXT=yes is not a value --long-context takes. Use 1 or 0",
 		},
 		{
+			name:    "should refuse an environment value that is not valid UTF-8, naming the variable and not the value",
+			reading: reading{env: map[string]string{"ONESIE_MOCK": "fi\xffle"}},
+			wantErr: "ONESIE_MOCK is not valid UTF-8",
+		},
+		{
 			name:    "should refuse a negative ONESIE_CACHE_TTL",
 			reading: reading{env: map[string]string{"ONESIE_CACHE_TTL": "-1h"}},
 			wantErr: "ONESIE_CACHE_TTL=-1h is not a duration of zero or more, such as 90m or 72h",

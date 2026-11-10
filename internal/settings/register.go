@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
@@ -78,7 +79,7 @@ func addFlag(
 			value = recorder.Switch(bound.Long)
 		}
 
-		set.VarP(refusingEmpty(value, rule), bound.Long, bound.Short, bound.Help)
+		set.VarP(checked{Value: value, rule: rule}, bound.Long, bound.Short, bound.Help)
 
 		return set.Lookup(bound.Long)
 	}
@@ -91,11 +92,7 @@ func addFlag(
 	case *int:
 		set.IntVarP(into, bound.Long, bound.Short, defaultOf(bound, 0), bound.Help)
 	case *[]string:
-		if rule == settingrow.AllowEmpty {
-			set.StringArrayVarP(into, bound.Long, bound.Short, nil, bound.Help)
-		} else {
-			set.VarP(nonEmptyList{values: into, rule: rule}, bound.Long, bound.Short, bound.Help)
-		}
+		set.VarP(checkedList{values: into, rule: rule}, bound.Long, bound.Short, bound.Help)
 
 		return set.Lookup(bound.Long)
 	default:
@@ -103,17 +100,9 @@ func addFlag(
 	}
 
 	flag := set.Lookup(bound.Long)
-	flag.Value = refusingEmpty(flag.Value, rule)
+	flag.Value = checked{Value: flag.Value, rule: rule}
 
 	return flag
-}
-
-func refusingEmpty(value pflag.Value, rule settingrow.EmptyPolicy) pflag.Value {
-	if rule == settingrow.AllowEmpty {
-		return value
-	}
-
-	return nonEmpty{Value: value, rule: rule}
 }
 
 func defaultOf[T any](bound settingrow.BoundFlag, zero T) T {
@@ -124,11 +113,11 @@ func defaultOf[T any](bound settingrow.BoundFlag, zero T) T {
 	return zero
 }
 
-// RefuseEmpty makes the flag name in set refuse an empty or blank value with ErrEmptyValue, for a
-// flag no row registers.
-func RefuseEmpty(set *pflag.FlagSet, name string) {
+// CheckText makes the flag name in set refuse an empty or blank value with ErrEmptyValue, and a
+// value that is not valid UTF-8 with ErrNotUTF8, for a flag no row registers.
+func CheckText(set *pflag.FlagSet, name string) {
 	flag := set.Lookup(name)
-	flag.Value = nonEmpty{Value: flag.Value, rule: settingrow.RefuseBlank}
+	flag.Value = checked{Value: flag.Value, rule: settingrow.RefuseBlank}
 }
 
 // Given counts how often each row's flag was set in one parse, keeps each value it was set to, and
@@ -297,27 +286,39 @@ func (c counted) Set(value string) error {
 	return nil
 }
 
-type nonEmpty struct {
+type checked struct {
 	pflag.Value
 	rule settingrow.EmptyPolicy
 }
 
-func (v nonEmpty) Set(value string) error {
-	if v.rule.Refuses(value) {
-		return settingrow.ErrEmptyValue
+func (v checked) Set(value string) error {
+	if err := checkFlagValue(value, v.rule); err != nil {
+		return err
 	}
 
 	return v.Value.Set(value)
 }
 
-type nonEmptyList struct {
+func checkFlagValue(raw string, rule settingrow.EmptyPolicy) error {
+	if !utf8.ValidString(raw) {
+		return settingrow.ErrNotUTF8
+	}
+
+	if rule.Refuses(raw) {
+		return settingrow.ErrEmptyValue
+	}
+
+	return nil
+}
+
+type checkedList struct {
 	values *[]string
 	rule   settingrow.EmptyPolicy
 }
 
-func (l nonEmptyList) Set(value string) error {
-	if l.rule.Refuses(value) {
-		return settingrow.ErrEmptyValue
+func (l checkedList) Set(value string) error {
+	if err := checkFlagValue(value, l.rule); err != nil {
+		return err
 	}
 
 	*l.values = append(*l.values, value)
@@ -325,14 +326,14 @@ func (l nonEmptyList) Set(value string) error {
 	return nil
 }
 
-func (l nonEmptyList) GetSlice() []string {
+func (l checkedList) GetSlice() []string {
 	return slices.Clone(*l.values)
 }
 
-func (l nonEmptyList) String() string {
+func (l checkedList) String() string {
 	return strings.Join(*l.values, ",")
 }
 
-func (nonEmptyList) Type() string {
+func (checkedList) Type() string {
 	return "stringArray"
 }

@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,7 +121,7 @@ func TestImagingAttach(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile, nil)
+			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile, bodyImages{})
 			if err != nil {
 				if tc.wantErr == "" || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("newImaging error = %v, want %q", err, tc.wantErr)
@@ -178,7 +180,10 @@ func TestNewImaging(t *testing.T) {
 			wantErr: "--image a: reading " + filepath.Join(dir, "nope.png") + ": ",
 			notErr:  "open ",
 		},
-		{name: "should refuse an image the api would refuse", images: []string{"a=" + small}, wantErr: "is 200 by 200 pixels"},
+		{
+			name: "should refuse an image the api would refuse, naming its path", images: []string{"a=" + small},
+			wantErr: "--image a: " + small + ": the image is 200 by 200 pixels",
+		},
 		{name: "should refuse a name given twice", images: []string{"a=" + square, "a=" + square}, wantErr: "--image a is given twice"},
 	}
 
@@ -186,7 +191,7 @@ func TestNewImaging(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newImaging(tc.images, nil, false, os.ReadFile, nil)
+			_, err := newImaging(tc.images, nil, false, os.ReadFile, bodyImages{})
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
 			}
@@ -198,13 +203,41 @@ func TestNewImaging(t *testing.T) {
 	}
 }
 
+func TestImagingFingerprint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should fingerprint a body asset by the sum of its file, as answers files already record it", func(t *testing.T) {
+		t.Parallel()
+
+		data := squarePNG(t)
+
+		img, err := onesie.NewImage(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sum := sha256.Sum256(data)
+		body := bodyImages{assets: onesie.Assets{"body-img": img}, sums: map[string][sha256.Size]byte{"body-img": sum}}
+
+		images, err := newImaging(nil, nil, false, os.ReadFile, body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := "asset body-img=" + hex.EncodeToString(sum[:])
+		if got := images.fingerprint(); !slices.Contains(got, want) {
+			t.Errorf("fingerprint = %q, want it to hold %q", got, want)
+		}
+	})
+}
+
 func TestImagingWrapLine(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should wrap a line as the field's path under -i lines", func(t *testing.T) {
 		t.Parallel()
 
-		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile, nil)
+		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile, bodyImages{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -310,18 +343,18 @@ func TestRun(t *testing.T) {
 			wantBody:     []string{`"state":{"photo":"` + ref + `","text":"the door"}`},
 		},
 		{
-			name:         "should merge the image state with its reference",
+			name:         "should fold the answers into the image state under --merge",
 			args:         []string{"--image", "photo=" + square, "q", "-o", "json", "--merge"},
 			wantCode:     ExitOK,
 			wantRequests: 1,
-			wantOut:      `"photo":"` + ref + `"`,
+			wantOut:      `{"photo":"` + ref + `","answers":`,
 		},
 		{
 			name:         "should merge the text beside the image",
 			args:         []string{"--image", "photo=" + square, "--state", "the door", "q", "-o", "json", "--merge"},
 			wantCode:     ExitOK,
 			wantRequests: 1,
-			wantOut:      `"text":"the door"`,
+			wantOut:      `{"photo":"` + ref + `","text":"the door","answers":`,
 		},
 		{
 			name:     "should refuse an image that is not png or jpeg before any request",
@@ -872,6 +905,38 @@ func TestRun(t *testing.T) {
 					}
 				}
 			})
+		}
+	})
+
+	t.Run("should refuse to resume once a body's image changes", func(t *testing.T) {
+		t.Parallel()
+
+		body, out := filepath.Join(t.TempDir(), "body.json"), filepath.Join(t.TempDir(), "out.jsonl")
+		write := func(image []byte) {
+			asset := `"assets":{"body-img":{"type":"image","data_base64":"` + base64.StdEncoding.EncodeToString(image) + `"}}`
+			if err := os.WriteFile(body, []byte(`{`+question+`,`+asset+`}`), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+		run := func(extra ...string) recordedRun {
+			return runImaged(t, append([]string{"-f", body, "-i", "lines", "--out", out}, extra...), "body-img\n",
+				noulAnswer("red", "red"), nil)
+		}
+
+		write(emptyPNG(t))
+
+		if first := run(); first.code != ExitOK {
+			t.Fatalf("first run = %d\n%s", first.code, first.stderr)
+		}
+
+		if same := run("--resume"); same.code != ExitOK {
+			t.Fatalf("a resume with the same image = %d\n%s", same.code, same.stderr)
+		}
+
+		write(squarePNG(t))
+
+		if changed := run("--resume"); changed.code != ExitUsage || !strings.Contains(changed.stderr, "images changed") {
+			t.Errorf("a resume with another image = %d\n%s, want 2 and images changed", changed.code, changed.stderr)
 		}
 	})
 

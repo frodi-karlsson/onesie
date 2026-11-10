@@ -257,7 +257,7 @@ func runOne(
 	}
 
 	if len(flags.list("image")) > 0 {
-		resolved, err = imagedState(sent)
+		resolved, err = imagedState(sent, merging(flags))
 		if err != nil {
 			return err
 		}
@@ -309,18 +309,26 @@ func sentOrNil(resolved input.Resolved, sent any) any {
 	return sent
 }
 
-func imagedState(sent any) (input.Resolved, error) {
-	encoded, isRaw := sent.(json.RawMessage)
-	if !isRaw {
-		return input.Resolved{}, errors.New("the state beside --image is not encoded")
+func imagedState(sent any, merging bool) (input.Resolved, error) {
+	object, isObject := sent.(map[string]any)
+	if !isObject {
+		return input.Resolved{}, errors.New("the state beside --image is not an object")
 	}
 
-	var state any
-	if err := json.Unmarshal(encoded, &state); err != nil {
-		return input.Resolved{}, fmt.Errorf("reading the state: %w", err)
+	resolved := input.Resolved{Source: input.SourceImages, State: object, Wire: object}
+	if !merging {
+		return resolved, nil
 	}
 
-	return input.Resolved{Source: input.SourceImages, State: state, Raw: string(encoded), Wire: sent}, nil
+	// The merged output folds the answers into the state's text, which only --merge writes.
+	encoded, err := json.Marshal(object)
+	if err != nil {
+		return input.Resolved{}, fmt.Errorf("encoding the state: %w", err)
+	}
+
+	resolved.Raw = string(encoded)
+
+	return resolved, nil
 }
 
 func noteOverriddenBodyState(w io.Writer, loaded *qfile.File, images *imaging, questions onesie.Questions) error {

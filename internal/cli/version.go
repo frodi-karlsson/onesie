@@ -52,7 +52,7 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&format, "output", "o", "", "Print text, or under json the same as one JSON object.")
-	setting.RefuseEmpty(cmd.Flags(), "output")
+	setting.CheckText(cmd.Flags(), "output")
 	borrowHelpValue(cmd.Flags(), "output", setting.Output.Name())
 
 	return cmd
