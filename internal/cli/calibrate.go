@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/frodi-karlsson/onesie/internal/qfile"
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
 	"github.com/spf13/cobra"
@@ -134,7 +135,7 @@ func runCalibrate(
 		return err
 	}
 
-	if refuseErr := refuseUnlabelledBody(settings, setting.Get(flags.merged, setting.File), scope.scored); refuseErr != nil {
+	if refuseErr := refuseUnlabelledBody(inv.loaded, scope.scored); refuseErr != nil {
 		return refuseErr
 	}
 
@@ -174,19 +175,9 @@ func refusedOnCalibrate(root *cobra.Command, err error) error {
 	return &plainError{cause: err, message: fmt.Sprintf("%s, so %s does not apply. Drop it", reason, spelled)}
 }
 
-func refuseUnlabelledBody(settings rootSettings, name string, scored *plan.Plan) error {
-	if name == "" {
+func refuseUnlabelledBody(loaded *qfile.File, scored *plan.Plan) error {
+	if loaded == nil {
 		return nil
-	}
-
-	data, path, hides, err := readQuestionFile(settings, name)
-	if err != nil {
-		return err
-	}
-
-	loaded, err := loadQuestionFile(data, path, hides, false)
-	if err != nil {
-		return err
 	}
 
 	for _, question := range loaded.Questions {
