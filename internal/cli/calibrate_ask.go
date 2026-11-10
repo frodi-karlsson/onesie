@@ -27,7 +27,7 @@ import (
 
 const maxCauses = 5
 
-func calibrateRun(
+func liveCalibration(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
 	inv *invocation, scope calibrateScope, bound []boundRequirement, base []float64,
 ) (err error) {

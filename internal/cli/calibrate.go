@@ -159,10 +159,10 @@ func runCalibrate(
 			return noteErr
 		}
 
-		return calibrateRequests(cmd, settings, flags, inputMode, inv, scope)
+		return printCalibrateRequests(cmd, settings, flags, inputMode, inv, scope)
 	}
 
-	return calibrateRun(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
+	return liveCalibration(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
 }
 
 func refusedOnCalibrate(root *cobra.Command, err error) error {

@@ -19,7 +19,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-func calibrateRequests(
+func printCalibrateRequests(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, inputMode input.Mode, inv *invocation,
 	scope calibrateScope,
 ) error {

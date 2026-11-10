@@ -788,7 +788,7 @@ func TestReadLabelled(t *testing.T) {
 	})
 }
 
-func TestCalibrateRequests(t *testing.T) {
+func TestPrintCalibrateRequests(t *testing.T) {
 	t.Parallel()
 
 	args := []string{
@@ -916,7 +916,7 @@ func (c *cancelOnWrite) Write(p []byte) (int, error) {
 	return c.out.Write(p)
 }
 
-func TestCalibrateRun(t *testing.T) {
+func TestLiveCalibration(t *testing.T) {
 	t.Parallel()
 
 	urgent := func(extra ...string) []string {
