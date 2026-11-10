@@ -352,6 +352,48 @@ func TestValidate(t *testing.T) {
 			wantErr: "question id 'a' is given twice",
 		},
 		{
+			name: "should refuse a blank earlier question before a later level count",
+			events: []argv.Event{
+				{Name: "ask", Value: "a="},
+				{Name: "ask", Value: "b=x"},
+				{Name: "rate", Value: "one"},
+			},
+			wantExact: "--ask a= is blank, an empty question is one the model cannot answer",
+		},
+		{
+			name: "should refuse --pick beside --rate before counting the levels",
+			events: []argv.Event{
+				{Name: "ask", Value: "a=x"},
+				{Name: "pick", Value: "p,q"},
+				{Name: "rate", Value: "one"},
+			},
+			wantExact: "--pick and --rate are mutually exclusive. A question is one or the other",
+		},
+		{
+			name: "should refuse a reserved id before counting its levels",
+			events: []argv.Event{
+				{Name: "ask", Value: "abstain=x"},
+				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
+			},
+			wantExact: "question id 'abstain' is reserved",
+		},
+		{
+			name: "should refuse a repeated option as listed twice when the distinct options fit",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: strings.Join(append(generated("o", 255), "o1"), ",")},
+			},
+			wantExact: "--pick option 'o1' is listed twice in question 'team'",
+		},
+		{
+			name: "should count every option the user typed when the distinct options pass the limit",
+			events: []argv.Event{
+				{Name: "ask", Value: "team=first"},
+				{Name: "pick", Value: strings.Join(append(generated("o", 256), "o1"), ",")},
+			},
+			wantExact: "--pick takes at most 255 options in question 'team', got 257",
+		},
+		{
 			name:       "should warn about a partly described option set",
 			positional: "which team",
 			events: []argv.Event{
@@ -624,6 +666,15 @@ func TestValidate(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should pass through a refusal it has no wording for, in onesie-go's words", func(t *testing.T) {
+		t.Parallel()
+
+		// An empty plan is the one such refusal today. The CLI refuses it earlier as no question given.
+		if _, err := plan.Validate(&plan.Plan{}); err == nil || err.Error() != "at least one question is required" {
+			t.Errorf("Validate = %v, want onesie-go's reason", err)
+		}
+	})
 }
 
 func assertWarning(t *testing.T, warnings []string, want string, failing bool) {

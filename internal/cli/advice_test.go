@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -1001,4 +1002,23 @@ func TestKeyHint(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAdviseLimits(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should add no note to a count refusal made before sending", func(t *testing.T) {
+		t.Parallel()
+
+		local := onesie.ValidateQuestions(onesie.Questions{{ID: "rate", Question: onesie.Score{Criteria: onesie.Levels(
+			"0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10")}}})
+		if !errors.Is(local, onesie.ErrQuestionLimit) {
+			t.Fatalf("ValidateQuestions = %v, want a count refusal", local)
+		}
+
+		var advised *advisedError
+		if got := adviseLimits(local); errors.As(got, &advised) {
+			t.Errorf("adviseLimits = %v, want the refusal without a note", got)
+		}
+	})
 }
