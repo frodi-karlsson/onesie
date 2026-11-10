@@ -113,9 +113,9 @@ func defaultOf[T any](bound settingrow.BoundFlag, zero T) T {
 	return zero
 }
 
-// RefuseEmpty makes the flag name in set refuse an empty or blank value with ErrEmptyValue, and a
+// CheckText makes the flag name in set refuse an empty or blank value with ErrEmptyValue, and a
 // value that is not valid UTF-8 with ErrNotUTF8, for a flag no row registers.
-func RefuseEmpty(set *pflag.FlagSet, name string) {
+func CheckText(set *pflag.FlagSet, name string) {
 	flag := set.Lookup(name)
 	flag.Value = checked{Value: flag.Value, rule: settingrow.RefuseBlank}
 }
