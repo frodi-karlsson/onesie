@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bytes"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -102,13 +103,43 @@ func TestLiveAnswerer(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			_, err = newLiveAnswerer(client).answer(t.Context(), recordKey{}, onesie.Request{
+			_, err = newLiveAnswerer(client).answer(t.Context(), recordKey{}, preparedFor(t, tc.provider, onesie.Request{
 				State: "a ticket", Model: client.DefaultModel(),
 				Questions: onesie.Questions{{ID: "u", Question: onesie.Noul{Instructions: "is it urgent"}}},
-			})
+			}))
 			if got := strings.Contains(text(err), "--long-context"); got != tc.want {
 				t.Errorf("%s: error = %v, want a --long-context note %v", tc.provider.Name(), err, tc.want)
 			}
+		}
+	})
+	t.Run("should send the body it is handed", func(t *testing.T) {
+		t.Parallel()
+
+		bodies := make(chan []byte, 1)
+
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			body, _ := io.ReadAll(r.Body)
+			bodies <- body
+
+			_, _ = io.WriteString(w, `{"model":"m","answers":{"u":{"type":"noul","noul":0.5}}}`)
+		}))
+		t.Cleanup(srv.Close)
+
+		client, err := onesie.New(onesie.WithAPIKey("SECRET-K"), onesie.WithBaseURL(srv.URL))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		ready := preparedFor(t, onesie.TypeSafe(), onesie.Request{
+			State: "a ticket", Model: "jev-1", Questions: onesie.Questions{{ID: "u", Question: onesie.Noul{Instructions: "is it urgent"}}},
+		})
+
+		if _, err := newLiveAnswerer(client).answer(t.Context(), recordKey{}, ready); err != nil {
+			t.Fatal(err)
+		}
+
+		if sent := <-bodies; !bytes.Equal(sent, ready.body.Bytes()) {
+			t.Errorf("sent %s, want the prepared body %s", sent, ready.body.Bytes())
 		}
 	})
 }

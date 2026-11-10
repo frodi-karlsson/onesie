@@ -46,17 +46,12 @@ func calibrateRequests(
 			return &input.LineError{Line: rec.line, Err: imageErr}
 		}
 
-		req := requestFor(scope.scored, model, questions, sent, assets)
-		if checkErr := chosen.provider.Check(req); checkErr != nil {
-			return &input.LineError{Line: rec.line, Err: embed("", checkErr)}
+		prepared, prepareErr := chosen.provider.Prepare(requestFor(scope.scored, model, questions, sent, assets))
+		if prepareErr != nil {
+			return &input.LineError{Line: rec.line, Err: embed("", prepareErr)}
 		}
 
-		body, bodyErr := requestLine(rec.line, req)
-		if bodyErr != nil {
-			return bodyErr
-		}
-
-		if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), string(body)); printErr != nil {
+		if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), string(prepared.Bytes())); printErr != nil {
 			return written(printErr)
 		}
 	}

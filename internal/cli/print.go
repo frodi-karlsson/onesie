@@ -103,16 +103,7 @@ func warnUncarried(w io.Writer, loaded *qfile.File) error {
 }
 
 func printRequest(w io.Writer, provider onesie.Provider, req onesie.Request, stated bool) error {
-	encode := onesie.MarshalQuestionsBody
-	if stated {
-		encode = onesie.MarshalBody
-
-		if err := provider.Check(req); err != nil {
-			return err
-		}
-	}
-
-	body, err := encode(req)
+	body, err := requestBody(provider, req, stated)
 	if err != nil {
 		return err
 	}
@@ -120,6 +111,19 @@ func printRequest(w io.Writer, provider onesie.Provider, req onesie.Request, sta
 	_, err = fmt.Fprintln(w, string(body))
 
 	return written(err)
+}
+
+func requestBody(provider onesie.Provider, req onesie.Request, stated bool) ([]byte, error) {
+	if !stated {
+		return onesie.MarshalQuestionsBody(req)
+	}
+
+	prepared, err := provider.Prepare(req)
+	if err != nil {
+		return nil, err
+	}
+
+	return prepared.Bytes(), nil
 }
 
 func streamRequests(
@@ -200,29 +204,18 @@ func (r *requestRun) evaluate(ctx context.Context, rec namedRecord) ([]byte, err
 		return badLine(rec, imageErr)
 	}
 
-	req := requestFor(r.built, r.model, r.questions, sent, assets)
-	if checkErr := r.provider.Check(req); checkErr != nil {
-		return badLine(rec, embed("", checkErr))
+	prepared, prepareErr := r.provider.Prepare(requestFor(r.built, r.model, r.questions, sent, assets))
+	if prepareErr != nil {
+		return badLine(rec, embed("", prepareErr))
 	}
 
-	return requestLine(rec.Line, req)
+	return prepared.Bytes(), nil
 }
 
 func badLine(rec namedRecord, cause error) ([]byte, error) {
 	bad := &input.LineError{Line: rec.Line, Err: cause}
 
 	return errorLine(bad), bad
-}
-
-func requestLine(number int, req onesie.Request) ([]byte, error) {
-	body, err := onesie.MarshalBody(req)
-	if err != nil {
-		bad := &input.LineError{Line: number, Err: embed("encoding the request", err)}
-
-		return errorLine(bad), bad
-	}
-
-	return body, nil
 }
 
 func errorLine(cause error) []byte {

@@ -33,6 +33,17 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{{Name: "ask", Value: "mug=the mug"}, {Name: "box", Value: "true"}},
 		},
 		{
+			name:    "should refuse a question that is not valid UTF-8",
+			events:  []argv.Event{{Name: "ask", Value: "urgent=is this \xffurgent"}},
+			wantErr: "question 'urgent' is not valid UTF-8",
+		},
+		{
+			name:    "should refuse an option that is not valid UTF-8",
+			events:  []argv.Event{{Name: "ask", Value: "tone=which tone"}, {Name: "pick", Value: "calm,\xffangry"}},
+			wantErr: "question 'tone' is not valid UTF-8",
+		},
+
+		{
 			name:    "should refuse --box beside --pick",
 			events:  []argv.Event{{Name: "ask", Value: "mug=x"}, {Name: "box", Value: "true"}, {Name: "pick", Value: "a,b"}},
 			wantErr: "--box, --pick and --rate are mutually exclusive. A question is one of them",

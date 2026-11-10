@@ -49,7 +49,7 @@ func mockAnswers(
 			return nil, err
 		}
 
-		return mockAnswerer{answers: answers, provider: provider, live: newLiveAnswerer(client)}, nil
+		return mockAnswerer{answers: answers, live: newLiveAnswerer(client)}, nil
 	}, nil
 }
 
@@ -81,12 +81,8 @@ type instantClock struct {
 	now func() time.Time
 }
 
-func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Request) (reply, error) {
+func (a mockAnswerer) answer(ctx context.Context, key recordKey, ready prepared) (reply, error) {
 	if err := ctx.Err(); err != nil {
-		return reply{}, err
-	}
-
-	if err := a.provider.Check(req); err != nil {
 		return reply{}, err
 	}
 
@@ -95,7 +91,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, req onesie.Requ
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
 
-	return a.live.answer(mock.WithEntry(ctx, entry, req.Model), key, req)
+	return a.live.answer(mock.WithEntry(ctx, entry, ready.body.Model()), key, ready)
 }
 
 func (a mockAnswerer) salt(key recordKey) (string, bool) {
@@ -110,9 +106,8 @@ func (a mockAnswerer) salt(key recordKey) (string, bool) {
 }
 
 type mockAnswerer struct {
-	answers  *mock.Answers
-	provider onesie.Provider
-	live     liveAnswerer
+	answers *mock.Answers
+	live    liveAnswerer
 }
 
 func (e *uncoveredError) Error() string {

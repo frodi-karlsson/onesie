@@ -178,7 +178,7 @@ func runPlan(
 	}
 
 	// Loaded before any mode writes, so a file that does not match the questions leaves no line.
-	answers, err := answersFor(cmd, settings, flags, built, built.Questions, model)
+	answers, err := answersFor(cmd, settings, flags, built, built.Questions)
 	if err != nil {
 		return err
 	}
@@ -704,14 +704,15 @@ func ask(
 
 	questions := plan.WireAll(built.Questions)
 
-	model, err := resolveModel(settings, flags, built.Model)
+	chosen, err := connected(settings, flags)
 	if err != nil {
 		return err
 	}
 
-	record, err := askAndRecord(
-		cmd.Context(), asker, recordKey{position: 1, line: 1}, built, model, questions, state.sent, state.assets,
-		setting.Get(flags.merged, setting.Usage), stats)
+	record, _, err := askAndRecord(cmd.Context(), asking{
+		provider: chosen.provider, asker: asker, built: built, model: chosen.modelFor(built.Model), questions: questions,
+		withUsage: setting.Get(flags.merged, setting.Usage), stats: stats,
+	}, recordKey{position: 1, line: 1}, state.sent, state.assets)
 	if halting(err) {
 		return err
 	}
@@ -981,21 +982,58 @@ func mergeKey(flags runConfig) string {
 }
 
 func askAndRecord(
-	ctx context.Context,
-	asker answerer,
-	key recordKey,
-	built *plan.Plan,
-	model string,
-	questions onesie.Questions,
-	state any,
-	assets onesie.Assets,
-	withUsage bool,
-	stats *collector,
-) (output.Record, error) {
-	record, usage, cached, err := answered(ctx, asker, key, built, model, questions, state, assets, withUsage)
+	ctx context.Context, a asking, key recordKey, state any, assets onesie.Assets,
+) (output.Record, *sharedCall, error) {
+	body, err := a.provider.Prepare(requestFor(a.built, a.model, a.questions, state, assets))
+	if err != nil {
+		refused := a.refused(key, err)
+
+		// No request stood behind it, as with -i request and a body the provider refuses.
+		a.stats.recordFailure(refused, false, 0)
+
+		return failureRecord(a.built, refused), nil, refused
+	}
+
+	ready := newPrepared(body)
+
+	// A record the mock file does not answer shares with nothing, so its error names its own line.
+	group := a.shared
+
+	salt, shares := a.asker.salt(key)
+	if !shares {
+		group = nil
+	}
+
+	return askOnce(ctx, group, a.stats, ready.key(salt), func() (output.Record, error) {
+		return counted(ctx, a, key, ready)
+	})
+}
+
+type asking struct {
+	provider  onesie.Provider
+	asker     answerer
+	built     *plan.Plan
+	model     string
+	questions onesie.Questions
+	withUsage bool
+	stats     *collector
+	shared    *dedup
+	numbered  bool
+}
+
+func (a asking) refused(key recordKey, err error) error {
+	if !a.numbered {
+		return err
+	}
+
+	return &input.LineError{Line: key.line, Err: embed("", err)}
+}
+
+func counted(ctx context.Context, a asking, key recordKey, ready prepared) (output.Record, error) {
+	record, usage, cached, err := answered(ctx, a.asker, key, a.built, ready, a.withUsage)
 	if halting(err) {
 		// No request stood behind it, so it is a record and not a request, and no attempt ended.
-		stats.recordFailure(err, false, 0)
+		a.stats.recordFailure(err, false, 0)
 
 		return record, err
 	}
@@ -1003,36 +1041,28 @@ func askAndRecord(
 	if err != nil {
 		// The request was made whatever went wrong afterwards, and the questions went with it, so a
 		// failed record still carries them into the count --stats reports.
-		stats.recordFailure(err, true, len(questions))
-		stats.terminalAttempt(err)
-		stats.spend(usage)
+		a.stats.recordFailure(err, true, len(a.questions))
+		a.stats.terminalAttempt(err)
+		a.stats.spend(usage)
 
 		return record, err
 	}
 
 	if cached {
-		stats.cachedRecord(record.Model)
+		a.stats.cachedRecord(record.Model)
 
 		return record, nil
 	}
 
-	stats.record(record.Model, usage, len(questions))
+	a.stats.record(record.Model, usage, len(a.questions))
 
 	return record, nil
 }
 
 func answered(
-	ctx context.Context,
-	asker answerer,
-	key recordKey,
-	built *plan.Plan,
-	model string,
-	questions onesie.Questions,
-	state any,
-	assets onesie.Assets,
-	withUsage bool,
+	ctx context.Context, asker answerer, key recordKey, built *plan.Plan, ready prepared, withUsage bool,
 ) (output.Record, onesie.Usage, bool, error) {
-	got, err := asker.answer(ctx, key, requestFor(built, model, questions, state, assets))
+	got, err := asker.answer(ctx, key, ready)
 	if halting(err) {
 		return failureRecord(built, err), onesie.Usage{}, false, err
 	}

@@ -3,8 +3,6 @@ package cli
 import (
 	"context"
 	"crypto/sha256"
-	"maps"
-	"slices"
 	"sync"
 
 	"github.com/frodi-karlsson/onesie-go"
@@ -15,18 +13,9 @@ func askOnce(
 	ctx context.Context,
 	shared *dedup,
 	stats *collector,
-	req onesie.Request,
-	salt string,
+	key [sha256.Size]byte,
 	ask func() (output.Record, error),
 ) (output.Record, *sharedCall, error) {
-	key, err := requestKey(req, salt)
-	if err != nil {
-		// A state that cannot be encoded fails its own request the same way, so it is asked alone.
-		record, askErr := ask()
-
-		return record, nil, askErr
-	}
-
 	record, call, duplicate, err := shared.share(ctx, key, ask)
 	if duplicate {
 		stats.deduplicated(err)
@@ -123,30 +112,23 @@ type sharedCall struct {
 	billed bool // Only the stream's single writer touches it, so it needs no lock.
 }
 
-func requestKey(req onesie.Request, salt string) ([sha256.Size]byte, error) {
-	body, err := onesie.MarshalBody(onesie.Request{
-		State: req.State, Model: req.Model, Questions: req.Questions, LongContext: req.LongContext,
-	})
-	if err != nil {
-		return [sha256.Size]byte{}, err
-	}
+func newPrepared(body *onesie.PreparedBody) prepared {
+	return prepared{body: body, sum: sha256.Sum256(body.Bytes())}
+}
 
+func (p prepared) key(salt string) [sha256.Size]byte {
 	hash := sha256.New()
-	hash.Write(body)
-
-	// The bytes of each image rather than the base64 body, which is a third larger, and after the
-	// reference, since a request body picks its own references and an image may change behind one.
-	for _, ref := range slices.Sorted(maps.Keys(req.Assets)) {
-		sum := sha256.Sum256(req.Assets[ref].Data)
-		hash.Write([]byte(ref))
-		hash.Write(sum[:])
-	}
-
+	hash.Write(p.sum[:])
 	hash.Write([]byte(salt))
 
 	var key [sha256.Size]byte
 
 	hash.Sum(key[:0])
 
-	return key, nil
+	return key
+}
+
+type prepared struct {
+	body *onesie.PreparedBody
+	sum  [sha256.Size]byte
 }

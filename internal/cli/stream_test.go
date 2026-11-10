@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"io/fs"
 	"math"
@@ -26,6 +27,46 @@ import (
 
 func TestStream(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should write a record the client refuses with its line, and count it as no request", func(t *testing.T) {
+		t.Parallel()
+
+		var requests atomic.Int32
+
+		srv := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { requests.Add(1) }))
+		defer srv.Close()
+
+		var out, errOut bytes.Buffer
+
+		root := cli.NewRootCmd(cli.BuildInfo{},
+			cli.WithKeychain(offKeychain()),
+			cli.WithClientFactory(func(_ context.Context, opts ...onesie.Option) (*onesie.Client, error) {
+				return onesie.New(append([]onesie.Option{onesie.WithAPIKey("k"), onesie.WithBaseURL(srv.URL)}, opts...)...)
+			}),
+			cli.WithStdin(strings.NewReader("\"a desk\"\n\"a desk\"\n")),
+			cli.WithStdinTTY(false), cli.WithStdoutTTY(false),
+			cli.WithLookupEnv(lookupOnly(map[string]string{"ONESIE_CONFIG_DIR": t.TempDir()})),
+		)
+		root.Command.SetArgs([]string{"--ask", "mug=find the mug", "--box", "-i", "jsonl", "-o", "json", "--stats"})
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+
+		if code := root.Execute(t.Context()); code != cli.ExitRecords {
+			t.Errorf("exit code = %d, want %d\nstderr: %s", code, cli.ExitRecords, errOut.String())
+		}
+
+		refused := func(line int) string {
+			return fmt.Sprintf(`{"error":{"kind":"input","status":null,"message":"line %d: box question 'mug' needs an image in the request"}}`, line)
+		}
+
+		if want := refused(1) + "\n" + refused(2) + "\n"; out.String() != want {
+			t.Errorf("stdout =\n%s\nwant\n%s", out.String(), want)
+		}
+
+		if !strings.Contains(errOut.String(), "2 records, 2 errors, 0 requests, 0 questions asked") || requests.Load() != 0 {
+			t.Errorf("stderr = %q and %d requests, want 0 requests counted and none sent", errOut.String(), requests.Load())
+		}
+	})
 
 	t.Run("should refuse invalid header bytes before preview or provider requests", func(t *testing.T) {
 		for _, mode := range []string{"csv", "tsv"} {
