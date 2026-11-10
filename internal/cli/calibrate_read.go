@@ -28,6 +28,14 @@ func printCalibrateRequests(
 		return err
 	}
 
+	if askErr := prepareAsked(cmd, settings, flags, inv, scope.scored, true); askErr != nil {
+		return askErr
+	}
+
+	if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
+		return noteErr
+	}
+
 	set, err := readLabelled(cmd.Context(), settings, inputMode, flags, inv.mapper, inv.namer, scope.labels)
 	if err != nil {
 		return err

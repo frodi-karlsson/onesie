@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -870,6 +871,25 @@ func TestPrintCalibrateRequests(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should print requests without a body image only an unlabelled question names", func(t *testing.T) {
+		t.Parallel()
+
+		// Only blue, which the run leaves unlabelled, names the body's image.
+		asset := `"assets":{"body-img":{"type":"image","data_base64":"` + base64.StdEncoding.EncodeToString(emptyPNG(t)) + `"}}`
+		body := writeImage(t, t.TempDir(), "body.json", []byte(`{"state":{"photo":"body-img"},"questions":{`+
+			`"red":{"type":"noul","instructions":"is it red"},`+
+			`"blue":{"type":"noul","instructions":"is there blue in body-img"}},`+asset+`}`))
+
+		args := []string{"calibrate", "--print-request", "-f", body, "-i", "jsonl", "--map", ".t", "--label", "red=.red"}
+		run := runImaged(t, args, `{"t":"a plain record","red":true}`+"\n", "", nil)
+
+		overridden, skipped := strings.Index(run.stderr, "state and its 1 asset"), strings.Index(run.stderr, "skipping 'blue'")
+		if run.code != ExitOK || strings.Contains(run.stdout, "assets") || overridden < 0 || skipped < overridden {
+			t.Errorf("exit code = %d\nstdout:\n%.300s\nstderr:\n%s\nwant 0, no assets, and a notice naming one before the skip",
+				run.code, run.stdout, run.stderr)
+		}
+	})
 }
 
 type cancelAtEnd struct {
@@ -2341,6 +2361,73 @@ func TestLiveCalibration(t *testing.T) {
 			t.Errorf("the cache dir exists: %v", err)
 		}
 	})
+	t.Run("should drop a body image only an unlabelled question names, and say so", func(t *testing.T) {
+		t.Parallel()
+
+		// Only blue, which the run leaves unlabelled, names the body's image.
+		asset := `"assets":{"body-img":{"type":"image","data_base64":"` + base64.StdEncoding.EncodeToString(emptyPNG(t)) + `"}}`
+		body := writeImage(t, t.TempDir(), "body.json", []byte(`{"state":{"photo":"body-img"},"questions":{`+
+			`"red":{"type":"noul","instructions":"is it red"},`+
+			`"blue":{"type":"noul","instructions":"is there blue in body-img"}},`+asset+`}`))
+
+		args := []string{"calibrate", "-f", body, "-i", "jsonl", "--map", ".t", "--label", "red=.red", "--id", ".id", "-o", "json"}
+		run := runImaged(t, args, `{"id":"a","t":"a plain record","red":true}`+"\n", noulAnswer("red"), nil)
+
+		if run.code != ExitOK || len(run.bodies) != 1 {
+			t.Fatalf("exit code = %d, requests = %d, want 0 and one\nstderr:\n%s", run.code, len(run.bodies), run.stderr)
+		}
+
+		if strings.Contains(run.bodies[0], "assets") || !strings.Contains(run.stderr, "state and its 1 asset") {
+			t.Errorf("body = %.300s\nstderr:\n%s\nwant no assets and a notice naming one", run.bodies[0], run.stderr)
+		}
+	})
+
+	t.Run("should read a stream run's answers file as its own, and the other way round", func(t *testing.T) {
+		t.Parallel()
+
+		asset := `"assets":{"logo":{"type":"image","data_base64":"` + base64.StdEncoding.EncodeToString(emptyPNG(t)) + `"}}`
+		questions := `"questions":{"red":{"type":"noul","instructions":"is it red"},"blue":{"type":"noul","instructions":"is it blue"}}`
+		calibrateArgs := []string{"calibrate", "--label", "red=.red", "--label", "blue=.blue"}
+
+		for _, tc := range []struct{ name, body, mapped string }{
+			{name: "with no body state", body: `{` + questions + `,` + asset + `}`, mapped: `{photo:"logo"}`},
+			{name: "with a body state the records override", body: `{"state":{"photo":"logo"},` + questions + `,` + asset + `}`, mapped: ".t"},
+		} {
+			for _, order := range [][2][]string{{calibrateArgs, nil}, {nil, calibrateArgs}} {
+				body := writeImage(t, t.TempDir(), "body.json", []byte(tc.body))
+				out := filepath.Join(t.TempDir(), "out.jsonl")
+				stdin := `{"id":"a","t":"x","red":true,"blue":false}` + "\n"
+				shared := []string{"-f", body, "-i", "jsonl", "--map", tc.mapped, "--id", ".id", "-o", "json", "--out", out, "--resume"}
+
+				first := runImaged(t, append(slices.Clone(order[0]), shared...), stdin, noulAnswer("red", "blue"), nil)
+				if first.code != ExitOK {
+					t.Fatalf("%s, first run %v = %d\n%s", tc.name, order[0], first.code, first.stderr)
+				}
+
+				second := runImaged(t, append(slices.Clone(order[1]), shared...), stdin, noulAnswer("red", "blue"), nil)
+				if second.code != ExitOK || len(second.bodies) != 0 {
+					t.Errorf("%s, resuming with %v = %d, requests = %d\n%s, want 0 and none",
+						tc.name, order[1], second.code, len(second.bodies), second.stderr)
+				}
+			}
+		}
+	})
+
+	t.Run("should not refuse a provider for an unlabelled box question", func(t *testing.T) {
+		t.Parallel()
+
+		square := writeImage(t, t.TempDir(), "square.png", squarePNG(t))
+		stdin := `{"id":"a","photo":` + jsonText(t, square) + `,"red":true}` + "\n"
+
+		run := runImaged(t, []string{
+			"calibrate", "--ask", "red=is there a red square in `photo`", "--ask", "mug=the mug in `photo`", "--box",
+			"-i", "jsonl", "--map", "{photo}", "--image-field", "photo", "--label", "red=.red", "--id", ".id", "-o", "json",
+		}, stdin, `{"result":`+noulAnswer("red")+`,"success":true}`, map[string]string{"ONESIE_PROVIDER": "cloudflare"})
+
+		if run.code != ExitOK || len(run.bodies) != 1 {
+			t.Fatalf("exit code = %d, requests = %d, want 0 and one\nstderr:\n%s", run.code, len(run.bodies), run.stderr)
+		}
+	})
 }
 
 func TestReportOf(t *testing.T) {
@@ -3449,6 +3536,36 @@ func TestAskedPlan(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should keep sending a body image when resuming a file written with every label", func(t *testing.T) {
+		t.Parallel()
+
+		// Only blue, which the run leaves unlabelled, names the body's image.
+		asset := `"assets":{"body-img":{"type":"image","data_base64":"` + base64.StdEncoding.EncodeToString(emptyPNG(t)) + `"}}`
+		body := writeImage(t, t.TempDir(), "body.json", []byte(`{"state":{"photo":"body-img"},"questions":{`+
+			`"red":{"type":"noul","instructions":"is it red"},`+
+			`"blue":{"type":"noul","instructions":"is there blue in body-img"}},`+asset+`}`))
+
+		out := filepath.Join(t.TempDir(), "out.jsonl")
+		run := func(stdin string, labels ...string) recordedRun {
+			args := append([]string{
+				"calibrate", "-f", body, "-i", "jsonl", "--map", ".t", "--id", ".id", "-o", "json", "--out", out, "--resume",
+			}, labels...)
+
+			return runImaged(t, args, stdin, noulAnswer("red", "blue"), nil)
+		}
+
+		first := `{"id":"a","t":"x","red":true,"blue":false}` + "\n"
+		if got := run(first, "--label", "red=.red", "--label", "blue=.blue"); got.code != ExitOK {
+			t.Fatalf("first run = %d\n%s", got.code, got.stderr)
+		}
+
+		second := run(first+`{"id":"b","t":"y","red":true,"blue":false}`+"\n", "--label", "red=.red")
+		if second.code != ExitOK || len(second.bodies) != 1 || !strings.Contains(second.bodies[0], `"assets":{"body-img"`) {
+			t.Errorf("resume = %d, requests = %d\nstderr:\n%s\nwant 0 and one request with the image",
+				second.code, len(second.bodies), second.stderr)
+		}
+	})
 }
 
 func TestWriteSkipped(t *testing.T) {

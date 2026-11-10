@@ -129,17 +129,6 @@ func runCalibrate(
 		return noticeErr
 	}
 
-	if noteErr := noteOverriddenBodyState(
-		cmd.ErrOrStderr(), inv.loaded, inv.images, plan.WireAll(inv.plan.Questions)); noteErr != nil {
-		return noteErr
-	}
-
-	if !calib.offline {
-		if refuseErr := checkProviderNeeds(settings, flags, inv.plan, inv.images); refuseErr != nil {
-			return refuseErr
-		}
-	}
-
 	scope, err := scopeOf(inv.plan, calib.labels)
 	if err != nil {
 		return err
@@ -155,10 +144,6 @@ func runCalibrate(
 	}
 
 	if setting.Get(flags.merged, setting.PrintRequest) {
-		if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
-			return noteErr
-		}
-
 		return printCalibrateRequests(cmd, settings, flags, inputMode, inv, scope)
 	}
 
