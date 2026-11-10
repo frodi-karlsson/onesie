@@ -431,12 +431,17 @@ func (s *Stream) record(line string) Record {
 		return s.ok(line, line, line)
 	}
 
+	// onesie-go reads a request body, so the line goes to it as written.
+	if s.mode == Request {
+		return s.ok(line, nil, nil)
+	}
+
 	var value any
 	if err := json.Unmarshal([]byte(line), &value); err != nil {
 		return s.fail(line, unreadableJSON(err))
 	}
 
-	if err := s.check(value); err != nil {
+	if err := CheckState(value); err != nil {
 		return s.fail(line, err)
 	}
 
@@ -454,37 +459,6 @@ func unreadableJSON(err error) error {
 	}
 
 	return fmt.Errorf("line is not one complete JSON value: %w", err)
-}
-
-func (s *Stream) check(value any) error {
-	if s.mode != Request {
-		return CheckState(value)
-	}
-
-	// A request body is forwarded opaquely, so only its outermost shape is checked. A body the API
-	// will refuse for its contents is still sent, and the 422 is the answer.
-	if _, object := value.(map[string]any); object {
-		return nil
-	}
-
-	return fmt.Errorf("a request body must be a JSON object, got %s", jsonNoun(value))
-}
-
-func jsonNoun(value any) string {
-	switch value.(type) {
-	case nil:
-		return "null"
-	case bool:
-		return "boolean"
-	case string:
-		return "string"
-	case []any:
-		return "array"
-	case map[string]any:
-		return "object"
-	default:
-		return "number"
-	}
 }
 
 func (s *Stream) ok(line string, state, wire any) Record {
@@ -514,13 +488,14 @@ type Record struct {
 	// Line is the input line number, counting from one. It differs from Index as soon as
 	// --skip-blank drops a line, and it is the number a message must quote.
 	Line int
-	// State is the parsed value, which the pre flight checks read. It is nil when Err is set.
+	// State is the parsed value, which the pre flight checks read. It is nil when Err is set, and
+	// in request mode, which parses nothing.
 	State any
-	// Wire is what reaches the API. It is the raw bytes for a JSON mode, keeping large integers and
-	// key order, and the parsed value for a text mode.
+	// Wire is the state that reaches the API. It is the raw bytes for a JSON mode, keeping large
+	// integers and key order, the parsed value for a text mode, and nil in request mode.
 	Wire any
-	// Raw is the line exactly as read, which --merge folds the answers into. For a csv or tsv row
-	// it is the row as a JSON object, which is what was sent.
+	// Raw is the line exactly as read, which --merge folds the answers into and request mode sends.
+	// For a csv or tsv row it is the row as a JSON object, which is what was sent.
 	Raw string
 	// Header is the csv or tsv header the row was read under, nil for every other mode.
 	Header []string

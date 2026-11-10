@@ -190,7 +190,7 @@ func TestStreamRaw(t *testing.T) {
 				response:  `{"answers":{}}`,
 				wantSent:  1,
 				wantLines: 2,
-				wantOut:   []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2"},
+				wantOut:   []string{`{"answers":{}}`, `{"error":{"kind":"input"`, "line 2: the request body is not JSON: "},
 				wantCode:  ExitRecords,
 			},
 			{
@@ -201,9 +201,9 @@ func TestStreamRaw(t *testing.T) {
 				wantSent:  1,
 				wantLines: 4,
 				wantOut: []string{
-					"line 2: a request body must be a JSON object, got number",
-					"line 3: a request body must be a JSON object, got array",
-					"line 4: a request body must be a JSON object, got string",
+					"line 2: the request body must be a JSON object, got a number",
+					"line 3: the request body must be a JSON object, got an array",
+					"line 4: the request body must be a JSON object, got a string",
 				},
 				wantCode: ExitRecords,
 			},
