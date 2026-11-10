@@ -431,12 +431,17 @@ func (s *Stream) record(line string) Record {
 		return s.ok(line, line, line)
 	}
 
+	// onesie-go reads a request body, so the line goes to it as written.
+	if s.mode == Request {
+		return s.ok(line, nil, nil)
+	}
+
 	var value any
 	if err := json.Unmarshal([]byte(line), &value); err != nil {
 		return s.fail(line, unreadableJSON(err))
 	}
 
-	if err := s.check(value); err != nil {
+	if err := CheckState(value); err != nil {
 		return s.fail(line, err)
 	}
 
@@ -454,37 +459,6 @@ func unreadableJSON(err error) error {
 	}
 
 	return fmt.Errorf("line is not one complete JSON value: %w", err)
-}
-
-func (s *Stream) check(value any) error {
-	if s.mode != Request {
-		return CheckState(value)
-	}
-
-	// A request body is forwarded opaquely, so only its outermost shape is checked. A body the API
-	// will refuse for its contents is still sent, and the 422 is the answer.
-	if _, object := value.(map[string]any); object {
-		return nil
-	}
-
-	return fmt.Errorf("a request body must be a JSON object, got %s", jsonNoun(value))
-}
-
-func jsonNoun(value any) string {
-	switch value.(type) {
-	case nil:
-		return "null"
-	case bool:
-		return "boolean"
-	case string:
-		return "string"
-	case []any:
-		return "array"
-	case map[string]any:
-		return "object"
-	default:
-		return "number"
-	}
 }
 
 func (s *Stream) ok(line string, state, wire any) Record {
