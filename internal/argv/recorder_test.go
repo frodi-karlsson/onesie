@@ -108,6 +108,17 @@ func TestRecorder(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should refuse a value that is not valid UTF-8", func(t *testing.T) {
+		t.Parallel()
+
+		set := pflag.NewFlagSet("onesie", pflag.ContinueOnError)
+		set.Var(argv.New().Flag("rate"), "rate", "recorded")
+
+		if err := set.Parse([]string{"--rate", "lo\xff,hi"}); !errors.Is(err, argv.ErrNotUTF8) {
+			t.Errorf("parsing = %v, want %v", err, argv.ErrNotUTF8)
+		}
+	})
 }
 
 func TestRecorder_Switch(t *testing.T) {

@@ -1,6 +1,7 @@
 package qfile
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -63,12 +64,12 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	}
 
 	if value, found := lookup(top, "assets"); found {
-		assets, err := readAssets(value)
+		assets, sums, err := readAssets(value)
 		if err != nil {
 			return nil, err
 		}
 
-		file.Assets = assets
+		file.Assets, file.AssetSums = assets, sums
 	}
 
 	raw, _ := lookup(top, "questions")
@@ -134,27 +135,21 @@ func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
 	return read, err
 }
 
-func readAssets(value any) (onesie.Assets, error) {
+func readAssets(value any) (onesie.Assets, map[string][sha256.Size]byte, error) {
 	entries, ok := mapping(value)
 	if !ok {
-		return nil, errors.New("'assets' in a request body must be a mapping")
+		return nil, nil, errors.New("'assets' in a request body must be a mapping")
 	}
 
 	assets := make(onesie.Assets, len(entries))
+	sums := make(map[string][sha256.Size]byte, len(entries))
 
 	for _, entry := range entries {
 		ref := fmt.Sprintf("%v", entry.Key)
 
 		fields, ok := mapping(entry.Value)
 		if !ok {
-			return nil, fmt.Errorf("asset '%s' in a request body must be a mapping", ref)
-		}
-
-		format, _ := lookup(fields, "format")
-
-		formatText, isFormat := format.(string)
-		if !isFormat {
-			return nil, fmt.Errorf("asset '%s' in a request body needs a format, png or jpg", ref)
+			return nil, nil, fmt.Errorf("asset '%s' in a request body must be a mapping", ref)
 		}
 
 		encoded, _ := lookup(fields, "data_base64")
@@ -163,14 +158,29 @@ func readAssets(value any) (onesie.Assets, error) {
 
 		data, err := base64.StdEncoding.DecodeString(text)
 		if !isText || err != nil {
-			return nil, fmt.Errorf(
+			return nil, nil, fmt.Errorf(
 				"asset '%s' in a request body needs data_base64 as standard base64", ref)
 		}
 
-		assets[ref] = onesie.Image{Format: formatText, Data: data}
+		// The bytes say what the image is, so a format the body declares is not read.
+		img, err := onesie.NewImage(data)
+		if err != nil {
+			return nil, nil, fmt.Errorf("asset '%s' in a request body: %s", ref, reasonOf(err))
+		}
+
+		assets[ref], sums[ref] = img, sha256.Sum256(data)
 	}
 
-	return assets, nil
+	return assets, sums, nil
+}
+
+func reasonOf(err error) string {
+	var refused *onesie.ValidationError
+	if errors.As(err, &refused) {
+		return refused.Reason()
+	}
+
+	return err.Error()
 }
 
 func buildBodyQuestion(named onesie.NamedQuestion, fields yaml.MapSlice) (plan.Question, error) {

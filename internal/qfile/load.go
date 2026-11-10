@@ -4,6 +4,7 @@ package qfile
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -74,6 +75,8 @@ type File struct {
 	StateWire json.RawMessage
 	// Assets are the body's images, keyed by the references its state and questions use.
 	Assets onesie.Assets
+	// AssetSums holds the sha256 of each asset's file by reference, which an answers file fingerprints.
+	AssetSums map[string][sha256.Size]byte
 }
 
 func decodeOrdered(data []byte) (any, error) {

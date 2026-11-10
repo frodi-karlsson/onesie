@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/argv"
 	"github.com/frodi-karlsson/onesie/internal/input"
@@ -11,6 +13,10 @@ import (
 )
 
 func newRunConfig(parsed *setting.Merged, given *setting.Given, events []argv.Event, positional string) (runConfig, error) {
+	if !utf8.ValidString(positional) {
+		return runConfig{}, errors.New("the question is not valid UTF-8")
+	}
+
 	inputMode, err := input.ParseMode(setting.Get(parsed, setting.Input))
 	if err != nil {
 		return runConfig{}, err

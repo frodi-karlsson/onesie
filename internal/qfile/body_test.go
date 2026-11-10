@@ -1,7 +1,12 @@
 package qfile_test
 
 import (
+	"bytes"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/json"
+	"image"
+	"image/png"
 	"strings"
 	"testing"
 
@@ -24,6 +29,12 @@ func TestLoadBody(t *testing.T) {
 	             "criteria": ["calm", "annoyed", "furious"]}
 	  }
 	}`
+
+	square := plainPNG(t)
+	asset := func(format, data string) string {
+		return `{"state":{"photo":"img"},"questions":{"q":{"type":"noul","instructions":"x"}},` +
+			`"assets":{"img":{"type":"image","format":"` + format + `","data_base64":"` + data + `"}}}`
+	}
 
 	tests := []struct {
 		name    string
@@ -48,16 +59,31 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "'long_context' in a request body must be true or false",
 		},
 		{
-			name: "should keep a body's assets",
-			doc: `{"state":{"photo":"img"},"questions":{"q":{"type":"noul","instructions":"x"}},` +
-				`"assets":{"img":{"type":"image","format":"png","data_base64":"AQ=="}}}`,
+			name: "should keep a body's assets and the sum of each file",
+			doc:  asset("png", base64.StdEncoding.EncodeToString(square)),
 			check: func(t *testing.T, file *qfile.File) {
 				t.Helper()
 
-				if got := file.Assets["img"]; got.Format != "png" || len(got.Data) != 1 || got.Data[0] != 1 {
-					t.Errorf("assets = %+v, want img as one png byte", file.Assets)
+				if got := file.Assets["img"]; got.Format() != "png" || file.AssetSums["img"] != sha256.Sum256(square) {
+					t.Errorf("assets = %+v and sums %x, want img as the png and its sum", file.Assets, file.AssetSums)
 				}
 			},
+		},
+		{
+			name: "should take an asset's format from its bytes, not from the body",
+			doc:  asset("jpg", base64.StdEncoding.EncodeToString(square)),
+			check: func(t *testing.T, file *qfile.File) {
+				t.Helper()
+
+				if got := file.Assets["img"].Format(); got != "png" {
+					t.Errorf("format = %q, want png", got)
+				}
+			},
+		},
+		{
+			name:    "should refuse an asset that is not an image",
+			doc:     asset("png", "AQ=="),
+			wantErr: "asset 'img' in a request body: an image must be PNG or JPEG",
 		},
 		{
 			name:    "should refuse an asset that is not base64",
@@ -404,4 +430,15 @@ func TestLoadBody(t *testing.T) {
 			}
 		})
 	})
+}
+
+func plainPNG(t *testing.T) []byte {
+	t.Helper()
+
+	var encoded bytes.Buffer
+	if err := png.Encode(&encoded, image.NewGray(image.Rect(0, 0, 280, 280))); err != nil {
+		t.Fatal(err)
+	}
+
+	return encoded.Bytes()
 }

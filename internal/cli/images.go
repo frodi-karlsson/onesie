@@ -23,10 +23,12 @@ const (
 )
 
 func newImaging(
-	specs, fields []string, lines bool, readFile func(string) ([]byte, error), body onesie.Assets,
+	specs, fields []string, lines bool, readFile func(string) ([]byte, error), body bodyImages,
 ) (*imaging, error) {
-	m := &imaging{fields: fields, lines: lines, readFile: readFile, fixed: map[string]string{}, assets: onesie.Assets{}}
-	maps.Copy(m.assets, body)
+	m := &imaging{
+		fields: fields, lines: lines, readFile: readFile, fixed: map[string]string{}, assets: onesie.Assets{}, sums: body.sums,
+	}
+	maps.Copy(m.assets, body.assets)
 
 	for _, spec := range specs {
 		name, path, ok := strings.Cut(spec, "=")
@@ -60,12 +62,18 @@ func newImaging(
 	return m, nil
 }
 
+type bodyImages struct {
+	assets onesie.Assets
+	sums   map[string][sha256.Size]byte
+}
+
 type imaging struct {
 	fixed    map[string]string
 	fields   []string
 	lines    bool
 	readFile func(string) ([]byte, error)
 	assets   onesie.Assets
+	sums     map[string][sha256.Size]byte
 }
 
 func (m *imaging) wrapLine(state, wire any) (any, any) {
@@ -125,12 +133,7 @@ func (m *imaging) attach(state any) (any, onesie.Assets, error) {
 		assets[ref] = m.assets[ref]
 	}
 
-	encoded, err := json.Marshal(object)
-	if err != nil {
-		return nil, nil, fmt.Errorf("encoding the state: %w", err)
-	}
-
-	return json.RawMessage(encoded), assets, nil
+	return object, assets, nil
 }
 
 func (m *imaging) dropUnreferenced(questions onesie.Questions) (int, error) {
@@ -168,7 +171,7 @@ func (m *imaging) fingerprint() []string {
 	}
 
 	for _, ref := range slices.Sorted(maps.Keys(m.bodyAssets())) {
-		sum := sha256.Sum256(m.assets[ref].Data)
+		sum := m.sums[ref]
 		parts = append(parts, "asset "+ref+"="+hex.EncodeToString(sum[:]))
 	}
 
@@ -196,15 +199,11 @@ func (m *imaging) load(path string) (string, onesie.Image, error) {
 		return "", onesie.Image{}, fmt.Errorf("reading %s: %w", path, patherr.Inner(err))
 	}
 
+	// Built here rather than when the request is, so a file the API would refuse costs no request and
+	// names its own path.
 	img, err := onesie.NewImage(data)
 	if err != nil {
 		return "", onesie.Image{}, embed(path, err)
-	}
-
-	// Checked here rather than when the request is built, so a file the API would refuse costs no
-	// request and names its own path.
-	if err := onesie.ValidateImage(path, img); err != nil {
-		return "", onesie.Image{}, embed("", err)
 	}
 
 	return imageRef(data), img, nil

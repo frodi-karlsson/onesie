@@ -7,7 +7,6 @@ import (
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
-	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/assert"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -179,13 +178,13 @@ func invocationOf(settings rootSettings, flags runConfig, built *plan.Plan, file
 		return nil, err
 	}
 
-	var bodyAssets onesie.Assets
+	var body bodyImages
 	if file.loaded != nil {
-		bodyAssets = file.loaded.Assets
+		body = bodyImages{assets: file.loaded.Assets, sums: file.loaded.AssetSums}
 	}
 
 	images, err := newImaging(
-		flags.list("image"), flags.list("image_field"), flags.inputMode == input.Lines, settings.readFile, bodyAssets)
+		flags.list("image"), flags.list("image_field"), flags.inputMode == input.Lines, settings.readFile, body)
 	if err != nil {
 		return nil, err
 	}

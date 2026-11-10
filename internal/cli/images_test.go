@@ -3,7 +3,9 @@ package cli
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -119,7 +121,7 @@ func TestImagingAttach(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile, nil)
+			m, err := newImaging(tc.images, tc.fields, false, os.ReadFile, bodyImages{})
 			if err != nil {
 				if tc.wantErr == "" || !strings.Contains(err.Error(), tc.wantErr) {
 					t.Fatalf("newImaging error = %v, want %q", err, tc.wantErr)
@@ -178,7 +180,10 @@ func TestNewImaging(t *testing.T) {
 			wantErr: "--image a: reading " + filepath.Join(dir, "nope.png") + ": ",
 			notErr:  "open ",
 		},
-		{name: "should refuse an image the api would refuse", images: []string{"a=" + small}, wantErr: "is 200 by 200 pixels"},
+		{
+			name: "should refuse an image the api would refuse, naming its path", images: []string{"a=" + small},
+			wantErr: "--image a: " + small + ": the image is 200 by 200 pixels",
+		},
 		{name: "should refuse a name given twice", images: []string{"a=" + square, "a=" + square}, wantErr: "--image a is given twice"},
 	}
 
@@ -186,7 +191,7 @@ func TestNewImaging(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, err := newImaging(tc.images, nil, false, os.ReadFile, nil)
+			_, err := newImaging(tc.images, nil, false, os.ReadFile, bodyImages{})
 			if err == nil || !strings.Contains(err.Error(), tc.wantErr) {
 				t.Fatalf("error = %v, want %q", err, tc.wantErr)
 			}
@@ -198,13 +203,41 @@ func TestNewImaging(t *testing.T) {
 	}
 }
 
+func TestImagingFingerprint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should fingerprint a body asset by the sum of its file, as answers files already record it", func(t *testing.T) {
+		t.Parallel()
+
+		data := squarePNG(t)
+
+		img, err := onesie.NewImage(data)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		sum := sha256.Sum256(data)
+		body := bodyImages{assets: onesie.Assets{"body-img": img}, sums: map[string][sha256.Size]byte{"body-img": sum}}
+
+		images, err := newImaging(nil, nil, false, os.ReadFile, body)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		want := "asset body-img=" + hex.EncodeToString(sum[:])
+		if got := images.fingerprint(); !slices.Contains(got, want) {
+			t.Errorf("fingerprint = %q, want it to hold %q", got, want)
+		}
+	})
+}
+
 func TestImagingWrapLine(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should wrap a line as the field's path under -i lines", func(t *testing.T) {
 		t.Parallel()
 
-		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile, nil)
+		m, err := newImaging(nil, []string{"photo"}, true, os.ReadFile, bodyImages{})
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
