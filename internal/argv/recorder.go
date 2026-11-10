@@ -4,7 +4,6 @@ package argv
 
 import (
 	"errors"
-	"unicode/utf8"
 
 	"github.com/spf13/pflag"
 )
@@ -15,10 +14,6 @@ const Bare = "\x00"
 
 // ErrSwitchValue is what a switch's Set returns for a value written after it, as in --box=true.
 var ErrSwitchValue = errors.New("takes no value")
-
-// ErrNotUTF8 is what Set returns for a value that is not valid UTF-8. A file is read with U+FFFD in
-// place of a bad byte, so only a command line can bring one.
-var ErrNotUTF8 = errors.New("is not valid UTF-8")
 
 // New returns a Recorder for one flag set, so its log holds the flags of one parse.
 func New() *Recorder {
@@ -56,10 +51,6 @@ func (r *Recorder) Events() []Event {
 func (v *recorded) Set(value string) error {
 	if v.switched && value != Bare {
 		return ErrSwitchValue
-	}
-
-	if !utf8.ValidString(value) {
-		return ErrNotUTF8
 	}
 
 	if v.switched {

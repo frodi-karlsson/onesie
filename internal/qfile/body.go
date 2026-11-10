@@ -125,14 +125,11 @@ func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
 
 	var read onesie.Questions
 
-	err = read.UnmarshalJSON(encoded)
-
-	var refused *onesie.ValidationError
-	if errors.As(err, &refused) {
-		return nil, errors.New(refused.Reason())
+	if err := read.UnmarshalJSON(encoded); err != nil {
+		return nil, reasonOf(err)
 	}
 
-	return read, err
+	return read, nil
 }
 
 func readAssets(value any) (onesie.Assets, map[string][sha256.Size]byte, error) {
@@ -165,7 +162,7 @@ func readAssets(value any) (onesie.Assets, map[string][sha256.Size]byte, error) 
 		// The bytes say what the image is, so a format the body declares is not read.
 		img, err := onesie.NewImage(data)
 		if err != nil {
-			return nil, nil, fmt.Errorf("asset '%s' in a request body: %s", ref, reasonOf(err))
+			return nil, nil, fmt.Errorf("asset '%s' in a request body: %w", ref, reasonOf(err))
 		}
 
 		assets[ref], sums[ref] = img, sha256.Sum256(data)
@@ -174,13 +171,13 @@ func readAssets(value any) (onesie.Assets, map[string][sha256.Size]byte, error) 
 	return assets, sums, nil
 }
 
-func reasonOf(err error) string {
+func reasonOf(err error) error {
 	var refused *onesie.ValidationError
 	if errors.As(err, &refused) {
-		return refused.Reason()
+		return errors.New(refused.Reason())
 	}
 
-	return err.Error()
+	return err
 }
 
 func buildBodyQuestion(named onesie.NamedQuestion, fields yaml.MapSlice) (plan.Question, error) {

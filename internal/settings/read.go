@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
@@ -519,6 +520,10 @@ func readEnv(
 			raw := lookedUp(lookupEnv, variable.Name)
 			if raw == "" {
 				continue
+			}
+
+			if !utf8.ValidString(raw) {
+				return Layer{}, &EnvironmentError{Name: variable.Name, Cause: fmt.Errorf("%s %w", variable.Name, settingrow.ErrNotUTF8)}
 			}
 
 			value, err := parseHalf(row, raw, variable.Half)

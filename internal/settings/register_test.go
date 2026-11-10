@@ -132,6 +132,17 @@ func TestRegister(t *testing.T) {
 				}
 			}
 		}},
+		{name: "should refuse a value that is not valid UTF-8 on every flag of every command", run: func(t *testing.T) {
+			for _, command := range []settingrow.Command{
+				settingrow.CommandRoot, settingrow.CommandCalibrate, settingrow.CommandProfileCreate, settingrow.CommandProfileUpdate,
+			} {
+				for _, name := range register(command).names() {
+					if err := register(command).parseErr("--" + name + "=a\xff"); !errors.Is(err, settingrow.ErrNotUTF8) {
+						t.Errorf("%s --%s error = %v, want ErrNotUTF8", command, name, err)
+					}
+				}
+			}
+		}},
 		{name: "should refuse Unicode blank values before recording or appending", run: func(t *testing.T) {
 			for _, tc := range []struct {
 				name      settingrow.Name

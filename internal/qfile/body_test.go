@@ -81,6 +81,18 @@ func TestLoadBody(t *testing.T) {
 			},
 		},
 		{
+			name: "should take an asset that declares no format",
+			doc: `{"state":{"photo":"img"},"questions":{"q":{"type":"noul","instructions":"x"}},` +
+				`"assets":{"img":{"data_base64":"` + base64.StdEncoding.EncodeToString(square) + `"}}}`,
+			check: func(t *testing.T, file *qfile.File) {
+				t.Helper()
+
+				if got := file.Assets["img"].Format(); got != "png" {
+					t.Errorf("format = %q, want png", got)
+				}
+			},
+		},
+		{
 			name:    "should refuse an asset that is not an image",
 			doc:     asset("png", "AQ=="),
 			wantErr: "asset 'img' in a request body: an image must be PNG or JPEG",

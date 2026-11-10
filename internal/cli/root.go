@@ -358,7 +358,7 @@ func plainFlagError(cmd *cobra.Command, err error) error {
 	case errors.As(err, &invalid) && errors.Is(err, argv.ErrSwitchValue):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s takes no value, got '%s'",
 			invalid.GetFlag().Name, invalid.GetValue())}
-	case errors.As(err, &invalid) && errors.Is(err, argv.ErrNotUTF8):
+	case errors.As(err, &invalid) && errors.Is(err, settingrow.ErrNotUTF8):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s is not valid UTF-8", invalid.GetFlag().Name)}
 	case errors.As(err, &invalid) && errors.Is(err, settingrow.ErrEmptyValue):
 		return &plainError{cause: err, message: fmt.Sprintf("--%s is empty. Name one, or leave the flag out",

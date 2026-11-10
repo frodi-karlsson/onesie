@@ -717,10 +717,10 @@ func TestNewRootCmd(t *testing.T) {
 			contains: []string{"onesie: --box takes no value, got 'true'\n"},
 		},
 		{
-			name:     "should refuse a flag value that is not valid UTF-8, a described rate label included",
-			args:     []string{"--ask", "r=how cross", "--rate", "lo\xff,hi", "--desc", "lo\xff=calm", "--print-request", "--state", "s"},
+			name:     "should refuse a flag value that is not valid UTF-8 when the command line is read",
+			args:     []string{"--ask", "q=is it", "--image", "n\xff=photo.png", "--print-request", "--state", "{}"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --rate is not valid UTF-8\n"},
+			contains: []string{"onesie: --image is not valid UTF-8\n"},
 		},
 		{
 			name:     "should refuse a question that is not valid UTF-8",

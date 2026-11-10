@@ -27,6 +27,10 @@ var (
 	// ErrEmptyValue is what a kind that needs a value returns for an empty one.
 	ErrEmptyValue = errors.New("empty value")
 
+	// ErrNotUTF8 is what a flag or environment variable returns for a value that is not valid UTF-8.
+	// A file is read with U+FFFD in place of a bad byte, so only these bring one.
+	ErrNotUTF8 = errors.New("is not valid UTF-8")
+
 	accountIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{32}$`)
 )
 
