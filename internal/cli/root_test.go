@@ -379,7 +379,7 @@ func TestNewRootCmd(t *testing.T) {
 			response: answered,
 			wantCode: cli.ExitUsage,
 			contains: []string{"onesie: line 1: --merge-key state cannot write this record's error, since its line " +
-				"wraps under state: --id fails: expected an object"},
+				"wraps under state: --id fails: "},
 			absent: []string{`"state":{"error"`},
 		},
 		{

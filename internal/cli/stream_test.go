@@ -818,10 +818,11 @@ func TestStream(t *testing.T) {
 			`"message":"line 2: --id: '7' is also the id of line 1"}}`
 
 		tests := []struct {
-			name         string
-			args         []string
-			stdin        string
-			wantCode     int
+			name     string
+			args     []string
+			stdin    string
+			wantCode int
+			// A {gojq} stands for the text gojq words on that line, so only onesie's words around it are pinned.
 			wantOut      string
 			wantRequests int32
 		}{
@@ -882,7 +883,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id.n", "-o", "values"},
 				stdin:        "{\"id\":\"T-1\"}\n{\"id\":{\"n\":2}}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id fails: expected an object but got: string (\"T-1\")"}}` + "\n" + `{"id":2,"answer":0.9}`,
+				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id fails: {gojq}"}}` + "\n" + `{"id":2,"answer":0.9}`,
 				wantRequests: 1,
 			},
 			{
@@ -1008,7 +1009,7 @@ func TestStream(t *testing.T) {
 					t.Errorf("exit code = %d, want %d\nstderr:\n%s", code, tc.wantCode, errOut.String())
 				}
 
-				if got := strings.TrimSuffix(out.String(), "\n"); got != tc.wantOut {
+				if got := strings.TrimSuffix(out.String(), "\n"); !matchesGojq(got, tc.wantOut) {
 					t.Errorf("output =\n%s\nwant\n%s", got, tc.wantOut)
 				}
 
@@ -1023,22 +1024,22 @@ func TestStream(t *testing.T) {
 		t.Parallel()
 
 		tests := []struct {
-			name    string
-			flag    string
-			source  string
-			wantErr string
+			name   string
+			flag   string
+			source string
+			column int
 		}{
 			{
-				name:    "should exit two on a --map syntax error",
-				flag:    "--map",
-				source:  ".body |",
-				wantErr: "onesie: --map: unexpected EOF at column 8\n",
+				name:   "should exit two on a --map syntax error",
+				flag:   "--map",
+				source: ".body |",
+				column: 8,
 			},
 			{
-				name:    "should exit two on an --id syntax error",
-				flag:    "--id",
-				source:  ".id |",
-				wantErr: "onesie: --id: unexpected EOF at column 6\n",
+				name:   "should exit two on an --id syntax error",
+				flag:   "--id",
+				source: ".id |",
+				column: 6,
 			},
 		}
 
@@ -1079,8 +1080,10 @@ func TestStream(t *testing.T) {
 					t.Errorf("exit code = %d, want %d", code, cli.ExitUsage)
 				}
 
-				if errOut.String() != tc.wantErr {
-					t.Errorf("stderr = %q, want %q", errOut.String(), tc.wantErr)
+				// gojq words the fault, so only the flag and the column onesie adds are pinned.
+				prefix, suffix := "onesie: "+tc.flag+": ", fmt.Sprintf(" at column %d\n", tc.column)
+				if got := errOut.String(); !strings.HasPrefix(got, prefix) || !strings.HasSuffix(got, suffix) {
+					t.Errorf("stderr = %q, want %q, a fault, then %q", got, prefix, suffix)
 				}
 
 				if stdin.read.Load() {
@@ -1339,7 +1342,7 @@ func TestStream(t *testing.T) {
 		const answeredHalf = `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5},` +
 			`"urgent":{"type":"noul","noul":0.5}},"usage":{}}`
 
-		const tickets = `{"id":"T-1","body":"site down"}` + "\n" + "not json\n" + `{"id":"@T-2","body":"slow"}` + "\n"
+		const tickets = `{"id":"T-1","body":"site down"}` + "\n" + "\xff\n" + `{"id":"@T-2","body":"slow"}` + "\n"
 
 		out := filepath.Join(t.TempDir(), "answers.md")
 
@@ -1363,7 +1366,7 @@ func TestStream(t *testing.T) {
 				want: "| id | `answer` | gate | error |\n" +
 					"|---|---|---|---|\n" +
 					"| `T-1` | 0.5 | pass | |\n" +
-					"| | | | `line 2: line is not one complete JSON value: invalid character 'o' in literal null (expecting 'u')` |\n" +
+					"| | | | `line 2: line is not valid UTF-8` |\n" +
 					"| `@T-2` | 0.5 | pass | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
@@ -1964,4 +1967,20 @@ func sameRanking(t *testing.T, got []byte, want string) bool {
 	}
 
 	return true
+}
+
+func matchesGojq(got, want string) bool {
+	before, after, found := strings.Cut(want, "{gojq}")
+	if !found {
+		return got == want
+	}
+
+	middle, ok := strings.CutPrefix(got, before)
+	if !ok {
+		return false
+	}
+
+	fault, ok := strings.CutSuffix(middle, after)
+
+	return ok && fault != "" && !strings.Contains(fault, "\n")
 }

@@ -876,7 +876,7 @@ func TestPrintRequest(t *testing.T) {
 			args:     []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", "{subject, body", "--print-request"},
 			stdin:    "{\"body\":\"a\"}\n",
 			wantCode: ExitUsage,
-			stderr:   []string{"onesie: --map: unexpected EOF at column 15"},
+			stderr:   []string{"onesie: --map: ", " at column 15\n"},
 		},
 		{
 			// The control for every case above. The same command without the flag needs a key it

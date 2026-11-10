@@ -400,9 +400,9 @@ func TestLoad(t *testing.T) {
 			t.Fatalf("expected an error, got none")
 		}
 
-		want := "onesie: " + path + ": json: unknown field \"to_verify\""
-		if err.Error() != want {
-			t.Errorf("error = %q, want %q", err.Error(), want)
+		// encoding/json words the fault, so only the path and the field the file holds are pinned.
+		if prefix := "onesie: " + path + ": "; !strings.HasPrefix(err.Error(), prefix) || !strings.Contains(err.Error(), `"to_verify"`) {
+			t.Errorf("error = %q, want %q and the field name", err.Error(), prefix)
 		}
 	})
 
