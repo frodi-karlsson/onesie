@@ -25,14 +25,16 @@ func TestCompile(t *testing.T) {
 		// A syntax error ends with the column onesie names. gojq words the rest, so only a refusal is pinned.
 		wantColumn string
 		refused    bool
+		// gojq's sentence, kept only where it is the proof that no module loader is configured.
+		wantExact string
 	}{
 		{name: "should compile a path", source: ".ticket.body"},
 		{name: "should name the column of an unexpected token", source: ".body | }", wantColumn: "at column 9"},
 		{name: "should name the column past the end of an unfinished expression", source: "{subject, body", wantColumn: "at column 15"},
 		{name: "should count the column in characters", source: `"é" | }`, wantColumn: "at column 7"},
 		{name: "should refuse an undefined function", source: ".body | nope", refused: true},
-		{name: "should refuse to import a module", source: `import "lib" as lib; .`, refused: true},
-		{name: "should refuse to include a module", source: `include "lib"; .`, refused: true},
+		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantExact: `cannot load module: "lib"`},
+		{name: "should refuse to include a module", source: `include "lib"; .`, wantExact: `cannot load module: "lib"`},
 	}
 
 	for _, tc := range tests {
@@ -40,6 +42,14 @@ func TestCompile(t *testing.T) {
 			t.Parallel()
 
 			expr, err := Compile(tc.source)
+
+			if tc.wantExact != "" {
+				if err == nil || err.Error() != tc.wantExact {
+					t.Fatalf("Compile(%q) error = %v, want exactly %q", tc.source, err, tc.wantExact)
+				}
+
+				return
+			}
 
 			if tc.wantColumn == "" && !tc.refused {
 				if err != nil || expr == nil {
@@ -63,8 +73,10 @@ func TestCompile(t *testing.T) {
 			t.Fatalf("Compile() = %v, want no expression", expr)
 		}
 
-		if err == nil {
-			t.Fatal("Compile() error = nil, want the import refused")
+		// gojq's sentence for no module loader, which is what keeps the file unread.
+		const want = `cannot load module: "/etc/passwd"`
+		if err == nil || err.Error() != want {
+			t.Fatalf("Compile() error = %v, want exactly %q", err, want)
 		}
 	})
 }
