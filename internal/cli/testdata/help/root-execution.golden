@@ -17,7 +17,8 @@ Flags:
       --no-dedup                Ask every record even when its request repeats an
                                 earlier one. Streaming only.
       --long-context            Raise the context limits to 262k tokens, slower and less
-                                accurate. Also ONESIE_LONG_CONTEXT=1. Experimental on
+                                accurate. openrouter reads a long state in full without
+                                it. Also ONESIE_LONG_CONTEXT=1. Experimental on
                                 TypeSafe's side.
       --mock FILE               Answer from this file instead of the API. Also
                                 ONESIE_MOCK. The file is an object keyed by question id,
