@@ -21,6 +21,21 @@ func TestLoad(t *testing.T) {
 		wantErr string
 	}{
 		{
+			name:    "should refuse a body whose questions key is misspelt",
+			doc:     `{"state":{"n":3},"qestions":{"a":{"type":"noul","instructions":"q"}}}`,
+			wantErr: "the file has 'state' but no 'questions'. A request body needs 'questions', and a question file takes no 'state', so pass --state or send it on stdin",
+		},
+		{
+			name:    "should refuse a question file that pins a model",
+			doc:     "model: jev-1.13.0\nurgent:\n  ask: is it urgent\n",
+			wantErr: "the file has 'model' but no 'questions'. A request body needs 'questions', and a question file takes no 'model', so pass -m",
+		},
+		{
+			name: "should load a question named long_context or assets as a question",
+			doc:  "long_context: is it long\nassets: does it list assets\n",
+			same: "long_context:\n  ask: is it long\nassets:\n  ask: does it list assets\n",
+		},
+		{
 			name: "should ignore a $schema string in a yaml file",
 			doc:  "$schema: " + schemaURL + "\nurgent: is this urgent\nassert: 'urgent.value < 0.5'\n",
 			same: "urgent: is this urgent\nassert: 'urgent.value < 0.5'\n",
