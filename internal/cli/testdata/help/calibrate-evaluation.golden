@@ -12,6 +12,10 @@ Flags:
                                 calibrate exits 1. Repeatable.
       --offline                 Read every answer from the --out file and ask nothing,
                                 needing no key. Needs --out and --resume.
+      --compare FILE            Score this saved answers file, asking nothing. Repeat,
+                                the first being the baseline.
+      --false-alarms BUDGETS    Comma separated false alarm budgets for --compare, which
+                                shows the catches at each. Default: 0.1.
 
 How they work together:
   Calibration compares answers with labels from the original record, not the mapped
@@ -60,8 +64,20 @@ How they work together:
   second. The example requirement is illustrative. Offline replay checks saved evidence,
   not new live model behavior.
 
+  --compare FILE, given twice or more, scores saved answers files against the labels and
+  asks nothing. The first is the baseline. A question compares only the records every
+  file answers by --id, and stderr counts the rest. stderr also names what differs from
+  the baseline: the fingerprint parts, and the models when their names differ. Each file
+  gets a row with its models, the AUC, the change from the baseline and the catches at
+  each --false-alarms budget, with 95 percent intervals. Requirements apply to every
+  file. Pick and rate questions are skipped for now. Write the compared files without
+  --cache, which can hide a model update.
+
   Compare answers with labelled examples:
     onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume < labelled.jsonl
+
+  Compare two saved runs:
+    onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --compare march.jsonl --compare november.jsonl < labelled.jsonl
 
   Check the saved answers without asking again:
     onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.9 at 0.5' < labelled.jsonl

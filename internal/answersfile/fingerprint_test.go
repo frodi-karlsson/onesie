@@ -434,3 +434,114 @@ func sumsOf(t *testing.T, fingerprint Print) map[string]string {
 
 	return sums
 }
+
+func TestDifferences(t *testing.T) {
+	t.Parallel()
+
+	print := func(t *testing.T, inputs FingerprintInputs, question string) string {
+		t.Helper()
+
+		got, err := Fingerprint([]plan.Question{{ID: "urgent"}}, json.RawMessage(question), inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return got.String()
+	}
+
+	march := FingerprintInputs{Provider: "typesafe", Model: "jev-latest", Output: "json", Input: "jsonl"}
+	november := march
+	november.Model = "jev-1.15.0"
+
+	tests := []struct {
+		name      string
+		baseline  func(t *testing.T) string
+		other     func(t *testing.T) string
+		want      []string
+		wantKnown bool
+	}{
+		{
+			name:      "should name nothing for two runs of the same settings",
+			baseline:  func(t *testing.T) string { return print(t, march, `[]`) },
+			other:     func(t *testing.T) string { return print(t, march, `[]`) },
+			wantKnown: true,
+		},
+		{
+			name:     "should name each part that differs, in the order a fingerprint writes them",
+			baseline: func(t *testing.T) string { return print(t, march, `[]`) },
+			other:    func(t *testing.T) string { return print(t, november, `[{"q":1}]`) },
+			want:     []string{"the questions", "the model"}, wantKnown: true,
+		},
+		{
+			name:     "should name a part only one side carries",
+			baseline: func(t *testing.T) string { return print(t, march, `[]`) },
+			other: func(t *testing.T) string {
+				longer := march
+				longer.LongContext = true
+
+				return print(t, longer, `[]`)
+			},
+			want: []string{"--long-context"}, wantKnown: true,
+		},
+		{
+			name:     "should leave out the parts version 4 added when one side is version 3",
+			baseline: func(*testing.T) string { return "v3:model=" + strings.Repeat("ab", partSumLength) },
+			other: func(*testing.T) string {
+				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",profile=" + strings.Repeat("cd", partSumLength)
+			},
+			wantKnown: true,
+		},
+		{
+			name:     "should say two different version 2 sums differ without naming a part",
+			baseline: func(*testing.T) string { return "v2:" + strings.Repeat("ab", 32) },
+			other:    func(*testing.T) string { return "v2:" + strings.Repeat("cd", 32) },
+			want:     []string{"the questions, model or flags"}, wantKnown: true,
+		},
+		{
+			name:     "should not compare a version 2 sum with one kept by part",
+			baseline: func(*testing.T) string { return "v2:" + strings.Repeat("ab", 32) },
+			other:    func(t *testing.T) string { return print(t, march, `[]`) },
+		},
+		{
+			name:     "should not compare a fingerprint onesie did not write",
+			baseline: func(*testing.T) string { return "made up" },
+			other:    func(t *testing.T) string { return print(t, march, `[]`) },
+		},
+		{
+			name:     "should not compare a fingerprint of a newer version",
+			baseline: func(t *testing.T) string { return print(t, march, `[]`) },
+			other:    func(*testing.T) string { return "v9:model=" + strings.Repeat("ab", partSumLength) },
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, known := Differences(tc.baseline(t), tc.other(t))
+			if known != tc.wantKnown || !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("Differences = %q, %v, want %q, %v", got, known, tc.want, tc.wantKnown)
+			}
+		})
+	}
+
+	t.Run("should list every part a fingerprint can write, in its order", func(t *testing.T) {
+		t.Parallel()
+
+		var names []string
+
+		fields := reflect.TypeFor[runPrint]()
+		for field := range fields.Fields() {
+			name, _, _ := strings.Cut(field.Tag.Get("json"), ",")
+			names = append(names, name)
+
+			if partLabel(name) == "" {
+				t.Errorf("part %s has no label", name)
+			}
+		}
+
+		if !reflect.DeepEqual(names, partOrder) {
+			t.Errorf("partOrder = %v, want the runPrint fields %v", partOrder, names)
+		}
+	})
+}

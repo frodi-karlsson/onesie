@@ -242,13 +242,19 @@ func helpEvaluation() string {
 		"The report still prints when requirements fail, each failure is named on stderr and the run exits 1.\n\n" +
 		"--offline needs --out and --resume, reads every answer from the file and asks nothing. It needs no key and never rewrites the file. " +
 		"A missing answer, missing file or fingerprint mismatch exits 2. The first example creates the answer file used by the second. " +
-		"The example requirement is illustrative. Offline replay checks saved evidence, not new live model behavior."
+		"The example requirement is illustrative. Offline replay checks saved evidence, not new live model behavior.\n\n" +
+		"--compare FILE, given twice or more, scores saved answers files against the labels and asks nothing. The first is the baseline. " +
+		"A question compares only the records every file answers by --id, and stderr counts the rest. " +
+		"stderr also names what differs from the baseline: the fingerprint parts, and the models when their names differ. " +
+		"Each file gets a row with its models, the AUC, the change from the baseline and the catches at each --false-alarms budget, with 95 percent intervals. " +
+		"Requirements apply to every file. Pick and rate questions are skipped for now. Write the compared files without --cache, which can hide a model update."
 }
 
 func helpExamples(command settingrow.Command) []helpExample {
 	if command == settingrow.CommandCalibrate {
 		return []helpExample{
 			{id: "calibrate", title: "Compare answers with labelled examples", places: []string{"overview", "evaluation"}, args: []string{"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".text", "--label", "urgent=.urgent", "--id", ".id", "--out", "answers.jsonl", "--resume"}, inputFile: "labelled.jsonl"},
+			{id: "compare", title: "Compare two saved runs", places: []string{"evaluation"}, args: []string{"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".text", "--label", "urgent=.urgent", "--id", ".id", "--compare", "march.jsonl", "--compare", "november.jsonl"}, inputFile: "labelled.jsonl"},
 			{id: "offline", title: "Check the saved answers without asking again", places: []string{"overview", "evaluation"}, args: []string{"calibrate", "--ask", "urgent=is this urgent", "-i", "jsonl", "--map", ".text", "--label", "urgent=.urgent", "--id", ".id", "--out", "answers.jsonl", "--resume", "--offline", "--require", "urgent.catches >= 0.9 at 0.5"}, inputFile: "labelled.jsonl"},
 		}
 	}

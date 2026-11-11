@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"cmp"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
@@ -1102,6 +1103,54 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse each setting --compare cannot run with", func(t *testing.T) {
+		t.Parallel()
+
+		calibrating := settings.Facts{Command: settingrow.CommandCalibrate}
+		files := []string{"march.jsonl", "november.jsonl"}
+		compared := func(set values, typed ...settingrow.Name) run {
+			merged := values{"compare": files}
+			maps.Copy(merged, set)
+
+			return run{facts: calibrating, set: merged, typed: append([]settingrow.Name{"compare", "id"}, typed...)}
+		}
+
+		for _, refused := range []struct {
+			given run
+			want  string
+		}{
+			{
+				given: run{facts: calibrating, set: values{"false_alarms": "0.1"}, typed: []settingrow.Name{"false_alarms"}},
+				want:  "--false-alarms sets the budgets of a --compare report. Pass --compare or drop it",
+			},
+			{
+				given: compared(values{"compare": []string{"a.jsonl", "b.jsonl", "a.jsonl"}}),
+				want:  "--compare names a.jsonl twice",
+			},
+			{
+				given: run{facts: calibrating, set: values{"compare": files}, typed: []settingrow.Name{"compare"}},
+				want:  "--compare pairs the records with each file's answers by id. Pass --id",
+			},
+			{
+				given: compared(values{"mock": "m.json"}, "mock"),
+				want:  "--compare reads saved answers, and --mock answers from a file of its own. Drop one",
+			},
+			{given: compared(values{"out": "x.jsonl"}, "out"), want: "so --out does not apply"},
+			{given: compared(values{"resume": true}, "resume"), want: "so --resume does not apply"},
+			{given: compared(values{"offline": true}, "offline"), want: "so --offline does not apply"},
+			{given: compared(values{"prune": true}, "prune"), want: "so --prune does not apply"},
+			{given: compared(values{"print_request": true}, "print_request"), want: "so --print-request does not apply"},
+			{given: compared(values{"cache": true}, "cache"), want: "so --cache does not apply"},
+			{given: compared(values{"usage": true}, "usage"), want: "so --usage does not apply"},
+			{given: compared(values{"model": "jev-latest"}, "model"), want: "so -m/--model does not apply"},
+		} {
+			_, _, err := settings.Validate(refused.given.view(t), []settings.Rule{ruleByID(t, "compare-reads-files")})
+			if err == nil || !strings.Contains(err.Error(), refused.want) {
+				t.Errorf("error = %v, want %q", err, refused.want)
+			}
+		}
+	})
+
 	t.Run("should cover every rule in Rules that refuses", func(t *testing.T) {
 		t.Parallel()
 
@@ -1180,6 +1229,23 @@ func ruleCases() []ruleCase {
 			refused: run{facts: calibrating, set: values{"offline": true, "print_request": true}},
 			passed:  run{facts: calibrating, set: values{"offline": true, "out": "answers.jsonl", "resume": true}},
 			wantErr: "--offline reads answers, and --print-request sends no request. Drop one",
+		},
+		{
+			rule: "compare-reads-files",
+			refused: run{
+				facts: calibrating, set: values{"compare": []string{"a.jsonl"}}, typed: []settingrow.Name{"compare"},
+			},
+			passed: run{
+				facts: calibrating, set: values{"compare": []string{"a.jsonl", "b.jsonl"}},
+				typed: []settingrow.Name{"compare", "id"},
+			},
+			wantErr: "--compare needs two answers files or more, the first being the baseline, and got only a.jsonl",
+		},
+		{
+			rule:    "false-alarms-parse",
+			refused: run{facts: calibrating, set: values{"false_alarms": "1.5"}, typed: []settingrow.Name{"false_alarms"}},
+			passed:  run{facts: calibrating, set: values{"false_alarms": "0.05,0.1"}, typed: []settingrow.Name{"false_alarms"}},
+			wantErr: "--false-alarms takes numbers between 0 and 1, got '1.5'",
 		},
 		{
 			rule:    "calibrate-needs-map",

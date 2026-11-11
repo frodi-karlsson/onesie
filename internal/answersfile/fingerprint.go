@@ -34,6 +34,13 @@ const (
 	ChangedRun
 )
 
+// partOrder lists the parts in the order a fingerprint writes them.
+var partOrder = []string{
+	"questions", "policies", "provider", "model", "map", "id", "output", "input", "merge_key", "assert",
+	"abstain_if", "skip_blank", "images", "delimiter", "long_context", "fallback_columns", "mock", "base_url",
+	"account_id", "profile", "usage",
+}
+
 // ErrStaleAnswers matches every StaleAnswersError, so a caller tells a stale file apart without
 // reading the message.
 var ErrStaleAnswers = errors.New("stale answers")
@@ -448,6 +455,40 @@ func (e *StaleAnswersError) changed() string {
 // Is matches ErrStaleAnswers.
 func (e *StaleAnswersError) Is(target error) bool {
 	return target == ErrStaleAnswers
+}
+
+// Differences names the parts of a run that differ between two stored fingerprints, in the words
+// a refusal uses. known is false when the two cannot be compared part by part or as one sum.
+func Differences(baseline, other string) (changed []string, known bool) {
+	baseVersion, baseSums, baseRead := parsePrint(baseline)
+	otherVersion, otherSums, otherRead := parsePrint(other)
+
+	switch {
+	case !baseRead || !otherRead:
+		return nil, false
+	case baseVersion == olderVersion && otherVersion == olderVersion:
+		if strings.EqualFold(baseline, other) {
+			return nil, true
+		}
+
+		return []string{"the questions, model or flags"}, true
+	case baseSums == nil || otherSums == nil:
+		return nil, false
+	}
+
+	both := min(baseVersion, otherVersion)
+
+	for _, name := range partOrder {
+		if both < fingerprintVersion && addedInVersion4(name) {
+			continue
+		}
+
+		if baseSums[name] != otherSums[name] {
+			changed = append(changed, partLabel(name))
+		}
+	}
+
+	return changed, true
 }
 
 func parsePrint(stored string) (version int, sums map[string]string, ok bool) {

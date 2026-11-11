@@ -489,54 +489,59 @@ func casesOf(built *plan.Plan, rec labelledRecord, record output.Record) ([]reco
 		return nil, errors.New(record.Failure.Message)
 	}
 
-	name := ""
-	if rec.id != nil {
-		name = jq.IDText(rec.id)
-	}
-
 	cases := make([]recordCase, len(built.Questions))
-	text := sentText(rec.sent)
 
 	for q, question := range built.Questions {
 		if rec.labels[q] == nil {
 			continue
 		}
 
-		given, err := answerTo(question, record)
+		scored, err := caseOf(question, rec.labels[q], rec, record)
 		if err != nil {
 			return nil, err
 		}
 
-		if question.Shape == plan.Noul {
-			value, isNumber := given.Value.(float64)
-			if !isNumber || !unitRange(value) {
-				return nil, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
-			}
-
-			cases[q].yesNo = calibrate.YesNoCase{
-				Name: name, ID: rec.id, Line: rec.line, Yes: rec.labels[q].Yes, Value: value,
-				Text: text,
-			}
-
-			continue
-		}
-
-		picked, isName := given.Value.(string)
-		if !isName {
-			return nil, fmt.Errorf("question '%s' picked %v, which is not a name", question.ID, given.Value)
-		}
-
-		if given.Confidence == nil || !unitRange(*given.Confidence) {
-			return nil, fmt.Errorf("question '%s' answered with a confidence outside [0,1]", question.ID)
-		}
-
-		cases[q].choice = calibrate.ChoiceCase{
-			Name: name, Label: rec.labels[q].Name, Picked: picked, ID: rec.id, Line: rec.line,
-			Confidence: *given.Confidence, Text: text,
-		}
+		cases[q] = scored
 	}
 
 	return cases, nil
+}
+
+func caseOf(question plan.Question, label *calibrate.Label, rec labelledRecord, record output.Record) (recordCase, error) {
+	name := ""
+	if rec.id != nil {
+		name = jq.IDText(rec.id)
+	}
+
+	given, err := answerTo(question, record)
+	if err != nil {
+		return recordCase{}, err
+	}
+
+	if question.Shape == plan.Noul {
+		value, isNumber := given.Value.(float64)
+		if !isNumber || !unitRange(value) {
+			return recordCase{}, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
+		}
+
+		return recordCase{yesNo: calibrate.YesNoCase{
+			Name: name, ID: rec.id, Line: rec.line, Yes: label.Yes, Value: value, Text: sentText(rec.sent),
+		}}, nil
+	}
+
+	picked, isName := given.Value.(string)
+	if !isName {
+		return recordCase{}, fmt.Errorf("question '%s' picked %v, which is not a name", question.ID, given.Value)
+	}
+
+	if given.Confidence == nil || !unitRange(*given.Confidence) {
+		return recordCase{}, fmt.Errorf("question '%s' answered with a confidence outside [0,1]", question.ID)
+	}
+
+	return recordCase{choice: calibrate.ChoiceCase{
+		Name: name, Label: label.Name, Picked: picked, ID: rec.id, Line: rec.line,
+		Confidence: *given.Confidence, Text: sentText(rec.sent),
+	}}, nil
 }
 
 func sentText(sent any) string {

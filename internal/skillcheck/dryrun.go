@@ -11,7 +11,7 @@ import (
 
 var (
 	printFlags      = []string{"print-request", "print-questions"}
-	answerFileFlags = []string{"out", "resume", "offline", "prune"}
+	answerFileFlags = []string{"out", "resume", "offline", "prune", "compare"}
 )
 
 // NewCatalog reads each flag in the command tree under root, its spellings and whether it takes a

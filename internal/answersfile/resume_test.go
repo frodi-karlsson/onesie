@@ -63,6 +63,28 @@ func TestLedger_TakeOrder(t *testing.T) {
 	}
 }
 
+func TestLedger_Unclaimed(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should count the lines no record admitted, kept or forgot", func(t *testing.T) {
+		t.Parallel()
+
+		book := &Ledger{answered: map[ledgerKey]answeredLine{}}
+		for i, id := range []string{"1", "2", "3", "4"} {
+			book.note(id, Span{Start: int64(i), End: int64(i + 1)}, Stored{})
+		}
+
+		book.Admit("1")
+		book.Keep("2")
+		book.Forget("3")
+		book.Admit("5")
+
+		if got := book.Unclaimed(); got != 1 {
+			t.Errorf("Unclaimed = %d, want 1", got)
+		}
+	})
+}
+
 func TestCopyLines(t *testing.T) {
 	t.Parallel()
 

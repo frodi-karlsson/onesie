@@ -74,9 +74,12 @@ func NewView(merged *Merged, built *plan.Plan, facts Facts) View {
 	if facts.Command == settingrow.CommandCalibrate {
 		cuts, cutsErr := calibrationCuts(view)
 		requirements, requirementsErr := calibrationRequirements(view)
-		view.cutsError, view.requirementsError = cutsErr, requirementsErr
-		if cutsErr == nil && requirementsErr == nil {
-			view.Calibration = CalibrationArguments{Cuts: cuts, Requirements: requirements}
+		budgets, budgetsErr := calibrationBudgets(view)
+		view.cutsError, view.requirementsError, view.budgetsError = cutsErr, requirementsErr, budgetsErr
+		if cutsErr == nil && requirementsErr == nil && budgetsErr == nil {
+			view.Calibration = CalibrationArguments{
+				Cuts: cuts, Requirements: requirements, Compare: listOf(view, compareName), Budgets: budgets,
+			}
 		}
 	}
 	return view
@@ -91,12 +94,17 @@ type View struct {
 	Calibration       CalibrationArguments
 	cutsError         error
 	requirementsError error
+	budgetsError      error
 }
 
 // CalibrationArguments holds the syntax results prepared for one calibration invocation.
 type CalibrationArguments struct {
 	Cuts         []float64
 	Requirements []calibrate.Requirement
+	// Compare names the answers files to compare, the first being the baseline, and Budgets the
+	// false alarm budgets their report reads catches at.
+	Compare []string
+	Budgets []float64
 }
 
 // Facts are what a rule or a derived default reads about a run that no setting holds: the command,

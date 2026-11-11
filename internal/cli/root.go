@@ -226,16 +226,7 @@ func runRoot(
 }
 
 func openOut(settings rootSettings, flags runConfig, readOnly bool) (*answersfile.File, answersfile.Resume, error) {
-	out, resume, err := answersfile.Open(answersfile.Options{
-		OpenFile: settings.openFile,
-		Stat:     settings.stat,
-		Rename:   settings.rename,
-		Remove:   settings.remove,
-		Resolve:  settings.resolve,
-		Readlink: settings.readlink,
-		Lock:     settings.lock,
-		GOOS:     settings.goos,
-	}, answersfile.Config{
+	out, resume, err := answersfile.Open(answersOptions(settings), answersfile.Config{
 		Path:      setting.Get(flags.merged, setting.Out),
 		Resume:    setting.Get(flags.merged, setting.Resume),
 		Output:    setting.Get(flags.merged, setting.Output),
@@ -245,6 +236,19 @@ func openOut(settings rootSettings, flags runConfig, readOnly bool) (*answersfil
 	})
 
 	return out, resume, wordAnswersError(err)
+}
+
+func answersOptions(settings rootSettings) answersfile.Options {
+	return answersfile.Options{
+		OpenFile: settings.openFile,
+		Stat:     settings.stat,
+		Rename:   settings.rename,
+		Remove:   settings.remove,
+		Resolve:  settings.resolve,
+		Readlink: settings.readlink,
+		Lock:     settings.lock,
+		GOOS:     settings.goos,
+	}
 }
 
 func answersDelimiter(flags runConfig) input.Delimiter {
