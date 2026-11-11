@@ -78,7 +78,7 @@ func TestWriteJSON(t *testing.T) {
 
 		questions := questionsOf(t, writeJSON(t, full))
 		want := [][]string{
-			{"id", "shape", "labelled", "yes", "no", "failed", "auc", "cuts", "values", "misses"},
+			{"id", "shape", "labelled", "yes", "no", "failed", "auc", "auc_interval", "cuts", "values", "misses"},
 			{"id", "shape", "labelled", "failed", "agreement", "options", "cuts", "grid", "misses"},
 			{"id", "shape", "labelled", "failed", "agreement", "within_one", "mean_distance", "levels", "cuts", "grid", "misses"},
 		}
@@ -246,8 +246,9 @@ func TestWriteJSON(t *testing.T) {
 		decode(t, questions[0], &yesNo)
 		decode(t, questions[1], &rate)
 
-		if string(yesNo["auc"]) != "null" || string(rate["mean_distance"]) != "null" {
-			t.Errorf("auc = %s, mean distance = %s, want null for both", yesNo["auc"], rate["mean_distance"])
+		if string(yesNo["auc"]) != "null" || string(yesNo["auc_interval"]) != "null" || string(rate["mean_distance"]) != "null" {
+			t.Errorf("auc = %s, auc interval = %s, mean distance = %s, want null for all", yesNo["auc"],
+				yesNo["auc_interval"], rate["mean_distance"])
 		}
 	})
 

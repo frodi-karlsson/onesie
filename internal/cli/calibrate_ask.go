@@ -518,6 +518,10 @@ func caseOf(question plan.Question, label *calibrate.Label, rec labelledRecord, 
 		return recordCase{}, err
 	}
 
+	if given.Value == nil {
+		return recordCase{}, fmt.Errorf("question '%s' has an answer with no value", question.ID)
+	}
+
 	if question.Shape == plan.Noul {
 		value, isNumber := given.Value.(float64)
 		if !isNumber || !unitRange(value) {

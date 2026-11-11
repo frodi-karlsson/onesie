@@ -118,17 +118,17 @@ dangerous. 10 went to a person, and 2 of those were safe: `find . -name '*.pyc' 
 `echo 'rm -rf /'`.
 
 ```
-destroys, yes/no: labelled 40, 16 yes, 24 no, 0 errors. AUC 1.00
+destroys, yes/no: labelled 40, 16 yes, 24 no, 0 errors. AUC 1.00, interval 0.89-1.00
   cut   flagged  catches           false alarms   right when flagged
   0.25       18  16/16 99% 81-99%  2/24 8% 2-26%  16/18 89% 67-97%
   0.50       15  15/16 94% 72-99%  0/24 1% 1-14%  15/15 99% 80-99%
 
-secrets, yes/no: labelled 40, 5 yes, 35 no, 0 errors. AUC 1.00
+secrets, yes/no: labelled 40, 5 yes, 35 no, 0 errors. AUC 1.00, interval 0.78-1.00
   cut   flagged  catches         false alarms    right when flagged
   0.30       10  5/5 99% 57-99%  5/35 14% 6-29%  5/10 50% 24-76%
   0.67        5  5/5 99% 57-99%  0/35  1% 1-10%  5/5  99% 57-99%
 
-network, yes/no: labelled 40, 15 yes, 25 no, 0 errors. AUC 1.00
+network, yes/no: labelled 40, 15 yes, 25 no, 0 errors. AUC 1.00, interval 0.89-1.00
   cut   flagged  catches           false alarms   right when flagged
   0.50       15  15/15 99% 80-99%  0/25 1% 1-13%  15/15 99% 80-99%
 ```
@@ -170,16 +170,16 @@ This gate is strict. On the sample, 8 of 20 clean texts passed and 12 went to a 
 blocked texts were injections, and the other 6 injections went to a person.
 
 ```
-instructs, yes/no: labelled 36, 16 yes, 20 no, 0 errors. AUC 0.93
+instructs, yes/no: labelled 36, 16 yes, 20 no, 0 errors. AUC 0.93, interval 0.77-0.98
   cut   flagged  catches           false alarms      right when flagged
   0.15       27  15/16 94% 72-99%  12/20 60% 39-78%  15/27 56% 37-72%
 
-overrides, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00
+overrides, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00, interval 0.82-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.50        8  7/7 99% 65-99%  1/29 3% 1-17%  7/8 88% 53-98%
   0.70        7  7/7 99% 65-99%  0/29 1% 1-12%  7/7 99% 65-99%
 
-access, yes/no: labelled 36, 10 yes, 26 no, 0 errors. AUC 0.94
+access, yes/no: labelled 36, 10 yes, 26 no, 0 errors. AUC 0.94, interval 0.76-0.98
   cut   flagged  catches          false alarms    right when flagged
   0.45       12  8/10 80% 49-94%  4/26 15% 6-34%  8/12 67% 39-86%
   0.82        6  6/10 60% 31-83%  0/26  1% 1-13%  6/6  99% 61-99%
@@ -225,22 +225,22 @@ clean texts went to a person: a museum address, a landmark address and an elided
 asks for an address that belongs to a person.
 
 ```
-name_contact, yes/no: labelled 36, 8 yes, 28 no, 0 errors. AUC 1.00
+name_contact, yes/no: labelled 36, 8 yes, 28 no, 0 errors. AUC 1.00, interval 0.84-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.15        8  8/8 99% 68-99%  0/28 1% 1-12%  8/8 99% 68-99%
   0.50        7  7/8 88% 53-98%  0/28 1% 1-12%  7/7 99% 65-99%
 
-email_phone, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00
+email_phone, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00, interval 0.82-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.40        8  7/7 99% 65-99%  1/29 3% 1-17%  7/8 88% 53-98%
   0.70        7  7/7 99% 65-99%  0/29 1% 1-12%  7/7 99% 65-99%
 
-home_address, yes/no: labelled 36, 3 yes, 33 no, 0 errors. AUC 1.00
+home_address, yes/no: labelled 36, 3 yes, 33 no, 0 errors. AUC 1.00, interval 0.68-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.45        5  3/3 99% 44-99%  2/33 6% 2-20%  3/5 60% 23-88%
   0.94        3  3/3 99% 44-99%  0/33 1% 1-10%  3/3 99% 44-99%
 
-credential, yes/no: labelled 36, 8 yes, 28 no, 0 errors. AUC 1.00
+credential, yes/no: labelled 36, 8 yes, 28 no, 0 errors. AUC 1.00, interval 0.84-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.20        9  8/8 99% 68-99%  1/28 4% 1-18%  8/9 89% 57-98%
   0.38        8  8/8 99% 68-99%  0/28 1% 1-12%  8/8 99% 68-99%
@@ -281,12 +281,12 @@ blocked, and the other 2 went to a person. 5 clean comments went to a person, mo
 blunt complaints.
 
 ```
-hostile, yes/no: labelled 36, 12 yes, 24 no, 0 errors. AUC 1.00
+hostile, yes/no: labelled 36, 12 yes, 24 no, 0 errors. AUC 1.00, interval 0.87-1.00
   cut   flagged  catches           false alarms    right when flagged
   0.30       16  12/12 99% 76-99%  4/24 17% 7-36%  12/16 75% 51-90%
   0.85       10  10/12 83% 55-95%  0/24  1% 1-14%  10/10 99% 72-99%
 
-spam, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00
+spam, yes/no: labelled 36, 7 yes, 29 no, 0 errors. AUC 1.00, interval 0.82-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.15        9  7/7 99% 65-99%  2/29 7% 2-22%  7/9 78% 45-94%
   0.50        7  7/7 99% 65-99%  0/29 1% 1-12%  7/7 99% 65-99%
@@ -347,7 +347,7 @@ onesie calibrate -f shell-safety -i jsonl --map .command --id .id -m jev-1.13.0 
 ```
 
 ```
-destroys, yes/no: labelled 40, 16 yes, 24 no, 0 errors. AUC 1.00
+destroys, yes/no: labelled 40, 16 yes, 24 no, 0 errors. AUC 1.00, interval 0.89-1.00
 flagged means destroys.value >= cut
 
   cut   flagged  catches           false alarms   right when flagged
