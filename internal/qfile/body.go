@@ -109,9 +109,18 @@ func checkBodyKeys(top yaml.MapSlice) error {
 	}
 
 	for _, item := range top {
-		// A key this reader skips never reaches the request, so a misspelling would vanish. '$schema'
-		// is for an editor and is skipped on purpose.
-		if name := fmt.Sprintf("%v", item.Key); name != "$schema" && !slices.Contains(bodyKeys, name) {
+		name := fmt.Sprintf("%v", item.Key)
+
+		if name == "$schema" {
+			if _, err := readGate(name, item.Value); err != nil {
+				return err
+			}
+
+			continue
+		}
+
+		// A key this reader skips never reaches the request, so a misspelling would vanish.
+		if !slices.Contains(bodyKeys, name) {
 			return fmt.Errorf("a request body has an unknown key '%s'. A request body takes "+
 				"state, model, questions, long_context and assets", name)
 		}

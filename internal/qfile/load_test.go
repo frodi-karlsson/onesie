@@ -51,8 +51,13 @@ func TestLoad(t *testing.T) {
 			wantErr: "'$schema' must be a string, got a mapping",
 		},
 		{
+			name:    "should refuse a $schema in a request body that is a number",
+			doc:     `{"$schema": 3, "questions": {"urgent": {"type": "noul", "instructions": "is this urgent"}}}`,
+			wantErr: "'$schema' must be a string, got '3'",
+		},
+		{
 			name: "should leave a request body as it is beside a $schema",
-			doc: `{"$schema": 3, "questions": {"urgent": {"type": "noul", ` +
+			doc: `{"$schema": "` + schemaURL + `", "questions": {"urgent": {"type": "noul", ` +
 				`"instructions": "is this urgent"}}}`,
 			same: `{"questions": {"urgent": {"type": "noul", "instructions": "is this urgent"}}}`,
 		},
