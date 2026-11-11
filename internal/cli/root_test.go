@@ -2767,7 +2767,7 @@ func TestNewRootCmd(t *testing.T) {
 		}))
 		t.Cleanup(srv.Close)
 
-		const request = `{"state":"x","questions":{"answer":{"type":"noul","question":"is it"}}}` + "\n"
+		const request = `{"state":"x","questions":{"answer":{"type":"noul","instructions":"is it"}}}` + "\n"
 
 		tests := []struct {
 			name     string

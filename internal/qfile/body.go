@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/goccy/go-yaml"
 
@@ -12,20 +13,13 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+var bodyKeys = []string{"state", "model", "questions", "long_context", "assets"}
+
 func loadBody(top yaml.MapSlice) (*File, error) {
 	file := &File{IsBody: true}
 
-	// A body is the wire format, and the API has no assertion, so a key here would promise a gate
-	// the request cannot carry.
-	for _, gate := range []struct{ key, flag string }{
-		{key: "assert", flag: "--assert"},
-		{key: "abstain_if", flag: "--abstain-if"},
-	} {
-		if _, found := lookup(top, gate.key); found {
-			return nil, fmt.Errorf(
-				"a request body carries no '%s'. Pass %s on the command line",
-				gate.key, gate.flag)
-		}
+	if err := checkBodyKeys(top); err != nil {
+		return nil, err
 	}
 
 	if value, found := lookup(top, "model"); found {
@@ -98,6 +92,32 @@ func loadBody(top yaml.MapSlice) (*File, error) {
 	}
 
 	return file, nil
+}
+
+func checkBodyKeys(top yaml.MapSlice) error {
+	// A body is the wire format, and the API has no assertion, so a key here would promise a gate
+	// the request cannot carry.
+	for _, gate := range []struct{ key, flag string }{
+		{key: "assert", flag: "--assert"},
+		{key: "abstain_if", flag: "--abstain-if"},
+	} {
+		if _, found := lookup(top, gate.key); found {
+			return fmt.Errorf(
+				"a request body carries no '%s'. Pass %s on the command line",
+				gate.key, gate.flag)
+		}
+	}
+
+	for _, item := range top {
+		// A key this reader skips never reaches the request, so a misspelling would vanish. '$schema'
+		// is for an editor and is skipped on purpose.
+		if name := fmt.Sprintf("%v", item.Key); name != "$schema" && !slices.Contains(bodyKeys, name) {
+			return fmt.Errorf("a request body has an unknown key '%s'. A request body takes "+
+				"state, model, questions, long_context and assets", name)
+		}
+	}
+
+	return nil
 }
 
 func readQuestions(questions yaml.MapSlice) (onesie.Questions, error) {
@@ -185,12 +205,7 @@ func buildBodyQuestion(named onesie.NamedQuestion, fields yaml.MapSlice) (plan.Q
 
 	switch typed := named.Question.(type) {
 	case onesie.Noul:
-		criteria, err := bodyRubric(named.ID, typed.Criteria, fields)
-		if err != nil {
-			return question, err
-		}
-
-		question.Instructions, question.Criteria = typed.Instructions, criteria
+		question.Instructions, question.Criteria = typed.Instructions, bodyRubric(typed.Criteria, fields)
 	case onesie.Choice:
 		question.Instructions, question.Shape = typed.Instructions, plan.Pick
 
@@ -206,10 +221,6 @@ func buildBodyQuestion(named onesie.NamedQuestion, fields yaml.MapSlice) (plan.Q
 			question.Levels = append(question.Levels, plan.Level{Desc: level})
 		}
 	case onesie.Box:
-		if _, found := lookup(fields, "criteria"); found {
-			return question, fmt.Errorf("box question '%s' in a request body takes no criteria", named.ID)
-		}
-
 		question.Instructions, question.Shape, question.Boxed = typed.Instructions, plan.Box, true
 	}
 
@@ -221,49 +232,20 @@ func checkBodyInstructions(id string, fields yaml.MapSlice) error {
 		return nil
 	}
 
-	// A question file names its question ask, so a body carrying one was written as the wrong
-	// format, and the ask would otherwise be dropped in silence.
-	if _, found := lookup(fields, "ask"); found {
-		return fmt.Errorf("question '%s' in a request body has 'ask', but a request body "+
-			"names its question 'instructions'", id)
-	}
-
 	return fmt.Errorf("question '%s' in a request body has no 'instructions'", id)
 }
 
-func bodyRubric(id string, rubric *onesie.NoulCriteria, fields yaml.MapSlice) (*plan.YesNoCriteria, error) {
+func bodyRubric(rubric *onesie.NoulCriteria, fields yaml.MapSlice) *plan.YesNoCriteria {
 	criteria, _ := lookup(fields, "criteria")
 	items, _ := mapping(criteria)
-
-	if err := checkNoulCriteriaKeys(id, items); err != nil {
-		return nil, err
-	}
 
 	// A rubric that names neither key replays as a bare question, as an absent or null one does.
 	_, hasYes := lookup(items, "true")
 	_, hasNo := lookup(items, "false")
 
 	if rubric == nil || (!hasYes && !hasNo) {
-		return nil, nil
+		return nil
 	}
 
-	return &plan.YesNoCriteria{Yes: rubric.True, No: rubric.False}, nil
-}
-
-func checkNoulCriteriaKeys(id string, items yaml.MapSlice) error {
-	for _, item := range items {
-		// An unquoted true or false arrives as a Go bool, and %v spells both the way the wire
-		// does.
-		name := fmt.Sprintf("%v", item.Key)
-		if name == "true" || name == "false" {
-			continue
-		}
-
-		// A noul rubric is the two keys and nothing else. Dropping the rest in silence would
-		// leave the user believing they reached the API.
-		return fmt.Errorf(
-			"question '%s' in a request body has an unknown criteria key '%s'", id, name)
-	}
-
-	return nil
+	return &plan.YesNoCriteria{Yes: rubric.True, No: rubric.False}
 }

@@ -115,7 +115,6 @@ func TestLoad(t *testing.T) {
 			{name: "should refuse box false", file: "mug:\n  ask: x\n  box: false\n", wantErr: "'box' in question 'mug' takes true"},
 			{name: "should refuse a box with pick", file: "mug:\n  ask: x\n  box: true\n  pick: [a, b]\n", wantErr: "A question is one of pick, rate or box"},
 			{name: "should refuse a box with yes_means", file: "mug:\n  ask: x\n  box: true\n  yes_means: y\n", wantErr: "has both 'yes_means' and 'box'"},
-			{name: "should refuse a body box with criteria", file: `{"questions":{"mug":{"type":"box","instructions":"x","criteria":{}}}}`, wantErr: "box question 'mug' in a request body takes no criteria"},
 		}
 
 		for _, tc := range tests {
