@@ -444,6 +444,21 @@ func TestBillOnce(t *testing.T) {
 	}
 }
 
+func TestNewPrepared(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should sum exactly the body Bytes returns, so existing cache entries keep their keys", func(t *testing.T) {
+		t.Parallel()
+
+		questions := onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}}
+		ready := preparedFor(t, onesie.TypeSafe(), onesie.Request{State: json.RawMessage(`{"a":1}`), Model: "m", Questions: questions})
+
+		if want := sha256.Sum256(ready.body.Bytes()); ready.sum != want {
+			t.Errorf("sum = %x, want %x", ready.sum, want)
+		}
+	})
+}
+
 func TestPrepared_Key(t *testing.T) {
 	t.Parallel()
 

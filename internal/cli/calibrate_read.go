@@ -7,7 +7,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 
+	"github.com/frodi-karlsson/onesie-go"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 
 	"github.com/spf13/cobra"
@@ -59,7 +61,7 @@ func printCalibrateRequests(
 			return &input.LineError{Line: rec.line, Err: embed("", prepareErr)}
 		}
 
-		if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), string(prepared.Bytes())); printErr != nil {
+		if printErr := printBody(cmd.OutOrStdout(), prepared); printErr != nil {
 			return written(printErr)
 		}
 	}
@@ -297,4 +299,14 @@ func (r labelledRecord) name() string {
 	}
 
 	return "record " + jq.IDText(r.id)
+}
+
+func printBody(w io.Writer, prepared *onesie.PreparedBody) error {
+	if _, err := prepared.WriteTo(w); err != nil {
+		return err
+	}
+
+	_, err := io.WriteString(w, "\n")
+
+	return err
 }
