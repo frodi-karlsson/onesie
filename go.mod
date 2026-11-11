@@ -1,9 +1,9 @@
 module github.com/frodi-karlsson/onesie
 
-go 1.27.3
+go 1.27.4
 
 require (
-	github.com/frodi-karlsson/onesie-go v0.20.0
+	github.com/frodi-karlsson/onesie-go v0.21.0
 	github.com/goccy/go-yaml v1.19.2
 	github.com/itchyny/gojq v0.12.20
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3

@@ -267,15 +267,26 @@ func TestLoadBody(t *testing.T) {
 			wantErr: "question 'a' in a request body has no 'instructions'",
 		},
 		{
-			name: "should say a body question uses instructions rather than ask",
-			doc:  `{"questions":{"a":{"type":"noul","ask":"is it urgent"}}}`,
-			wantErr: "question 'a' in a request body has 'ask', but a request body names its question " +
-				"'instructions'",
+			name:    "should refuse a question key the wire format does not name",
+			doc:     `{"questions":{"a":{"type":"noul","instructions":"q","rubric":{"true":"y"}}}}`,
+			wantErr: "question 'a' has an unknown key 'rubric'. A question takes type, instructions and criteria",
 		},
 		{
-			name:    "should refuse an unknown key in a noul criteria",
-			doc:     `{"questions":{"a":{"type":"noul","criteria":{"true":"y","maybe":"m"}}}}`,
-			wantErr: "question 'a' in a request body has an unknown criteria key 'maybe'",
+			name: "should refuse a top level key it would not send",
+			doc:  `{"stat":{"n":3},"questions":{"a":{"type":"noul","instructions":"q"}}}`,
+			wantErr: "a request body has an unknown key 'stat'. A request body takes state, model, questions, " +
+				"long_context and assets",
+		},
+		{
+			name: "should read unquoted true and false criteria keys in a yaml body",
+			doc:  "questions:\n  a:\n    type: noul\n    instructions: q\n    criteria: {true: y, false: n}\n",
+			check: func(t *testing.T, f *qfile.File) {
+				t.Helper()
+
+				if got := f.Questions[0].Criteria; got == nil || got.Yes != "y" || got.No != "n" {
+					t.Errorf("criteria = %+v, want yes y and no n", got)
+				}
+			},
 		},
 		{
 			name:    "should refuse a noul criteria that is not a mapping",
@@ -296,11 +307,6 @@ func TestLoadBody(t *testing.T) {
 			name:    "should refuse a score criteria mapping",
 			doc:     `{"questions":{"a":{"type":"score","instructions":"q","criteria":{"y":"n"}}}}`,
 			wantErr: "score question 'a' needs criteria as an array",
-		},
-		{
-			name:    "should refuse a box question with criteria",
-			doc:     `{"questions":{"a":{"type":"box","instructions":"q","criteria":{"y":"n"}}}}`,
-			wantErr: "box question 'a' in a request body takes no criteria",
 		},
 		{
 			name:    "should name the question that holds a value JSON cannot carry",

@@ -843,7 +843,7 @@ func idRecords(from, to int) string {
 func requestRecords(from, to int) string {
 	var lines strings.Builder
 	for id := from; id <= to; id++ {
-		fmt.Fprintf(&lines, "{\"questions\":{\"answer\":{\"type\":\"noul\",\"question\":\"is this urgent\"}},\"state\":{\"id\":%d}}\n", id)
+		fmt.Fprintf(&lines, "{\"questions\":{\"answer\":{\"type\":\"noul\",\"instructions\":\"is this urgent\"}},\"state\":{\"id\":%d}}\n", id)
 	}
 
 	return lines.String()

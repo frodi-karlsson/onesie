@@ -13,7 +13,7 @@ import (
 )
 
 // Schema returns the JSON Schema, draft 07, that describes a question file. A document with a top
-// level questions key is a request body, and the schema accepts any of those.
+// level questions key is a request body, checked for the keys onesie sends.
 func Schema() []byte {
 	encoded, err := json.MarshalIndent(questionFileSchema(), "", "  ")
 	if err != nil {
@@ -36,7 +36,7 @@ func questionFileSchema() jsonschema.Node {
 			"from flags.",
 		Type: "object",
 		If:   &jsonschema.Node{Required: []string{"questions"}},
-		Then: true,
+		Then: jsonschema.Node{Ref: "#/definitions/body"},
 		Else: &jsonschema.Node{
 			PropertyNames: &jsonschema.Node{
 				Not: &jsonschema.Node{AnyOf: []any{
@@ -52,12 +52,85 @@ func questionFileSchema() jsonschema.Node {
 			AdditionalProperties: jsonschema.Node{Ref: "#/definitions/question"},
 		},
 		Definitions: jsonschema.Properties{
+			{Name: "body", Schema: bodySchema()},
+			{Name: "wire_question", Schema: wireQuestionSchema()},
 			{Name: "question", Schema: questionSchema()},
 			{Name: "fields", Schema: fieldsSchema(questionRows(rows))},
 			{Name: "pick", Schema: pickSchema()},
 			{Name: "rate", Schema: rateSchema()},
 			{Name: "probability", Schema: jsonschema.Node{Type: "number", Minimum: new(0.0), Maximum: new(1.0)}},
 		},
+	}
+}
+
+func bodySchema() jsonschema.Node {
+	described := map[string]jsonschema.Node{
+		"state":        {Description: "What the model judges, as text or any JSON value."},
+		"model":        {Type: "string", Description: "The model to ask, unless -m names one."},
+		"questions":    {Type: "object", AdditionalProperties: jsonschema.Node{Ref: "#/definitions/wire_question"}},
+		"long_context": {Type: "boolean", Description: "Raises the context limits of the request. Only true has an effect."},
+		"assets":       {Type: "object", Description: "The images the state and questions name, by reference."},
+	}
+
+	properties := make(jsonschema.Properties, 0, len(bodyKeys)+1)
+	for _, key := range bodyKeys {
+		properties = append(properties, jsonschema.Property{Name: key, Schema: described[key]})
+	}
+
+	return jsonschema.Node{
+		Description: "A request body, sent to the API as written.",
+		Type:        "object",
+		Required:    []string{"questions"},
+		Properties: append(properties, jsonschema.Property{
+			Name:   "$schema",
+			Schema: jsonschema.Node{Type: "string", Description: "The schema an editor checks this file against. onesie ignores it."},
+		}),
+		AdditionalProperties: false,
+	}
+}
+
+func wireQuestionSchema() jsonschema.Node {
+	return jsonschema.Node{
+		Description: "A question as the API reads it.",
+		Type:        "object",
+		Required:    []string{"type", "instructions"},
+		Properties: jsonschema.Properties{
+			{Name: "type", Schema: jsonschema.Node{Enum: []string{"noul", "choice", "score", "box"}}},
+			{Name: "instructions", Schema: jsonschema.Node{Description: "The question, as text or any JSON value."}},
+			{Name: "criteria", Schema: jsonschema.Node{Description: "The rubric, options or levels the type takes. A box takes none."}},
+		},
+		AdditionalProperties: false,
+		AllOf: []any{
+			criteriaFor("noul", false, jsonschema.Node{
+				Type: []string{"object", "null"},
+				Properties: jsonschema.Properties{
+					{Name: "true", Schema: jsonschema.Node{Description: "What a yes means."}},
+					{Name: "false", Schema: jsonschema.Node{Description: "What a no means."}},
+				},
+				AdditionalProperties: false,
+			}),
+			criteriaFor("choice", true, jsonschema.Node{Type: "object", Description: "Each option name, mapped to its description or null."}),
+			criteriaFor("score", true, jsonschema.Node{Type: "array", Description: "The levels from lowest to highest."}),
+			jsonschema.Node{
+				If: &jsonschema.Node{Properties: jsonschema.Properties{{Name: "type", Schema: jsonschema.Node{Const: "box"}}}},
+				Then: jsonschema.Node{
+					Not:          &jsonschema.Node{Required: []string{"criteria"}},
+					ErrorMessage: "A box question takes no criteria.",
+				},
+			},
+		},
+	}
+}
+
+func criteriaFor(kind string, required bool, criteria jsonschema.Node) jsonschema.Node {
+	then := jsonschema.Node{Properties: jsonschema.Properties{{Name: "criteria", Schema: criteria}}}
+	if required {
+		then.Required = []string{"criteria"}
+	}
+
+	return jsonschema.Node{
+		If:   &jsonschema.Node{Properties: jsonschema.Properties{{Name: "type", Schema: jsonschema.Node{Const: kind}}}},
+		Then: then,
 	}
 }
 

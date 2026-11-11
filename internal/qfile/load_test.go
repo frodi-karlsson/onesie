@@ -51,8 +51,13 @@ func TestLoad(t *testing.T) {
 			wantErr: "'$schema' must be a string, got a mapping",
 		},
 		{
+			name:    "should refuse a $schema in a request body that is a number",
+			doc:     `{"$schema": 3, "questions": {"urgent": {"type": "noul", "instructions": "is this urgent"}}}`,
+			wantErr: "'$schema' must be a string, got '3'",
+		},
+		{
 			name: "should leave a request body as it is beside a $schema",
-			doc: `{"$schema": 3, "questions": {"urgent": {"type": "noul", ` +
+			doc: `{"$schema": "` + schemaURL + `", "questions": {"urgent": {"type": "noul", ` +
 				`"instructions": "is this urgent"}}}`,
 			same: `{"questions": {"urgent": {"type": "noul", "instructions": "is this urgent"}}}`,
 		},
@@ -115,7 +120,6 @@ func TestLoad(t *testing.T) {
 			{name: "should refuse box false", file: "mug:\n  ask: x\n  box: false\n", wantErr: "'box' in question 'mug' takes true"},
 			{name: "should refuse a box with pick", file: "mug:\n  ask: x\n  box: true\n  pick: [a, b]\n", wantErr: "A question is one of pick, rate or box"},
 			{name: "should refuse a box with yes_means", file: "mug:\n  ask: x\n  box: true\n  yes_means: y\n", wantErr: "has both 'yes_means' and 'box'"},
-			{name: "should refuse a body box with criteria", file: `{"questions":{"mug":{"type":"box","instructions":"x","criteria":{}}}}`, wantErr: "box question 'mug' in a request body takes no criteria"},
 		}
 
 		for _, tc := range tests {

@@ -8,7 +8,9 @@
       "questions"
     ]
   },
-  "then": true,
+  "then": {
+    "$ref": "#/definitions/body"
+  },
   "else": {
     "propertyNames": {
       "not": {
@@ -59,6 +61,153 @@
     }
   },
   "definitions": {
+    "body": {
+      "description": "A request body, sent to the API as written.",
+      "type": "object",
+      "required": [
+        "questions"
+      ],
+      "properties": {
+        "state": {
+          "description": "What the model judges, as text or any JSON value."
+        },
+        "model": {
+          "description": "The model to ask, unless -m names one.",
+          "type": "string"
+        },
+        "questions": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/wire_question"
+          }
+        },
+        "long_context": {
+          "description": "Raises the context limits of the request. Only true has an effect.",
+          "type": "boolean"
+        },
+        "assets": {
+          "description": "The images the state and questions name, by reference.",
+          "type": "object"
+        },
+        "$schema": {
+          "description": "The schema an editor checks this file against. onesie ignores it.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
+    "wire_question": {
+      "description": "A question as the API reads it.",
+      "type": "object",
+      "required": [
+        "type",
+        "instructions"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "noul",
+            "choice",
+            "score",
+            "box"
+          ]
+        },
+        "instructions": {
+          "description": "The question, as text or any JSON value."
+        },
+        "criteria": {
+          "description": "The rubric, options or levels the type takes. A box takes none."
+        }
+      },
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "noul"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "criteria": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "true": {
+                    "description": "What a yes means."
+                  },
+                  "false": {
+                    "description": "What a no means."
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "choice"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "criteria"
+            ],
+            "properties": {
+              "criteria": {
+                "description": "Each option name, mapped to its description or null.",
+                "type": "object"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "score"
+              }
+            }
+          },
+          "then": {
+            "required": [
+              "criteria"
+            ],
+            "properties": {
+              "criteria": {
+                "description": "The levels from lowest to highest.",
+                "type": "array"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "type": {
+                "const": "box"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "criteria"
+              ]
+            },
+            "errorMessage": "A box question takes no criteria."
+          }
+        }
+      ]
+    },
     "question": {
       "description": "A question, as its instructions alone or as a mapping of its fields.",
       "anyOf": [

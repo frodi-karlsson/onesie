@@ -372,7 +372,7 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 					return
 				}
 
-				instance, isBody, ok := schemaInstance(doc)
+				instance, ok := schemaInstance(doc)
 				if !ok {
 					if loaderAccepts {
 						t.Errorf("the schema cannot read a fixture the loader accepts\n%s", doc)
@@ -380,10 +380,6 @@ func checkSchemaAgreement(t *testing.T, fixtures []schemaFixture) {
 						t.Errorf("the schema cannot read a fixture the loader refuses with no listed rule\n%s\nstderr:\n%s", doc, errOut)
 					}
 
-					return
-				}
-
-				if isBody {
 					return
 				}
 
@@ -495,6 +491,10 @@ func validationDocs() []schemaFixture {
 	// supply. So a value only a flag rescues is a typo the schema refuses.
 	typos := []schemaFixture{
 		{typo: "a threshold above 1", doc: "urgent:\n  ask: q\n  threshold: 5\n"},
+		{typo: "a body key the reader would not send", doc: `{"stat":"x","questions":{"a":{"type":"noul","instructions":"q"}}}`},
+		{typo: "a body question key the API ignores", doc: `{"questions":{"a":{"type":"noul","instructions":"q","rubric":{"true":"y"}}}}`},
+		{typo: "a body noul criteria key the API ignores", doc: `{"questions":{"a":{"type":"noul","instructions":"q","criteria":{"maybe":"m"}}}}`},
+		{typo: "criteria on a body box", doc: `{"questions":{"a":{"type":"box","instructions":"q","criteria":null}}}`},
 		{typo: "a threshold below 0", doc: "urgent:\n  ask: q\n  threshold: -0.1\n"},
 		{typo: "a min_confidence above 1", doc: "team:\n  ask: q\n  pick: [a, b]\n  min_confidence: 1.5\n  fallback: a\n"},
 		{typo: "a pick with one option", doc: "team:\n  ask: q\n  pick: [a]\n"},
@@ -602,38 +602,32 @@ func plainExponent(doc string) bool {
 	})
 }
 
-func schemaInstance(doc string) (any, bool, bool) {
+func schemaInstance(doc string) (any, bool) {
 	encoded := []byte(doc)
 	if !json.Valid(encoded) {
 		// Refused as the loader refuses it, since decoding expands an alias, and a nested one grows
 		// past any size a question file may have.
 		if holdsAlias(encoded) {
-			return nil, false, false
+			return nil, false
 		}
 
 		var decoded any
 		if err := yaml.Unmarshal(encoded, &decoded); err != nil {
-			return nil, false, false
+			return nil, false
 		}
 
 		var err error
 		if encoded, err = json.Marshal(decoded); err != nil {
-			return nil, false, false
+			return nil, false
 		}
 	}
 
 	instance, err := jsonschema.UnmarshalJSON(bytes.NewReader(encoded))
 	if err != nil {
-		return nil, false, false
+		return nil, false
 	}
 
-	if fields, isMapping := instance.(map[string]any); isMapping {
-		if _, isBody := fields["questions"]; isBody {
-			return nil, true, true
-		}
-	}
-
-	return instance, false, true
+	return instance, true
 }
 
 func holdsAlias(data []byte) bool {
@@ -675,6 +669,8 @@ func loaderOnlyRule(stderr string) (string, bool) {
 		{name: "a partly described rate, which --desc completes", pattern: regexp.MustCompile(`^onesie: 'rate' levels must all be described or all bare in question `)},
 		{name: "a NaN, which JSON cannot hold", pattern: regexp.MustCompile(`^onesie: '(threshold|min_confidence)' must be between 0 and 1, got NaN\n$`)},
 		{name: "a value that cannot be sent", pattern: regexp.MustCompile(`^onesie: .* cannot be sent: `)},
+		{name: "two body question ids that send as one", pattern: regexp.MustCompile(`^onesie: question '.*' is given twice in a request body`)},
+		{name: "a body image the bytes refuse", pattern: regexp.MustCompile(`^onesie: asset '.*' in a request body`)},
 	}
 
 	for _, rule := range rules {
