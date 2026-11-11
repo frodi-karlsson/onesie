@@ -3,6 +3,7 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"slices"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
@@ -130,33 +131,17 @@ func checkCompare(v View) error {
 	}
 
 	for i, file := range files {
-		if slices.Contains(files[:i], file) {
+		if slices.ContainsFunc(files[:i], func(earlier string) bool { return filepath.Clean(earlier) == filepath.Clean(file) }) {
 			return fmt.Errorf("--compare names %s twice", file)
 		}
 	}
 
 	if mocked(v) {
-		return fmt.Errorf("--compare reads saved answers, and %s answers from a file of its own. Drop one",
-			mockSpelled(v))
+		return fmt.Errorf("--compare reads saved answers, and %s answers from fixtures. Drop one", mockSpelled(v))
 	}
 
-	for _, asking := range []struct {
-		name settingrow.Name
-		flag string
-	}{
-		{Out.Name(), "--out"},
-		{Resume.Name(), "--resume"},
-		{Offline.Name(), "--offline"},
-		{Prune.Name(), "--prune"},
-		{PrintRequest.Name(), "--print-request"},
-		{Cache.Name(), "--cache"},
-		{Usage.Name(), "--usage"},
-		{Model.Name(), "-m/--model"},
-	} {
-		if typed(v, asking.name) {
-			return fmt.Errorf("--compare reads saved answers and asks nothing, so %s does not apply. Drop it",
-				asking.flag)
-		}
+	if flag, asks := askingFlag(v); asks {
+		return fmt.Errorf("--compare reads saved answers and asks nothing, so %s does not apply. Drop it", flag)
 	}
 
 	if !typed(v, ID.Name()) {
@@ -164,6 +149,32 @@ func checkCompare(v View) error {
 	}
 
 	return nil
+}
+
+func askingFlag(v View) (string, bool) {
+	// Every flag that picks or tunes a connection sits under these topics, so a new one is refused
+	// without being listed here. A root flag such as --provider reaches calibrate unbound.
+	for _, row := range settingrow.Table() {
+		flag, bound := row.FlagOn(settingrow.CommandCalibrate)
+		if !bound {
+			flag = settingrow.BoundFlag{Long: row.Flag.Long, Short: row.Flag.Short, HelpTopic: row.HelpTopic}
+		}
+
+		asks := flag.HelpTopic == "connections" || flag.HelpTopic == "execution" ||
+			slices.Contains([]settingrow.Name{Out.Name(), Offline.Name(), Usage.Name(), Stats.Name()}, row.Name)
+
+		if flag.Long == "" || !asks || !typed(v, row.Name) {
+			continue
+		}
+
+		if flag.Short != "" {
+			return "-" + flag.Short + "/--" + flag.Long, true
+		}
+
+		return "--" + flag.Long, true
+	}
+
+	return "", false
 }
 
 func checkReport(v View) error {

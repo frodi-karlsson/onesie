@@ -247,6 +247,7 @@ func helpEvaluation() string {
 		"A question compares only the records every file answers by --id, and stderr counts the rest. " +
 		"stderr also names what differs from the baseline: the fingerprint parts, and the models when their names differ. " +
 		"Each file gets a row with its models, the AUC, the change from the baseline and the catches at each --false-alarms budget, with 95 percent intervals. " +
+		"The change interval stays wide even for runs that are alike, so a small set cannot show a small change. " +
 		"Requirements apply to every file. Pick and rate questions are skipped for now. Write the compared files without --cache, which can hide a model update."
 }
 

@@ -56,13 +56,13 @@ func compareCalibration(
 		runs = append(runs, run)
 	}
 
-	if noteErr := writeCompareNotices(cmd.ErrOrStderr(), set, runs); noteErr != nil {
-		return noteErr
-	}
-
 	comparison, err := comparisonOf(questions, set, runs, cutsFor(args.Cuts, bound, len(questions)), args.Budgets)
 	if err != nil {
 		return err
+	}
+
+	if noteErr := writeCompareNotices(cmd.ErrOrStderr(), set, runs); noteErr != nil {
+		return noteErr
 	}
 
 	if noteErr := writeLeftOut(cmd.ErrOrStderr(), comparison); noteErr != nil {
@@ -322,6 +322,7 @@ func compareQuestion(
 	compared := calibrate.QuestionComparison{ID: question.ID, LeftOut: make([]calibrate.LeftOut, len(runs))}
 	cases := make([][]calibrate.YesNoCase, len(runs))
 	answered := make([]int, len(runs))
+	unusable := make([]error, len(runs))
 
 	for _, rec := range set.records {
 		label := rec.labels[q]
@@ -334,10 +335,14 @@ func compareQuestion(
 		usable := true
 
 		for r, run := range runs {
-			scored, ok := storedCase(run, rec, question, label, &compared.LeftOut[r])
+			scored, ok, caseErr := storedCase(run, rec, question, label, &compared.LeftOut[r])
 			if ok {
 				answered[r]++
 				recordCases[r] = scored
+			}
+
+			if caseErr != nil && unusable[r] == nil {
+				unusable[r] = fmt.Errorf("%s: %w", rec.name(), caseErr)
 			}
 
 			usable = usable && ok
@@ -353,7 +358,12 @@ func compareQuestion(
 	}
 
 	for r, run := range runs {
-		if answered[r] == 0 && compared.Labelled > 0 {
+		switch {
+		case answered[r] > 0 || compared.Labelled == 0:
+		case unusable[r] != nil:
+			return calibrate.QuestionComparison{}, fmt.Errorf("%s answers question '%s' in no way that can be "+
+				"scored, as for %v", run.file, question.ID, unusable[r])
+		default:
 			return calibrate.QuestionComparison{}, fmt.Errorf("%s holds no answer to question '%s' for a "+
 				"labelled record. Every file compared needs the same question ids and record ids", run.file, question.ID)
 		}
@@ -366,21 +376,21 @@ func compareQuestion(
 
 func storedCase(
 	run storedRun, rec labelledRecord, question plan.Question, label *calibrate.Label, left *calibrate.LeftOut,
-) (calibrate.YesNoCase, bool) {
+) (calibrate.YesNoCase, bool, error) {
 	if !run.answered[rec.index] {
 		left.Unanswered++
 
-		return calibrate.YesNoCase{}, false
+		return calibrate.YesNoCase{}, false, nil
 	}
 
 	scored, err := caseOf(question, label, rec, run.records[rec.index])
 	if err != nil {
 		left.Unusable++
 
-		return calibrate.YesNoCase{}, false
+		return calibrate.YesNoCase{}, false, err
 	}
 
-	return scored.yesNo, true
+	return scored.yesNo, true, nil
 }
 
 func writeLeftOut(w io.Writer, comparison calibrate.Comparison) error {

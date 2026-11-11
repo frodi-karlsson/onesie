@@ -230,6 +230,22 @@ func TestCompareCalibration(t *testing.T) {
 			want: "empty.jsonl holds no answer to question 'urgent' for a labelled record",
 		},
 		{
+			name: "should name an answer that cannot be scored when no answer in a file can",
+			files: func(t *testing.T, dir string) []string {
+				b := answered(t, dir, "b.jsonl", november)
+				lines := answerLines(t, b)
+				for i := range lines {
+					lines[i] = strings.Replace(lines[i], `"value":`, `"value":"high","was":`, 1)
+				}
+
+				writeAnswerLines(t, b, lines)
+
+				return []string{answered(t, dir, "a.jsonl", march), b}
+			},
+			want: "b.jsonl answers question 'urgent' in no way that can be scored, as for record T-1: " +
+				"question 'urgent' answered high, which lies outside [0,1]",
+		},
+		{
 			name: "should refuse a requirement on a question it skips",
 			files: func(t *testing.T, dir string) []string {
 				return []string{answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)}
@@ -255,7 +271,7 @@ func TestCompareCalibration(t *testing.T) {
 			}
 
 			out, errOut, code := runMocked(t, t.Context(), args, labelled, nil, nil)
-			if code != ExitUsage || !strings.Contains(errOut, tc.want) || out != "" {
+			if code != ExitUsage || !strings.Contains(errOut, tc.want) || out != "" || strings.Contains(errOut, "was answered by") {
 				t.Errorf("exit %d, want 2 with %q and no report\nstdout:\n%s\nstderr:\n%s", code, tc.want, out, errOut)
 			}
 		})

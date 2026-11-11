@@ -2972,7 +2972,7 @@ func TestCalibrateAnswers(t *testing.T) {
 				"--require", "u.right_when_flagged >= 0.5 at 0.95"),
 			wantCode: ExitFail,
 			wantReport: []requireJSON{
-				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125)},
+				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125), Interval: true},
 				{Expr: "t.agreement >= 0.5", Held: true, Value: ptr(0.875), Interval: true},
 				{Expr: "u.right_when_flagged >= 0.5 at 0.95", Cut: ptr(0.95), Reason: "no record is flagged"},
 			},

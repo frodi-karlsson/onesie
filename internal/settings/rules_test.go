@@ -1133,7 +1133,7 @@ func TestValidate(t *testing.T) {
 			},
 			{
 				given: compared(values{"mock": "m.json"}, "mock"),
-				want:  "--compare reads saved answers, and --mock answers from a file of its own. Drop one",
+				want:  "--compare reads saved answers, and --mock answers from fixtures. Drop one",
 			},
 			{given: compared(values{"out": "x.jsonl"}, "out"), want: "so --out does not apply"},
 			{given: compared(values{"resume": true}, "resume"), want: "so --resume does not apply"},
@@ -1143,6 +1143,15 @@ func TestValidate(t *testing.T) {
 			{given: compared(values{"cache": true}, "cache"), want: "so --cache does not apply"},
 			{given: compared(values{"usage": true}, "usage"), want: "so --usage does not apply"},
 			{given: compared(values{"model": "jev-latest"}, "model"), want: "so -m/--model does not apply"},
+			{given: compared(values{"provider": "openrouter"}, "provider"), want: "so --provider does not apply"},
+			{given: compared(values{"endpoint": "https://x.example"}, "endpoint"), want: "so --base-url does not apply"},
+			{given: compared(values{"long_context": true}, "long_context"), want: "so --long-context does not apply"},
+			{given: compared(values{"jobs": 4}, "jobs"), want: "so -j/--jobs does not apply"},
+			{given: compared(values{"stats": true}, "stats"), want: "so --stats does not apply"},
+			{
+				given: compared(values{"compare": []string{"a.jsonl", "./a.jsonl"}}),
+				want:  "--compare names ./a.jsonl twice",
+			},
 		} {
 			_, _, err := settings.Validate(refused.given.view(t), []settings.Rule{ruleByID(t, "compare-reads-files")})
 			if err == nil || !strings.Contains(err.Error(), refused.want) {

@@ -94,6 +94,12 @@ func TestCompareYesNo(t *testing.T) {
 			want:     Interval{Value: -0.2, Low: -0.55, High: 0.1784, Defined: true},
 		},
 		{
+			name:     "should count a yes and a no answered alike as half a win in the correlation",
+			baseline: ranked([]float64{0.5, 0.7, 0.3, 0.5}, []float64{0.5, 0.2, 0.3, 0.1, 0.5}),
+			runs:     ranked([]float64{0.6, 0.5, 0.4, 0.5}, []float64{0.5, 0.3, 0.4, 0.2, 0.1}),
+			want:     Interval{Value: 0.1, Low: -0.2229, High: 0.4336, Defined: true},
+		},
+		{
 			name:     "should keep width between two perfect runs, whose DeLong variance is zero",
 			baseline: separated(18, 22), runs: separated(18, 22),
 			want: Interval{Value: 0, Low: -0.1023, High: 0.1023, Defined: true},

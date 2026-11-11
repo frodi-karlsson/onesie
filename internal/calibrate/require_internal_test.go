@@ -50,6 +50,14 @@ func TestParseRequirement(t *testing.T) {
 			},
 		},
 		{
+			name: "should read the low end of auc's interval",
+			text: "lower(urgent.auc) >= 0.8",
+			want: Requirement{
+				Source: "lower(urgent.auc) >= 0.8", ID: "urgent", Bound: Lower,
+				Measure: AreaUnderCurve, Op: OpGE, Threshold: 0.8,
+			},
+		},
+		{
 			name: "should read auc",
 			text: "urgent.auc >= 0.9",
 			want: Requirement{
@@ -77,7 +85,6 @@ func TestParseRequirement(t *testing.T) {
 		{name: "should refuse a percentage", text: "urgent.catches >= 95", wantErr: "write 0.95, not 95"},
 		{name: "should refuse lower with at most", text: "lower(urgent.catches) <= 0.2", wantErr: "lower takes >= or >"},
 		{name: "should refuse upper with at least", text: "upper(urgent.catches) >= 0.2", wantErr: "upper takes <= or <"},
-		{name: "should refuse an interval on auc", text: "lower(urgent.auc) >= 0.8", wantErr: "auc has no interval"},
 		{name: "should refuse a cut on auc", text: "urgent.auc >= 0.8 at 0.5", wantErr: "auc covers every cut"},
 		{
 			name: "should refuse an unknown measure and list the measures", text: "urgent.recall >= 0.9",
@@ -157,6 +164,7 @@ func TestRequirement_Check(t *testing.T) {
 		{name: "should read right when flagged", text: "x.right_when_flagged >= 0.7", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.75, wantCut: true},
 		{name: "should read the cut it is given", text: "x.catches >= 0.75", q: yesNoQ, cut: 0.95, wantCut: true},
 		{name: "should read auc", text: "x.auc >= 0.8", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.8125},
+		{name: "should compare the low end of auc's interval", text: "lower(x.auc) >= 0.8", q: yesNoQ, cut: 0.5, wantValue: 0.8125},
 		{name: "should compare the lower end of the interval", text: "lower(x.catches) >= 0.75", q: yesNoQ, cut: 0.5, wantValue: 0.75, wantCut: true},
 		{name: "should compare the upper end of the interval", text: "upper(x.false_alarms) <= 0.9", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.25, wantCut: true},
 		{name: "should read agreement on a pick", text: "x.agreement >= 0.75", q: pickQ, wantHeld: true, wantValue: 0.75},
@@ -266,8 +274,8 @@ func TestRequirement_Check(t *testing.T) {
 				want: "'upper(u.false_alarms) <= 0.0001' did not hold: 3/10000 is 0.0003, interval 0.0001 to 0.0009, at cut 0.50",
 			},
 			{
-				result: Result{Requirement: auc, Value: 0.9993, HasValue: true},
-				want:   "'u.auc >= 0.9999' did not hold: AUC 0.9993",
+				result: Result{Requirement: auc, Value: 0.9993, Low: 0.9871, High: 0.9999, HasValue: true, HasInterval: true},
+				want:   "'u.auc >= 0.9999' did not hold: AUC 0.9993, interval 0.9871 to 0.9999",
 			},
 		} {
 			if got := tc.result.String(); got != tc.want {
