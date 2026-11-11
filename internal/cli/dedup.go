@@ -113,7 +113,14 @@ type sharedCall struct {
 }
 
 func newPrepared(body *onesie.PreparedBody) prepared {
-	return prepared{body: body, sum: sha256.Sum256(body.Bytes())}
+	hash := sha256.New()
+	body.WriteTo(hash) //nolint:errcheck // A hash.Hash never returns an error from Write.
+
+	var sum [sha256.Size]byte
+
+	hash.Sum(sum[:0])
+
+	return prepared{body: body, sum: sum}
 }
 
 func (p prepared) key(salt string) [sha256.Size]byte {
