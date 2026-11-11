@@ -872,6 +872,13 @@ func TestPrintRequest(t *testing.T) {
 			stderr:   []string{"onesie: --map: result nests deeper than 9999 levels"},
 		},
 		{
+			name:     "should exit two on a --map that imports a file",
+			args:     []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", `import "f" as $f; .body`, "--print-request"},
+			stdin:    "{\"body\":\"a\"}\n",
+			wantCode: ExitUsage,
+			stderr:   []string{"onesie: --map: import and include are refused, since an expression reads only its record\n"},
+		},
+		{
 			name:     "should exit two on a --map syntax error",
 			args:     []string{"--ask", "urgent=is this urgent", "-i", "jsonl", "--map", "{subject, body", "--print-request"},
 			stdin:    "{\"body\":\"a\"}\n",
