@@ -431,7 +431,7 @@ func (s *Store) lostRename(path string, renameErr error) bool {
 
 func writeAll(temp TempFile, data []byte) error {
 	// Not flushed to disk. The rename keeps a write atomic, and an entry a crash leaves short is a
-	// miss that asks the API again, while a flush cost about 2ms a write and ran one at a time.
+	// miss that asks the API again, while a flush made filling the cache slow, most of all on macOS.
 	if _, err := temp.Write(data); err != nil {
 		return errors.Join(err, temp.Close())
 	}
