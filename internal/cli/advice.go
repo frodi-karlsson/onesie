@@ -66,7 +66,7 @@ func adviseLongContext(err error, helps bool) error {
 }
 
 func longContextHelps(provider onesie.Provider, model string, on bool) bool {
-	return !on && provider.Refuse(model, onesie.Needs{LongContext: true}) == nil
+	return !on && !provider.AlwaysLongContext(model) && provider.Refuse(model, onesie.Needs{LongContext: true}) == nil
 }
 
 func adviseBox(err error, boxed bool, boxModel string) error {

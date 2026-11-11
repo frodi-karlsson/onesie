@@ -477,7 +477,8 @@ func answerSourceRows() []Row {
 			Env: []EnvSpec{{Name: "ONESIE_LONG_CONTEXT", Order: 13, Help: "`1` or `true` raises the context limits, " +
 				"as `--long-context`. It takes the values the flag takes, and anything else exits 2 where it applies"}},
 			Flag: FlagSpec{Long: "long-context", Commands: onRuns()},
-			Help: "Raise the context limits to 262k tokens, slower and less accurate. Also ONESIE_LONG_CONTEXT=1. " +
+			Help: "Raise the context limits to 262k tokens, slower and less accurate. openrouter reads a long state in full " +
+				"without it. Also ONESIE_LONG_CONTEXT=1. " +
 				experimental,
 		},
 		{
