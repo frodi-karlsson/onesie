@@ -208,10 +208,10 @@ type FS interface {
 	Chtimes(path string, atime, mtime time.Time) error
 }
 
-// TempFile is the part of *os.File a store writes an entry through.
+// TempFile is the part of *os.File a store writes an entry through. It has no Sync, since a cache
+// entry is never flushed to disk.
 type TempFile interface {
 	Write(p []byte) (int, error)
-	Sync() error
 	Close() error
 	Name() string
 }
@@ -430,11 +430,9 @@ func (s *Store) lostRename(path string, renameErr error) bool {
 }
 
 func writeAll(temp TempFile, data []byte) error {
+	// Not flushed to disk. The rename keeps a write atomic, and an entry a crash leaves short is a
+	// miss that asks the API again, while a flush cost about 2ms a write and ran one at a time.
 	if _, err := temp.Write(data); err != nil {
-		return errors.Join(err, temp.Close())
-	}
-
-	if err := temp.Sync(); err != nil {
 		return errors.Join(err, temp.Close())
 	}
 
