@@ -88,9 +88,9 @@ func TestStreamRaw(t *testing.T) {
 		{
 			name:     "should print a spaced body with the model filled in and its values as written under --print-request",
 			args:     []string{"-i", "request", "--print-request"},
-			stdin:    "{\"state\": \"a < b\", \"n\": 1.50}\n",
+			stdin:    "{\"state\": {\"q\": \"a < b\", \"n\": 1.50}}\n",
 			response: answered,
-			wantOut:  []string{`{"model":"jev-latest","state":"a < b","n":1.50}`},
+			wantOut:  []string{`{"model":"jev-latest","state":{"q":"a < b","n":1.50}}`},
 			wantCode: ExitOK,
 		},
 		{
@@ -208,14 +208,24 @@ func TestStreamRaw(t *testing.T) {
 				wantCode: ExitRecords,
 			},
 			{
-				name:      "should send an object the API will refuse rather than judging it",
+				name:      "should send a body with no questions for the API to refuse rather than judging it",
 				args:      []string{"-i", "request"},
-				stdin:     "{\"hello\":1}\n",
+				stdin:     "{\"state\":\"x\"}\n",
 				status:    http.StatusUnprocessableEntity,
 				response:  `{"error":{"message":"questions is required"}}`,
 				wantSent:  1,
 				wantLines: 1,
 				wantOut:   []string{`{"error":{"kind":"http"`, `"status":422`},
+				wantCode:  ExitRecords,
+			},
+			{
+				name:      "should refuse a top level key the provider does not take before sending it",
+				args:      []string{"-i", "request"},
+				stdin:     `{"state":"x","stat":"y"}` + "\n",
+				response:  `{"answers":{}}`,
+				wantSent:  0,
+				wantLines: 1,
+				wantOut:   []string{`{"error":{"kind":"input"`, "the request body has an unknown key 'stat'"},
 				wantCode:  ExitRecords,
 			},
 			{
@@ -523,15 +533,16 @@ func TestStreamRaw(t *testing.T) {
 
 					w.Header().Set("Content-Type", "application/json")
 
-					if _, err := w.Write(body); err != nil {
+					// A body carries no answers, so the stub adds them to what it echoes.
+					if _, err := w.Write(bytes.Replace(body, []byte(`{"model":"m",`), []byte(`{"model":"m","answers":{},`), 1)); err != nil {
 						t.Errorf("writing the stub response: %v", err)
 					}
 				}))
 				defer srv.Close()
 
 				errOut, code := runAgainstTo(
-					t, stdout, tc.args, "{\"model\":\"m\",\"answers\":{},\"state\":0}\n{\"model\":\"m\",\"answers\":{},\"state\":1}\n"+
-						"{\"model\":\"m\",\"answers\":{},\"state\":2}\n", srv.URL)
+					t, stdout, tc.args, "{\"model\":\"m\",\"state\":0}\n{\"model\":\"m\",\"state\":1}\n"+
+						"{\"model\":\"m\",\"state\":2}\n", srv.URL)
 				out := stdout.String()
 
 				if code != ExitOK {
