@@ -285,6 +285,13 @@ func TestGet(t *testing.T) {
 		{name: "should miss a truncated entry", plant: func(t *testing.T, path string) {
 			mustWrite(t, path, `{"version":1,"model":"jev-1.13.0","stored":"2026-03-01T12:00:00Z","value":{"a"`)
 		}},
+		// The two leftovers an unflushed write can leave after a crash.
+		{name: "should miss an empty entry", plant: func(t *testing.T, path string) {
+			mustWrite(t, path, "")
+		}},
+		{name: "should miss an entry filled with zero bytes", plant: func(t *testing.T, path string) {
+			mustWrite(t, path, strings.Repeat("\x00", 96))
+		}},
 		{name: "should miss a directory in place of the entry", plant: func(t *testing.T, path string) {
 			mustMkdir(t, path, 0o700)
 		}},
