@@ -25,16 +25,17 @@ func TestCompile(t *testing.T) {
 		// A syntax error ends with the column onesie names. gojq words the rest, so only a refusal is pinned.
 		wantColumn string
 		refused    bool
-		// gojq's sentence, kept only where it is the proof that no module loader is configured.
-		wantExact string
+		wantErr    error
 	}{
 		{name: "should compile a path", source: ".ticket.body"},
 		{name: "should name the column of an unexpected token", source: ".body | }", wantColumn: "at column 9"},
 		{name: "should name the column past the end of an unfinished expression", source: "{subject, body", wantColumn: "at column 15"},
 		{name: "should count the column in characters", source: `"é" | }`, wantColumn: "at column 7"},
 		{name: "should refuse an undefined function", source: ".body | nope", refused: true},
-		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantExact: `cannot load module: "lib"`},
-		{name: "should refuse to include a module", source: `include "lib"; .`, wantExact: `cannot load module: "lib"`},
+		{name: "should refuse to import a module", source: `import "lib" as lib; .`, wantErr: ErrImport},
+		{name: "should refuse to include a module", source: `include "lib"; .`, wantErr: ErrImport},
+		// Refused before gojq compiles it, so no loader could read the file.
+		{name: "should refuse to import a data file without reading it", source: `import "/etc/passwd" as $passwd; $passwd`, wantErr: ErrImport},
 	}
 
 	for _, tc := range tests {
@@ -43,9 +44,9 @@ func TestCompile(t *testing.T) {
 
 			expr, err := Compile(tc.source)
 
-			if tc.wantExact != "" {
-				if err == nil || err.Error() != tc.wantExact {
-					t.Fatalf("Compile(%q) error = %v, want exactly %q", tc.source, err, tc.wantExact)
+			if tc.wantErr != nil {
+				if expr != nil || !errors.Is(err, tc.wantErr) {
+					t.Fatalf("Compile(%q) = %v, %v, want %v", tc.source, expr, err, tc.wantErr)
 				}
 
 				return
@@ -65,18 +66,31 @@ func TestCompile(t *testing.T) {
 		})
 	}
 
-	t.Run("should refuse to import a data file without reading it", func(t *testing.T) {
+	t.Run("should give an expression no environment to read", func(t *testing.T) {
 		t.Parallel()
 
-		expr, err := Compile(`import "/etc/passwd" as $passwd; $passwd`)
-		if expr != nil {
-			t.Fatalf("Compile() = %v, want no expression", expr)
-		}
+		for _, source := range []string{"env", "$ENV"} {
+			expr, err := Compile(source)
+			if err != nil {
+				t.Fatalf("Compile(%q) = %v", source, err)
+			}
 
-		// gojq's sentence for no module loader, which is what keeps the file unread.
-		const want = `cannot load module: "/etc/passwd"`
-		if err == nil || err.Error() != want {
-			t.Fatalf("Compile() error = %v, want exactly %q", err, want)
+			got, err := expr.One(t.Context(), map[string]any{})
+			if empty, isObject := got.(map[string]any); err != nil || !isObject || len(empty) != 0 {
+				t.Errorf("%s = %v, %v, want an empty object", source, got, err)
+			}
+		}
+	})
+
+	t.Run("should give an expression no other input to read", func(t *testing.T) {
+		t.Parallel()
+
+		for _, source := range []string{"input", "[inputs]"} {
+			if expr, err := Compile(source); err == nil {
+				if got, runErr := expr.One(t.Context(), map[string]any{}); runErr == nil {
+					t.Errorf("%s = %v, want it to fail", source, got)
+				}
+			}
 		}
 	})
 }

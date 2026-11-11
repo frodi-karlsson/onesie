@@ -1,5 +1,6 @@
-// Package jq compiles and runs the jq expressions that --map and --id take, through gojq. Time
-// functions read the real clock, and import and include are refused.
+// Package jq compiles and runs the jq expressions that --map, --id and --label take, through gojq.
+// Time functions read the real clock. An expression reads only its record: import and include are
+// refused, env is empty, and input and inputs fail.
 package jq
 
 import (
@@ -25,6 +26,8 @@ var (
 	ErrManyValues = errors.New("yields more than one value")
 	// ErrRun means the expression failed while it ran, and wraps the reason gojq gave.
 	ErrRun = errors.New("fails")
+	// ErrImport means the expression imports or includes a file, which Compile refuses before gojq could load it.
+	ErrImport = errors.New("import and include are refused, since an expression reads only its record")
 	// ErrTooDeep means a value nests deeper than limits.MaxMapDepth.
 	ErrTooDeep = fmt.Errorf("result nests deeper than %d levels", limits.MaxMapDepth)
 	// ErrTooLarge means a value encodes to more bytes than the limit Marshal was given.
@@ -47,6 +50,11 @@ func Compile(source string) (*Expr, error) {
 	query, err := gojq.Parse(source)
 	if err != nil {
 		return nil, parseError(source, err)
+	}
+
+	// Only the root query can hold an import, since jq refuses one anywhere else as a syntax error.
+	if len(query.Imports) > 0 {
+		return nil, ErrImport
 	}
 
 	code, err := gojq.Compile(query)
