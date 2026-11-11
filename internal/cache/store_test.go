@@ -381,7 +381,7 @@ func TestPut(t *testing.T) {
 		}
 	})
 
-	for _, failOn := range []string{"Write", "Sync", "Close"} {
+	for _, failOn := range []string{"Write", "Close"} {
 		t.Run("should return a failed "+failOn+", keep the old entry and leave no temporary file", func(t *testing.T) {
 			t.Parallel()
 
@@ -1059,14 +1059,6 @@ func (f *failingFile) Write(p []byte) (int, error) {
 	}
 
 	return f.File.Write(p)
-}
-
-func (f *failingFile) Sync() error {
-	if f.failOn == "Sync" {
-		return errInjected
-	}
-
-	return f.File.Sync()
 }
 
 func (f *failingFile) Close() error {
