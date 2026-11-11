@@ -46,7 +46,27 @@ func Load(data []byte) (*File, error) {
 		return loadBody(top)
 	}
 
+	if err := refuseBodyKeys(top); err != nil {
+		return nil, err
+	}
+
 	return loadQuestions(top)
+}
+
+func refuseBodyKeys(top yaml.MapSlice) error {
+	// Both are reserved question ids, so the file is a body missing its questions or a question
+	// file carrying a body key, and one sentence has to fit both.
+	fixes := map[string]string{"state": "pass --state or send it on stdin", "model": "pass -m"}
+
+	for _, item := range top {
+		name := fmt.Sprintf("%v", item.Key)
+		if fix, found := fixes[name]; found {
+			return fmt.Errorf("the file has '%s' but no 'questions'. A request body needs 'questions', "+
+				"and a question file takes no '%s', so %s", name, name, fix)
+		}
+	}
+
+	return nil
 }
 
 // File is a loaded question file or request body. Questions are in file order.
