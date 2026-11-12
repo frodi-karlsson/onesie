@@ -39,6 +39,8 @@ func TestGenerate(t *testing.T) {
 					"| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request`, `--print-request` and `--print-questions` |\n",
 					"anything else exits 2 where it applies |\n<!-- settings:environment end -->",
 					"<!-- settings:question_keys begin -->\n| Key | Where | What it does |\n",
+					"| `ask` | a question |",
+					"| `true` | a question | another spelling of yes_means |",
 					"| `min_confidence` | a question |",
 					"| `assert` | the file |",
 					"| `model` | a request body |",

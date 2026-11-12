@@ -40,7 +40,7 @@ const (
 )
 
 var rootExitCodes = []exitCodeLine{
-	{ExitOK, "answered"},
+	{ExitOK, "answered, or pass: every --assert held"},
 	{ExitFail, "fail: an --assert was false and no --abstain-if held, or under -q alone the answer was judged no"},
 	{ExitUsage, "usage or validation error, including a missing key on the provider's own base URL, or a " +
 		"plain http base URL to another host without --allow-http"},
@@ -51,7 +51,8 @@ var rootExitCodes = []exitCodeLine{
 	{ExitTransport, "transport error or timeout"},
 	{ExitRecords, "a stream finished with one or more errors, or --stop-on=error stopped it at " +
 		"a record that never became a request"},
-	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide"},
+	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide. A stream " +
+		"keeps the most severe code, so 6 beats 1 and 1 beats 7"},
 	{ExitInterrupt, "interrupted"},
 }
 

@@ -15,7 +15,7 @@ func abstainNeedsAssertRule() Rule {
 				return nil
 			}
 
-			return fmt.Errorf("%s needs --assert, since without one every record is a yes", abstainFlag(v))
+			return fmt.Errorf("%s needs --assert, since without one every record ends answered", abstainFlag(v))
 		},
 	}
 }

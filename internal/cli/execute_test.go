@@ -389,7 +389,7 @@ func TestRootExecute(t *testing.T) {
 			args:     []string{"-f", "{dir}{/}abstain.yaml", "--state", "x"},
 			files:    map[string]string{"abstain.yaml": "abstain_if: urgent.value > 0.5\nurgent:\n  ask: is it urgent\n"},
 			wantCode: ExitUsage,
-			want:     "onesie: 'abstain_if' needs --assert, since without one every record is a yes\n",
+			want:     "onesie: 'abstain_if' needs --assert, since without one every record ends answered\n",
 		},
 		{
 			name:  "should dry run a file whose only gate is its own assert key",
@@ -439,7 +439,7 @@ func TestRootExecute(t *testing.T) {
 			args:     []string{"--state", "s", "is it urgent"},
 			env:      map[string]string{"ONESIE_CACHE": "maybe"},
 			wantCode: ExitUsage,
-			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1, 0, true or false\n",
 		},
 		{
 			name:     "should name a bad -o before an ONESIE_CACHE value it cannot read",
@@ -459,7 +459,7 @@ func TestRootExecute(t *testing.T) {
 			args:     []string{"--state", "s", "is it urgent", "--provider", "bogus"},
 			env:      map[string]string{"ONESIE_CACHE": "maybe"},
 			wantCode: ExitUsage,
-			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+			want:     "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1, 0, true or false\n",
 		},
 		{
 			name:     "should refuse -j on one record",

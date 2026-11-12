@@ -74,7 +74,6 @@ func writeHelpOverview(b *bytes.Buffer, cmd *cobra.Command, command settingrow.C
 	if command == settingrow.CommandCalibrate {
 		b.WriteString("  A labelled record in labelled.jsonl:\n    " + helpLabelledRecord + "\n\n")
 		writeHelpText(b, "The first command creates the answer file used by the second. The requirement is illustrative.", "  ", "  ")
-		b.WriteString("\n")
 	}
 	writeHelpExamples(b, examples, "overview")
 	for _, section := range overviewOrder(topics) {

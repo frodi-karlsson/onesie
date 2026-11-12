@@ -184,12 +184,12 @@ func TestRead(t *testing.T) {
 		{
 			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
 			reading: reading{args: []string{"--cache"}, env: map[string]string{"ONESIE_CACHE": "maybe"}},
-			wantErr: "ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0",
+			wantErr: "ONESIE_CACHE=maybe is not a value --cache takes. Use 1, 0, true or false",
 		},
 		{
 			name:    "should refuse an ONESIE_LONG_CONTEXT the flag would not take",
 			reading: reading{env: map[string]string{"ONESIE_LONG_CONTEXT": "yes"}},
-			wantErr: "ONESIE_LONG_CONTEXT=yes is not a value --long-context takes. Use 1 or 0",
+			wantErr: "ONESIE_LONG_CONTEXT=yes is not a value --long-context takes. Use 1, 0, true or false",
 		},
 		{
 			name:    "should refuse an environment value that is not valid UTF-8, naming the variable and not the value",

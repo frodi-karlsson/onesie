@@ -711,7 +711,7 @@ func TestValidate(t *testing.T) {
 				name:     "should name the file's key when the merge took the abstain expression from the file",
 				set:      values{"abstain_if": []string{"answer.value > 0.4"}, "file": "q.yaml", "input": "text"},
 				fromFile: []settingrow.Name{"abstain_if"},
-				wantErr:  "'abstain_if' needs --assert, since without one every record is a yes",
+				wantErr:  "'abstain_if' needs --assert, since without one every record ends answered",
 			},
 			{
 				name:    "should name --merge-key when that is the flag given",
@@ -1363,7 +1363,7 @@ func ruleCases() []ruleCase {
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}},
 				fromFile: []settingrow.Name{"assert"},
 			},
-			wantErr: "--abstain-if needs --assert, since without one every record is a yes",
+			wantErr: "--abstain-if needs --assert, since without one every record ends answered",
 		},
 		{
 			rule:    "quiet-without-markdown",

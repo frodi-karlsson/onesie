@@ -13,15 +13,16 @@ import (
 func explain(err error, facts requestFacts) error {
 	helps := longContextHelps(facts.provider, facts.model, facts.longContext)
 
-	boxed := adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel())
+	boxed := adviseImages(adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel()), facts.images)
 
-	return advise(adviseLimits(boxed), facts.model)
+	return advise(adviseRetryAfter(adviseLimits(boxed)), facts.model)
 }
 
 type requestFacts struct {
 	provider    onesie.Provider
 	model       string
 	longContext bool
+	images      bool
 	boxed       bool
 }
 
@@ -82,6 +83,25 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 	}
 
 	return &advisedError{cause: err, note: note}
+}
+
+func adviseImages(err error, images bool) error {
+	// Vercel words a model that reads no images as a request naming no model, so an unrecognised 400
+	// is the only sign. A recognised one or a box note already says what went wrong.
+	var api *onesie.APIError
+	if !images || !errors.As(err, &api) || api.Status != http.StatusBadRequest || api.Recognised() {
+		return err
+	}
+
+	var advised *advisedError
+	if errors.As(err, &advised) {
+		return err
+	}
+
+	return &advisedError{
+		cause: err,
+		note:  "The request carried images, and a model that reads none can refuse it this way. Try it without them to tell",
+	}
 }
 
 func withKeyHint(err error, settings rootSettings, flags runConfig) error {
@@ -160,6 +180,15 @@ func (e *advisedError) Error() string {
 
 func (e *advisedError) Unwrap() error {
 	return e.cause
+}
+
+func adviseRetryAfter(err error) error {
+	var overCap *onesie.RetryAfterError
+	if !errors.As(err, &overCap) {
+		return err
+	}
+
+	return &advisedError{cause: err, note: "Raise --max-retry-after to wait it out"}
 }
 
 func adviseLimits(err error) error {

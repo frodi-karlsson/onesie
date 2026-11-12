@@ -472,6 +472,27 @@ func TestAssemble(t *testing.T) {
 				t.Errorf("error = %v, want it to wrap os.ErrNotExist", err)
 			}
 		})
+
+		for _, tc := range []struct {
+			name  string
+			event argv.Event
+			want  string
+		}{
+			{name: "should name the --ask and its id", event: argv.Event{Name: "ask", Value: "a=@gone.txt"}, want: "--ask a: reading gone.txt: "},
+			{name: "should name the --desc and its key", event: argv.Event{Name: "desc", Value: "yes=@gone.txt"}, want: "--desc yes: reading gone.txt: "},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, err := plan.Assemble(plan.Source{
+					Events:   []argv.Event{{Name: "ask", Value: "a=x"}, tc.event},
+					ReadFile: func(string) ([]byte, error) { return nil, os.ErrNotExist },
+				})
+				if err == nil || !strings.HasPrefix(err.Error(), tc.want) {
+					t.Errorf("error = %v, want it to start %q", err, tc.want)
+				}
+			})
+		}
 	})
 
 	t.Run("should merge a question file with the command line", func(t *testing.T) {

@@ -609,7 +609,7 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"base_url lines, and an account line on " + providers.WithAccounts() + ". The profile line names " +
 			"its rank, the default profile, which the environment beats, or a chosen profile, which beats the " +
 			"environment. The model and base_url lines give the value a run would use and where it comes " +
-			"from. The model comes from profile, an env " +
+			"from. The model comes from the profile's model, an env " +
 			"variable such as TYPESAFE_DEFAULT_MODEL, or the provider's default. The base_url comes from the " +
 			"profile's base_url, the profile's account_id, " + settingEnv(setting.APIEndpoint.Name()) + ", a variable such as TYPESAFE_BASE_URL, " +
 			providers.AccountVariables() + ", or the provider's default. An allow_http line says a run needs " +
@@ -656,7 +656,7 @@ func profileShow(cmd *cobra.Command, settings rootSettings, flags *runFlags, arg
 	}
 
 	if account != "" {
-		lines = append(lines, "account: "+account)
+		lines = append(lines, "account: "+output.Printable(account))
 	}
 
 	if _, printErr := fmt.Fprintln(cmd.OutOrStdout(), strings.Join(lines, "\n")); printErr != nil {

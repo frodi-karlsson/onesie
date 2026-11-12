@@ -92,7 +92,7 @@ func TestDelimited(t *testing.T) {
 			args:  []string{"is this urgent", "-i", "csv", "-o", "csv", "--merge"},
 			stdin: "id,body\n1\n2,ok\n",
 			want: "id,body,answer,error\n" +
-				",,,\"line 2: row has 1 fields, the header has 2\"\n" +
+				",,,\"line 2: row has 1 field, the header has 2\"\n" +
 				"2,ok,0.5,\n",
 			wantCode: ExitRecords,
 		},

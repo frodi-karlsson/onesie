@@ -245,6 +245,10 @@ func environmentBlock(rows []settingrow.Row) (string, error) {
 func questionKeysBlock(rows []settingrow.Row) (string, error) {
 	table := newTable("Key", "Where", "What it does")
 
+	for _, key := range qfile.ContentKeys() {
+		table.row(codeSpan(key.Name), "a question", asCell(key.Help))
+	}
+
 	for _, row := range rows {
 		if row.FileKey != "" {
 			table.row(codeSpan(row.FileKey), keyPlace(row), asCell(row.FileHelp))

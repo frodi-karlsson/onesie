@@ -10,7 +10,6 @@ Examples:
   The first command creates the answer file used by the second. The requirement is
   illustrative.
 
-
   Compare answers with labelled examples:
     onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume < labelled.jsonl
 

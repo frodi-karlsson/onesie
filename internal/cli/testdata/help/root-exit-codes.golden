@@ -1,5 +1,5 @@
 Exit codes:
-  0    answered
+  0    answered, or pass: every --assert held
   1    fail: an --assert was false and no --abstain-if held, or under -q alone the
        answer was judged no
   2    usage or validation error, including a missing key on the provider's own base
@@ -11,7 +11,8 @@ Exit codes:
   5    transport error or timeout
   6    a stream finished with one or more errors, or --stop-on=error stopped it at a
        record that never became a request
-  7    unsure: an --assert was false and --abstain-if held, so the gate could not decide
+  7    unsure: an --assert was false and --abstain-if held, so the gate could not
+       decide. A stream keeps the most severe code, so 6 beats 1 and 1 beats 7
   130  interrupted
 
 More help:

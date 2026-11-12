@@ -292,7 +292,7 @@ func objectOf(state any, flag string) (map[string]any, error) {
 func fieldPath(object map[string]any, field string) (string, error) {
 	value, found := object[field]
 	if !found {
-		return "", fmt.Errorf("the record has no '%s'", field)
+		return "", fmt.Errorf("the state has no '%s'", field)
 	}
 
 	path, ok := value.(string)

@@ -25,12 +25,12 @@ func TestListModels(t *testing.T) {
 		wantErr  string
 	}{
 		{
-			name: "should print one line per model in the order the api returned them",
+			name: "should print one aligned line per model in the order the api returned them",
 			response: `{"models":[` +
 				`{"name":"jev-latest","description":"alias","release_date":"2026-08-01"},` +
 				`{"name":"onesie-1.13.0","description":"current","release_date":"2026-08-01"}]}`,
 			wantCode: ExitOK,
-			wantOut: "jev-latest  alias  2026-08-01\n" +
+			wantOut: "jev-latest     alias    2026-08-01\n" +
 				"onesie-1.13.0  current  2026-08-01\n",
 		},
 		{
@@ -38,7 +38,7 @@ func TestListModels(t *testing.T) {
 			response: `{"models":[` +
 				`{"name":"jev\u001b[2J-latest","description":"al\u009bias\r","release_date":"2026\u0007-08-01"}]}`,
 			wantCode: ExitOK,
-			wantOut:  "jev[2J-latest  alias  \n",
+			wantOut:  "jev[2J-latest  alias\n",
 		},
 		{
 			name: "should print the day of a release date that carries a time",
@@ -51,7 +51,7 @@ func TestListModels(t *testing.T) {
 			name:     "should print no date for a release date that is not a day",
 			response: `{"models":[{"name":"jev-latest","description":"alias","release_date":"soon"}]}`,
 			wantCode: ExitOK,
-			wantOut:  "jev-latest  alias  \n",
+			wantOut:  "jev-latest  alias\n",
 		},
 		{
 			name:     "should strip terminal controls from an error message the api returned",
@@ -265,7 +265,7 @@ func TestListModels(t *testing.T) {
 		}
 
 		want := "levanto-sage-v1.4  Levanto Sage decision model  2026-10-04\n" +
-			"sage-latest  Alias of levanto-sage-v1.4.  2026-10-04\n"
+			"sage-latest        Alias of levanto-sage-v1.4.  2026-10-04\n"
 		if out != want {
 			t.Errorf("stdout = %q, want %q", out, want)
 		}

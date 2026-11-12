@@ -678,7 +678,7 @@ func TestGateOf(t *testing.T) {
 			file:      "abstain_if: urgent.value > 0.5\n" + question,
 			args:      []string{"--abstain-if", "urgent.value < 0.95"},
 			wantCode:  cli.ExitUsage,
-			wantErr:   "onesie: --abstain-if needs --assert, since without one every record is a yes",
+			wantErr:   "onesie: --abstain-if needs --assert, since without one every record ends answered",
 			noRequest: true,
 		},
 		{
@@ -707,7 +707,7 @@ func TestGateOf(t *testing.T) {
 			name:      "should refuse a file's abstain expression with no assertion anywhere",
 			file:      "abstain_if: urgent.value > 0.5\n" + question,
 			wantCode:  cli.ExitUsage,
-			wantErr:   "onesie: 'abstain_if' needs --assert, since without one every record is a yes",
+			wantErr:   "onesie: 'abstain_if' needs --assert, since without one every record ends answered",
 			noRequest: true,
 		},
 		{

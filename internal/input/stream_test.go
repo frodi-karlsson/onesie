@@ -432,7 +432,7 @@ func TestStream(t *testing.T) {
 				got = append(got, record.Raw)
 			}
 
-			want := []string{"first", "line 2: line is longer than the limit", "third"}
+			want := []string{"first", "line 2: line is longer than 8388608 bytes, the max-line-bytes limit", "third"}
 			if len(got) != len(want) {
 				t.Fatalf("records = %d, want %d: %q", len(got), len(want), got)
 			}
@@ -594,7 +594,7 @@ func TestStream(t *testing.T) {
 		_, _, err := stream.Next()
 
 		var lineErr *input.LineError
-		if !errors.As(err, &lineErr) || !strings.Contains(err.Error(), "longer than the limit") {
+		if !errors.As(err, &lineErr) || !strings.Contains(err.Error(), "the max-line-bytes limit") {
 			t.Errorf("error = %v, want a row too long error", err)
 		}
 	})

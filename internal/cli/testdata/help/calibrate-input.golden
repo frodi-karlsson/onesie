@@ -30,8 +30,8 @@ How they work together:
 
   --image NAME=PATH adds a PNG or JPEG under NAME. Streams read stdin and add the fixed
   image to every record. --image-field reads a PNG or JPEG path from a state key per
-  record. Image support is experimental on the TypeSafe side. See version for image,
-  file, token and model limits.
+  record. Image support is experimental on the TypeSafe side. See version for the image
+  and file limits.
 
 More help:
   onesie help calibrate asking

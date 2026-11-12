@@ -32,10 +32,12 @@ How they work together:
   each setting overriding a selected file question. Repeated --pick adds options and
   repeated --rate adds levels after earlier ones. Together they replace the file
   question's options or levels. --desc KEY=TEXT replaces only that option, level, yes or
-  no description. A rate needs every level described or none. --sep changes the
-  separator for following --pick and --rate. --for may repeat and keeps the wording and
-  settings that no flag changes. It needs a file and an existing id and refuses
-  --replace. Flags cannot change a file question shape.
+  no description. A rate needs every level described or none. The text of --ask and
+  --desc may be @FILE, which reads it from a file and drops one trailing newline. A
+  leading @@ stands for a literal @. --sep changes the separator for following --pick
+  and --rate. --for may repeat and keeps the wording and settings that no flag changes.
+  It needs a file and an existing id and refuses --replace. Flags cannot change a file
+  question shape.
 
   --file accepts a question file, a request body, a path or a saved name. Saved names
   are looked up in .onesie/questions, then the config directory, then built in starter

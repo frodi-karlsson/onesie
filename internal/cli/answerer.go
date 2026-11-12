@@ -48,7 +48,8 @@ func (a liveAnswerer) answer(ctx context.Context, _ recordKey, ready prepared) (
 	result, _, err := a.client.SendPrepared(ctx, ready.body)
 
 	return reply{result: result}, explain(err, requestFacts{
-		provider: a.client.Provider(), model: ready.body.Model(), longContext: ready.body.LongContext(), boxed: ready.body.Box(),
+		provider: a.client.Provider(), model: ready.body.Model(), longContext: ready.body.LongContext(),
+		images: ready.body.Images(), boxed: ready.body.Box(),
 	})
 }
 

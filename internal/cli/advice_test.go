@@ -20,11 +20,12 @@ func TestExplain(t *testing.T) {
 	t.Parallel()
 
 	const (
-		tooMany  = `{"detail":"Too many score levels. Must have at most 10 levels."}`
-		tooLong  = `{"detail":"max_tokens_exceeded"}`
-		invalid  = `{"detail":"Invalid request."}`
-		longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
-		boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
+		tooMany    = `{"detail":"Too many score levels. Must have at most 10 levels."}`
+		tooLong    = `{"detail":"max_tokens_exceeded"}`
+		invalid    = `{"detail":"Invalid request."}`
+		longNote   = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+		boxNote    = " A box question needs a model that serves it, such as -m jev-preview"
+		imagesNote = " The request carried images, and a model that reads none can refuse it this way. Try it without them to tell"
 	)
 
 	typesafe := requestFacts{provider: onesie.TypeSafe(), model: onesie.TypeSafe().DefaultModel()}
@@ -54,18 +55,50 @@ func TestExplain(t *testing.T) {
 			facts: with(func(f *requestFacts) { f.provider, f.boxed = onesie.Levanto(), true }),
 			want:  "400 Invalid request. A box question needs a model that serves it",
 		},
+		{
+			name: "should suspect the images behind a 400 the route does not recognise", status: http.StatusBadRequest,
+			body: `{"error":{"message":"Could not find a reference to a model in the request."}}`,
+			facts: with(func(f *requestFacts) {
+				f.provider, f.model, f.images = onesie.Vercel(), "microsoft/microsoft-decision-1", true
+			}),
+			want: "400 Could not find a reference to a model in the request." + imagesNote,
+		},
+		{
+			name: "should leave a box note alone when the request also carried images", status: http.StatusBadRequest,
+			body: invalid, facts: with(func(f *requestFacts) { f.images, f.boxed = true, true }),
+			want: "400 Invalid request." + boxNote,
+		},
+		{
+			name: "should suspect no images behind a 400 without them", status: http.StatusBadRequest,
+			body:  `{"error":{"message":"Could not find a reference to a model in the request."}}`,
+			facts: with(func(f *requestFacts) { f.provider, f.model = onesie.Vercel(), "microsoft/microsoft-decision-1" }),
+			want:  "400 Could not find a reference to a model in the request.",
+		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := explain(requestRefusal(t, tc.status, tc.body, tc.facts.boxed), tc.facts)
+			got := explain(requestRefusal(t, tc.status, tc.body, tc.facts), tc.facts)
 			if got == nil || text(got) != tc.want {
 				t.Errorf("explain = %v, want %q", got, tc.want)
 			}
 		})
 	}
+
+	t.Run("should name --max-retry-after for a Retry-After over the cap", func(t *testing.T) {
+		t.Parallel()
+
+		overCap := &onesie.RetryAfterError{
+			APIError: onesie.APIError{Status: http.StatusTooManyRequests}, RetryAfter: 2 * time.Minute, Cap: 30 * time.Second,
+		}
+
+		want := "status 429, the server asked to retry after 2m0s, above the 30s cap. Raise --max-retry-after to wait it out"
+		if got := explain(overCap, typesafe); got == nil || text(got) != want {
+			t.Errorf("explain = %v, want %q", got, want)
+		}
+	})
 
 	t.Run("should leave no error as none", func(t *testing.T) {
 		t.Parallel()
@@ -76,7 +109,7 @@ func TestExplain(t *testing.T) {
 	})
 }
 
-func requestRefusal(t *testing.T, status int, body string, boxed bool) error {
+func requestRefusal(t *testing.T, status int, body string, facts requestFacts) error {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -99,17 +132,18 @@ func requestRefusal(t *testing.T, status int, body string, boxed bool) error {
 		Questions: onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}},
 	}
 
-	if boxed {
+	if facts.images || facts.boxed {
 		img, imageErr := onesie.NewImage(squarePNG(t))
 		if imageErr != nil {
 			t.Fatal(imageErr)
 		}
 
-		req = onesie.Request{
-			State:     map[string]any{"photo": "ref"},
-			Assets:    onesie.Assets{"ref": img},
-			Questions: onesie.Questions{{ID: "mug", Question: onesie.Box{Instructions: "the mug in ref"}}},
-		}
+		req.State = map[string]any{"photo": "ref"}
+		req.Assets = onesie.Assets{"ref": img}
+	}
+
+	if facts.boxed {
+		req.Questions = onesie.Questions{{ID: "mug", Question: onesie.Box{Instructions: "the mug in ref"}}}
 	}
 
 	_, err = client.SystemOne(t.Context(), req)
@@ -581,10 +615,11 @@ func TestAdvise(t *testing.T) {
 		t.Parallel()
 
 		const (
-			invalid  = `{"detail":"Invalid request."}`
-			tooLong  = `{"detail":"max_tokens_exceeded"}`
-			boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
-			longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+			invalid    = `{"detail":"Invalid request."}`
+			tooLong    = `{"detail":"max_tokens_exceeded"}`
+			boxNote    = " A box question needs a model that serves it, such as -m jev-preview"
+			imagesNote = " The request carried images, and a model that reads none can refuse it this way. Try it without them to tell"
+			longNote   = ". Pass --long-context to raise the context limit, which is slower and less accurate"
 		)
 
 		square := map[string]string{"square.png": string(squarePNG(t))}

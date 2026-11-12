@@ -204,8 +204,6 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 		}
 	case imageName, imageFieldName:
 		return listed(row.Name), name
-	case Mock.Name():
-		return mocked, mockSpelled
 	default:
 		return func(View) bool { return false }, name
 	}

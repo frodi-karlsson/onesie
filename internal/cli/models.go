@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"io"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/spf13/cobra"
 
@@ -41,14 +43,28 @@ func listModels(cmd *cobra.Command, settings rootSettings, flags runConfig, stat
 }
 
 func writeModels(w io.Writer, models []onesie.ModelCard) error {
+	rows := make([][3]string, 0, len(models))
+	nameWidth, descriptionWidth := 0, 0
+
 	for _, model := range models {
-		_, err := fmt.Fprintf(w, "%s  %s  %s\n",
-			output.Printable(model.Name), output.Printable(model.Description),
-			output.Printable(model.ReleaseDate))
-		if err != nil {
+		row := [3]string{
+			output.Printable(model.Name), output.Printable(model.Description), output.Printable(model.ReleaseDate),
+		}
+		rows = append(rows, row)
+		nameWidth = max(nameWidth, utf8.RuneCountInString(row[0]))
+		descriptionWidth = max(descriptionWidth, utf8.RuneCountInString(row[1]))
+	}
+
+	for _, row := range rows {
+		line := padded(row[0], nameWidth) + "  " + padded(row[1], descriptionWidth) + "  " + row[2]
+		if _, err := fmt.Fprintln(w, strings.TrimRight(line, " ")); err != nil {
 			return written(err)
 		}
 	}
 
 	return nil
+}
+
+func padded(cell string, width int) string {
+	return cell + strings.Repeat(" ", width-utf8.RuneCountInString(cell))
 }
