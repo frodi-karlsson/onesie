@@ -140,7 +140,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
 				wantOut: []string{`"error":{"kind":"request","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}`},
 			},
 			{
 				name:     "should name a clef model workers ai does not serve",
@@ -185,7 +185,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"request","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}}`},
 			},
 			{
 				name:     "should carry the remedy into a streaming error record",
@@ -197,7 +197,7 @@ func TestAdvise(t *testing.T) {
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
 				wantOut: []string{`"error":{"kind":"request","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}`},
 			},
 			{
 				name:     "should name the model on the 404 Berget sends for an unknown model",
@@ -326,7 +326,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantErr:  "",
 				wantOut: []string{`{"error":{"kind":"request","status":400,` +
-					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}}`},
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `","body":` + tooManyLevels + `}}`},
 			},
 			{
 				name:     "should say the same for an image the server refuses",
@@ -347,7 +347,7 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitRecords,
 				wantOut: []string{`"error":{"kind":"request","status":400,` +
-					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}`},
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `","body":` + tooManyLevels + `}`},
 			},
 			{
 				name:     "should leave a 400 reading Invalid request untouched",

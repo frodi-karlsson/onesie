@@ -53,6 +53,26 @@ func TestMockAnswers(t *testing.T) {
 		}
 	})
 
+	t.Run("should replay a request refusal a run wrote, from the body the line keeps", func(t *testing.T) {
+		t.Parallel()
+
+		args := []string{"is it urgent", "-i", "jsonl", "-o", "json"}
+		input := `"help"` + "\n"
+		refusal := `{"error":{"kind":"http","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`
+
+		first, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, refusal)), input, nil, nil)
+		if code != ExitRecords || !strings.Contains(first, `"kind":"request"`) || !strings.Contains(first, `"body":{"detail"`) {
+			t.Fatalf("first run exit %d, output %s, stderr %s", code, first, errOut)
+		}
+
+		replayed, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, first)), input, nil, nil)
+		if code != ExitRecords || replayed != first {
+			t.Fatalf("replay exit %d, output %s, want %s, stderr %s", code, replayed, first, errOut)
+		}
+	})
+
 	three := []string{
 		"--ask", "u=is it urgent", "--ask", "t=which team", "--pick", "billing,platform",
 		"--ask", "r=how rude", "--rate", "calm,curt,rude",

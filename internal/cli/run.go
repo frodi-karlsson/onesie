@@ -1139,8 +1139,33 @@ func failureRecord(built *plan.Plan, cause error) output.Record {
 
 func describe(cause error) *output.Failure {
 	found := classify(cause)
+	described := &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
 
-	return &output.Failure{Kind: found.kind, Status: found.status, Message: text(cause)}
+	// Only a request failure keeps its body, since the client recognises it from the body alone, so
+	// a --mock replay of the line needs it.
+	var api *onesie.APIError
+	if found.kind == output.KindRequest && errors.As(cause, &api) {
+		described.Body = bodyValue(api.RawBody)
+	}
+
+	return described
+}
+
+func bodyValue(raw []byte) json.RawMessage {
+	if json.Valid(raw) {
+		var compact bytes.Buffer
+		if json.Compact(&compact, raw) == nil {
+			return compact.Bytes()
+		}
+	}
+
+	// A body that is not JSON is kept as its text, which --mock reads back as the raw response.
+	text, err := json.Marshal(string(raw))
+	if err != nil {
+		return nil
+	}
+
+	return text
 }
 
 type runFlags struct {
