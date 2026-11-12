@@ -8,11 +8,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"slices"
-	"strings"
 
 	"github.com/frodi-karlsson/onesie-go"
 
@@ -55,11 +53,6 @@ func run(ctx context.Context, opts options) (int, cli.Outcome) {
 		}
 	}
 
-	keys, err := keysOf(opts.lookup)
-	if err != nil {
-		return cli.ExitUsage, cli.Outcome{Failure: err}
-	}
-
 	sets, err := examples.Sets(opts.dir)
 	if err != nil {
 		return cli.ExitUsage, cli.Outcome{Failure: err}
@@ -71,40 +64,31 @@ func run(ctx context.Context, opts options) (int, cli.Outcome) {
 		return cli.ExitUsage, cli.Outcome{Failure: err}
 	}
 
-	env := maps.Clone(keys)
+	env := keysIn(opts.lookup)
 	env["ONESIE_CONFIG_DIR"] = scratch
 	code, err := answerEach(ctx, sets, opts, env, scratch)
 
 	return code, settled(err, os.RemoveAll(scratch))
 }
 
-func keysOf(lookup func(string) (string, bool)) (map[string]string, error) {
+func keysIn(lookup func(string) (string, bool)) map[string]string {
 	keys := map[string]string{}
-
-	var missing []string
 
 	for _, name := range keyNames() {
 		if key, _ := lookup(name); key != "" {
 			keys[name] = key
-		} else {
-			missing = append(missing, name)
 		}
 	}
 
-	if len(missing) > 0 {
-		return nil, errors.New("needs " + strings.Join(missing, " and ") + ", since it asks the live API")
-	}
-
-	return keys, nil
+	return keys
 }
 
 func keyNames() []string {
 	var names []string
 
 	for _, model := range examples.Models() {
-		provider, err := onesie.ProviderNamed(examples.Provider(model))
-		if err == nil && !slices.Contains(names, provider.EnvAPIKey()) {
-			names = append(names, provider.EnvAPIKey())
+		if key := keyFor(model); key != "" && !slices.Contains(names, key) {
+			names = append(names, key)
 		}
 	}
 
@@ -155,11 +139,31 @@ func answer(
 		return cli.ExitUsage, err
 	}
 
+	if probed.Failure == nil {
+		_, err := fmt.Fprintln(opts.stdout, "complete, nothing to ask")
+
+		return cli.ExitOK, err
+	}
+
+	// A key is needed only for a file with records to ask, so a stale Jev file needs no vendor key.
+	if key := keyFor(model); env[key] == "" {
+		return cli.ExitUsage, fmt.Errorf("%s on %s needs %s, since its answers file has records to ask", set.Name, model, key)
+	}
+
 	if !errors.Is(probed.Failure, answersfile.ErrStaleAnswers) {
 		args = append(args, "--resume")
 	}
 
 	return command(opts.root, env, home, records, args, opts.stdout, opts.stderr).Execute(ctx), nil
+}
+
+func keyFor(model string) string {
+	provider, err := onesie.ProviderNamed(examples.Provider(model))
+	if err != nil {
+		return ""
+	}
+
+	return provider.EnvAPIKey()
 }
 
 func reportProbe(stderr io.Writer, set string, lines []string) error {

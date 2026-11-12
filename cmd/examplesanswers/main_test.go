@@ -36,26 +36,44 @@ func TestRun(t *testing.T) {
 		}
 	})
 
-	t.Run("should refuse to run without a key, naming each missing one", func(t *testing.T) {
+	t.Run("should refuse to ask a file without its provider's key, naming the key", func(t *testing.T) {
 		t.Parallel()
 
-		keys := withKeys(nil)
-		delete(keys, "LEVANTO_API_KEY")
-
-		code, ended := run(t.Context(), options{
-			lookup: envOf(keys), dir: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
-		})
-		if want := "needs LEVANTO_API_KEY, since it asks the live API"; code != cli.ExitUsage || ended.Failure == nil ||
-			ended.Failure.Error() != want {
-			t.Errorf("run = %d, %v, want exit 2 with %q", code, ended.Failure, want)
-		}
-
-		code, ended = run(t.Context(), options{
-			lookup: envOf(nil), dir: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
-		})
-		if want := "needs TYPESAFE_API_KEY and AI_GATEWAY_API_KEY and LEVANTO_API_KEY, since it asks the live API"; code != cli.ExitUsage ||
+		code, ended := runStubbed(t, starterDir(t), newStub(t), envOf(nil))
+		if want := "alpha on jev-1.13.0 needs TYPESAFE_API_KEY, since its answers file has records to ask"; code != cli.ExitUsage ||
 			ended.Failure == nil || ended.Failure.Error() != want {
 			t.Errorf("run = %d, %v, want exit 2 with %q", code, ended.Failure, want)
+		}
+	})
+
+	t.Run("should need no key when every file is complete, and only the key of a file to ask", func(t *testing.T) {
+		t.Parallel()
+
+		dir := starterDir(t)
+		stub := newStub(t)
+
+		if code, ended := runStubbed(t, dir, stub, envOf(withKeys(nil))); code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("first run = %d, %v", code, ended.Report())
+		}
+
+		stub.requests.Store(0)
+
+		if code, ended := runStubbed(t, dir, stub, envOf(nil)); code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("run with every file complete = %d, %v, want exit 0 with no key", code, ended.Report())
+		}
+
+		answers := examples.Set{Name: "alpha"}.Answers(dir, examples.Model)
+		if err := os.Remove(answers); err != nil {
+			t.Fatal(err)
+		}
+
+		typesafe := envOf(map[string]string{"TYPESAFE_API_KEY": "k"})
+		if code, ended := runStubbed(t, dir, stub, typesafe); code != cli.ExitOK || ended.Report() != nil {
+			t.Fatalf("run asking one Jev file = %d, %v, want exit 0 with the TypeSafe key alone", code, ended.Report())
+		}
+
+		if got := stub.requests.Load(); got != 2 {
+			t.Errorf("runs made %d requests, want the 2 of the removed file alone", got)
 		}
 	})
 

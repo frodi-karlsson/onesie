@@ -67,7 +67,8 @@ The tables below are trimmed to the rows each gate uses. All runs used `jev-1.13
 `SET.levanto-sage-2.answers.jsonl`, for [Compare vendors](#compare-vendors). A test runs each set
 through `calibrate --offline` with the requirements below, so a change to a question or a gate that
 breaks one fails the build without asking the API. `make examples-answers` regenerates the answers
-files with `TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY` and `LEVANTO_API_KEY` set. It starts a set
+files, and needs the key of each provider whose file has records to ask: `TYPESAFE_API_KEY` for
+Jev, `AI_GATEWAY_API_KEY` for Gemini and `LEVANTO_API_KEY` for Sage. It starts a set
 afresh when the set's questions changed since its answers were written, and resumes every other
 set, so it asks only what is missing. When a set fails the check with the advice to regenerate its
 answers, run `make examples-answers`.
@@ -390,7 +391,9 @@ a change on 5 records has an interval of -0.43 to 0.43.
 ## Compare vendors
 
 Each set also has answers from two other vendors, `google/gemini-decision-1` through Vercel AI
-Gateway and `levanto-sage-2` through Levanto. Prompt injection is the set where they differ:
+Gateway and `levanto-sage-2` through Levanto, made on 2026-11-12. Neither name pins a version, so a
+regeneration can answer differently. Prompt injection is the one set where their AUCs differ from
+Jev's:
 
 ```sh
 onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
@@ -401,7 +404,7 @@ onesie calibrate -f prompt-injection -i jsonl --map .text --id .id \
     < examples/data/prompt-injection.jsonl
 ```
 
-stderr names the provider and the model as what differs. This is the records Sage moved on
+stderr names the provider and the model as what differs. These are the records Sage moved on
 `overrides`, then the `access` table:
 
 ```
@@ -431,7 +434,12 @@ The cuts tell the other half. At the same 10 percent false alarm budget, Jev cut
 at 0.81 and Sage at 0.977, since Sage answers close to 0 or 1. The file's gate was set on Jev, so on
 `overrides` Sage carries seven no records over the gate's 0.5 cut, each a false alarm the gate
 would raise. Switching vendors means setting the gate again from the new model's answers, even
-where its AUC holds.
+where its AUC holds. The other sets show it too, with AUCs that match Jev's: Gemini carries three
+records over the `credential` cut in personal data, and four over the `destroys` cut in shell
+safety.
+
+The default table stops at a cut of 0.95, which is too low for Sage. On `instructs` it still raises
+3 of 20 false alarms there, so pass `--cuts 0.9,0.95,0.98,0.99` to see the cuts its answers need.
 
 ## Thresholds from evidence
 
