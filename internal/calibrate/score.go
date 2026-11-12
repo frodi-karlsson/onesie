@@ -176,11 +176,11 @@ func ScoreRate(cases []ChoiceCase, levels []string, failed int, cuts []float64) 
 	within, total := 0, 0
 
 	for i, c := range cases {
-		d, inside := distance(c, levels)
+		d, _ := distance(c, levels)
 		distances[i] = d
 		total += d
 
-		if inside && d <= 1 {
+		if withinOne(c, levels) {
 			within++
 		}
 	}
@@ -205,6 +205,12 @@ type RateScore struct {
 	HasMeanDistance bool
 }
 
+func withinOne(c ChoiceCase, levels []string) bool {
+	d, inside := distance(c, levels)
+
+	return inside && d <= 1
+}
+
 func distance(c ChoiceCase, levels []string) (int, bool) {
 	label, picked := slices.Index(levels, c.Label), slices.Index(levels, c.Picked)
 	if label < 0 || picked < 0 {
@@ -222,7 +228,7 @@ func rateMisses(cases []ChoiceCase, distances []int) []ChoiceCase {
 	var wrong []int
 
 	for i, c := range cases {
-		if c.Picked != c.Label {
+		if !c.agrees() {
 			wrong = append(wrong, i)
 		}
 	}
@@ -302,7 +308,7 @@ func ScorePick(cases []ChoiceCase, names []string, failed int, cuts []float64) P
 	}
 
 	for _, c := range cases {
-		if c.Picked != c.Label {
+		if !c.agrees() {
 			score.Misses = append(score.Misses, c)
 		}
 	}
@@ -359,7 +365,7 @@ type ConfidenceRow struct {
 func agreed(cases []ChoiceCase, cut float64) int {
 	count := 0
 	for _, c := range cases {
-		if c.Confidence >= cut && c.Picked == c.Label {
+		if c.Confidence >= cut && c.agrees() {
 			count++
 		}
 	}
@@ -375,4 +381,8 @@ type ChoiceCase struct {
 	Line                int
 	Confidence          float64
 	Text                string
+}
+
+func (c ChoiceCase) agrees() bool {
+	return c.Picked == c.Label
 }

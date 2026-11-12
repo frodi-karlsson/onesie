@@ -219,3 +219,94 @@ func budgetRows(score YesNoScore, budgets []float64) []BudgetRow {
 
 	return rows
 }
+
+// CompareChoices scores a pick or rate question in each of several runs over the same records, the
+// first run being the baseline. names lists the options, or the levels in order when rate is set.
+func CompareChoices(runs [][]ChoiceCase, names []string, rate bool, cuts []float64) []ChoiceRunScore {
+	scores := make([]ChoiceRunScore, len(runs))
+	right := make([][]bool, len(runs))
+	near := make([][]bool, len(runs))
+
+	for i, cases := range runs {
+		if rate {
+			score := ScoreRate(cases, names, 0, cuts)
+			scores[i] = ChoiceRunScore{Pick: score.PickScore, Rate: &score}
+		} else {
+			scores[i] = ChoiceRunScore{Pick: ScorePick(cases, names, 0, cuts)}
+		}
+
+		right[i], near[i] = make([]bool, len(cases)), make([]bool, len(cases))
+		for c, choice := range cases {
+			right[i][c] = choice.agrees()
+			near[i][c] = withinOne(choice, names)
+		}
+	}
+
+	for i := 1; i < len(runs); i++ {
+		agreement := pairedChange(right[0], right[i])
+		scores[i].AgreementChange = &agreement
+
+		if rate {
+			within := pairedChange(near[0], near[i])
+			scores[i].WithinOneChange = &within
+		}
+	}
+
+	return scores
+}
+
+// ChoiceRunScore is one run's score for a pick or rate question in a comparison. Rate is set for a
+// rate question, whose PickScore is Pick. The changes are nil on the baseline, and WithinOneChange
+// on a pick question.
+type ChoiceRunScore struct {
+	Pick                             PickScore
+	Rate                             *RateScore
+	AgreementChange, WithinOneChange *Interval
+}
+
+func pairedChange(baseline, run []bool) Interval {
+	n := len(baseline)
+	if n == 0 {
+		return Interval{}
+	}
+
+	var both, baseOnly, runOnly, neither int
+
+	for i := range baseline {
+		switch {
+		case baseline[i] && run[i]:
+			both++
+		case baseline[i]:
+			baseOnly++
+		case run[i]:
+			runOnly++
+		default:
+			neither++
+		}
+	}
+
+	// Newcombe's method 10, from his 1998 paper on paired differences of proportions: the two Wilson
+	// intervals joined by MOVER, with phi as their correlation. Method 10 shrinks a positive phi by
+	// n/2, which widens the interval on a small set. Without that it is his method 8.
+	before, after := wilson(both+baseOnly, n), wilson(both+runOnly, n)
+	p1, p2 := float64(both+baseOnly)/float64(n), float64(both+runOnly)/float64(n)
+
+	phi := 0.0
+	if margins := float64(both+baseOnly) * float64(runOnly+neither) * float64(both+runOnly) * float64(baseOnly+neither); margins > 0 {
+		concordance := float64(both)*float64(neither) - float64(baseOnly)*float64(runOnly)
+		if concordance > 0 {
+			concordance = math.Max(concordance-float64(n)/2, 0)
+		}
+
+		phi = concordance / math.Sqrt(margins)
+	}
+
+	change := p2 - p1
+	low := change - recovered(p2-after.Low, before.High-p1, phi)
+	high := change + recovered(after.High-p2, p1-before.Low, phi)
+
+	return Interval{
+		Value: num.Rounded(change), Low: num.Rounded(math.Max(-1, low)), High: num.Rounded(math.Min(1, high)),
+		Defined: true,
+	}
+}

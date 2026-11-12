@@ -1,6 +1,7 @@
 package calibrate
 
 import (
+	"slices"
 	"testing"
 )
 
@@ -156,6 +157,94 @@ func TestCompareYesNo(t *testing.T) {
 		got := CompareYesNo([][]YesNoCase{cases}, nil, []float64{0})[0].Budgets[0]
 		if got.Found {
 			t.Errorf("row = %+v, want none found", got)
+		}
+	})
+}
+
+func TestCompareChoices(t *testing.T) {
+	t.Parallel()
+
+	picked := func(labels, picks []string) []ChoiceCase {
+		cases := make([]ChoiceCase, len(labels))
+		for i := range labels {
+			cases[i] = ChoiceCase{Label: labels[i], Picked: picks[i], Confidence: 0.9}
+		}
+
+		return cases
+	}
+
+	labels := []string{"a", "b", "c", "a", "b", "c", "a", "b"}
+	levels := []string{"1", "2", "3", "4", "5"}
+	rated := []string{"1", "3", "5", "2", "4", "3"}
+
+	// The wanted values come from a separate implementation of the same formulas.
+	tests := []struct {
+		name                  string
+		runs                  [][]ChoiceCase
+		names                 []string
+		rate                  bool
+		wantAgreement, wantIn *Interval
+	}{
+		{
+			name: "should shrink a positive phi by n/2, as Newcombe's method 10 does over method 8",
+			runs: [][]ChoiceCase{
+				picked(labels, []string{"a", "b", "c", "a", "c", "c", "b", "b"}),
+				picked(labels, []string{"a", "a", "c", "a", "b", "c", "b", "c"}),
+			},
+			names:         []string{"a", "b", "c"},
+			wantAgreement: &Interval{Value: -0.125, Low: -0.4908, High: 0.2907, Defined: true},
+		},
+		{
+			name: "should give a rate question a change within one level beside its agreement",
+			runs: [][]ChoiceCase{
+				picked(rated, []string{"1", "3", "3", "2", "5", "4"}),
+				picked(rated, []string{"2", "5", "5", "4", "4", "1"}),
+			},
+			names: levels, rate: true,
+			wantAgreement: &Interval{Value: -0.1667, Low: -0.6746, High: 0.4611, Defined: true},
+			wantIn:        &Interval{Value: -0.3333, Low: -0.7263, High: 0.2716, Defined: true},
+		},
+		{
+			name: "should keep width between two runs that agree on every record",
+			runs: [][]ChoiceCase{
+				picked(slices.Repeat([]string{"a"}, 16), slices.Repeat([]string{"a"}, 16)),
+				picked(slices.Repeat([]string{"a"}, 16), slices.Repeat([]string{"a"}, 16)),
+			},
+			names:         []string{"a", "b"},
+			wantAgreement: &Interval{Value: 0, Low: -0.1936, High: 0.1936, Defined: true},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			scores := CompareChoices(tc.runs, tc.names, tc.rate, nil)
+			if scores[0].AgreementChange != nil || scores[0].WithinOneChange != nil {
+				t.Errorf("baseline changes = %v and %v, want nil", scores[0].AgreementChange, scores[0].WithinOneChange)
+			}
+
+			got := scores[1]
+			if got.AgreementChange == nil || *got.AgreementChange != *tc.wantAgreement {
+				t.Errorf("agreement change = %+v, want %+v", got.AgreementChange, tc.wantAgreement)
+			}
+
+			if (tc.wantIn == nil) != (got.WithinOneChange == nil) || (tc.wantIn != nil && *got.WithinOneChange != *tc.wantIn) {
+				t.Errorf("within one change = %+v, want %+v", got.WithinOneChange, tc.wantIn)
+			}
+
+			if (got.Rate != nil) != tc.rate {
+				t.Errorf("rate score = %v, want one only for a rate question", got.Rate)
+			}
+		})
+	}
+
+	t.Run("should leave the change undefined over no records", func(t *testing.T) {
+		t.Parallel()
+
+		got := CompareChoices([][]ChoiceCase{{}, {}}, []string{"a"}, false, nil)[1].AgreementChange
+		if got == nil || got.Defined {
+			t.Errorf("change = %+v, want an undefined interval", got)
 		}
 	})
 }

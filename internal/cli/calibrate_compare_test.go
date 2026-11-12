@@ -323,18 +323,81 @@ func TestCompareCalibration(t *testing.T) {
 		}
 	})
 
-	t.Run("should skip a pick question with a notice and compare the rest", func(t *testing.T) {
+	t.Run("should compare a pick and a rate question, and check a requirement on each file", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
-		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
-		args := comparing("--ask", "team=which team", "--pick", "billing,support", "--label", "team=\"billing\"",
-			"--compare", a, "--compare", b)
+		const choices = `{"id":"T-1","team":"billing","tone":"3","body":"a"}
+{"id":"T-2","team":"support","tone":"1","body":"b"}
+{"id":"T-3","team":"billing","tone":"5","body":"c"}
+{"id":"T-4","team":"support","tone":"2","body":"d"}
+`
 
-		out, errOut, code := runMocked(t, t.Context(), args, labelled, nil, nil)
-		if want := "skipping 'team', a pick question, since --compare compares only yes or no questions so far"; code != ExitOK ||
-			!strings.Contains(errOut, want) || !strings.HasPrefix(out, "urgent, yes/no") {
-			t.Errorf("exit %d, want 0 with %q\nstdout:\n%s\nstderr:\n%s", code, want, out, errOut)
+		choosing := []string{
+			"calibrate", "--ask", "team=which team", "--pick", "billing,support", "--ask", "tone=how angry",
+			"--rate", "1,2,3,4,5", "-i", "jsonl", "--map", ".body", "--label", "team=.team", "--label", "tone=.tone",
+			"--id", ".id",
+		}
+		answer := func(id, team, tone string) string {
+			return fmt.Sprintf(`{"id":%q,"team":{"value":%q,"confidence":0.9},"tone":{"value":%q,"confidence":0.8}}`, id, team, tone)
+		}
+
+		dir := t.TempDir()
+		write := func(name string, answers ...string) string {
+			path := filepath.Join(dir, name)
+			args := append(append([]string{}, choosing...), "--out", path, "--mock", writeMock(t, strings.Join(answers, "\n")+"\n"))
+
+			if _, errOut, code := runMocked(t, t.Context(), args, choices, nil, nil); code != ExitOK {
+				t.Fatalf("writing %s exit %d\nstderr:\n%s", name, code, errOut)
+			}
+
+			return path
+		}
+
+		a := write("a.jsonl", answer("T-1", "billing", "3"), answer("T-2", "support", "1"), answer("T-3", "billing", "5"),
+			answer("T-4", "support", "2"))
+		b := write("b.jsonl", answer("T-1", "billing", "4"), answer("T-2", "billing", "1"), answer("T-3", "billing", "2"),
+			answer("T-4", "support", "2"))
+
+		args := append(append([]string{}, choosing...), "--compare", a, "--compare", b, "--require", "team.agreement >= 0.9")
+		out, errOut, code := runMocked(t, t.Context(), args, choices, nil, nil)
+
+		want := "team, pick: compared 4 of 4 labelled\n\n" +
+			"  " + padTo("run", a) + "  model       agreement       change from baseline\n" +
+			"  " + a + "  jev-latest  4/4 99% 51-99%  baseline\n" +
+			"  " + b + "  jev-latest  3/4 75% 30-95%  -0.25  -0.70 to 0.28\n" +
+			"\ntone, rate: compared 4 of 4 labelled\n\n" +
+			"  " + padTo("run", a) + "  model       agreement       agreement change      within one level  within one change\n" +
+			"  " + a + "  jev-latest  4/4 99% 51-99%  baseline              4/4 99% 51-99%    baseline\n" +
+			"  " + b + "  jev-latest  2/4 50% 15-85%  -0.50  -0.85 to 0.10  3/4 75% 30-95%    -0.25  -0.70 to 0.28\n"
+		if code != ExitFail || out != want {
+			t.Errorf("exit %d, want 1\nstdout:\n%s\nwant:\n%s\nstderr:\n%s", code, out, want, errOut)
+		}
+
+		if unmet := "onesie: " + b + ": 'team.agreement >= 0.9' did not hold: 3/4"; !strings.Contains(errOut, unmet) ||
+			strings.Contains(errOut, a+": ") {
+			t.Errorf("stderr lacks %q or names %s\nstderr:\n%s", unmet, a, errOut)
+		}
+
+		jsonOut, _, _ := runMocked(t, t.Context(), append(args, "-o", "json"), choices, nil, nil)
+
+		var report struct {
+			Questions []struct {
+				Shape string `json:"shape"`
+				Runs  []struct {
+					AgreementChange *map[string]float64 `json:"agreement_change"`
+					WithinOne       *map[string]any     `json:"within_one"`
+				} `json:"runs"`
+			} `json:"questions"`
+		}
+
+		if err := json.Unmarshal([]byte(jsonOut), &report); err != nil {
+			t.Fatalf("stdout is not json: %v\n%s", err, jsonOut)
+		}
+
+		team, tone := report.Questions[0], report.Questions[1]
+		if team.Shape != "pick" || team.Runs[0].AgreementChange != nil || (*team.Runs[1].AgreementChange)["value"] != -0.25 ||
+			team.Runs[1].WithinOne != nil || tone.Shape != "rate" || tone.Runs[1].WithinOne == nil {
+			t.Errorf("report = %+v", report)
 		}
 	})
 
@@ -378,14 +441,6 @@ func TestCompareCalibration(t *testing.T) {
 			},
 			want: "b.jsonl answers question 'urgent' in no way that can be scored, as for record T-1: " +
 				"question 'urgent' answered high, which lies outside [0,1]",
-		},
-		{
-			name: "should refuse a requirement on a question it skips",
-			files: func(t *testing.T, dir string) []string {
-				return []string{answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)}
-			},
-			extra: []string{"--ask", "team=which team", "--pick", "billing,support", "--label", "team=\"billing\"", "--require", "team.agreement >= 0.5"},
-			want:  "--require 'team.agreement >= 0.5' reads 'team', a pick question, and --compare compares only yes or no questions so far",
 		},
 		{
 			name:  "should refuse a setting that asks, through the settings rules",

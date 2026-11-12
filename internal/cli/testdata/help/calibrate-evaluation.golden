@@ -69,13 +69,14 @@ How they work together:
   file answers by --id, and stderr counts the rest. stderr also names what differs from
   the baseline: the fingerprint parts, and the models when their names differ. Each file
   gets a row with its models, the AUC, the change from the baseline and the catches at
-  each --false-alarms budget, with 95 percent intervals. The change interval stays wide
-  even for runs that are alike, so a small set cannot show a small change. Files written
-  with --usage add the mean tokens and the cost per 1000 records, over the records any
-  question compares, so error lines do not count. A cost shows only when every one of
-  those records carries one, and stderr says when a file carries usage on only some.
-  Requirements apply to every file. Pick and rate questions are skipped for now. Write
-  the compared files without --cache, since a cached answer can hide a model update and
+  each --false-alarms budget, with 95 percent intervals. A pick or rate question shows
+  the agreement instead, and a rate question the share within one level too, each with
+  its change. The change interval stays wide even for runs that are alike, so a small
+  set cannot show a small change. Files written with --usage add the mean tokens and the
+  cost per 1000 records, over the records any question compares, so error lines do not
+  count. A cost shows only when every one of those records carries one, and stderr says
+  when a file carries usage on only some. Requirements apply to every file. Write the
+  compared files without --cache, since a cached answer can hide a model update and
   costs nothing.
 
   Compare answers with labelled examples:
