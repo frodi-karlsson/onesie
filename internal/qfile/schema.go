@@ -247,6 +247,14 @@ func shapeConstraints(rows []settingrow.Row) []any {
 			ErrorMessage: "A question has one of " + inWords(shapeKeys, "or") + ".",
 		},
 		jsonschema.Node{
+			Not:          &jsonschema.Node{Required: []string{"yes_means", "true"}},
+			ErrorMessage: "yes_means and true name the same description. Keep one.",
+		},
+		jsonschema.Node{
+			Not:          &jsonschema.Node{Required: []string{"no_means", "false"}},
+			ErrorMessage: "no_means and false name the same description. Keep one.",
+		},
+		jsonschema.Node{
 			If: &jsonschema.Node{AnyOf: requiredEach(shapeKeys...)},
 			Then: &jsonschema.Node{
 				Not: &jsonschema.Node{AnyOf: requiredEach(yesOrNoOnly...)},

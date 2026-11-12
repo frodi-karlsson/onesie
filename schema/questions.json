@@ -330,6 +330,24 @@
           "errorMessage": "A question has one of pick, rate or box."
         },
         {
+          "not": {
+            "required": [
+              "yes_means",
+              "true"
+            ]
+          },
+          "errorMessage": "yes_means and true name the same description. Keep one."
+        },
+        {
+          "not": {
+            "required": [
+              "no_means",
+              "false"
+            ]
+          },
+          "errorMessage": "no_means and false name the same description. Keep one."
+        },
+        {
           "if": {
             "anyOf": [
               {
