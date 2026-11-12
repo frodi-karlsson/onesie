@@ -26,6 +26,16 @@ func TestLoad(t *testing.T) {
 			wantErr: "the file has 'state' but no 'questions'. A request body needs 'questions', and a question file takes no 'state', so pass --state or send it on stdin",
 		},
 		{
+			name:    "should refuse yes_means beside its alias true",
+			doc:     "spam:\n  ask: q\n  yes_means: documented\n  true: alias\n",
+			wantErr: "question 'spam' has both 'yes_means' and 'true', which name the same description. Keep one",
+		},
+		{
+			name:    "should refuse false beside its alias no_means",
+			doc:     "spam:\n  ask: q\n  false: alias\n  no_means: documented\n",
+			wantErr: "question 'spam' has both 'no_means' and 'false', which name the same description. Keep one",
+		},
+		{
 			name:    "should refuse a question file that pins a model",
 			doc:     "model: jev-1.13.0\nurgent:\n  ask: is it urgent\n",
 			wantErr: "the file has 'model' but no 'questions'. A request body needs 'questions', and a question file takes no 'model', so pass -m",

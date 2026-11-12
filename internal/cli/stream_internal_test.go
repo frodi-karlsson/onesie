@@ -311,7 +311,7 @@ func TestStream(t *testing.T) {
 					t.Errorf("summed usage %d in / %d out, want %d / %d", input, output, 5*requests, 2*requests)
 				}
 
-				if tc.ordered && !strings.HasPrefix(out, `{"id":1,"model":"m","usage":{"input_tokens":5`) {
+				if tc.ordered && !strings.HasPrefix(out, `{"id":1,"line":1,"model":"m","usage":{"input_tokens":5`) {
 					t.Errorf("the first record is not the one billed\n%s", out)
 				}
 			})

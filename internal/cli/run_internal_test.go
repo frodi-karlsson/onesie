@@ -191,6 +191,7 @@ func TestDescribe(t *testing.T) {
 			cause: onesie.NewAPIError(onesie.Cloudflare(), "", onesie.Needs{}, http.StatusBadRequest,
 				[]byte(`{"success":false,"errors":[{"code":9106,"message":"Authentication failed (status: 400)"}]}`)),
 		},
+		{name: "should agree with a fresh run on a 500 the route recognised as a request to fix", cause: notServedBox()},
 		{name: "should agree with a fresh run on a not found status", cause: apiError(http.StatusNotFound)},
 		{name: "should agree with a fresh run on a request timeout status", cause: apiError(http.StatusRequestTimeout)},
 		{name: "should agree with a fresh run on a rate limit", cause: apiError(http.StatusTooManyRequests)},
@@ -256,6 +257,12 @@ func TestDescribe(t *testing.T) {
 				cause: &onesie.RetryAfterError{APIError: onesie.APIError{Status: http.StatusServiceUnavailable}},
 				kind:  "http", status: statusOf(http.StatusServiceUnavailable),
 				message: "status 503, the server asked to retry after 0s, above the 0s cap",
+			},
+			{
+				cause:   notServedBox(),
+				kind:    "request",
+				status:  statusOf(http.StatusInternalServerError),
+				message: notServedBox().Reason(),
 			},
 			{
 				cause: &onesie.ConnectionError{Err: errors.New("refused")},

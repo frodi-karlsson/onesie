@@ -53,6 +53,38 @@ func TestMockAnswers(t *testing.T) {
 		}
 	})
 
+	t.Run("should replay a request refusal a run wrote, from the body the line keeps", func(t *testing.T) {
+		t.Parallel()
+
+		args := []string{"is it urgent", "-i", "jsonl", "-o", "json"}
+		input := `"help"` + "\n"
+		refusal := `{"error":{"kind":"http","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`
+
+		first, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, refusal)), input, nil, nil)
+		if code != ExitRecords || !strings.Contains(first, `"kind":"request"`) || !strings.Contains(first, `"body":{"detail"`) {
+			t.Fatalf("first run exit %d, output %s, stderr %s", code, first, errOut)
+		}
+
+		replayed, errOut, code := runMocked(t, t.Context(), append(append([]string{}, args...),
+			"--mock", writeMock(t, first)), input, nil, nil)
+		if code != ExitRecords || replayed != first {
+			t.Fatalf("replay exit %d, output %s, want %s, stderr %s", code, replayed, first, errOut)
+		}
+	})
+
+	t.Run("should answer each record from the line naming its input line, as an --unordered file writes them", func(t *testing.T) {
+		t.Parallel()
+
+		unordered := `{"line":2,"answer":0.2}` + "\n" + `{"line":1,"answer":0.1}` + "\n"
+
+		out, errOut, code := runMocked(t, t.Context(), []string{"is it urgent", "-i", "jsonl", "-o", "values", "--mock", writeMock(t, unordered)},
+			`"a"`+"\n"+`"b"`+"\n", nil, nil)
+		if want := `{"line":1,"answer":0.1}` + "\n" + `{"line":2,"answer":0.2}` + "\n"; code != ExitOK || out != want {
+			t.Errorf("exit %d, stdout %q, want %q\nstderr: %s", code, out, want, errOut)
+		}
+	})
+
 	three := []string{
 		"--ask", "u=is it urgent", "--ask", "t=which team", "--pick", "billing,platform",
 		"--ask", "r=how rude", "--rate", "calm,curt,rude",
@@ -362,6 +394,21 @@ func TestMockAnswers(t *testing.T) {
 			mock:     `{"error":402}`,
 			stderr:   []string{"onesie: 402 status code, no body. Add credits to the account this key belongs to"},
 			wantCode: ExitAuth,
+		},
+		{
+			name:     "should refuse a stored request refusal with no body, since the client reads it from the body",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"request","status":500,"message":"500 not served"}}`,
+			stderr:   []string{"is a request refusal, which replays only from the body the provider sent. Add that body as \"body\", or replace the line with {\"error\": 500}"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should replay a request refusal with its body as the request refusal a live run gives",
+			args:     with("-i", "lines", "-o", "json"),
+			stdin:    "x\n",
+			mock:     `{"error":{"kind":"request","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`,
+			contains: []string{`"error":{"kind":"request","status":400`},
+			wantCode: ExitRecords,
 		},
 		{
 			name:     "should fail a mocked null body as a mocked status with no body",
@@ -959,7 +1006,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Fatalf("first run exit %d, want 2\n%s", code, errOut)
 			}
 
-			if got := readText(t, out); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
+			if got := withoutLines(readText(t, out)); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
 				t.Errorf("after the first run the file holds %q", got)
 			}
 
@@ -972,7 +1019,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
 			}
 
-			if got := readText(t, out); got != wantFile {
+			if got := withoutLines(readText(t, out)); got != wantFile {
 				t.Errorf("file = %q, want %q", got, wantFile)
 			}
 		})
@@ -992,7 +1039,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
 			}
 
-			if got := readText(t, out); !strings.HasPrefix(wantFile, got) {
+			if got := withoutLines(readText(t, out)); !strings.HasPrefix(wantFile, got) {
 				t.Errorf("the interrupted file %q is not a prefix of %q", got, wantFile)
 			}
 
@@ -1005,7 +1052,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Errorf("the second run skipped no record: %s", errOut)
 			}
 
-			if got := readText(t, out); got != wantFile {
+			if got := withoutLines(readText(t, out)); got != wantFile {
 				t.Errorf("file = %q, want %q", got, wantFile)
 			}
 		})
@@ -1365,7 +1412,7 @@ func checkMocked(
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, wantCode, out, errOut)
 	}
 
-	if wantOut != nil && out != *wantOut {
+	if wantOut != nil && withoutLines(out) != withoutLines(*wantOut) {
 		t.Errorf("stdout\n got: %q\nwant: %q\nstderr:\n%s", out, *wantOut, errOut)
 	}
 

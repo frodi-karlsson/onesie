@@ -75,7 +75,10 @@ func helpInput(command settingrow.Command) string {
 	separator := "--delimiter auto needs CSV input, detects its separator and uses it for CSV output. "
 	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state. Images cannot be mixed with request input. "
 	lineImage := "Under lines input the line itself is the path. "
+	numbering := "In the JSON modes a stream record carries line, its input line number, with the header as line 1 in CSV and TSV. " +
+		"A merged record carries none, since it is the input record. -o csv, tsv and raw carry no line, so match their records to the input with --id. "
 	if command == settingrow.CommandCalibrate {
+		numbering = ""
 		intro = "Calibration requires JSONL, CSV or TSV records on stdin. "
 		original = "Labels are selected from the original record."
 		separator = "--delimiter auto detects the separator of CSV input. "
@@ -86,7 +89,7 @@ func helpInput(command settingrow.Command) string {
 		"--map runs a jq expression on each original record and sends its result as the state. Map only the text a person would read. " +
 		"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as version lists. " + original + "\n\n" +
 		"--id runs one record at a time as input is read. Its result must be a string or number. Keep it cheap, such as a field lookup. " +
-		"version lists max-id-bytes. --skip-blank drops blank lines without emitting a result. " +
+		"version lists max-id-bytes. --skip-blank drops blank lines without emitting a result. " + numbering +
 		"The default field separator is " + strconv.QuoteRune(delimiter.DefaultComma) + ". " + separator +
 		"An explicit delimiter takes one character. TSV uses tabs.\n\n" +
 		"--image NAME=PATH adds a PNG or JPEG under NAME. " + images + "Streams read stdin and add the fixed image to every record. " +
@@ -188,7 +191,7 @@ func helpExecution(command settingrow.Command) string {
 		"--long-context raises context limits, is slower and less accurate, and is experimental on TypeSafe's side. version reports the built in limits.\n\n" +
 		"--cache, or " + settingEnv(setting.Cache.Name()) + "=1, stores successful responses on disk and reuses repeated requests. onesie cache reports entries and onesie cache clear empties them. "
 	if command == settingrow.CommandRoot {
-		common += "Streams normally preserve input order. --unordered emits completed records immediately. " +
+		common += "Streams normally preserve input order. --unordered emits completed records immediately, each naming its input by line or --id as input help says. " +
 			"--no-dedup asks every record even when its request repeats, independently of the disk cache. " +
 			"--stop-on=error ends at the first error with its exit code, or 6 for an unreadable record. "
 	}

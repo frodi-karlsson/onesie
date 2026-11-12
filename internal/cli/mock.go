@@ -86,7 +86,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, ready prepared)
 		return reply{}, err
 	}
 
-	entry, found := a.answers.Lookup(key.position, key.id)
+	entry, found := a.answers.Lookup(key.position, key.id, key.line)
 	if !found {
 		return reply{}, &uncoveredError{message: a.answers.Missing(key.position, key.id, key.line)}
 	}
@@ -97,7 +97,7 @@ func (a mockAnswerer) answer(ctx context.Context, key recordKey, ready prepared)
 func (a mockAnswerer) salt(key recordKey) (string, bool) {
 	// A record the file does not answer is never shared, so its error names its own input line and
 	// no identical record takes an answer the file gave another.
-	entry, found := a.answers.Lookup(key.position, key.id)
+	entry, found := a.answers.Lookup(key.position, key.id, key.line)
 	if !found {
 		return "", false
 	}

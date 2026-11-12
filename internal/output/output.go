@@ -3,6 +3,7 @@
 package output
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 
@@ -14,10 +15,13 @@ import (
 const (
 	// KindResponse is a 2xx response onesie could not use.
 	KindResponse Kind = "response"
-	// KindHTTP is a response with a status outside 2xx, apart from an auth one.
+	// KindHTTP is a response with a status outside 2xx, apart from an auth or a request one.
 	KindHTTP Kind = "http"
 	// KindAuth is a response that refused the key or the account behind it.
 	KindAuth Kind = "auth"
+	// KindRequest is a response whose body named a fault in the request, such as an unknown model,
+	// whatever its status, so sending it again cannot help.
+	KindRequest Kind = "request"
 	// KindTransport is a connection that failed or timed out.
 	KindTransport Kind = "transport"
 	// KindInput is a record that never became a request.
@@ -150,10 +154,12 @@ type Named struct {
 // Failure is the reserved error key. Status is nil for a transport or input failure, where no HTTP
 // status was ever received. Sentence is how the table words the failure, and no other mode writes it.
 type Failure struct {
-	Kind     Kind   `json:"kind"`
-	Status   *int   `json:"status"`
-	Message  string `json:"message"`
-	Sentence string `json:"-"`
+	Kind    Kind   `json:"kind"`
+	Status  *int   `json:"status"`
+	Message string `json:"message"`
+	// Body is the provider's response on a request failure, kept so --mock can replay the line.
+	Body     json.RawMessage `json:"body,omitempty"`
+	Sentence string          `json:"-"`
 }
 
 // Kind names what failed, so a consumer can tell a retry worth making from a record to fix.

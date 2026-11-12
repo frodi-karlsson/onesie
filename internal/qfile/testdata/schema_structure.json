@@ -58,6 +58,24 @@
           }
         },
         {
+          "errorMessage": "yes_means and true name the same description. Keep one.",
+          "not": {
+            "required": [
+              "yes_means",
+              "true"
+            ]
+          }
+        },
+        {
+          "errorMessage": "no_means and false name the same description. Keep one.",
+          "not": {
+            "required": [
+              "no_means",
+              "false"
+            ]
+          }
+        },
+        {
           "else": {
             "properties": {
               "fallback": {

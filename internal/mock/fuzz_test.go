@@ -21,7 +21,7 @@ func FuzzLoad(f *testing.F) {
 		}
 
 		for position := range 4 {
-			entry, found := answers.Lookup(position, "T-1")
+			entry, found := answers.Lookup(position, "T-1", 0)
 			if !found {
 				continue
 			}

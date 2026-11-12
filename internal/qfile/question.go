@@ -86,8 +86,15 @@ func buildQuestion(id string, value any) (plan.Question, error) {
 
 	question.Instructions = instructions
 
-	yes, yesKey, hasYes := firstOf(fields, "yes_means", "true")
-	no, noKey, hasNo := firstOf(fields, "no_means", "false")
+	yes, yesKey, hasYes, err := oneOf(id, fields, "yes_means", "true")
+	if err != nil {
+		return question, err
+	}
+
+	no, noKey, hasNo, err := oneOf(id, fields, "no_means", "false")
+	if err != nil {
+		return question, err
+	}
 
 	if hasYes || hasNo {
 		criteria, err := readYesNo(id, yesKey, noKey, yes, no)
@@ -437,14 +444,25 @@ func checkKeys(id string, fields yaml.MapSlice) error {
 	return nil
 }
 
-func firstOf(fields yaml.MapSlice, names ...string) (any, string, bool) {
+func oneOf(id string, fields yaml.MapSlice, names ...string) (any, string, bool, error) {
+	var (
+		value any
+		found string
+	)
+
 	for _, name := range names {
-		// Names are tried in order, so the documented _means spelling wins over the true and false
-		// aliases when a file carries both.
-		if value, ok := lookup(fields, name); ok {
-			return value, name, true
+		got, ok := lookup(fields, name)
+		if !ok {
+			continue
 		}
+
+		if found != "" {
+			return nil, "", false, fmt.Errorf("question '%s' has both '%s' and '%s', which name the same description. Keep one",
+				id, found, name)
+		}
+
+		value, found = got, name
 	}
 
-	return nil, "", false
+	return value, found, found != "", nil
 }

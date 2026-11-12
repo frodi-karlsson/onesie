@@ -690,12 +690,13 @@ func TestNewRootCmd(t *testing.T) {
 			},
 		},
 		{
-			name:     "should accept a question id line under -i jsonl",
+			name:     "should refuse a question id line under -i jsonl, which writes the line number too",
 			args:     []string{"--ask", "line=is this urgent", "-i", "jsonl", "--print-request"},
 			stdin:    "\"first\"\n",
-			wantCode: cli.ExitOK,
-			contains: []string{`"line":{"type":"noul"`},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: question id 'line' is reserved under -i jsonl, which writes the input line number as line"},
 		},
+
 		{
 			name:     "should refuse an unknown help topic",
 			args:     []string{"help", "foo"},
@@ -756,7 +757,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    stopRecords,
 			files:    map[string]string{"mock.jsonl": stopMock},
 			wantCode: cli.ExitAbstain,
-			contains: []string{`{"id":2,"abstain":true`, ", 1 unsure,"},
+			contains: []string{`{"id":2,"line":2,"abstain":true`, ", 1 unsure,"},
 			absent:   []string{`"id":3`, `"id":4`, " fail"},
 		},
 		{
@@ -769,7 +770,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    stopRecords,
 			files:    map[string]string{"mock.jsonl": stopMock},
 			wantCode: cli.ExitAbstain,
-			contains: []string{`{"id":2,"abstain":true`, ", 1 unsure,"},
+			contains: []string{`{"id":2,"line":2,"abstain":true`, ", 1 unsure,"},
 			absent:   []string{`"id":3`, `"id":4`, " fail"},
 		},
 		{

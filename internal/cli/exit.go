@@ -227,6 +227,13 @@ func requestFailure(err error) (failure, bool) {
 		return failure{kind: output.KindInput, code: ExitAuth}, true
 	}
 
+	// A refusal the provider's route recognised is a request to fix, even when it arrives as a 500.
+	if answered && api.Recognised() {
+		status := api.Status
+
+		return failure{kind: output.KindRequest, status: &status, code: ExitUsage}, true
+	}
+
 	if answered {
 		status := api.Status
 
@@ -295,6 +302,8 @@ func (e *storedFailure) freshRunCode() int {
 		return ExitTransport
 	case output.KindAuth:
 		return ExitAuth
+	case output.KindRequest:
+		return ExitUsage
 	case output.KindHTTP:
 		return storedStatus(e.failure.Status)
 	default:

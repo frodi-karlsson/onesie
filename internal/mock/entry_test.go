@@ -221,7 +221,7 @@ func TestEntry(t *testing.T) {
 				t.Fatalf("Load: %v", err)
 			}
 
-			entry, _ := answers.Lookup(1, nil)
+			entry, _ := answers.Lookup(1, nil, 0)
 
 			normalized := answer.Normalize(tc.question, resultOf(entry).Answers[tc.question.ID])
 
@@ -319,7 +319,7 @@ func TestEntryKey(t *testing.T) {
 	}
 
 	key := func(id string) string {
-		entry, found := answers.Lookup(0, id)
+		entry, found := answers.Lookup(0, id, 0)
 		if !found {
 			t.Fatalf("no entry for %s", id)
 		}
@@ -453,7 +453,7 @@ func loadNormalized(t *testing.T, question plan.Question, file string) *answer.A
 		t.Fatalf("Load(%s): %v", file, err)
 	}
 
-	entry, _ := answers.Lookup(1, nil)
+	entry, _ := answers.Lookup(1, nil, 0)
 
 	normalized := answer.Normalize(question, resultOf(entry).Answers[question.ID])
 

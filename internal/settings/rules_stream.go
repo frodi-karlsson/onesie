@@ -93,14 +93,19 @@ func lineFieldRule() Rule {
 	return Rule{
 		ID: "line-field-reserved",
 		Check: func(v View) error {
-			if v.Plan == nil || inputModeOf(v) != input.Lines {
+			// -i request writes the API's own responses and a merged record is the input record, so
+			// neither holds a line number.
+			mode := inputModeOf(v)
+			merged := Get(v.Merged, MergeInput) || Get(v.Merged, MergeKey) != ""
+
+			if v.Plan == nil || !mode.Streaming() || mode == input.Request || merged {
 				return nil
 			}
 
 			for _, question := range v.Plan.Questions {
 				if question.ID == lineField {
-					return fmt.Errorf("question id '%s' is reserved under -i lines, "+
-						"which writes the input line number as %s", lineField, lineField)
+					return fmt.Errorf("question id '%s' is reserved under -i %s, "+
+						"which writes the input line number as %s", lineField, inputName(v), lineField)
 				}
 			}
 

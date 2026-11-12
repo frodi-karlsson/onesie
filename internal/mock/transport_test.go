@@ -60,7 +60,7 @@ func TestTransport(t *testing.T) {
 				t.Fatalf("Load: %v", err)
 			}
 
-			entry, _ := answers.Lookup(1, nil)
+			entry, _ := answers.Lookup(1, nil, 0)
 
 			result, err := sendThrough(t, tc.provider, entry)
 			if tc.wantErr != "" {

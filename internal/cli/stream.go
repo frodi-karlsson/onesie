@@ -143,7 +143,8 @@ func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error)
 	l, err := r.lineFor(ctx, rec)
 	l.slot = rec.slot
 
-	if r.flags.inputMode == input.Lines {
+	// A merged record is the input record, so it names itself, and gains nothing.
+	if !merging(r.flags) {
 		l.record.Line = rec.Line
 	}
 

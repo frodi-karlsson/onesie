@@ -56,7 +56,7 @@ func TestStream(t *testing.T) {
 		}
 
 		refused := func(line int) string {
-			return fmt.Sprintf(`{"error":{"kind":"input","status":null,"message":"line %d: box question 'mug' needs an image in the request"}}`, line)
+			return fmt.Sprintf(`{"line":%d,"error":{"kind":"input","status":null,"message":"line %d: box question 'mug' needs an image in the request"}}`, line, line)
 		}
 
 		if want := refused(1) + "\n" + refused(2) + "\n"; out.String() != want {
@@ -154,6 +154,24 @@ func TestStream(t *testing.T) {
 			contains:  []string{`{"line":1,"answer":0.9}`, `{"line":4,"answer":0.9}`},
 		},
 		{
+			name:      "should number csv records by their line in the file, the header being line 1",
+			args:      []string{"is this urgent", "-i", "csv", "--map", ".body", "-o", "values"},
+			stdin:     "body\nfirst\nsecond\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 2,
+			contains:  []string{`{"line":2,"answer":0.9}`, `{"line":3,"answer":0.9}`},
+		},
+		{
+			name:      "should number jsonl records under --unordered, so each names its input",
+			args:      []string{"is this urgent", "-i", "jsonl", "--unordered", "-j", "4", "-o", "values"},
+			stdin:     "\"first\"\n\"second\"\n\"third\"\n",
+			response:  answered,
+			wantCode:  cli.ExitOK,
+			wantLines: 3,
+			contains:  []string{`{"line":1,"answer":0.9}`, `{"line":2,"answer":0.9}`, `{"line":3,"answer":0.9}`},
+		},
+		{
 			name:      "should put the line number after the id",
 			args:      []string{"is this urgent", "-i", "lines", "--id", `split(" ")[0]`},
 			stdin:     "T-1 first\nT-2 second\n",
@@ -163,22 +181,22 @@ func TestStream(t *testing.T) {
 			contains:  []string{`{"id":"T-2","line":2,"model"`},
 		},
 		{
-			name:      "should put the line number in the merged answers",
+			name:      "should write no line number in a merged record, which names itself",
 			args:      []string{"is this urgent", "-i", "lines", "--merge"},
 			stdin:     "first\n",
 			response:  answered,
 			wantCode:  cli.ExitOK,
 			wantLines: 1,
-			contains:  []string{`{"state":"first","answers":{"line":1,"model"`},
+			contains:  []string{`{"state":"first","answers":{"model"`},
 		},
 		{
-			name:      "should write no line number under -i jsonl",
+			name:      "should write the line number under -i jsonl, as under -i lines",
 			args:      []string{"is this urgent", "-i", "jsonl"},
 			stdin:     "\"first\"\n",
 			response:  answered,
 			wantCode:  cli.ExitOK,
 			wantLines: 1,
-			contains:  []string{`{"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+			contains:  []string{`{"line":1,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
 		},
 		{
 			name:      "should write nothing for an empty stream",
@@ -692,7 +710,7 @@ func TestStream(t *testing.T) {
 				args:     []string{"x", "-i", "jsonl", "-o", "values"},
 				stdin:    record + "\n",
 				wantWire: record,
-				wantOut:  `{"answer":0.9}`,
+				wantOut:  `{"line":1,"answer":0.9}`,
 			},
 			{
 				name:     "should send a nineteen digit integer unchanged under json",
@@ -743,7 +761,7 @@ func TestStream(t *testing.T) {
 				args:     []string{"x", "-i", "lines", "--map", "ascii_upcase", "--merge", "-o", "values"},
 				stdin:    "the site is down\n",
 				wantWire: `"THE SITE IS DOWN"`,
-				wantOut:  `{"state":"the site is down","answers":{"line":1,"answer":0.9}}`,
+				wantOut:  `{"state":"the site is down","answers":{"answer":0.9}}`,
 			},
 		}
 
@@ -817,6 +835,8 @@ func TestStream(t *testing.T) {
 		const duplicate = `{"error":{"kind":"input","status":null,` +
 			`"message":"line 2: --id: '7' is also the id of line 1"}}`
 
+		duplicateOnLine2 := `{"line":2,` + duplicate[1:]
+
 		tests := []struct {
 			name     string
 			args     []string
@@ -831,7 +851,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
 				stdin:        "{\"id\":\"T-1\",\"body\":\"a\"}\n{\"id\":\"T-2\",\"body\":\"b\"}\n",
 				wantCode:     cli.ExitOK,
-				wantOut:      `{"id":"T-1","answer":0.9}` + "\n" + `{"id":"T-2","answer":0.9}`,
+				wantOut:      `{"id":"T-1","line":1,"answer":0.9}` + "\n" + `{"id":"T-2","line":2,"answer":0.9}`,
 				wantRequests: 2,
 			},
 			{
@@ -839,7 +859,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id"},
 				stdin:        "{\"id\":7}\n{\"id\":8}\n",
 				wantCode:     cli.ExitOK,
-				wantOut:      `{"id":7,"model":"onesie-1.13.0","answer":{"value":0.9}}` + "\n" + `{"id":8,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
+				wantOut:      `{"id":7,"line":1,"model":"onesie-1.13.0","answer":{"value":0.9}}` + "\n" + `{"id":8,"line":2,"model":"onesie-1.13.0","answer":{"value":0.9}}`,
 				wantRequests: 2,
 			},
 			{
@@ -847,7 +867,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
 				stdin:        "{\"id\":7.0}\n{\"id\":12345678901234567890}\n",
 				wantCode:     cli.ExitOK,
-				wantOut:      `{"id":7,"answer":0.9}` + "\n" + `{"id":12345678901234567890,"answer":0.9}`,
+				wantOut:      `{"id":7,"line":1,"answer":0.9}` + "\n" + `{"id":12345678901234567890,"line":2,"answer":0.9}`,
 				wantRequests: 2,
 			},
 			{
@@ -855,7 +875,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
 				stdin:        "{\"id\":7}\n{\"id\":7.0}\n{\"id\":8}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"id":7,"answer":0.9}` + "\n" + duplicate + "\n" + `{"id":8,"answer":0.9}`,
+				wantOut:      `{"id":7,"line":1,"answer":0.9}` + "\n" + duplicateOnLine2 + "\n" + `{"id":8,"line":3,"answer":0.9}`,
 				wantRequests: 2,
 			},
 			{
@@ -863,7 +883,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
 				stdin:        "{\"id\":7}\n{\"id\":\"7\"}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"id":7,"answer":0.9}` + "\n" + duplicate,
+				wantOut:      `{"id":7,"line":1,"answer":0.9}` + "\n" + duplicateOnLine2,
 				wantRequests: 1,
 			},
 			{
@@ -871,11 +891,11 @@ func TestStream(t *testing.T) {
 				args:     []string{"x", "-i", "jsonl", "--id", ".id", "-o", "values"},
 				stdin:    "{\"body\":\"a\"}\n{\"id\":[1]}\n{\"id\":{\"n\":1}}\n{\"id\":true}\n{\"id\":\"T-5\"}\n",
 				wantCode: cli.ExitRecords,
-				wantOut: `{"error":{"kind":"input","status":null,"message":"line 1: --id: id must be a string or a finite number, got null"}}` + "\n" +
-					`{"error":{"kind":"input","status":null,"message":"line 2: --id: id must be a string or a finite number, got array"}}` + "\n" +
-					`{"error":{"kind":"input","status":null,"message":"line 3: --id: id must be a string or a finite number, got object"}}` + "\n" +
-					`{"error":{"kind":"input","status":null,"message":"line 4: --id: id must be a string or a finite number, got boolean"}}` + "\n" +
-					`{"id":"T-5","answer":0.9}`,
+				wantOut: `{"line":1,"error":{"kind":"input","status":null,"message":"line 1: --id: id must be a string or a finite number, got null"}}` + "\n" +
+					`{"line":2,"error":{"kind":"input","status":null,"message":"line 2: --id: id must be a string or a finite number, got array"}}` + "\n" +
+					`{"line":3,"error":{"kind":"input","status":null,"message":"line 3: --id: id must be a string or a finite number, got object"}}` + "\n" +
+					`{"line":4,"error":{"kind":"input","status":null,"message":"line 4: --id: id must be a string or a finite number, got boolean"}}` + "\n" +
+					`{"id":"T-5","line":5,"answer":0.9}`,
 				wantRequests: 1,
 			},
 			{
@@ -883,7 +903,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".id.n", "-o", "values"},
 				stdin:        "{\"id\":\"T-1\"}\n{\"id\":{\"n\":2}}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id fails: {gojq}"}}` + "\n" + `{"id":2,"answer":0.9}`,
+				wantOut:      `{"line":1,"error":{"kind":"input","status":null,"message":"line 1: --id fails: {gojq}"}}` + "\n" + `{"id":2,"line":2,"answer":0.9}`,
 				wantRequests: 1,
 			},
 			{
@@ -891,7 +911,7 @@ func TestStream(t *testing.T) {
 				args:     []string{"x", "-i", "jsonl", "--id", ".id", "--map", ".body", "-o", "values"},
 				stdin:    "{\"id\":\"T-1\"}\n",
 				wantCode: cli.ExitRecords,
-				wantOut: `{"id":"T-1","error":{"kind":"input","status":null,` +
+				wantOut: `{"id":"T-1","line":1,"error":{"kind":"input","status":null,` +
 					`"message":"line 1: --map: state must be a string, object or array, got null"}}`,
 			},
 			{
@@ -941,7 +961,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", ".body", "-o", "values"},
 				stdin:        "{\"body\":\"" + strings.Repeat("a", 1025) + "\"}\n{\"body\":\"b\"}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id: id is longer than 1024 bytes"}}` + "\n" + `{"id":"b","answer":0.9}`,
+				wantOut:      `{"line":1,"error":{"kind":"input","status":null,"message":"line 1: --id: id is longer than 1024 bytes"}}` + "\n" + `{"id":"b","line":2,"answer":0.9}`,
 				wantRequests: 1,
 			},
 			{
@@ -949,7 +969,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", "if .big then reduce range(1024) as $i (1; . * 10) else .id end", "-o", "values"},
 				stdin:        "{\"big\":true}\n{\"id\":8}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"error":{"kind":"input","status":null,"message":"line 1: --id: id is out of range, it writes out to more than 1024 bytes"}}` + "\n" + `{"id":8,"answer":0.9}`,
+				wantOut:      `{"line":1,"error":{"kind":"input","status":null,"message":"line 1: --id: id is out of range, it writes out to more than 1024 bytes"}}` + "\n" + `{"id":8,"line":2,"answer":0.9}`,
 				wantRequests: 1,
 			},
 			{
@@ -957,7 +977,7 @@ func TestStream(t *testing.T) {
 				args:         []string{"x", "-i", "jsonl", "--id", "if .computed then .id * 1 else .id end", "-o", "values"},
 				stdin:        "{\"id\":1e21}\n{\"id\":1e21,\"computed\":true}\n",
 				wantCode:     cli.ExitRecords,
-				wantOut:      `{"id":1000000000000000000000,"answer":0.9}` + "\n" + `{"error":{"kind":"input","status":null,"message":"line 2: --id: '1000000000000000000000' is also the id of line 1"}}`,
+				wantOut:      `{"id":1000000000000000000000,"line":1,"answer":0.9}` + "\n" + `{"line":2,"error":{"kind":"input","status":null,"message":"line 2: --id: '1000000000000000000000' is also the id of line 1"}}`,
 				wantRequests: 1,
 			},
 			{

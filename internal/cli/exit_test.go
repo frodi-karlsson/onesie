@@ -54,6 +54,18 @@ func TestClassify(t *testing.T) {
 			want: ExitUsage,
 		},
 		{
+			name: "should report usage for a stored request refusal, whatever its status",
+			err:  stored("request", statusOf(http.StatusInternalServerError)), want: ExitUsage,
+		},
+		{
+			name: "should report usage for a 500 the route recognised as a question the model does not serve",
+			err:  notServedBox(), want: ExitUsage,
+		},
+		{
+			name: "should report unavailable for a 500 the route did not recognise",
+			err:  apiError(http.StatusInternalServerError), want: ExitUnavailable,
+		},
+		{
 			name: "should report unavailable for a stored unusable response",
 			err:  stored("response", statusOf(http.StatusOK)), want: ExitUnavailable,
 		},
@@ -380,4 +392,13 @@ func TestAuthFailure(t *testing.T) {
 			}
 		})
 	}
+}
+
+func notServedBox() *onesie.APIError {
+	// The body Vercel AI Gateway sends when Gemini is asked a box question.
+	body := `{"error":{"message":"Question \"where\" has type \"box\", which is not supported by provider \"google.decision\" ` +
+		`and model \"gemini-decision-1\".","type":"AI_DecisionUnsupportedQuestionTypeError"}}`
+
+	return onesie.NewAPIError(onesie.Vercel(), "google/gemini-decision-1", onesie.Needs{Images: true, Box: true},
+		http.StatusInternalServerError, []byte(body))
 }

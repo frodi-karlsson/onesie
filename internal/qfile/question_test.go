@@ -92,18 +92,6 @@ func TestReadYesNo(t *testing.T) {
 			},
 		},
 		{
-			name: "should prefer the _means spelling when both are present",
-			doc:  "spam:\n  ask: q\n  yes_means: documented\n  true: alias\n",
-			check: func(t *testing.T, f *qfile.File) {
-				t.Helper()
-
-				if f.Questions[0].Criteria.Yes != "documented" {
-					t.Errorf("yes = %v, want the _means spelling to win",
-						f.Questions[0].Criteria.Yes)
-				}
-			},
-		},
-		{
 			name: "should carry a structured instruction through as an object",
 			doc: "spam:\n  ask:\n    what: Is this spam?\n" +
 				"    examples: [\"buy now\"]\n",

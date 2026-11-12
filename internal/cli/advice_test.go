@@ -139,8 +139,8 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitUsage,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}`},
 			},
 			{
 				name:     "should name a clef model workers ai does not serve",
@@ -184,8 +184,8 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
-				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
+				wantOut: []string{`{"error":{"kind":"request","status":400,` +
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}}`},
 			},
 			{
 				name:     "should carry the remedy into a streaming error record",
@@ -196,8 +196,8 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
+					`"message":"model 'onesie-1.12' not found. Try --list-models","body":{"detail":"Unknown model: onesie-1.12"}}`},
 			},
 			{
 				name:     "should name the model on the 404 Berget sends for an unknown model",
@@ -325,8 +325,8 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitRecords,
 				wantErr:  "",
-				wantOut: []string{`{"error":{"kind":"http","status":400,` +
-					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}}`},
+				wantOut: []string{`{"error":{"kind":"request","status":400,` +
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `","body":` + tooManyLevels + `}}`},
 			},
 			{
 				name:     "should say the same for an image the server refuses",
@@ -346,8 +346,8 @@ func TestAdvise(t *testing.T) {
 				status:   http.StatusBadRequest,
 				response: tooManyLevels,
 				wantCode: ExitRecords,
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
-					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}`},
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
+					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `","body":` + tooManyLevels + `}`},
 			},
 			{
 				name:     "should leave a 400 reading Invalid request untouched",

@@ -1449,9 +1449,9 @@ func ruleCases() []ruleCase {
 		},
 		{
 			rule:    "line-field-reserved",
-			refused: run{planned: true, set: values{"input": "lines"}, events: []argv.Event{{Name: "ask", Value: "line=q"}}},
-			passed:  run{planned: true, set: values{"input": "jsonl"}, events: []argv.Event{{Name: "ask", Value: "line=q"}}},
-			wantErr: "question id 'line' is reserved under -i lines, which writes the input line number as line",
+			refused: run{planned: true, set: values{"input": "jsonl"}, events: []argv.Event{{Name: "ask", Value: "line=q"}}},
+			passed:  run{planned: true, set: values{"input": "jsonl", "merge": true}, events: []argv.Event{{Name: "ask", Value: "line=q"}}},
+			wantErr: "question id 'line' is reserved under -i jsonl, which writes the input line number as line",
 		},
 		{
 			rule: "file-question-shape",

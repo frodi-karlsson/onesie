@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"slices"
+	"strconv"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/jq"
@@ -216,7 +217,8 @@ func decodeObject(raw []byte) (map[string]any, error) {
 }
 
 func (p parser) lines(lines [][]byte) (*Answers, error) {
-	answers := &Answers{spelled: p.opts.Spelled, byID: p.opts.ByID, ids: map[string]slot{}}
+	answers := &Answers{spelled: p.opts.Spelled, byID: p.opts.ByID, ids: map[string]slot{}, inputLines: map[int]slot{}}
+	numbered := !p.opts.ByID
 
 	for i, raw := range lines {
 		number := i + 1
@@ -237,6 +239,13 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 		}
 
 		answers.lines = append(answers.lines, slot{entry: entry, line: number})
+
+		if numbered {
+			numbered, err = answers.number(fields, slot{entry: entry, line: number}, where)
+			if err != nil {
+				return nil, err
+			}
+		}
 
 		if !p.opts.ByID {
 			continue
@@ -259,7 +268,31 @@ func (p parser) lines(lines [][]byte) (*Answers, error) {
 		answers.ids[text] = slot{entry: entry, line: number}
 	}
 
+	// A file whose every line names its input line, as a stream run writes, matches records by that line,
+	// so an --unordered file answers each record with its own line.
+	answers.byLine = numbered && len(answers.inputLines) == len(answers.lines)
+
 	return answers, nil
+}
+
+func (a *Answers) number(fields map[string]any, at slot, where string) (bool, error) {
+	raw, present := fields["line"].(json.Number)
+	if !present {
+		return false, nil
+	}
+
+	input, err := strconv.Atoi(raw.String())
+	if err != nil || input < 1 {
+		return false, fmt.Errorf("%s has line %s, which is not an input line number", where, raw)
+	}
+
+	if first, taken := a.inputLines[input]; taken {
+		return false, fmt.Errorf("%s names input line %d, as %s line %d does", where, input, a.spelled, first.line)
+	}
+
+	a.inputLines[input] = at
+
+	return true, nil
 }
 
 type parser struct {
@@ -269,10 +302,11 @@ type parser struct {
 	opts      Options
 }
 
-// Lookup returns the entry for the record at a position counted from one, or for an id when the
-// file is matched by id. The second result is false for a record the file does not answer.
-func (a *Answers) Lookup(position int, id any) (Entry, bool) {
-	found, _ := a.find(position, id)
+// Lookup returns the entry for the record at a position counted from one, for an id when the file
+// is matched by id, or for an input line when every line of the file names one. The second result
+// is false for a record the file does not answer.
+func (a *Answers) Lookup(position int, id any, line int) (Entry, bool) {
+	found, _ := a.find(position, id, line)
 	if found.entry == nil {
 		return Entry{}, false
 	}
@@ -283,7 +317,7 @@ func (a *Answers) Lookup(position int, id any) (Entry, bool) {
 // Missing says why the file answers no record at a position or id, naming the record by its input
 // line.
 func (a *Answers) Missing(position int, id any, line int) string {
-	found, exists := a.find(position, id)
+	found, exists := a.find(position, id, line)
 
 	switch {
 	case exists:
@@ -292,6 +326,9 @@ func (a *Answers) Missing(position int, id any, line int) string {
 	case a.byID:
 		return fmt.Sprintf("%s has no line with id '%s', so input line %d has no answer. %s",
 			a.spelled, jq.IDText(id), line, a.addLine())
+	case a.byLine && line > 0:
+		return fmt.Sprintf("%s has no line with line %d, so input line %d has no answer. %s",
+			a.spelled, line, line, a.addLine())
 	default:
 		return fmt.Sprintf("%s has no line %d, so input line %d has no answer. %s",
 			a.spelled, position, line, a.addLine())
@@ -307,7 +344,7 @@ func (a *Answers) addLine() string {
 		"Add a line per record, or drop %s to answer every record", a.replayKey, a.replayKey)
 }
 
-func (a *Answers) find(position int, id any) (slot, bool) {
+func (a *Answers) find(position int, id any, line int) (slot, bool) {
 	switch {
 	case a.shared:
 		return a.every, true
@@ -318,6 +355,10 @@ func (a *Answers) find(position int, id any) (slot, bool) {
 		}
 
 		found, exists := a.ids[key]
+
+		return found, exists
+	case a.byLine && line > 0:
+		found, exists := a.inputLines[line]
 
 		return found, exists
 	case position >= 1 && position <= len(a.lines):
@@ -344,6 +385,9 @@ type Answers struct {
 	byID    bool
 	lines   []slot
 	ids     map[string]slot
+
+	byLine     bool
+	inputLines map[int]slot
 
 	replayKey string
 }
