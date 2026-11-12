@@ -164,8 +164,9 @@ func TestReadme(t *testing.T) {
 			code        int
 			stderr      string
 		}{
-			{requirement: "lower(destroys.catches_change) >= -0.2", code: cli.ExitOK},
-			{requirement: "lower(secrets.catches_change) >= -0.2", code: cli.ExitFail, stderr: "interval -0.4345 to 0.4345"},
+			{requirement: "lower(destroys.catches_change) >= -0.25", code: cli.ExitOK},
+			{requirement: "lower(network.catches_change) >= -0.25", code: cli.ExitOK},
+			{requirement: "lower(secrets.catches_change) >= -0.25", code: cli.ExitFail, stderr: "interval -0.4345 to 0.4345"},
 		} {
 			_, errOut, code := runCompareOnCommitted(t, append(slices.Clone(command), "--require", tc.requirement))
 			if code != tc.code || !strings.Contains(errOut, tc.stderr) {
