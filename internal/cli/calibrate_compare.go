@@ -57,6 +57,11 @@ func compareCalibration(
 		return err
 	}
 
+	for q := range comparison.Questions {
+		cut, reason := cutFromGate("assert", inv.fileGate.assert, comparison.Questions[q].ID)
+		comparison.Questions[q].ListMoves(cut, inv.fileGate.assert != "" && reason == "")
+	}
+
 	if noteErr := writeCompareNotices(cmd.ErrOrStderr(), set, runs); noteErr != nil {
 		return noteErr
 	}
@@ -496,8 +501,14 @@ func measureEachRun(
 			}
 		}
 
-		for _, result := range measureRequirements(report, bound) {
-			results = append(results, calibrate.RunResult{File: run.File, Result: result})
+		for _, req := range bound {
+			switch {
+			case !req.Measure.Change():
+				results = append(results, calibrate.RunResult{File: run.File, Result: req.Check(report.Questions[req.question], req.cut)})
+			case r > 0:
+				result := req.CheckChange(comparison.Questions[req.question], r, req.cut)
+				results = append(results, calibrate.RunResult{File: run.File, Result: result})
+			}
 		}
 	}
 

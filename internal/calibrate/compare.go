@@ -5,6 +5,7 @@ import (
 	"slices"
 
 	"github.com/frodi-karlsson/onesie/internal/num"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const bisections = 64
@@ -17,7 +18,7 @@ func CompareYesNo(runs [][]YesNoCase, cuts, budgets []float64) []RunScore {
 
 	for i, cases := range runs {
 		score := ScoreYesNo(cases, 0, cuts)
-		scores[i] = RunScore{YesNo: score, AUC: aucInterval(score), Budgets: budgetRows(score, budgets)}
+		scores[i] = RunScore{YesNo: score, AUC: aucInterval(score), Budgets: budgetRows(score, budgets), Cases: cases}
 		ranks[i] = placementsOf(cases)
 	}
 
@@ -30,12 +31,14 @@ func CompareYesNo(runs [][]YesNoCase, cuts, budgets []float64) []RunScore {
 }
 
 // RunScore is one run's score in a comparison. Change is its AUC less the baseline's, nil on the
-// baseline, and Budgets holds a row per false alarm budget.
+// baseline, Budgets holds a row per false alarm budget, and Cases the records scored, in the order
+// every run shares.
 type RunScore struct {
 	YesNo   YesNoScore
 	AUC     Interval
 	Change  *Interval
 	Budgets []BudgetRow
+	Cases   []YesNoCase
 }
 
 // Interval is a value with its 95 percent interval. Defined is false when there is no value.
@@ -230,9 +233,9 @@ func CompareChoices(runs [][]ChoiceCase, names []string, rate bool, cuts []float
 	for i, cases := range runs {
 		if rate {
 			score := ScoreRate(cases, names, 0, cuts)
-			scores[i] = ChoiceRunScore{Pick: score.PickScore, Rate: &score}
+			scores[i] = ChoiceRunScore{Pick: score.PickScore, Rate: &score, Cases: cases}
 		} else {
-			scores[i] = ChoiceRunScore{Pick: ScorePick(cases, names, 0, cuts)}
+			scores[i] = ChoiceRunScore{Pick: ScorePick(cases, names, 0, cuts), Cases: cases}
 		}
 
 		right[i], near[i] = make([]bool, len(cases)), make([]bool, len(cases))
@@ -257,11 +260,48 @@ func CompareChoices(runs [][]ChoiceCase, names []string, rate bool, cuts []float
 
 // ChoiceRunScore is one run's score for a pick or rate question in a comparison. Rate is set for a
 // rate question, whose PickScore is Pick. The changes are nil on the baseline, and WithinOneChange
-// on a pick question.
+// on a pick question. Cases holds the records scored, in the order every run shares.
 type ChoiceRunScore struct {
 	Pick                             PickScore
 	Rate                             *RateScore
 	AgreementChange, WithinOneChange *Interval
+	Cases                            []ChoiceCase
+}
+
+// ListMoves fills the record lists of each run against the baseline. A yes or no question reads
+// them at assertCut when hasAssert is set, and otherwise at each run's cut at the first false alarm
+// budget.
+func (q *QuestionComparison) ListMoves(assertCut float64, hasAssert bool) {
+	if q.Shape != plan.Noul {
+		q.ChoiceMoves = make([]ChoiceMoves, len(q.Choices))
+		for r := 1; r < len(q.Choices); r++ {
+			q.ChoiceMoves[r] = MoveChoices(q.Choices[0].Cases, q.Choices[r].Cases)
+		}
+
+		return
+	}
+
+	q.Moves = make([]YesNoMoves, len(q.Scores))
+	baseline := q.Scores[0]
+
+	for r := 1; r < len(q.Scores); r++ {
+		run := q.Scores[r]
+		baseCut, runCut, from := assertCut, assertCut, CutFromAssert
+
+		if !hasAssert {
+			baseCut, runCut, from = budgetCuts(baseline, run)
+		}
+
+		q.Moves[r] = MoveYesNo(baseline.Cases, run.Cases, baseCut, runCut, from)
+	}
+}
+
+func budgetCuts(baseline, run RunScore) (baseCut, runCut float64, from CutSource) {
+	if len(baseline.Budgets) == 0 || !baseline.Budgets[0].Found || !run.Budgets[0].Found {
+		return 0, 0, CutFromNone
+	}
+
+	return baseline.Budgets[0].Cut, run.Budgets[0].Cut, CutFromBudget
 }
 
 func pairedChange(baseline, run []bool) Interval {

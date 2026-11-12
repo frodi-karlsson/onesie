@@ -47,6 +47,10 @@ type QuestionComparison struct {
 	LeftOut  []LeftOut
 	Scores   []RunScore
 	Choices  []ChoiceRunScore
+	// Moves and ChoiceMoves list each run against the baseline, by shape, with nothing at the
+	// baseline's own index.
+	Moves       []YesNoMoves
+	ChoiceMoves []ChoiceMoves
 }
 
 // LeftOut counts the labelled records a run leaves out of a question's comparison: those no line
@@ -125,6 +129,15 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 	}
 
 	writeColumns(b, columns...)
+
+	budget := 0.0
+	if len(q.Scores[0].Budgets) > 0 {
+		budget = q.Scores[0].Budgets[0].Budget
+	}
+
+	for r := 1; r < len(q.Moves); r++ {
+		writeYesNoMoves(b, runs[0].File, runs[r].File, q.Moves[r], budget)
+	}
 }
 
 func writeComparedChoices(b *strings.Builder, runs []Run, q QuestionComparison) {
@@ -171,6 +184,10 @@ func writeComparedChoices(b *strings.Builder, runs []Run, q QuestionComparison) 
 	}
 
 	writeColumns(b, columns...)
+
+	for r := 1; r < len(q.ChoiceMoves); r++ {
+		writeChoiceMoves(b, runs[0].File, runs[r].File, q.ChoiceMoves[r])
+	}
 }
 
 func writeUsage(b *strings.Builder, runs []Run, compared int) {
@@ -252,12 +269,7 @@ func changeText(change *Interval) string {
 		return "-"
 	}
 
-	signed := twoPlaces(change.Value)
-	if change.Value > 0 && signed != "0.00" {
-		signed = "+" + signed
-	}
-
-	return signed + "  " + twoPlaces(change.Low) + " to " + twoPlaces(change.High)
+	return signedTwoPlaces(change.Value) + "  " + twoPlaces(change.Low) + " to " + twoPlaces(change.High)
 }
 
 func twoPlaces(value float64) string {
@@ -368,6 +380,14 @@ func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 		}
 	}
 
+	for r := 1; r < len(q.Moves); r++ {
+		compared.Changes = append(compared.Changes, yesNoMovesJSON(runs[r].File, q.Moves[r]))
+	}
+
+	for r := 1; r < len(q.ChoiceMoves); r++ {
+		compared.Changes = append(compared.Changes, choiceMovesJSON(runs[r].File, q.ChoiceMoves[r]))
+	}
+
 	return compared
 }
 
@@ -380,6 +400,102 @@ type jsonCompared struct {
 	No       *int           `json:"no,omitempty"`
 	LeftOut  []jsonLeftOut  `json:"left_out"`
 	Runs     []jsonRunScore `json:"runs"`
+	Changes  []jsonChanges  `json:"changes,omitempty"`
+}
+
+func yesNoMovesJSON(file string, moves YesNoMoves) jsonChanges {
+	entry := jsonChanges{
+		File: file, CutFrom: cutFromJSON(moves.From), Small: &moves.Small,
+		MeanMove: &jsonMeanMove{Yes: moves.MeanYes, No: moves.MeanNo},
+		GotWorse: make([]jsonMove, 0, len(moves.Worse)), GotBetter: make([]jsonMove, 0, len(moves.Better)),
+	}
+
+	if moves.From != CutFromNone {
+		entry.BaselineCut, entry.RunCut = &moves.BaseCut, &moves.RunCut
+	}
+
+	for _, list := range []struct {
+		moves []YesNoMove
+		into  *[]jsonMove
+	}{{moves.Worse, &entry.GotWorse}, {moves.Better, &entry.GotBetter}} {
+		for _, move := range list.moves {
+			label := yesNoText(move.Case.Yes)
+			before, after, size := move.Before, move.After, move.Move
+			*list.into = append(*list.into, jsonMove{
+				jsonRecord: recordJSON(move.Case.ID, move.Case.Line), Label: label, Before: before, After: after,
+				Move: &size, Crossed: &move.Crossed, Small: &move.Small, CutMoved: &move.CutMoved,
+			})
+		}
+	}
+
+	return entry
+}
+
+func cutFromJSON(from CutSource) string {
+	switch from {
+	case CutFromAssert:
+		return "assert"
+	case CutFromBudget:
+		return "false_alarms"
+	default:
+		return "none"
+	}
+}
+
+func choiceMovesJSON(file string, moves ChoiceMoves) jsonChanges {
+	entry := jsonChanges{
+		File: file, Unchanged: &moves.Unchanged,
+		GotWorse: make([]jsonMove, 0, len(moves.Worse)), GotBetter: make([]jsonMove, 0, len(moves.Better)),
+	}
+
+	for _, list := range []struct {
+		moves []ChoiceMove
+		into  *[]jsonMove
+	}{{moves.Worse, &entry.GotWorse}, {moves.Better, &entry.GotBetter}} {
+		for _, move := range list.moves {
+			before, after := move.BeforeConfidence, move.Case.Confidence
+			*list.into = append(*list.into, jsonMove{
+				jsonRecord: recordJSON(move.Case.ID, move.Case.Line), Label: move.Case.Label,
+				Before: move.BeforePick, After: move.Case.Picked, BeforeConfidence: &before, AfterConfidence: &after,
+			})
+		}
+	}
+
+	return entry
+}
+
+// jsonChanges lists one run against the baseline. A yes or no question fills the cut and small
+// fields, and a pick or rate question unchanged.
+type jsonChanges struct {
+	File        string        `json:"file"`
+	CutFrom     string        `json:"cut_from,omitempty"`
+	BaselineCut *float64      `json:"baseline_cut,omitempty"`
+	RunCut      *float64      `json:"run_cut,omitempty"`
+	GotWorse    []jsonMove    `json:"got_worse"`
+	GotBetter   []jsonMove    `json:"got_better"`
+	Small       *int          `json:"small,omitempty"`
+	MeanMove    *jsonMeanMove `json:"mean_move,omitempty"`
+	Unchanged   *int          `json:"unchanged,omitempty"`
+}
+
+type jsonMeanMove struct {
+	Yes float64 `json:"yes"`
+	No  float64 `json:"no"`
+}
+
+// jsonMove is one record's answer before and after. Before and After are values for a yes or no
+// question and names for a pick or rate question, which adds the confidences.
+type jsonMove struct {
+	jsonRecord
+	Label            string   `json:"label"`
+	Before           any      `json:"before"`
+	After            any      `json:"after"`
+	Move             *float64 `json:"move,omitempty"`
+	Crossed          *bool    `json:"crossed,omitempty"`
+	Small            *bool    `json:"small,omitempty"`
+	CutMoved         *bool    `json:"cut_moved,omitempty"`
+	BeforeConfidence *float64 `json:"before_confidence,omitempty"`
+	AfterConfidence  *float64 `json:"after_confidence,omitempty"`
 }
 
 func choiceScoreJSON(file string, score ChoiceRunScore) jsonRunScore {

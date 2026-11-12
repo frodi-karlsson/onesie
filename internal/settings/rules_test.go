@@ -1251,6 +1251,19 @@ func ruleCases() []ruleCase {
 			wantErr: "--compare needs two answers files or more, the first being the baseline, and got only a.jsonl",
 		},
 		{
+			rule: "change-needs-compare",
+			refused: run{
+				facts: calibrating, set: values{"require": []string{"lower(u.catches_change) >= -0.1 at 0.5"}},
+				typed: []settingrow.Name{"require"},
+			},
+			passed: run{
+				facts: calibrating,
+				set:   values{"require": []string{"lower(u.catches_change) >= -0.1 at 0.5"}, "compare": []string{"a.jsonl", "b.jsonl"}},
+				typed: []settingrow.Name{"require", "compare", "id"},
+			},
+			wantErr: "--require 'lower(u.catches_change) >= -0.1 at 0.5' reads catches_change, a change from a baseline, which needs --compare",
+		},
+		{
 			rule:    "false-alarms-parse",
 			refused: run{facts: calibrating, set: values{"false_alarms": "1.5"}, typed: []settingrow.Name{"false_alarms"}},
 			passed:  run{facts: calibrating, set: values{"false_alarms": "0.05,0.1"}, typed: []settingrow.Name{"false_alarms"}},

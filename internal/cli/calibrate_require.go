@@ -78,7 +78,7 @@ func shapeNeeded(measure calibrate.Measure, shape plan.Shape) string {
 	switch {
 	case measure.YesNo() && shape != plan.Noul:
 		return "a yes or no question"
-	case measure == calibrate.WithinOne && shape != plan.Rate:
+	case measure.Within() && shape != plan.Rate:
 		return "a rate question"
 	case !measure.YesNo() && shape == plan.Noul:
 		return "a pick or rate question"

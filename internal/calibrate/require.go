@@ -9,6 +9,7 @@ import (
 	"unicode"
 
 	"github.com/frodi-karlsson/onesie/internal/num"
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 const (
@@ -19,8 +20,11 @@ const (
 )
 
 var (
-	measureNames = []string{"catches", "false_alarms", "right_when_flagged", "auc", "agreement", "within_one"}
-	bounds       = []struct {
+	measureNames = []string{
+		"catches", "false_alarms", "right_when_flagged", "auc", "agreement", "within_one",
+		"auc_change", "catches_change", "false_alarms_change", "agreement_change", "within_one_change",
+	}
+	bounds = []struct {
 		word  string
 		bound Bound
 	}{{"lower", Lower}, {"upper", Upper}}
@@ -169,7 +173,7 @@ func (r *Requirement) readComparison(rest string) error {
 		return fmt.Errorf("needs a number after %s", op)
 	}
 
-	threshold, err := fraction(fields[0])
+	threshold, err := fraction(fields[0], r.Measure.Change())
 	if err != nil {
 		return err
 	}
@@ -191,7 +195,7 @@ func (r *Requirement) readComparison(rest string) error {
 		return nil
 	}
 
-	cut, err := fraction(fields[2])
+	cut, err := fraction(fields[2], false)
 	if err != nil {
 		return err
 	}
@@ -218,32 +222,37 @@ func cutOp(text string) (Op, string, bool) {
 	return 0, "", false
 }
 
-func fraction(text string) (float64, error) {
+func fraction(text string, signed bool) (float64, error) {
+	bounds, low := "between 0 and 1", 0.0
+	if signed {
+		bounds, low = "between -1 and 1", -1
+	}
+
 	value, err := strconv.ParseFloat(text, 64)
-	if err != nil || math.IsNaN(value) || value < 0 {
-		return 0, fmt.Errorf("takes a number between 0 and 1, got '%s'", text)
-	}
 
-	if value > 1 && value <= percentScale {
-		return 0, fmt.Errorf("takes a fraction between 0 and 1, so write %s, not %s",
+	switch {
+	case err != nil || math.IsNaN(value):
+		return 0, fmt.Errorf("takes a number %s, got '%s'", bounds, text)
+	case math.Abs(value) > 1 && math.Abs(value) <= percentScale && (signed || value > 0):
+		return 0, fmt.Errorf("takes a fraction %s, so write %s, not %s", bounds,
 			strconv.FormatFloat(value/percentScale, 'f', -1, 64), text)
+	case value < low || value > 1:
+		return 0, fmt.Errorf("takes a number %s, got '%s'", bounds, text)
+	case value == 0:
+		// A negative zero passes the range check, and a report prints the plain zero it stands for.
+		return 0, nil
 	}
 
-	if value > 1 {
-		return 0, fmt.Errorf("takes a number between 0 and 1, got '%s'", text)
-	}
-
-	// Abs turns a negative zero, which passes the range check, into the zero a report prints.
-	return math.Abs(value), nil
+	return value, nil
 }
 
 func (r *Requirement) checkCombination() error {
 	switch {
-	case r.Measure == AreaUnderCurve && r.At.Kind != AtNone:
-		return errors.New("reads auc, and auc covers every cut, so at does not apply")
-	case !r.Measure.YesNo() && r.At.Kind != AtNone:
-		return fmt.Errorf("reads %s, and at applies only to catches, false_alarms and right_when_flagged",
-			r.Measure)
+	case (r.Measure == AreaUnderCurve || r.Measure == AUCChange) && r.At.Kind != AtNone:
+		return fmt.Errorf("reads %s, and auc covers every cut, so at does not apply", r.Measure)
+	case !r.Measure.NeedsCut() && r.At.Kind != AtNone:
+		return fmt.Errorf("reads %s, and at applies only to catches, false_alarms, right_when_flagged, "+
+			"catches_change and false_alarms_change", r.Measure)
 	case r.Bound == Lower && (r.Op == OpLE || r.Op == OpLT):
 		return errors.New("uses lower with an upper limit. lower takes >= or >, since it reads the low end of the interval")
 	case r.Bound == Upper && (r.Op == OpGE || r.Op == OpGT):
@@ -259,6 +268,12 @@ func (r Requirement) Check(q QuestionReport, cut float64) Result {
 	result := Result{Requirement: r}
 	if r.Measure.NeedsCut() {
 		result.HasCut, result.Cut = true, cut
+	}
+
+	if r.Measure.Change() {
+		result.Reason = r.NeedsCompare()
+
+		return result
 	}
 
 	if r.Measure == AreaUnderCurve {
@@ -300,6 +315,69 @@ type Result struct {
 	HasValue, HasInterval, HasCut bool
 	Cut                           float64
 	Reason                        string
+}
+
+// CheckChange measures a change requirement against one run of a compared question, reading
+// catches_change and false_alarms_change at cut. run is never the baseline, which has no change.
+func (r Requirement) CheckChange(q QuestionComparison, run int, cut float64) Result {
+	result := Result{Requirement: r}
+	if r.Measure.NeedsCut() {
+		result.HasCut, result.Cut = true, cut
+	}
+
+	var change *Interval
+
+	switch {
+	case r.Measure == AUCChange && q.Shape == plan.Noul:
+		change = q.Scores[run].Change
+	case r.Measure == CatchesChange && q.Shape == plan.Noul:
+		flagged := pairedFlags(q.Scores[0].Cases, q.Scores[run].Cases, cut, true)
+		change = &flagged
+	case r.Measure == FalseAlarmsChange && q.Shape == plan.Noul:
+		flagged := pairedFlags(q.Scores[0].Cases, q.Scores[run].Cases, cut, false)
+		change = &flagged
+	case r.Measure == AgreementChange && q.Shape != plan.Noul:
+		change = q.Choices[run].AgreementChange
+	case r.Measure == WithinOneChange && q.Shape == plan.Rate:
+		change = q.Choices[run].WithinOneChange
+	default:
+		result.Reason = r.notApplicable(QuestionReport{ID: q.ID, Shape: q.Shape})
+
+		return result
+	}
+
+	if change == nil || !change.Defined {
+		result.Reason = "the change needs records on both sides"
+
+		return result
+	}
+
+	result.Value, result.Low, result.High = change.Value, change.Low, change.High
+	result.HasValue, result.HasInterval = true, true
+	result.Held = r.Op.holds(result.compared(), r.Threshold)
+
+	return result
+}
+
+// NeedsCompare says why a change measure cannot be read outside a --compare, in words that follow
+// the requirement.
+func (r Requirement) NeedsCompare() string {
+	return fmt.Sprintf("reads %s, a change from a baseline, which needs --compare", r.Measure)
+}
+
+func pairedFlags(baseline, run []YesNoCase, cut float64, labelledYes bool) Interval {
+	var before, after []bool
+
+	for i, c := range baseline {
+		if c.Yes != labelledYes {
+			continue
+		}
+
+		before = append(before, c.Value >= cut)
+		after = append(after, run[i].Value >= cut)
+	}
+
+	return pairedChange(before, after)
 }
 
 func (r Requirement) shareOf(q QuestionReport, cut float64) (Share, string) {
@@ -380,6 +458,8 @@ func (r Result) String() string {
 
 	switch {
 	case !r.HasValue:
+	case r.Measure.Change():
+		measured = fmt.Sprintf("change %s, interval %s to %s", num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	case r.Measure == AreaUnderCurve:
 		measured = fmt.Sprintf("AUC %s, interval %s to %s", num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	case r.HasInterval:
@@ -407,7 +487,8 @@ func (r Result) String() string {
 type Measure int
 
 // The measures a requirement can read. The first four are yes or no measures, agreement is pick
-// and rate, and within_one is rate.
+// and rate, and within_one is rate. Each change measure reads a run less the baseline, and only
+// under --compare.
 const (
 	Catches Measure = iota
 	FalseAlarms
@@ -415,6 +496,11 @@ const (
 	AreaUnderCurve
 	Agreement
 	WithinOne
+	AUCChange
+	CatchesChange
+	FalseAlarmsChange
+	AgreementChange
+	WithinOneChange
 )
 
 func measureNamed(name string) (Measure, bool) {
@@ -442,13 +528,34 @@ func (m Measure) String() string {
 
 // YesNo reports whether the measure reads a yes or no question.
 func (m Measure) YesNo() bool {
-	return m <= AreaUnderCurve
+	switch m {
+	case Catches, FalseAlarms, RightWhenFlagged, AreaUnderCurve, AUCChange, CatchesChange, FalseAlarmsChange:
+		return true
+	default:
+		return false
+	}
 }
 
 // NeedsCut reports whether the measure is read at one cut, which every yes or no measure but auc
-// is.
+// and its change is.
 func (m Measure) NeedsCut() bool {
-	return m < AreaUnderCurve
+	return m.YesNo() && m != AreaUnderCurve && m != AUCChange
+}
+
+// Change reports whether the measure reads a run less the baseline of a --compare.
+func (m Measure) Change() bool {
+	switch m {
+	case AUCChange, CatchesChange, FalseAlarmsChange, AgreementChange, WithinOneChange:
+		return true
+	default:
+		return false
+	}
+}
+
+// Within reports whether the measure reads the share within one level, which only a rate question
+// has.
+func (m Measure) Within() bool {
+	return m == WithinOne || m == WithinOneChange
 }
 
 // Op is how a requirement compares its measured bound with its Threshold.

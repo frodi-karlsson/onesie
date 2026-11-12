@@ -78,7 +78,13 @@ func TestCompareCalibration(t *testing.T) {
 		want := "urgent, yes/no: compared 6 of 6 labelled, 3 yes, 3 no\n\n" +
 			"  " + padTo("run", a) + "  model       AUC              change from baseline  catches at 0% false alarms  catches at 50% false alarms\n" +
 			"  " + a + "  jev-latest  1.00  0.50-1.00  baseline              3/3 99% 44-99% at 0.70      3/3 99% 44-99% at 0.30\n" +
-			"  " + b + "  jev-latest  0.89  0.40-0.99  -0.11  -0.60 to 0.40  2/3 67% 21-94% at 0.70      3/3 99% 44-99% at 0.40\n"
+			"  " + b + "  jev-latest  0.89  0.40-0.99  -0.11  -0.60 to 0.40  2/3 67% 21-94% at 0.70      3/3 99% 44-99% at 0.40\n" +
+			"\n" + b + " against " + a + " at cut 0.70 in both, where each holds false alarms to 0%\n" +
+			"got worse, 2 records, 1 crossed the cut\n" +
+			"  T-2  b  labelled yes  0.80 to 0.40  crossed\n" +
+			"  T-5  e  labelled no   0.20 to 0.60\n" +
+			"4 records moved less than 0.10\n" +
+			"mean move -0.13 on the 3 yes records, +0.13 on the 3 no records\n"
 		if code != ExitOK || out != want {
 			t.Errorf("exit %d\nstdout:\n%s\nwant:\n%s\nstderr:\n%s", code, out, want, errOut)
 		}
@@ -276,6 +282,88 @@ func TestCompareCalibration(t *testing.T) {
 		}
 	})
 
+	t.Run("should read the record lists at the cut the file's assert gives", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+		gated := writeCalibrateFile(t, dir, "gated.yaml", "assert: urgent.value < 0.6\nurgent:\n  ask: is this urgent\n")
+
+		args := []string{
+			"calibrate", "-f", gated, "-i", "jsonl", "--map", ".body", "--label", "urgent=.u", "--id", ".id",
+			"--compare", a, "--compare", b,
+		}
+
+		out, errOut, code := runMocked(t, t.Context(), args, labelled, nil, nil)
+		want := b + " against " + a + " at cut 0.60, the file's assert\n" +
+			"got worse, 2 records, 2 crossed the cut\n" +
+			"  T-2  b  labelled yes  0.80 to 0.40  crossed\n" +
+			"  T-5  e  labelled no   0.20 to 0.60  crossed\n"
+		if code != ExitOK || !strings.Contains(out, want) {
+			t.Errorf("exit %d\nstdout:\n%s\nwant it to hold\n%s\nstderr:\n%s", code, out, want, errOut)
+		}
+	})
+
+	t.Run("should write the record lists of each file in the json report", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+
+		out, errOut, code := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b, "-o", "json"), labelled, nil, nil)
+
+		var report struct {
+			Questions []struct {
+				Changes []struct {
+					File     string `json:"file"`
+					CutFrom  string `json:"cut_from"`
+					GotWorse []struct {
+						ID      string  `json:"id"`
+						Move    float64 `json:"move"`
+						Crossed bool    `json:"crossed"`
+					} `json:"got_worse"`
+					Small int `json:"small"`
+				} `json:"changes"`
+			} `json:"questions"`
+		}
+
+		if err := json.Unmarshal([]byte(out), &report); code != ExitOK || err != nil {
+			t.Fatalf("exit %d, error %v\nstdout:\n%s\nstderr:\n%s", code, err, out, errOut)
+		}
+
+		changes := report.Questions[0].Changes
+		if len(changes) != 1 || changes[0].File != b || changes[0].CutFrom != "false_alarms" || changes[0].Small != 4 ||
+			len(changes[0].GotWorse) != 2 || changes[0].GotWorse[0].ID != "T-2" || !changes[0].GotWorse[0].Crossed ||
+			changes[0].GotWorse[0].Move != 0.4 {
+			t.Errorf("changes = %+v", changes)
+		}
+	})
+
+	t.Run("should check a change requirement on every file but the baseline", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+		c := answered(t, dir, "c.jsonl", march)
+
+		_, errOut, code := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b, "--compare", c,
+			"--require", "lower(urgent.catches_change) >= -0.6 at 0.5"), labelled, nil, nil)
+
+		if want := "onesie: " + b + ": 'lower(urgent.catches_change) >= -0.6 at 0.5' did not hold: change -0.3333"; code != ExitFail ||
+			!strings.Contains(errOut, want) || strings.Contains(errOut, a+": ") || strings.Contains(errOut, c+": ") {
+			t.Errorf("exit %d, want 1 naming only %s with %q\nstderr:\n%s", code, b, want, errOut)
+		}
+	})
+
+	t.Run("should refuse a change requirement without --compare, through the settings rules", func(t *testing.T) {
+		t.Parallel()
+
+		_, errOut, code := runMocked(t, t.Context(), comparing("--require", "urgent.auc_change >= -0.05"), labelled, nil, nil)
+		if want := "reads auc_change, a change from a baseline, which needs --compare"; code != ExitUsage || !strings.Contains(errOut, want) {
+			t.Errorf("exit %d, want 2 with %q\nstderr:\n%s", code, want, errOut)
+		}
+	})
+
 	t.Run("should name the parts of the run that differ from the baseline", func(t *testing.T) {
 		t.Parallel()
 
@@ -365,10 +453,19 @@ func TestCompareCalibration(t *testing.T) {
 			"  " + padTo("run", a) + "  model       agreement       change from baseline\n" +
 			"  " + a + "  jev-latest  4/4 99% 51-99%  baseline\n" +
 			"  " + b + "  jev-latest  3/4 75% 30-95%  -0.25  -0.70 to 0.28\n" +
+			"\n" + b + " against " + a + "\n" +
+			"got worse, 1 record\n" +
+			"  T-2  b  labelled support  picked support to billing  confidence 0.90 to 0.90\n" +
+			"3 records right or wrong in both\n" +
 			"\ntone, rate: compared 4 of 4 labelled\n\n" +
 			"  " + padTo("run", a) + "  model       agreement       agreement change      within one level  within one change\n" +
 			"  " + a + "  jev-latest  4/4 99% 51-99%  baseline              4/4 99% 51-99%    baseline\n" +
-			"  " + b + "  jev-latest  2/4 50% 15-85%  -0.50  -0.85 to 0.10  3/4 75% 30-95%    -0.25  -0.70 to 0.28\n"
+			"  " + b + "  jev-latest  2/4 50% 15-85%  -0.50  -0.85 to 0.10  3/4 75% 30-95%    -0.25  -0.70 to 0.28\n" +
+			"\n" + b + " against " + a + "\n" +
+			"got worse, 2 records\n" +
+			"  T-1  a  labelled 3  picked 3 to 4  confidence 0.80 to 0.80\n" +
+			"  T-3  c  labelled 5  picked 5 to 2  confidence 0.80 to 0.80\n" +
+			"2 records right or wrong in both\n"
 		if code != ExitFail || out != want {
 			t.Errorf("exit %d, want 1\nstdout:\n%s\nwant:\n%s\nstderr:\n%s", code, out, want, errOut)
 		}
