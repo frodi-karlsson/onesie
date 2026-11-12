@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -11,21 +13,29 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+const (
+	perThousand       = 1000
+	significantDigits = 3
+)
+
 // Comparison is several answers files scored against one label set, the first file being the
 // baseline. Records counts the input records, and each question compares only the records every
-// file answers.
+// file answers. Compared counts the records any question compares, which usage covers.
 type Comparison struct {
 	Runs      []Run
 	Records   int
+	Compared  int
 	Questions []QuestionComparison
 	Require   []RunResult
 }
 
 // Run is one compared answers file, with the models that answered the records it holds for the
-// input.
+// input. Usage sums the compared records that carry one, and is nil when none does. Its Cost is nil
+// unless every one of them carries a cost.
 type Run struct {
 	File   string
 	Models []string
+	Usage  *Usage
 }
 
 // QuestionComparison is one yes or no question compared. LeftOut and Scores hold an entry per run,
@@ -67,6 +77,8 @@ func WriteComparisonTable(w io.Writer, c Comparison) error {
 		writeCompared(&b, c.Runs, q)
 	}
 
+	writeUsage(&b, c.Runs, c.Compared)
+
 	_, err := io.WriteString(w, b.String())
 
 	return err
@@ -105,6 +117,56 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 	}
 
 	writeColumns(b, columns...)
+}
+
+func writeUsage(b *strings.Builder, runs []Run, compared int) {
+	if !slices.ContainsFunc(runs, func(run Run) bool { return run.Usage != nil }) {
+		return
+	}
+
+	files, records := make([]string, 0, len(runs)), make([]string, 0, len(runs))
+	inputs, outputs, costs := make([]string, 0, len(runs)), make([]string, 0, len(runs)), make([]string, 0, len(runs))
+
+	for _, run := range runs {
+		files = append(files, printable(run.File))
+
+		usage := run.Usage
+		if usage == nil {
+			records, inputs, outputs, costs = append(records, "-"), append(inputs, "-"), append(outputs, "-"), append(costs, "-")
+
+			continue
+		}
+
+		per := float64(usage.Records)
+		records = append(records, strconv.Itoa(usage.Records))
+		inputs = append(inputs, strconv.Itoa(int(math.Round(float64(usage.InputTokens)/per))))
+		outputs = append(outputs, strconv.Itoa(int(math.Round(float64(usage.OutputTokens)/per))))
+
+		if usage.Cost == nil {
+			costs = append(costs, "-")
+		} else {
+			costs = append(costs, "$"+significant(*usage.Cost/per*perThousand))
+		}
+	}
+
+	fmt.Fprintf(b, "\nusage, mean per record over the %d records any question compares\n\n", compared)
+	writeColumns(b,
+		column{header: "run", cells: files},
+		column{header: "records", cells: records, right: true},
+		column{header: "input tokens", cells: inputs, right: true},
+		column{header: "output tokens", cells: outputs, right: true},
+		column{header: "cost per 1000", cells: costs, right: true},
+	)
+}
+
+func significant(value float64) string {
+	if value == 0 {
+		return "0"
+	}
+
+	scale := math.Pow(10, float64(max(0, significantDigits-1-int(math.Floor(math.Log10(math.Abs(value)))))))
+
+	return strconv.FormatFloat(math.Round(value*scale)/scale, 'f', -1, 64)
 }
 
 func modelsText(models []string) string {
@@ -183,6 +245,7 @@ func WriteComparisonJSON(w io.Writer, c Comparison) error {
 	doc := jsonComparison{
 		Runs:      make([]jsonRun, 0, len(c.Runs)),
 		Records:   c.Records,
+		Compared:  c.Compared,
 		Questions: make([]jsonCompared, 0, len(c.Questions)),
 		Require:   runRequireJSON(c.Require),
 	}
@@ -197,7 +260,7 @@ func WriteComparisonJSON(w io.Writer, c Comparison) error {
 			models = []string{}
 		}
 
-		doc.Runs = append(doc.Runs, jsonRun{File: run.File, Models: models})
+		doc.Runs = append(doc.Runs, jsonRun{File: run.File, Models: models, Usage: run.Usage})
 	}
 
 	for _, q := range c.Questions {
@@ -214,6 +277,7 @@ type jsonComparison struct {
 	Baseline  string           `json:"baseline"`
 	Runs      []jsonRun        `json:"runs"`
 	Records   int              `json:"records"`
+	Compared  int              `json:"compared"`
 	Questions []jsonCompared   `json:"questions"`
 	Require   []jsonRunRequire `json:"require,omitempty"`
 }
@@ -221,6 +285,7 @@ type jsonComparison struct {
 type jsonRun struct {
 	File   string   `json:"file"`
 	Models []string `json:"models"`
+	Usage  *Usage   `json:"usage,omitempty"`
 }
 
 func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {

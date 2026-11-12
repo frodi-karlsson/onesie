@@ -8,6 +8,7 @@ import (
 	"io"
 	"io/fs"
 	"maps"
+	"math"
 	"slices"
 
 	"github.com/spf13/cobra"
@@ -25,7 +26,11 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
-const maxCauses = 5
+const (
+	maxCauses = 5
+	// costScale keeps ten decimal places of a summed cost, below any price a provider quotes per request.
+	costScale = 1e10
+)
 
 func liveCalibration(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, calib calibrateFlags, inputMode input.Mode,
@@ -643,6 +648,12 @@ func usageOf(outcomes []output.Record) *calibrate.Usage {
 
 			total.Cost = &cost
 		}
+	}
+
+	// A sum of many small costs gathers float noise in its last places, which a report would print.
+	if total.Cost != nil {
+		rounded := math.Round(*total.Cost*costScale) / costScale
+		total.Cost = &rounded
 	}
 
 	return total

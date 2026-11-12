@@ -3813,6 +3813,26 @@ func TestCasesOf(t *testing.T) {
 	}
 }
 
+func TestUsageOf(t *testing.T) {
+	t.Parallel()
+
+	t.Run("should round away the float noise a sum of costs gathers", func(t *testing.T) {
+		t.Parallel()
+
+		cost := func(value float64) *float64 { return &value }
+		records := []output.Record{
+			{Usage: &onesie.Usage{InputTokens: 1, Cost: cost(0.1)}},
+			{Usage: &onesie.Usage{InputTokens: 2, Cost: cost(0.2)}},
+			{},
+		}
+
+		got := usageOf(records)
+		if got.Records != 2 || got.InputTokens != 3 || got.Cost == nil || *got.Cost != 0.3 {
+			t.Errorf("usage = %+v with cost %v, want 2 records, 3 input tokens and a cost of 0.3", got, got.Cost)
+		}
+	})
+}
+
 func TestRunCalibrate(t *testing.T) {
 	t.Parallel()
 	tests := []struct {

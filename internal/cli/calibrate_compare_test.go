@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,6 +14,14 @@ func TestCompareCalibration(t *testing.T) {
 
 	const labelled = `{"id":"T-1","u":true,"body":"a"}
 {"id":"T-2","u":true,"body":"b"}
+{"id":"T-3","u":true,"body":"c"}
+{"id":"T-4","u":false,"body":"d"}
+{"id":"T-5","u":false,"body":"e"}
+{"id":"T-6","u":false,"body":"f"}
+`
+
+	const labelledAngry = `{"id":"T-1","u":true,"angry":true,"body":"a"}
+{"id":"T-2","u":true,"angry":false,"body":"b"}
 {"id":"T-3","u":true,"body":"c"}
 {"id":"T-4","u":false,"body":"d"}
 {"id":"T-5","u":false,"body":"e"}
@@ -139,6 +148,131 @@ func TestCompareCalibration(t *testing.T) {
 
 		if code != ExitOK || !strings.Contains(out, "compared 4 of 6 labelled") {
 			t.Errorf("exit %d\nstdout:\n%s", code, out)
+		}
+	})
+
+	t.Run("should sum usage over the compared records, with no cost unless every one carries it", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+
+		withUsage := func(path string, usage func(i int) string, drop int) {
+			lines := answerLines(t, path)
+			kept := lines[:0]
+
+			for i, line := range lines {
+				if i == drop {
+					continue
+				}
+
+				kept = append(kept, strings.Replace(line, `"model":"jev-latest",`, `"model":"jev-latest","usage":`+usage(i)+",", 1))
+			}
+
+			writeAnswerLines(t, path, kept)
+		}
+
+		// T-6 is left out of b, so a's usage for it is not counted either.
+		withUsage(a, func(i int) string {
+			return fmt.Sprintf(`{"input_tokens":%d,"output_tokens":4,"cost":0.00005}`, 400+10*i)
+		}, -1)
+		withUsage(b, func(i int) string {
+			if i == 0 {
+				return `{"input_tokens":300,"output_tokens":4}`
+			}
+
+			return `{"input_tokens":300,"output_tokens":4,"cost":0.00002}`
+		}, 5)
+
+		out, errOut, code := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b), labelled, nil, nil)
+		want := "\nusage, mean per record over the 5 records any question compares\n\n" +
+			"  " + padTo("run", a) + "  records  input tokens  output tokens  cost per 1000\n" +
+			"  " + a + "        5           420              4          $0.05\n" +
+			"  " + b + "        5           300              4              -\n"
+		if code != ExitOK || !strings.HasSuffix(out, want) {
+			t.Errorf("exit %d\nstdout:\n%s\nwant it to end\n%s\nstderr:\n%s", code, out, want, errOut)
+		}
+
+		jsonOut, _, _ := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b, "-o", "json"), labelled, nil, nil)
+
+		var report struct {
+			Runs []struct {
+				Usage map[string]float64 `json:"usage"`
+			} `json:"runs"`
+		}
+
+		if err := json.Unmarshal([]byte(jsonOut), &report); err != nil {
+			t.Fatalf("stdout is not json: %v\n%s", err, jsonOut)
+		}
+
+		first, second := report.Runs[0].Usage, report.Runs[1].Usage
+		if first["records"] != 5 || first["input_tokens"] != 2100 || first["cost"] != 0.00025 {
+			t.Errorf("baseline usage = %v, want 5 records, 2100 input tokens and a cost of 0.00025", first)
+		}
+
+		if _, costed := second["cost"]; costed || second["records"] != 5 {
+			t.Errorf("second usage = %v, want 5 records and no cost", second)
+		}
+	})
+
+	t.Run("should say when a file carries usage on only some compared records", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+
+		lines := answerLines(t, a)
+		for i := range 3 {
+			lines[i] = strings.Replace(lines[i], `"model":"jev-latest",`, `"model":"jev-latest","usage":{"input_tokens":10,"output_tokens":1},`, 1)
+		}
+
+		writeAnswerLines(t, a, lines)
+
+		out, errOut, code := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b), labelled, nil, nil)
+		if want := "onesie: " + a + " carries usage on 3 of the 6 compared records, so its usage covers only those\n"; code != ExitOK ||
+			!strings.Contains(errOut, want) || strings.Contains(errOut, b+" carries usage") {
+			t.Errorf("exit %d, want 0 with %q and nothing on %s\nstdout:\n%s\nstderr:\n%s", code, want, b, out, errOut)
+		}
+	})
+
+	t.Run("should cover the records any question compares, more than one question alone", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		twoQuestions := func(name, answers string) string {
+			path := filepath.Join(dir, name)
+			args := []string{
+				"calibrate", "--ask", "urgent=is this urgent", "--ask", "angry=is this angry", "-i", "jsonl",
+				"--map", ".body", "--label", "urgent=.u", "--label", "angry=.angry", "--id", ".id", "--out", path,
+				"--mock", writeMock(t, answers),
+			}
+
+			if _, errOut, code := runMocked(t, t.Context(), args, labelledAngry, nil, nil); code != ExitOK {
+				t.Fatalf("writing %s exit %d\nstderr:\n%s", name, code, errOut)
+			}
+
+			lines := answerLines(t, path)
+			for i := range lines {
+				lines[i] = strings.Replace(lines[i], `"model":"jev-latest",`, `"model":"jev-latest","usage":{"input_tokens":10,"output_tokens":1},`, 1)
+			}
+
+			writeAnswerLines(t, path, lines)
+
+			return path
+		}
+
+		a, b := twoQuestions("a.jsonl", `{"urgent":0.9,"angry":0.2}`), twoQuestions("b.jsonl", `{"urgent":0.8,"angry":0.3}`)
+		args := []string{
+			"calibrate", "--ask", "urgent=is this urgent", "--ask", "angry=is this angry", "-i", "jsonl",
+			"--map", ".body", "--label", "urgent=.u", "--label", "angry=.angry", "--id", ".id",
+			"--compare", a, "--compare", b,
+		}
+
+		out, errOut, code := runMocked(t, t.Context(), args, labelledAngry, nil, nil)
+		if code != ExitOK || !strings.Contains(out, "angry, yes/no: compared 2 of 2 labelled") ||
+			!strings.Contains(out, "usage, mean per record over the 6 records any question compares") ||
+			strings.Contains(errOut, "carries usage on") {
+			t.Errorf("exit %d\nstdout:\n%s\nstderr:\n%s", code, out, errOut)
 		}
 	})
 
