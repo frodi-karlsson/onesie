@@ -15,9 +15,18 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Model is the pinned model every committed answers file was made with, and that the offline check
-// reads them as.
-const Model = "jev-1.13.0"
+// Model is the pinned model the committed answers files the README gates were made with, and that
+// the offline check reads them as. CompareModel is the newer model each set is answered with too, so
+// --compare has a second run to set beside the first.
+const (
+	Model        = "jev-1.13.0"
+	CompareModel = "jev-1.14.0"
+)
+
+// Models lists the models each set has a committed answers file for, the pinned one first.
+func Models() []string {
+	return []string{Model, CompareModel}
+}
 
 // Sets reads every starter set under dir, from questions/NAME.yaml and data/NAME.jsonl, in name
 // order.
@@ -53,16 +62,21 @@ type Set struct {
 	TextField string
 }
 
-// Answers is the path of the set's committed answers file under dir.
-func (s Set) Answers(dir string) string {
-	return filepath.Join(dir, "data", s.Name+".answers.jsonl")
+// Answers is the path under dir of the set's committed answers file from model. The pinned Model's
+// file has no model in its name.
+func (s Set) Answers(dir, model string) string {
+	if model == Model {
+		return filepath.Join(dir, "data", s.Name+".answers.jsonl")
+	}
+
+	return filepath.Join(dir, "data", s.Name+"."+model+".answers.jsonl")
 }
 
-// CalibrateArgs are the calibrate arguments that read the set's records, without --out.
-func (s Set) CalibrateArgs(dir string) []string {
+// CalibrateArgs are the calibrate arguments that ask model about the set's records, without --out.
+func (s Set) CalibrateArgs(dir, model string) []string {
 	args := []string{
 		"calibrate", "-f", s.Questions(dir), "-i", "jsonl", "--map", "." + s.TextField, "--id", ".id",
-		"-m", Model, "--provider", "typesafe",
+		"-m", model, "--provider", "typesafe",
 	}
 	for _, id := range s.IDs {
 		args = append(args, "--label", id+"=."+id)

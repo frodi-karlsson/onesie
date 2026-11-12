@@ -339,7 +339,7 @@ func factsOf(t *testing.T, set examples.Set) facts {
 		}
 	}
 
-	lines := bufio.NewScanner(strings.NewReader(readFile(t, set.Answers("."))))
+	lines := bufio.NewScanner(strings.NewReader(readFile(t, set.Answers(".", examples.Model))))
 	for lines.Scan() {
 		var line map[string]json.RawMessage
 		if err := json.Unmarshal(lines.Bytes(), &line); err != nil {

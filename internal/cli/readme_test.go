@@ -123,6 +123,58 @@ func TestReadme(t *testing.T) {
 		}
 	})
 
+	t.Run("should print the secrets excerpt the examples README compare section shows", func(t *testing.T) {
+		t.Parallel()
+
+		blocks := codeBlocks(readmeSection(t, "Compare two runs", "examples", "README.md"))
+
+		out, errOut, code := runCompareOnCommitted(t, readmeCommand(t, blocks[0].lines))
+		if code != cli.ExitOK || !strings.Contains(errOut, "differs from examples/data/shell-safety.answers.jsonl in the model") {
+			t.Fatalf("exit code = %d, want %d naming the model\nstderr:\n%s", code, cli.ExitOK, errOut)
+		}
+
+		// The temp copies make the table wider than a run from the repository root, so the lines
+		// are compared with their spacing collapsed.
+		var want []string
+
+		for _, line := range blocks[1].lines {
+			if strings.TrimSpace(line) != "" {
+				want = append(want, strings.Join(strings.Fields(line), " "))
+			}
+		}
+
+		got := strings.Split(out, "\n")
+		for i, line := range got {
+			got[i] = strings.Join(strings.Fields(line), " ")
+		}
+
+		if !inOrder(got, want) {
+			t.Errorf("examples README shows\n%s\nwhich the comparison does not print. It prints\n%s",
+				strings.Join(want, "\n"), out)
+		}
+	})
+
+	t.Run("should hold and fail the change requirements the examples README compare section names", func(t *testing.T) {
+		t.Parallel()
+
+		command := readmeCommand(t, codeBlocks(readmeSection(t, "Compare two runs", "examples", "README.md"))[0].lines)
+
+		for _, tc := range []struct {
+			requirement string
+			code        int
+			stderr      string
+		}{
+			{requirement: "lower(destroys.catches_change) >= -0.25", code: cli.ExitOK},
+			{requirement: "lower(network.catches_change) >= -0.25", code: cli.ExitOK},
+			{requirement: "lower(secrets.catches_change) >= -0.25", code: cli.ExitFail, stderr: "interval -0.4345 to 0.4345"},
+		} {
+			_, errOut, code := runCompareOnCommitted(t, append(slices.Clone(command), "--require", tc.requirement))
+			if code != tc.code || !strings.Contains(errOut, tc.stderr) {
+				t.Errorf("%s exit code = %d, want %d with %q\nstderr:\n%s", tc.requirement, code, tc.code, tc.stderr, errOut)
+			}
+		}
+	})
+
 	t.Run("should block with the mock answers the examples README testing a gate section shows", func(t *testing.T) {
 		t.Parallel()
 
@@ -491,6 +543,42 @@ func runCalibrateOnCommitted(t *testing.T, command []string) (string, string, in
 	}
 
 	return runReadme(t, readRepoFile(t, "examples", "data", "shell-safety.jsonl"), args...)
+}
+
+func runCompareOnCommitted(t *testing.T, command []string) (string, string, int) {
+	t.Helper()
+
+	dir := filepath.Join(t.TempDir(), "data")
+	if err := os.Mkdir(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+
+	args := slices.Clone(command[1:])
+
+	for i, arg := range args {
+		name, committed := strings.CutPrefix(arg, "examples/data/")
+		if !committed || !strings.HasSuffix(name, ".answers.jsonl") {
+			continue
+		}
+
+		for _, suffix := range []string{"", ".onesie"} {
+			data := readRepoFile(t, "examples", "data", name+suffix)
+			if err := os.WriteFile(filepath.Join(dir, name+suffix), []byte(data), 0o600); err != nil {
+				t.Fatal(err)
+			}
+		}
+
+		args[i] = filepath.Join(dir, name)
+	}
+
+	out, errOut, code := runReadme(t, readRepoFile(t, "examples", "data", "shell-safety.jsonl"), args...)
+
+	// The copies stand in for the committed files, so their paths read as the README writes them.
+	committed := func(text string) string {
+		return strings.ReplaceAll(text, dir+string(filepath.Separator), "examples/data/")
+	}
+
+	return committed(out), committed(errOut), code
 }
 
 func runReadme(t *testing.T, stdin string, args ...string) (string, string, int) {

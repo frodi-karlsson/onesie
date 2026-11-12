@@ -1,5 +1,5 @@
 // Command examplesanswers regenerates the starter sets' committed answers files from the live API,
-// with the pinned model. Run it from the repository root through make examples-answers.
+// one per model in examples.Models. Run it from the repository root through make examples-answers.
 package main
 
 import (
@@ -80,30 +80,34 @@ func answerEach(
 	ctx context.Context, sets []examples.Set, opts options, env map[string]string, home string,
 ) (int, error) {
 	for _, set := range sets {
-		if _, err := fmt.Fprintf(opts.stdout, "--- %s ---\n", set.Name); err != nil {
-			return cli.ExitUsage, err
-		}
+		for _, model := range examples.Models() {
+			if _, err := fmt.Fprintf(opts.stdout, "--- %s on %s ---\n", set.Name, model); err != nil {
+				return cli.ExitUsage, err
+			}
 
-		code, err := answer(ctx, set, opts, env, home)
-		if err != nil {
-			return code, err
-		}
+			code, err := answer(ctx, set, model, opts, env, home)
+			if err != nil {
+				return code, err
+			}
 
-		if code != cli.ExitOK {
-			return code, fmt.Errorf("%s exited %d", set.Name, code)
+			if code != cli.ExitOK {
+				return code, fmt.Errorf("%s on %s exited %d", set.Name, model, code)
+			}
 		}
 	}
 
 	return cli.ExitOK, nil
 }
 
-func answer(ctx context.Context, set examples.Set, opts options, env map[string]string, home string) (int, error) {
+func answer(
+	ctx context.Context, set examples.Set, model string, opts options, env map[string]string, home string,
+) (int, error) {
 	records, err := os.ReadFile(set.Data(opts.dir))
 	if err != nil {
 		return cli.ExitUsage, err
 	}
 
-	args := calibrateArgs(set, opts.dir)
+	args := calibrateArgs(set, model, opts.dir)
 
 	// An offline dry run asks nothing and says whether the file still matches the questions. A
 	// file that does not is started afresh, and any other is resumed.
@@ -145,9 +149,9 @@ func settled(failure, removal error) cli.Outcome {
 	return cli.Outcome{Failure: failure, Later: []error{removal}}
 }
 
-func calibrateArgs(set examples.Set, dir string) []string {
+func calibrateArgs(set examples.Set, model, dir string) []string {
 	// The committed answers must come from the API, never from a cache a developer turned on.
-	return append(set.CalibrateArgs(dir), "-j", jobs, "--out", set.Answers(dir), "--cache=false")
+	return append(set.CalibrateArgs(dir, model), "-j", jobs, "--out", set.Answers(dir, model), "--cache=false")
 }
 
 func command(

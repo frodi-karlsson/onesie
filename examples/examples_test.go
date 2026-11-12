@@ -35,7 +35,7 @@ func TestStarterSets(t *testing.T) {
 		{name: "should carry the gate the README documents", check: carriesGate},
 		{name: "should refuse a gate typed beside the file under --print-request", check: refuseTypedGate},
 		{name: "should meet its requirements offline", check: meetsRequirements},
-		{name: "should name the model its answers came from", check: namesModel},
+		{name: "should name the model each answers file came from", check: namesModel},
 		{name: "should show the tables a fresh offline run prints", check: showsTables},
 		{name: "should quote only numbers its answers give", check: quotesNumbers},
 	}
@@ -99,7 +99,7 @@ func dryRunCalibrate(t *testing.T, set examples.Set) {
 		}
 	}
 
-	args := append(set.CalibrateArgs("."), "--print-request")
+	args := append(set.CalibrateArgs(".", examples.Model), "--print-request")
 
 	stdout, stderr, code := run(t, strings.NewReader(readFile(t, set.Data("."))), args...)
 	if code != cli.ExitOK {
@@ -127,14 +127,14 @@ func offline(t *testing.T, dir string, set examples.Set, extra ...string) (strin
 	t.Helper()
 
 	// A copy keeps the lock file and any rewrite out of the tree, and lets the sets run in parallel.
-	answers := filepath.Join(t.TempDir(), filepath.Base(set.Answers(dir)))
+	answers := filepath.Join(t.TempDir(), filepath.Base(set.Answers(dir, examples.Model)))
 	for _, suffix := range []string{"", ".onesie"} {
-		if err := os.WriteFile(answers+suffix, []byte(readFile(t, set.Answers(dir)+suffix)), 0o600); err != nil {
+		if err := os.WriteFile(answers+suffix, []byte(readFile(t, set.Answers(dir, examples.Model)+suffix)), 0o600); err != nil {
 			t.Fatal(err)
 		}
 	}
 
-	args := append(set.CalibrateArgs(dir), "--out", answers, "--resume", "--offline")
+	args := append(set.CalibrateArgs(dir, examples.Model), "--out", answers, "--resume", "--offline")
 
 	return run(t, strings.NewReader(readFile(t, set.Data(dir))), append(args, extra...)...)
 }
@@ -181,14 +181,16 @@ func namesModel(t *testing.T, set examples.Set) {
 		t.Errorf("README.md does not name the model %s", want)
 	}
 
-	lines := bufio.NewScanner(strings.NewReader(readFile(t, set.Answers("."))))
-	for n := 1; lines.Scan(); n++ {
-		var line struct {
-			Model string `json:"model"`
-		}
+	for _, model := range examples.Models() {
+		lines := bufio.NewScanner(strings.NewReader(readFile(t, set.Answers(".", model))))
+		for n := 1; lines.Scan(); n++ {
+			var line struct {
+				Model string `json:"model"`
+			}
 
-		if err := json.Unmarshal(lines.Bytes(), &line); err != nil || line.Model != examples.Model {
-			t.Errorf("%s line %d names the model %q, %v, want %s", set.Answers("."), n, line.Model, err, examples.Model)
+			if err := json.Unmarshal(lines.Bytes(), &line); err != nil || line.Model != model {
+				t.Errorf("%s line %d names the model %q, %v, want %s", set.Answers(".", model), n, line.Model, err, model)
+			}
 		}
 	}
 }

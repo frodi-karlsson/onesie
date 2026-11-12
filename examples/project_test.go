@@ -77,9 +77,9 @@ func meetsProjectRequirements(t *testing.T, set examples.Set) {
 }
 
 func namesProjectModel(t *testing.T, set examples.Set) {
-	for n, line := range strings.Split(strings.TrimSuffix(readFile(t, set.Answers(projectDir)), "\n"), "\n") {
+	for n, line := range strings.Split(strings.TrimSuffix(readFile(t, set.Answers(projectDir, examples.Model)), "\n"), "\n") {
 		if !strings.Contains(line, `"model":"`+examples.Model+`"`) {
-			t.Errorf("%s line %d does not name the model %s", set.Answers(projectDir), n+1, examples.Model)
+			t.Errorf("%s line %d does not name the model %s", set.Answers(projectDir, examples.Model), n+1, examples.Model)
 		}
 	}
 }

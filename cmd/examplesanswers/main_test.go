@@ -88,8 +88,9 @@ func TestRun(t *testing.T) {
 			t.Fatalf("first run = %d, %v", code, ended.Report())
 		}
 
-		if got := stub.requests.Load(); got != 4 {
-			t.Fatalf("first run made %d requests, want 4", got)
+		// Two sets of two records, each asked of both models.
+		if got := stub.requests.Load(); got != 8 {
+			t.Fatalf("first run made %d requests, want 8", got)
 		}
 
 		question := filepath.Join(dir, "questions", "alpha.yaml")
@@ -103,13 +104,15 @@ func TestRun(t *testing.T) {
 			t.Fatalf("second run = %d, %v", code, ended.Report())
 		}
 
-		if got := stub.requests.Load(); got != 2 {
-			t.Errorf("second run made %d requests, want the 2 of the stale set alone", got)
+		if got := stub.requests.Load(); got != 4 {
+			t.Errorf("second run made %d requests, want the 4 of the stale set's two files alone", got)
 		}
 
-		answers, err := os.ReadFile(filepath.Join(dir, "data", "alpha.answers.jsonl"))
-		if err != nil || strings.Count(string(answers), "\n") != 2 {
-			t.Errorf("alpha answers = %q, %v, want 2 lines", answers, err)
+		for _, model := range examples.Models() {
+			answers, err := os.ReadFile(examples.Set{Name: "alpha"}.Answers(dir, model))
+			if err != nil || strings.Count(string(answers), "\n") != 2 {
+				t.Errorf("alpha answers from %s = %q, %v, want 2 lines", model, answers, err)
+			}
 		}
 	})
 }
@@ -157,8 +160,25 @@ func TestCalibrateArgs(t *testing.T) {
 			t.Fatalf("Sets = %v, %v", sets, err)
 		}
 
-		if args := calibrateArgs(sets[0], "examples"); !slices.Contains(args, "--cache=false") {
+		if args := calibrateArgs(sets[0], examples.Model, "examples"); !slices.Contains(args, "--cache=false") {
 			t.Errorf("calibrateArgs = %v, want --cache=false", args)
+		}
+	})
+
+	t.Run("should ask the compare model into its own answers file", func(t *testing.T) {
+		t.Parallel()
+
+		sets, err := examples.Sets(starterDir(t))
+		if err != nil || len(sets) == 0 {
+			t.Fatalf("Sets = %v, %v", sets, err)
+		}
+
+		args := calibrateArgs(sets[0], examples.CompareModel, "examples")
+		model, out := slices.Index(args, "-m"), slices.Index(args, "--out")
+
+		if model < 0 || args[model+1] != examples.CompareModel || out < 0 ||
+			args[out+1] != sets[0].Answers("examples", examples.CompareModel) || args[out+1] == sets[0].Answers("examples", examples.Model) {
+			t.Errorf("calibrateArgs = %v, want -m %s writing its own file", args, examples.CompareModel)
 		}
 	})
 }
