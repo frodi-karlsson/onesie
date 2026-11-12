@@ -58,6 +58,14 @@ func TestParseRequirement(t *testing.T) {
 			},
 		},
 		{
+			name: "should read a change below zero",
+			text: "lower(urgent.catches_change) >= -0.1 at 0.5",
+			want: Requirement{
+				Source: "lower(urgent.catches_change) >= -0.1 at 0.5", ID: "urgent", Bound: Lower,
+				Measure: CatchesChange, Op: OpGE, Threshold: -0.1, At: At{Kind: AtNumber, Value: 0.5},
+			},
+		},
+		{
 			name: "should read auc",
 			text: "urgent.auc >= 0.9",
 			want: Requirement{
@@ -86,9 +94,13 @@ func TestParseRequirement(t *testing.T) {
 		{name: "should refuse lower with at most", text: "lower(urgent.catches) <= 0.2", wantErr: "lower takes >= or >"},
 		{name: "should refuse upper with at least", text: "upper(urgent.catches) >= 0.2", wantErr: "upper takes <= or <"},
 		{name: "should refuse a cut on auc", text: "urgent.auc >= 0.8 at 0.5", wantErr: "auc covers every cut"},
+		{name: "should refuse a cut on auc_change", text: "urgent.auc_change >= -0.1 at 0.5", wantErr: "auc covers every cut"},
+		{name: "should refuse a number below 0 on a measure that is not a change", text: "urgent.catches >= -0.1", wantErr: "takes a number between 0 and 1"},
+		{name: "should refuse a change below -1", text: "urgent.catches_change >= -150", wantErr: "takes a number between -1 and 1"},
+		{name: "should take a percent hint for a change", text: "urgent.catches_change >= -10", wantErr: "so write -0.1, not -10"},
 		{
 			name: "should refuse an unknown measure and list the measures", text: "urgent.recall >= 0.9",
-			wantErr: "catches, false_alarms, right_when_flagged, auc, agreement or within_one",
+			wantErr: "catches, false_alarms, right_when_flagged, auc, agreement, within_one, auc_change, catches_change, false_alarms_change, agreement_change or within_one_change",
 		},
 		{name: "should refuse equality", text: "urgent.catches == 0.9", wantErr: "takes >=, >, <= or <"},
 		{name: "should refuse a negative number", text: "urgent.catches >= -0.1", wantErr: "between 0 and 1"},
@@ -281,6 +293,84 @@ func TestRequirement_Check(t *testing.T) {
 			if got := tc.result.String(); got != tc.want {
 				t.Errorf("String() = %q, want %q", got, tc.want)
 			}
+		}
+	})
+}
+
+func TestRequirement_CheckChange(t *testing.T) {
+	t.Parallel()
+
+	cases := func(yes, no []float64) []YesNoCase {
+		out := make([]YesNoCase, 0, len(yes)+len(no))
+		for _, v := range yes {
+			out = append(out, YesNoCase{Yes: true, Value: v})
+		}
+
+		for _, v := range no {
+			out = append(out, YesNoCase{Value: v})
+		}
+
+		return out
+	}
+
+	question := QuestionComparison{ID: "u", Shape: plan.Noul, Scores: CompareYesNo([][]YesNoCase{
+		cases([]float64{0.9, 0.8, 0.6, 0.3, 0.7}, []float64{0.1, 0.6, 0.2, 0.4}),
+		cases([]float64{0.9, 0.4, 0.7, 0.2, 0.3}, []float64{0.5, 0.3, 0.6, 0.1}),
+	}, nil, nil)}
+
+	// The wanted intervals come from a separate implementation of Newcombe's method 10.
+	tests := []struct {
+		name      string
+		text      string
+		wantHeld  bool
+		wantValue float64
+		wantLow   float64
+		wantHigh  float64
+	}{
+		{name: "should read the paired change in catches at the cut", text: "lower(u.catches_change) >= -0.5 at 0.5", wantValue: -0.4, wantLow: -0.7265, wantHigh: 0.1627},
+		{name: "should read the paired change in false alarms at the cut", text: "upper(u.false_alarms_change) <= 0.75 at 0.5", wantHeld: true, wantValue: 0.25, wantLow: -0.4614, wantHigh: 0.7469},
+		{name: "should read the AUC change", text: "u.auc_change >= -1", wantHeld: true, wantValue: question.Scores[1].Change.Value, wantLow: question.Scores[1].Change.Low, wantHigh: question.Scores[1].Change.High},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			req, err := ParseRequirement(tc.text)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			got := req.CheckChange(question, 1, 0.5)
+			if got.Held != tc.wantHeld || got.Value != tc.wantValue || got.Low != tc.wantLow || got.High != tc.wantHigh {
+				t.Errorf("result = %+v, want held %v at %v from %v to %v", got, tc.wantHeld, tc.wantValue, tc.wantLow, tc.wantHigh)
+			}
+		})
+	}
+
+	t.Run("should not apply agreement_change to a yes or no question", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := ParseRequirement("u.agreement_change >= 0")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got := req.CheckChange(question, 1, 0); got.Held || got.Reason != "'u' is a yes/no question, so agreement_change does not apply" {
+			t.Errorf("result = %+v", got)
+		}
+	})
+
+	t.Run("should say a change needs a baseline outside a comparison", func(t *testing.T) {
+		t.Parallel()
+
+		req, err := ParseRequirement("u.auc_change >= 0")
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if got := req.Check(QuestionReport{ID: "u", Shape: plan.Noul}, 0); got.Held || !strings.Contains(got.Reason, "only --compare has") {
+			t.Errorf("result = %+v", got)
 		}
 	})
 }

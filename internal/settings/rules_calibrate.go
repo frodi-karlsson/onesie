@@ -62,6 +62,20 @@ func calibrateRules() []Rule {
 		calibrating("requires-parse", func(v View) error {
 			return v.requirementsError
 		}),
+		calibrating("change-needs-compare", func(v View) error {
+			if len(listOf(v, compareName)) > 0 {
+				return nil
+			}
+
+			for _, req := range v.Calibration.Requirements {
+				if req.Measure.Change() {
+					return fmt.Errorf("--require '%s' reads %s, a change from a baseline, which needs --compare",
+						req.Source, req.Measure)
+				}
+			}
+
+			return nil
+		}),
 	}
 }
 

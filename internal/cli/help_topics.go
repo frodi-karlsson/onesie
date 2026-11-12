@@ -239,7 +239,10 @@ func helpEvaluation() string {
 		"lower and upper compare an end of the 95 percent interval instead of the value, so 16 of 16 fails lower(x.catches) >= 0.9. " +
 		"A yes or no measure other than auc needs a cut. at CUT names it, at abstain takes it from the file's abstain_if, " +
 		"otherwise the file's assert supplies it when comparing ID.value < X or ID.value >= X. A missing cut exits 2. " +
-		"The report still prints when requirements fail, each failure is named on stderr and the run exits 1.\n\n" +
+		"The report still prints when requirements fail, each failure is named on stderr and the run exits 1. " +
+		"Under --compare, auc_change, catches_change, false_alarms_change, agreement_change and within_one_change read a file less the baseline, " +
+		"take a NUMBER from -1 to 1 and skip the baseline. A change interval stays wide on few records: two runs that each catch 16 of 16 " +
+		"fail lower(x.catches_change) >= -0.1, which needs about 35 yes records.\n\n" +
 		"--offline needs --out and --resume, reads every answer from the file and asks nothing. It needs no key and never rewrites the file. " +
 		"A missing answer, missing file or fingerprint mismatch exits 2. The first example creates the answer file used by the second. " +
 		"The example requirement is illustrative. Offline replay checks saved evidence, not new live model behavior.\n\n" +
@@ -249,6 +252,8 @@ func helpEvaluation() string {
 		"Each file gets a row with its models, the AUC, the change from the baseline and the catches at each --false-alarms budget, with 95 percent intervals. " +
 		"A pick or rate question shows the agreement instead, and a rate question the share within one level too, each with its change. " +
 		"The change interval stays wide even for runs that are alike, so a small set cannot show a small change. " +
+		"Each file then lists the records that got worse and got better against the baseline, those crossing the cut first, " +
+		"at the cut of the file's assert, or else each file's cut at the first budget. A move under 0.1 that crosses no cut is only counted. " +
 		"Files written with --usage add the mean tokens and the cost per 1000 records, over the records any question compares, so error lines do not count. " +
 		"A cost shows only when every one of those records carries one, and stderr says when a file carries usage on only some. " +
 		"Requirements apply to every file. " +
