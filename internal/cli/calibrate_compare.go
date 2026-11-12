@@ -300,12 +300,14 @@ func comparisonOf(
 		})
 	}
 
+	inSet := make([]bool, len(set.records))
+
 	for q, question := range questions {
 		if question.Shape != plan.Noul {
 			continue
 		}
 
-		compared, err := compareQuestion(q, question, set, runs, cuts[q], budgets)
+		compared, err := compareQuestion(q, question, set, runs, cuts[q], budgets, inSet)
 		if err != nil {
 			return calibrate.Comparison{}, err
 		}
@@ -313,11 +315,47 @@ func comparisonOf(
 		comparison.Questions = append(comparison.Questions, compared)
 	}
 
+	for r, run := range runs {
+		comparison.Runs[r].Usage = comparedUsage(run, inSet)
+	}
+
 	return comparison, nil
 }
 
+func comparedUsage(run storedRun, inSet []bool) *calibrate.Usage {
+	var records []output.Record
+
+	costed := 0
+
+	for i, record := range run.records {
+		if !inSet[i] || record.Usage == nil {
+			continue
+		}
+
+		records = append(records, record)
+
+		if record.Usage.Cost != nil {
+			costed++
+		}
+	}
+
+	if len(records) == 0 {
+		return nil
+	}
+
+	usage := usageOf(records)
+
+	// A cost summed over some of the records would understate the run, so it shows only when every
+	// record carries one.
+	if costed < usage.Records {
+		usage.Cost = nil
+	}
+
+	return usage
+}
+
 func compareQuestion(
-	q int, question plan.Question, set labelledSet, runs []storedRun, cuts, budgets []float64,
+	q int, question plan.Question, set labelledSet, runs []storedRun, cuts, budgets []float64, inSet []bool,
 ) (calibrate.QuestionComparison, error) {
 	compared := calibrate.QuestionComparison{ID: question.ID, LeftOut: make([]calibrate.LeftOut, len(runs))}
 	cases := make([][]calibrate.YesNoCase, len(runs))
@@ -351,6 +389,8 @@ func compareQuestion(
 		if !usable {
 			continue
 		}
+
+		inSet[rec.index] = true
 
 		for r := range runs {
 			cases[r] = append(cases[r], recordCases[r])

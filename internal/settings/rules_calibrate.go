@@ -140,6 +140,10 @@ func checkCompare(v View) error {
 		return fmt.Errorf("--compare reads saved answers, and %s answers from fixtures. Drop one", mockSpelled(v))
 	}
 
+	if typed(v, Usage.Name()) {
+		return errors.New("--compare shows usage whenever the files carry it, so --usage does not apply. Drop it")
+	}
+
 	if flag, asks := askingFlag(v); asks {
 		return fmt.Errorf("--compare reads saved answers and asks nothing, so %s does not apply. Drop it", flag)
 	}
@@ -161,7 +165,7 @@ func askingFlag(v View) (string, bool) {
 		}
 
 		asks := flag.HelpTopic == "connections" || flag.HelpTopic == "execution" ||
-			slices.Contains([]settingrow.Name{Out.Name(), Offline.Name(), Usage.Name(), Stats.Name()}, row.Name)
+			slices.Contains([]settingrow.Name{Out.Name(), Offline.Name(), Stats.Name()}, row.Name)
 
 		if flag.Long == "" || !asks || !typed(v, row.Name) {
 			continue

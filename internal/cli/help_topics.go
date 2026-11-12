@@ -248,7 +248,10 @@ func helpEvaluation() string {
 		"stderr also names what differs from the baseline: the fingerprint parts, and the models when their names differ. " +
 		"Each file gets a row with its models, the AUC, the change from the baseline and the catches at each --false-alarms budget, with 95 percent intervals. " +
 		"The change interval stays wide even for runs that are alike, so a small set cannot show a small change. " +
-		"Requirements apply to every file. Pick and rate questions are skipped for now. Write the compared files without --cache, which can hide a model update."
+		"Files written with --usage add the mean tokens and the cost per 1000 records, over the compared records only, so error lines do not count. " +
+		"A cost shows only when every one of those records carries one. " +
+		"Requirements apply to every file. Pick and rate questions are skipped for now. " +
+		"Write the compared files without --cache, since a cached answer can hide a model update and costs nothing."
 }
 
 func helpExamples(command settingrow.Command) []helpExample {

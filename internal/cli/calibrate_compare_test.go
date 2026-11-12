@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -139,6 +140,70 @@ func TestCompareCalibration(t *testing.T) {
 
 		if code != ExitOK || !strings.Contains(out, "compared 4 of 6 labelled") {
 			t.Errorf("exit %d\nstdout:\n%s", code, out)
+		}
+	})
+
+	t.Run("should sum usage over the compared records, with no cost unless every one carries it", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+
+		withUsage := func(path string, usage func(i int) string, drop int) {
+			lines := answerLines(t, path)
+			kept := lines[:0]
+
+			for i, line := range lines {
+				if i == drop {
+					continue
+				}
+
+				kept = append(kept, strings.Replace(line, `"model":"jev-latest",`, `"model":"jev-latest","usage":`+usage(i)+",", 1))
+			}
+
+			writeAnswerLines(t, path, kept)
+		}
+
+		// T-6 is left out of b, so a's usage for it is not counted either.
+		withUsage(a, func(i int) string {
+			return fmt.Sprintf(`{"input_tokens":%d,"output_tokens":4,"cost":0.00005}`, 400+10*i)
+		}, -1)
+		withUsage(b, func(i int) string {
+			if i == 0 {
+				return `{"input_tokens":300,"output_tokens":4}`
+			}
+
+			return `{"input_tokens":300,"output_tokens":4,"cost":0.00002}`
+		}, 5)
+
+		out, errOut, code := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b), labelled, nil, nil)
+		want := "\nusage, mean per compared record\n\n" +
+			"  " + padTo("run", a) + "  records  input tokens  output tokens  cost per 1000\n" +
+			"  " + a + "        5           420              4          $0.05\n" +
+			"  " + b + "        5           300              4              -\n"
+		if code != ExitOK || !strings.HasSuffix(out, want) {
+			t.Errorf("exit %d\nstdout:\n%s\nwant it to end\n%s\nstderr:\n%s", code, out, want, errOut)
+		}
+
+		jsonOut, _, _ := runMocked(t, t.Context(), comparing("--compare", a, "--compare", b, "-o", "json"), labelled, nil, nil)
+
+		var report struct {
+			Runs []struct {
+				Usage map[string]float64 `json:"usage"`
+			} `json:"runs"`
+		}
+
+		if err := json.Unmarshal([]byte(jsonOut), &report); err != nil {
+			t.Fatalf("stdout is not json: %v\n%s", err, jsonOut)
+		}
+
+		first, second := report.Runs[0].Usage, report.Runs[1].Usage
+		if first["records"] != 5 || first["input_tokens"] != 2100 || first["cost"] != 0.00025 {
+			t.Errorf("baseline usage = %v, want 5 records, 2100 input tokens and a cost of 0.00025", first)
+		}
+
+		if _, costed := second["cost"]; costed || second["records"] != 5 {
+			t.Errorf("second usage = %v, want 5 records and no cost", second)
 		}
 	})
 

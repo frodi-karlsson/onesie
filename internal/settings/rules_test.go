@@ -1141,7 +1141,7 @@ func TestValidate(t *testing.T) {
 			{given: compared(values{"prune": true}, "prune"), want: "so --prune does not apply"},
 			{given: compared(values{"print_request": true}, "print_request"), want: "so --print-request does not apply"},
 			{given: compared(values{"cache": true}, "cache"), want: "so --cache does not apply"},
-			{given: compared(values{"usage": true}, "usage"), want: "so --usage does not apply"},
+			{given: compared(values{"usage": true}, "usage"), want: "--compare shows usage whenever the files carry it, so --usage does not apply. Drop it"},
 			{given: compared(values{"model": "jev-latest"}, "model"), want: "so -m/--model does not apply"},
 			{given: compared(values{"provider": "openrouter"}, "provider"), want: "so --provider does not apply"},
 			{given: compared(values{"endpoint": "https://x.example"}, "endpoint"), want: "so --base-url does not apply"},
