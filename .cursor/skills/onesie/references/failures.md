@@ -109,6 +109,7 @@ Exit 3 also covers these:
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
 | `A box question needs a model that serves it` | the model does not serve `--box` questions, on TypeSafe, OpenRouter or Vercel, such as Gemini through Vercel. Pass the model the message names, such as `-m jev-preview` or `-m jev-latest` |
+| `Could not find a reference to a model` | on vercel, a request that carries images went to a model that reads none, as measured on `microsoft/microsoft-decision-1`. The same request answers without the images. Drop `--image`, or pass a model that reads images, such as the default |
 | `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |
 
 Every flag and question error is caught before any network call. Reach for `--print-request` or
