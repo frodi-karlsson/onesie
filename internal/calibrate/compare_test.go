@@ -186,13 +186,13 @@ func TestCompareChoices(t *testing.T) {
 		wantAgreement, wantIn *Interval
 	}{
 		{
-			name: "should give a pick question's agreement change its paired Newcombe interval",
+			name: "should shrink a positive phi by n/2, as Newcombe's method 10 does over method 8",
 			runs: [][]ChoiceCase{
 				picked(labels, []string{"a", "b", "c", "a", "c", "c", "b", "b"}),
 				picked(labels, []string{"a", "a", "c", "a", "b", "c", "b", "c"}),
 			},
 			names:         []string{"a", "b", "c"},
-			wantAgreement: &Interval{Value: -0.125, Low: -0.4668, High: 0.2605, Defined: true},
+			wantAgreement: &Interval{Value: -0.125, Low: -0.4908, High: 0.2907, Defined: true},
 		},
 		{
 			name: "should give a rate question a change within one level beside its agreement",

@@ -237,9 +237,8 @@ func CompareChoices(runs [][]ChoiceCase, names []string, rate bool, cuts []float
 
 		right[i], near[i] = make([]bool, len(cases)), make([]bool, len(cases))
 		for c, choice := range cases {
-			d, inside := distance(choice, names)
-			right[i][c] = choice.Picked == choice.Label
-			near[i][c] = inside && d <= 1
+			right[i][c] = choice.agrees()
+			near[i][c] = withinOne(choice, names)
 		}
 	}
 
@@ -287,13 +286,19 @@ func pairedChange(baseline, run []bool) Interval {
 	}
 
 	// Newcombe's method 10, from his 1998 paper on paired differences of proportions: the two Wilson
-	// intervals joined by MOVER, with phi as their correlation.
+	// intervals joined by MOVER, with phi as their correlation. Method 10 shrinks a positive phi by
+	// n/2, which widens the interval on a small set. Without that it is his method 8.
 	before, after := wilson(both+baseOnly, n), wilson(both+runOnly, n)
 	p1, p2 := float64(both+baseOnly)/float64(n), float64(both+runOnly)/float64(n)
 
 	phi := 0.0
 	if margins := float64(both+baseOnly) * float64(runOnly+neither) * float64(both+runOnly) * float64(baseOnly+neither); margins > 0 {
-		phi = (float64(both)*float64(neither) - float64(baseOnly)*float64(runOnly)) / math.Sqrt(margins)
+		concordance := float64(both)*float64(neither) - float64(baseOnly)*float64(runOnly)
+		if concordance > 0 {
+			concordance = math.Max(concordance-float64(n)/2, 0)
+		}
+
+		phi = concordance / math.Sqrt(margins)
 	}
 
 	change := p2 - p1

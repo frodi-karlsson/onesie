@@ -345,7 +345,7 @@ type jsonRun struct {
 func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 	compared := jsonCompared{
 		ID: q.ID, Shape: ShapeName(q.Shape), Labelled: q.Labelled,
-		LeftOut: make([]jsonLeftOut, 0, len(runs)), Runs: make([]any, 0, len(runs)),
+		LeftOut: make([]jsonLeftOut, 0, len(runs)), Runs: make([]jsonRunScore, 0, len(runs)),
 	}
 
 	if q.Shape == plan.Noul {
@@ -372,18 +372,18 @@ func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 }
 
 type jsonCompared struct {
-	ID       string        `json:"id"`
-	Shape    string        `json:"shape"`
-	Labelled int           `json:"labelled"`
-	Compared int           `json:"compared"`
-	Yes      *int          `json:"yes,omitempty"`
-	No       *int          `json:"no,omitempty"`
-	LeftOut  []jsonLeftOut `json:"left_out"`
-	Runs     []any         `json:"runs"`
+	ID       string         `json:"id"`
+	Shape    string         `json:"shape"`
+	Labelled int            `json:"labelled"`
+	Compared int            `json:"compared"`
+	Yes      *int           `json:"yes,omitempty"`
+	No       *int           `json:"no,omitempty"`
+	LeftOut  []jsonLeftOut  `json:"left_out"`
+	Runs     []jsonRunScore `json:"runs"`
 }
 
-func choiceScoreJSON(file string, score ChoiceRunScore) jsonChoiceScore {
-	entry := jsonChoiceScore{File: file, Agreement: score.Pick.Agreement}
+func choiceScoreJSON(file string, score ChoiceRunScore) jsonRunScore {
+	entry := jsonRunScore{File: file, Agreement: &score.Pick.Agreement}
 
 	if score.AgreementChange != nil {
 		entry.AgreementChange = intervalJSON(*score.AgreementChange)
@@ -398,14 +398,6 @@ func choiceScoreJSON(file string, score ChoiceRunScore) jsonChoiceScore {
 	}
 
 	return entry
-}
-
-type jsonChoiceScore struct {
-	File            string        `json:"file"`
-	Agreement       Share         `json:"agreement"`
-	AgreementChange *jsonInterval `json:"agreement_change,omitempty"`
-	WithinOne       *Share        `json:"within_one,omitempty"`
-	WithinOneChange *jsonInterval `json:"within_one_change,omitempty"`
 }
 
 type jsonLeftOut struct {
@@ -434,12 +426,18 @@ func runScoreJSON(file string, score RunScore) jsonRunScore {
 	return entry
 }
 
+// jsonRunScore is one run of a compared question. A yes or no question fills the AUC fields, and a
+// pick or rate question the agreement fields, so each leaves the others out.
 type jsonRunScore struct {
-	File          string        `json:"file"`
-	AUC           *jsonInterval `json:"auc"`
-	AUCChange     *jsonInterval `json:"auc_change,omitempty"`
-	AtFalseAlarms []jsonBudget  `json:"at_false_alarms"`
-	Cuts          []jsonCutRow  `json:"cuts"`
+	File            string        `json:"file"`
+	AUC             *jsonInterval `json:"auc,omitempty"`
+	AUCChange       *jsonInterval `json:"auc_change,omitempty"`
+	AtFalseAlarms   []jsonBudget  `json:"at_false_alarms,omitempty"`
+	Cuts            []jsonCutRow  `json:"cuts,omitempty"`
+	Agreement       *Share        `json:"agreement,omitempty"`
+	AgreementChange *jsonInterval `json:"agreement_change,omitempty"`
+	WithinOne       *Share        `json:"within_one,omitempty"`
+	WithinOneChange *jsonInterval `json:"within_one_change,omitempty"`
 }
 
 func intervalJSON(i Interval) *jsonInterval {
