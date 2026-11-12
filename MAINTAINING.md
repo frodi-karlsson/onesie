@@ -28,10 +28,15 @@ brew install golangci-lint
 ```
 
 The starter sets' answers come from the pinned model `examples.Model`, in `examples/data/SET.answers.jsonl`,
-and from `examples.CompareModel` in `SET.MODEL.answers.jsonl`. To move the pin to the compare model,
-rename each `SET.MODEL.answers.jsonl` and its `.onesie` sidecar over `SET.answers.jsonl`, set
-`examples.Model` to it and pick a new `CompareModel`. Then run `make examples-answers` and update the
-model the READMEs and the history lesson name.
+and from `examples.CompareModel`, `examples.GeminiModel` and `examples.SageModel`, each in
+`SET.MODEL.answers.jsonl` with the model named without its vendor. Regenerating a file needs the
+key of its provider, `TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY` or `LEVANTO_API_KEY`, and a complete
+file needs none. Gemini and Sage do not pin a version, so a regenerated file can answer
+differently. After regenerating one, check the numbers
+[Compare vendors](examples/README.md#compare-vendors) quotes and update the date it gives. To move
+the pin to the compare model, rename each `SET.MODEL.answers.jsonl` and its `.onesie` sidecar over
+`SET.answers.jsonl`, set `examples.Model` to it and pick a new `CompareModel`. Then run
+`make examples-answers` and update the model the READMEs and the history lesson name.
 
 The help of every command is pinned in `internal/cli/testdata/help`. After a help change made on
 purpose, rewrite those files with `go test ./internal/cli -run TestNewRootCmd -update-help` and

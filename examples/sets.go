@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -16,16 +17,30 @@ import (
 )
 
 // Model is the pinned model the committed answers files the README gates were made with, and that
-// the offline check reads them as. CompareModel is the newer model each set is answered with too, so
-// --compare has a second run to set beside the first.
+// the offline check reads them as. CompareModel, GeminiModel and SageModel each answer every set
+// too, so --compare has a newer Jev and two other vendors to set beside the pinned run.
 const (
 	Model        = "jev-1.13.0"
 	CompareModel = "jev-1.14.0"
+	GeminiModel  = "google/gemini-decision-1"
+	SageModel    = "levanto-sage-2"
 )
 
 // Models lists the models each set has a committed answers file for, the pinned one first.
 func Models() []string {
-	return []string{Model, CompareModel}
+	return []string{Model, CompareModel, GeminiModel, SageModel}
+}
+
+// Provider names the provider a model is asked through.
+func Provider(model string) string {
+	switch model {
+	case GeminiModel:
+		return "vercel"
+	case SageModel:
+		return "levanto"
+	default:
+		return "typesafe"
+	}
 }
 
 // Sets reads every starter set under dir, from questions/NAME.yaml and data/NAME.jsonl, in name
@@ -63,20 +78,20 @@ type Set struct {
 }
 
 // Answers is the path under dir of the set's committed answers file from model. The pinned Model's
-// file has no model in its name.
+// file has no model in its name, and another's names the model without its vendor.
 func (s Set) Answers(dir, model string) string {
 	if model == Model {
 		return filepath.Join(dir, "data", s.Name+".answers.jsonl")
 	}
 
-	return filepath.Join(dir, "data", s.Name+"."+model+".answers.jsonl")
+	return filepath.Join(dir, "data", s.Name+"."+path.Base(model)+".answers.jsonl")
 }
 
 // CalibrateArgs are the calibrate arguments that ask model about the set's records, without --out.
 func (s Set) CalibrateArgs(dir, model string) []string {
 	args := []string{
 		"calibrate", "-f", s.Questions(dir), "-i", "jsonl", "--map", "." + s.TextField, "--id", ".id",
-		"-m", model, "--provider", "typesafe",
+		"-m", model, "--provider", Provider(model),
 	}
 	for _, id := range s.IDs {
 		args = append(args, "--label", id+"=."+id)

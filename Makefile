@@ -116,7 +116,7 @@ settings-check: ## Check the files make settings writes are current, writing not
 
 schema: settings ## Regenerate schema/questions.json, an alias of make settings
 
-examples-answers: ## Regenerate the starter answers files, run by hand with a key
+examples-answers: ## Regenerate the starter answers files, run by hand with each provider key
 	go run ./cmd/examplesanswers
 
 examples-image: ## Regenerate examples/images/square.png

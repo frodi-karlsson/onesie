@@ -149,6 +149,50 @@ func TestCompareNoul(t *testing.T) {
 		})
 	}
 
+	shortened := []struct {
+		name    string
+		yes, no []float64
+		budget  float64
+		want    float64
+	}{
+		{
+			name: "should shorten a cut to two places when no answer lies between", yes: []float64{0.4434, 0.4208479098236706},
+			no: []float64{0.363040}, budget: 0, want: 0.42,
+		},
+		{
+			name: "should keep more places when the next lower answer is within two places", yes: []float64{0.4208479098236706},
+			no: []float64{0.4205}, budget: 0, want: 0.4208,
+		},
+		{
+			name: "should keep a two place answer whose float lies just below it", yes: []float64{0.29},
+			no: []float64{0.285}, budget: 0, want: 0.29,
+		},
+		{
+			name: "should shorten the lowest answer, which has no answer below it", yes: []float64{0.9},
+			no: []float64{0.0123456}, budget: 1, want: 0.01,
+		},
+	}
+
+	for _, tc := range shortened {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			score := CompareNoul([][]NoulCase{ranked(tc.yes, tc.no)}, nil, []float64{tc.budget})[0]
+
+			got := score.Budgets[0]
+			if !got.Found || got.Cut != tc.want {
+				t.Fatalf("cut = %v, found %v, want %v", got.Cut, got.Found, tc.want)
+			}
+
+			// The shortened cut must flag the records the exact one does.
+			yes, no := slices.Sorted(slices.Values(tc.yes)), slices.Sorted(slices.Values(tc.no))
+			if row := cutRow(got.Cut, yes, no); row.Catches != got.Catches || row.FalseAlarms != got.FalseAlarms {
+				t.Errorf("at %v catches %+v and false alarms %+v, want %+v and %+v",
+					got.Cut, row.Catches, row.FalseAlarms, got.Catches, got.FalseAlarms)
+			}
+		})
+	}
+
 	t.Run("should find no cut when the highest answer is a no beyond the budget", func(t *testing.T) {
 		t.Parallel()
 
