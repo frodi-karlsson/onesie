@@ -17,8 +17,8 @@ func TestWriteTable(t *testing.T) {
 	}{
 		{
 			name: "should say AUC needs both labels, print an undefined share as 0/0 with a dash, align counts of any width and list five misses",
-			questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
-				namedYesNo(
+			questions: []QuestionReport{noulReport("urgent", ScoreNoul(
+				namedNoul(
 					"yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2,
 					"yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9,
 					"yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9, "yes", 0.9,
@@ -134,8 +134,8 @@ func TestWriteTable(t *testing.T) {
 		},
 		{
 			name: "should leave the misses out when no case is past the middle",
-			questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
-				namedYesNo("yes", 0.9, "no", 0.5), 0, []float64{0.5},
+			questions: []QuestionReport{noulReport("urgent", ScoreNoul(
+				namedNoul("yes", 0.9, "no", 0.5), 0, []float64{0.5},
 			))},
 			want: []string{
 				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00, interval 0.21-1.00",
@@ -227,8 +227,8 @@ func TestWriteTable(t *testing.T) {
 		},
 		{
 			name: "should quote an id or a question id that holds a newline or an escape, and print a miss value in full",
-			questions: []QuestionReport{yesNoReport("urgent\nfake", ScoreYesNo(
-				[]YesNoCase{
+			questions: []QuestionReport{noulReport("urgent\nfake", ScoreNoul(
+				[]NoulCase{
 					{Name: "T\n1", ID: "T\n1", Line: 1, Yes: true, Value: 0.1},
 					{Name: "\x1b[31mT-2", ID: "\x1b[31mT-2", Line: 2, Yes: false, Value: 0.503},
 				},
@@ -267,7 +267,7 @@ func TestWriteTable(t *testing.T) {
 		},
 		{
 			name: "should clamp every percent to between 1 and 99",
-			questions: []QuestionReport{yesNoReport("urgent", YesNoScore{
+			questions: []QuestionReport{noulReport("urgent", NoulScore{
 				Labelled: 2000, Yes: 1000, No: 1000, AUC: 0.5, HasAUC: true,
 				Cuts: []CutRow{
 					{
@@ -279,7 +279,7 @@ func TestWriteTable(t *testing.T) {
 						FalseAlarms: wilson(1, 1000), RightWhenFlagged: wilson(999, 999),
 					},
 				},
-				Misses: []YesNoCase{},
+				Misses: []NoulCase{},
 			})},
 			want: []string{
 				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 errors. AUC 0.50, interval 0.47-0.53",
@@ -313,8 +313,8 @@ func TestWriteTable(t *testing.T) {
 		},
 		{
 			name: "should name a miss by its line without --id",
-			questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
-				[]YesNoCase{{Line: 12, Yes: true, Value: 0.1}, {Line: 3, Yes: false, Value: 0.8}},
+			questions: []QuestionReport{noulReport("urgent", ScoreNoul(
+				[]NoulCase{{Line: 12, Yes: true, Value: 0.1}, {Line: 3, Yes: false, Value: 0.8}},
 				0, []float64{0.5},
 			))},
 			want: []string{
@@ -353,7 +353,7 @@ func TestWriteTable(t *testing.T) {
 		var out strings.Builder
 
 		err := WriteTable(&out, Report{Questions: []QuestionReport{
-			yesNoReport("urgent", ScoreYesNo([]YesNoCase{
+			noulReport("urgent", ScoreNoul([]NoulCase{
 				{Name: "T-1", ID: "T-1", Yes: true, Value: 0.3, Text: "echo hello > notes.txt"},
 				{Name: "T-22", ID: "T-22", Yes: false, Value: 0.6, Text: "ls"},
 			}, 0, []float64{0.5})),
@@ -417,9 +417,9 @@ func TestWholePercent(t *testing.T) {
 }
 
 func urgentReport(cuts []float64) QuestionReport {
-	cases := namedYesNo("yes", 0.9, "yes", 0.8, "yes", 0.3, "no", 0.1, "no", 0.6, "no", 0.2)
+	cases := namedNoul("yes", 0.9, "yes", 0.8, "yes", 0.3, "no", 0.1, "no", 0.6, "no", 0.2)
 
-	return yesNoReport("urgent", ScoreYesNo(cases, 1, cuts))
+	return noulReport("urgent", ScoreNoul(cases, 1, cuts))
 }
 
 func teamReport() QuestionReport {
@@ -447,11 +447,11 @@ func starsReport() QuestionReport {
 }
 
 func failedReport(id string) QuestionReport {
-	return yesNoReport(id, ScoreYesNo(nil, 3, []float64{0.5}))
+	return noulReport(id, ScoreNoul(nil, 3, []float64{0.5}))
 }
 
-func yesNoReport(id string, score YesNoScore) QuestionReport {
-	return QuestionReport{ID: id, Shape: plan.Noul, YesNo: &score}
+func noulReport(id string, score NoulScore) QuestionReport {
+	return QuestionReport{ID: id, Shape: plan.Noul, Noul: &score}
 }
 
 func pickReport(id string, score PickScore) QuestionReport {
@@ -462,8 +462,8 @@ func rateReport(id string, score RateScore) QuestionReport {
 	return QuestionReport{ID: id, Shape: plan.Rate, Rate: &score}
 }
 
-func namedYesNo(pairs ...any) []YesNoCase {
-	cases := yesNoCases(pairs...)
+func namedNoul(pairs ...any) []NoulCase {
+	cases := noulCases(pairs...)
 	for i := range cases {
 		cases[i].Name = recordName(i)
 		cases[i].ID = cases[i].Name

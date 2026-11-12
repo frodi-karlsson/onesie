@@ -434,7 +434,7 @@ func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts 
 		Unlabelled: set.unlabelled,
 	}
 
-	yesNo := make([][]calibrate.YesNoCase, len(built.Questions))
+	noul := make([][]calibrate.NoulCase, len(built.Questions))
 	choices := make([][]calibrate.ChoiceCase, len(built.Questions))
 	failed := make([]int, len(built.Questions))
 	models := map[string]struct{}{}
@@ -459,7 +459,7 @@ func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts 
 			switch {
 			case rec.labels[q] == nil:
 			case built.Questions[q].Shape == plan.Noul:
-				yesNo[q] = append(yesNo[q], c.yesNo)
+				noul[q] = append(noul[q], c.noul)
 			default:
 				choices[q] = append(choices[q], c.choice)
 			}
@@ -473,8 +473,8 @@ func reportOf(built *plan.Plan, set labelledSet, outcomes []output.Record, cuts 
 
 		switch question.Shape {
 		case plan.Noul:
-			score := calibrate.ScoreYesNo(yesNo[q], failed[q], cuts[q])
-			scored.YesNo = &score
+			score := calibrate.ScoreNoul(noul[q], failed[q], cuts[q])
+			scored.Noul = &score
 		case plan.Pick:
 			score := calibrate.ScorePick(choices[q], namesOf(question), failed[q], cuts[q])
 			scored.Pick = &score
@@ -533,7 +533,7 @@ func caseOf(question plan.Question, label *calibrate.Label, rec labelledRecord, 
 			return recordCase{}, fmt.Errorf("question '%s' answered %v, which lies outside [0,1]", question.ID, given.Value)
 		}
 
-		return recordCase{yesNo: calibrate.YesNoCase{
+		return recordCase{noul: calibrate.NoulCase{
 			Name: name, ID: rec.id, Line: rec.line, Yes: label.Yes, Value: value, Text: sentText(rec.sent),
 		}}, nil
 	}
@@ -587,7 +587,7 @@ func unitRange(value float64) bool {
 }
 
 type recordCase struct {
-	yesNo  calibrate.YesNoCase
+	noul   calibrate.NoulCase
 	choice calibrate.ChoiceCase
 }
 

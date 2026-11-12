@@ -2511,7 +2511,7 @@ func TestReportOf(t *testing.T) {
 				t.Errorf("report failed = %d, want %d", report.Failed, tc.wantFailed)
 			}
 
-			urgent, team := report.Questions[0].YesNo, report.Questions[1].Pick
+			urgent, team := report.Questions[0].Noul, report.Questions[1].Pick
 			if urgent.Failed != tc.wantFailed || team.Failed != tc.wantFailed {
 				t.Errorf("question failed = %d and %d, want %d each", urgent.Failed, team.Failed, tc.wantFailed)
 			}
@@ -2545,7 +2545,7 @@ func TestReportOf(t *testing.T) {
 			{line: 2, labels: []*calibrate.Label{no}},
 		}, total: 2}
 
-		misses := reportOf(noul, set, []output.Record{missed, missed}, cutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].YesNo.Misses
+		misses := reportOf(noul, set, []output.Record{missed, missed}, cutsFor([]float64{0.5}, nil, len(noul.Questions))).Questions[0].Noul.Misses
 
 		if len(misses) != 2 {
 			t.Fatalf("misses = %+v, want two", misses)

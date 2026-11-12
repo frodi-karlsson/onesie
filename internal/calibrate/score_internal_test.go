@@ -15,42 +15,42 @@ func TestAUC(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		cases       []YesNoCase
+		cases       []NoulCase
 		want        float64
 		wantDefined bool
 	}{
 		{
 			name:        "should give 1 for perfect separation",
-			cases:       yesNoCases("yes", 0.9, "yes", 0.8, "no", 0.2, "no", 0.1),
+			cases:       noulCases("yes", 0.9, "yes", 0.8, "no", 0.2, "no", 0.1),
 			want:        1,
 			wantDefined: true,
 		},
 		{
 			name:        "should give 0 for reversed separation",
-			cases:       yesNoCases("yes", 0.1, "yes", 0.2, "no", 0.8, "no", 0.9),
+			cases:       noulCases("yes", 0.1, "yes", 0.2, "no", 0.8, "no", 0.9),
 			want:        0,
 			wantDefined: true,
 		},
 		{
 			name:        "should count a tie as half",
-			cases:       yesNoCases("yes", 0.9, "yes", 0.5, "no", 0.5, "no", 0.1),
+			cases:       noulCases("yes", 0.9, "yes", 0.5, "no", 0.5, "no", 0.1),
 			want:        0.875,
 			wantDefined: true,
 		},
 		{
 			name:        "should give 0.5 when every value is tied",
-			cases:       yesNoCases("yes", 0.5, "no", 0.5, "yes", 0.5, "no", 0.5, "no", 0.5),
+			cases:       noulCases("yes", 0.5, "no", 0.5, "yes", 0.5, "no", 0.5, "no", 0.5),
 			want:        0.5,
 			wantDefined: true,
 		},
 		{
 			name:        "should round to four places",
-			cases:       yesNoCases("yes", 0.9, "no", 0.5, "no", 0.95, "no", 0.1),
+			cases:       noulCases("yes", 0.9, "no", 0.5, "no", 0.95, "no", 0.1),
 			want:        0.6667,
 			wantDefined: true,
 		},
-		{name: "should leave only yes labels undefined", cases: yesNoCases("yes", 0.9, "yes", 0.1)},
-		{name: "should leave only no labels undefined", cases: yesNoCases("no", 0.9, "no", 0.1)},
+		{name: "should leave only yes labels undefined", cases: noulCases("yes", 0.9, "yes", 0.1)},
+		{name: "should leave only no labels undefined", cases: noulCases("no", 0.9, "no", 0.1)},
 		{name: "should leave no cases undefined"},
 	}
 
@@ -68,13 +68,13 @@ func TestAUC(t *testing.T) {
 	t.Run("should never round an AUC that is not 0 or 1 to 0 or 1", func(t *testing.T) {
 		t.Parallel()
 
-		var high, low []YesNoCase
+		var high, low []NoulCase
 
 		for i := range 150 {
-			high = append(high, YesNoCase{Yes: true, Value: 0.5 + float64(i)/1000},
-				YesNoCase{Value: float64(i) / 1000})
-			low = append(low, YesNoCase{Value: 0.5 + float64(i)/1000},
-				YesNoCase{Yes: true, Value: float64(i) / 1000})
+			high = append(high, NoulCase{Yes: true, Value: 0.5 + float64(i)/1000},
+				NoulCase{Value: float64(i) / 1000})
+			low = append(low, NoulCase{Value: 0.5 + float64(i)/1000},
+				NoulCase{Yes: true, Value: float64(i) / 1000})
 		}
 
 		// One no tied with the lowest yes, which counts half a pair of 22500.
@@ -93,10 +93,10 @@ func TestAUC(t *testing.T) {
 	t.Run("should finish when a value is NaN", func(t *testing.T) {
 		t.Parallel()
 
-		cases := yesNoCases("yes", math.NaN(), "no", 0.5, "yes", math.NaN(), "no", math.NaN(), "yes", 0.9)
+		cases := noulCases("yes", math.NaN(), "no", 0.5, "yes", math.NaN(), "no", math.NaN(), "yes", 0.9)
 
 		auc(cases)
-		ScoreYesNo(cases, 0, DefaultCuts())
+		ScoreNoul(cases, 0, DefaultCuts())
 	})
 
 	t.Run("should rank 100000 cases by sorting rather than by pairs", func(t *testing.T) {
@@ -104,12 +104,12 @@ func TestAUC(t *testing.T) {
 
 		const n = 100000
 
-		cases := make([]YesNoCase, n)
+		cases := make([]NoulCase, n)
 		var yes, no [1000]float64
 
 		for i := range cases {
 			bucket := (i * 7919) % 1000
-			cases[i] = YesNoCase{Yes: i%3 == 0, Value: float64(bucket) / 1000}
+			cases[i] = NoulCase{Yes: i%3 == 0, Value: float64(bucket) / 1000}
 
 			if cases[i].Yes {
 				yes[bucket]++
@@ -147,10 +147,10 @@ func TestAUC(t *testing.T) {
 	})
 }
 
-func TestScoreYesNo(t *testing.T) {
+func TestScoreNoul(t *testing.T) {
 	t.Parallel()
 
-	fixed := yesNoCases(
+	fixed := noulCases(
 		"yes", 0.75,
 		"yes", 0.5,
 		"yes", 0.125,
@@ -164,7 +164,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should count the headline and the AUC", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 3, []float64{0.5})
+		got := ScoreNoul(fixed, 3, []float64{0.5})
 		if got.Labelled != 8 || got.Yes != 4 || got.No != 4 || got.Failed != 3 {
 			t.Errorf("counts = labelled %d, yes %d, no %d, failed %d, want 8, 4, 4, 3",
 				got.Labelled, got.Yes, got.No, got.Failed)
@@ -178,7 +178,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should flag a value equal to the cut at each given cut", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 0, []float64{0.5, 0.75})
+		got := ScoreNoul(fixed, 0, []float64{0.5, 0.75})
 		want := []cutCounts{
 			{cut: 0.5, flagged: 5, catches: [2]int{3, 4}, falseAlarms: [2]int{2, 4}, right: [2]int{3, 5}},
 			{cut: 0.75, flagged: 2, catches: [2]int{1, 4}, falseAlarms: [2]int{1, 4}, right: [2]int{1, 2}},
@@ -190,7 +190,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should give a row at every cut in the list it is handed", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 0, DefaultCuts())
+		got := ScoreNoul(fixed, 0, DefaultCuts())
 
 		var cuts []float64
 		for _, row := range got.Cuts {
@@ -205,7 +205,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should give a row at every distinct value in ascending order", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 0, []float64{0.5})
+		got := ScoreNoul(fixed, 0, []float64{0.5})
 		want := []cutCounts{
 			{cut: 0.0625, flagged: 8, catches: [2]int{4, 4}, falseAlarms: [2]int{4, 4}, right: [2]int{4, 8}},
 			{cut: 0.125, flagged: 7, catches: [2]int{4, 4}, falseAlarms: [2]int{3, 4}, right: [2]int{4, 7}},
@@ -221,10 +221,10 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should keep only the cases past the middle as misses, widest gap first", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 0, nil)
+		got := ScoreNoul(fixed, 0, nil)
 
 		want := []string{"c6", "c3"}
-		if names := yesNoNames(got.Misses); !slices.Equal(names, want) {
+		if names := noulNames(got.Misses); !slices.Equal(names, want) {
 			t.Errorf("misses = %v, want %v", names, want)
 		}
 	})
@@ -232,7 +232,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should keep each case's id and line in its miss", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(fixed, 0, nil)
+		got := ScoreNoul(fixed, 0, nil)
 
 		if first := got.Misses[0]; first.ID != "c6" || first.Line != 6 {
 			t.Errorf("first miss id %v line %d, want c6 line 6", first.ID, first.Line)
@@ -242,7 +242,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should keep complementary decimal gaps in input order", func(t *testing.T) {
 		t.Parallel()
 
-		cases := yesNoCases(
+		cases := noulCases(
 			"yes", 0.32,
 			"no", 0.68,
 			"no", 0.82,
@@ -254,10 +254,10 @@ func TestScoreYesNo(t *testing.T) {
 			"no", 0.93,
 		)
 
-		got := ScoreYesNo(cases, 0, nil)
+		got := ScoreNoul(cases, 0, nil)
 
 		want := []string{"c8", "c9", "c3", "c4", "c1", "c2"}
-		if names := yesNoNames(got.Misses); !slices.Equal(names, want) {
+		if names := noulNames(got.Misses); !slices.Equal(names, want) {
 			t.Errorf("misses = %v, want %v", names, want)
 		}
 	})
@@ -265,7 +265,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should give an empty miss list rather than nil when every case is on its side", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(yesNoCases("yes", 0.5, "no", 0.5, "yes", 0.9), 0, nil)
+		got := ScoreNoul(noulCases("yes", 0.5, "no", 0.5, "yes", 0.9), 0, nil)
 		if got.Misses == nil || len(got.Misses) != 0 {
 			t.Errorf("misses = %v, want an empty list", got.Misses)
 		}
@@ -274,7 +274,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should give empty lists rather than nil for no cases", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(nil, 2, nil)
+		got := ScoreNoul(nil, 2, nil)
 		if got.Cuts == nil || got.Values == nil || got.Misses == nil {
 			t.Errorf("cuts %v, values %v, misses %v, want empty lists", got.Cuts == nil, got.Values == nil, got.Misses == nil)
 		}
@@ -283,7 +283,7 @@ func TestScoreYesNo(t *testing.T) {
 	t.Run("should leave the AUC and false alarms undefined when every label is yes", func(t *testing.T) {
 		t.Parallel()
 
-		got := ScoreYesNo(yesNoCases("yes", 0.9, "yes", 0.2), 0, []float64{0.5})
+		got := ScoreNoul(noulCases("yes", 0.9, "yes", 0.2), 0, []float64{0.5})
 		if got.HasAUC {
 			t.Errorf("HasAUC = true, want false")
 		}
@@ -521,13 +521,13 @@ func TestScoreRate(t *testing.T) {
 	})
 }
 
-func yesNoCases(pairs ...any) []YesNoCase {
-	cases := make([]YesNoCase, 0, len(pairs)/2)
+func noulCases(pairs ...any) []NoulCase {
+	cases := make([]NoulCase, 0, len(pairs)/2)
 	for i := 0; i < len(pairs); i += 2 {
 		label, _ := pairs[i].(string)
 		value, _ := pairs[i+1].(float64)
 		name := caseName(len(cases))
-		cases = append(cases, YesNoCase{
+		cases = append(cases, NoulCase{
 			Name: name, ID: name, Line: len(cases) + 1, Yes: label == "yes", Value: value,
 		})
 	}
@@ -554,7 +554,7 @@ func caseName(index int) string {
 	return "c" + strconv.Itoa(index+1)
 }
 
-func yesNoNames(cases []YesNoCase) []string {
+func noulNames(cases []NoulCase) []string {
 	names := make([]string, 0, len(cases))
 	for _, c := range cases {
 		names = append(names, c.Name)

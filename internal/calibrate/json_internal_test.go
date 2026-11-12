@@ -120,8 +120,8 @@ func TestWriteJSON(t *testing.T) {
 	t.Run("should list every yes/no miss rather than five", func(t *testing.T) {
 		t.Parallel()
 
-		report := Report{Questions: []QuestionReport{yesNoReport("urgent", ScoreYesNo(
-			namedYesNo("yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "no", 0.8, "no", 0.8, "no", 0.8, "yes", 0.9),
+		report := Report{Questions: []QuestionReport{noulReport("urgent", ScoreNoul(
+			namedNoul("yes", 0.2, "yes", 0.2, "yes", 0.2, "yes", 0.2, "no", 0.8, "no", 0.8, "no", 0.8, "yes", 0.9),
 			0, []float64{0.5},
 		))}}
 
@@ -242,13 +242,13 @@ func TestWriteJSON(t *testing.T) {
 		}}
 		questions := questionsOf(t, writeJSON(t, report))
 
-		var yesNo, rate map[string]json.RawMessage
-		decode(t, questions[0], &yesNo)
+		var noul, rate map[string]json.RawMessage
+		decode(t, questions[0], &noul)
 		decode(t, questions[1], &rate)
 
-		if string(yesNo["auc"]) != "null" || string(yesNo["auc_interval"]) != "null" || string(rate["mean_distance"]) != "null" {
-			t.Errorf("auc = %s, auc interval = %s, mean distance = %s, want null for all", yesNo["auc"],
-				yesNo["auc_interval"], rate["mean_distance"])
+		if string(noul["auc"]) != "null" || string(noul["auc_interval"]) != "null" || string(rate["mean_distance"]) != "null" {
+			t.Errorf("auc = %s, auc interval = %s, mean distance = %s, want null for all", noul["auc"],
+				noul["auc_interval"], rate["mean_distance"])
 		}
 	})
 
@@ -256,7 +256,7 @@ func TestWriteJSON(t *testing.T) {
 		t.Parallel()
 
 		report := Report{Questions: []QuestionReport{
-			yesNoReport("urgent", ScoreYesNo([]YesNoCase{
+			noulReport("urgent", ScoreNoul([]NoulCase{
 				{Line: 2, Yes: true, Value: 0.1, Text: "the site is down"},
 			}, 0, []float64{0.5})),
 			pickReport("team", ScorePick([]ChoiceCase{
@@ -265,12 +265,12 @@ func TestWriteJSON(t *testing.T) {
 		}}
 		questions := questionsOf(t, writeJSON(t, report))
 
-		var yesNo, pick struct{ Misses []map[string]json.RawMessage }
-		decode(t, questions[0], &yesNo)
+		var noul, pick struct{ Misses []map[string]json.RawMessage }
+		decode(t, questions[0], &noul)
 		decode(t, questions[1], &pick)
 
 		for i, want := range []string{`"the site is down"`, `"a refund please"`} {
-			miss := slices.Concat(yesNo.Misses, pick.Misses)[i]
+			miss := slices.Concat(noul.Misses, pick.Misses)[i]
 			if string(miss["text"]) != want {
 				t.Errorf("miss %d text = %s, want %s", i, miss["text"], want)
 			}

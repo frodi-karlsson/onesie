@@ -90,8 +90,8 @@ type jsonRequire struct {
 
 func jsonQuestion(q QuestionReport) (any, error) {
 	switch {
-	case q.Shape == plan.Noul && q.YesNo != nil:
-		return yesNoJSON(q.ID, *q.YesNo), nil
+	case q.Shape == plan.Noul && q.Noul != nil:
+		return noulJSON(q.ID, *q.Noul), nil
 	case q.Shape == plan.Pick && q.Pick != nil:
 		s := q.Pick
 
@@ -114,20 +114,20 @@ func jsonQuestion(q QuestionReport) (any, error) {
 	}
 }
 
-func yesNoJSON(id string, s YesNoScore) jsonYesNo {
-	misses := make([]jsonYesNoMiss, 0, len(s.Misses))
+func noulJSON(id string, s NoulScore) jsonNoul {
+	misses := make([]jsonNoulMiss, 0, len(s.Misses))
 	for _, c := range s.Misses {
-		misses = append(misses, jsonYesNoMiss{jsonRecord: recordJSON(c.ID, c.Line), Label: yesNoText(c.Yes), Value: c.Value, Text: preview(c.Text)})
+		misses = append(misses, jsonNoulMiss{jsonRecord: recordJSON(c.ID, c.Line), Label: yesNoText(c.Yes), Value: c.Value, Text: preview(c.Text)})
 	}
 
-	return jsonYesNo{
+	return jsonNoul{
 		ID: id, Shape: ShapeName(plan.Noul), Labelled: s.Labelled, Yes: s.Yes, No: s.No, Failed: s.Failed,
 		AUC: definedOrNull(s.AUC, s.HasAUC), AUCInterval: aucIntervalJSON(s), Cuts: cutRowsJSON(s.Cuts),
 		Values: cutRowsJSON(s.Values), Misses: misses,
 	}
 }
 
-func aucIntervalJSON(s YesNoScore) *[2]float64 {
+func aucIntervalJSON(s NoulScore) *[2]float64 {
 	interval := aucInterval(s)
 	if !interval.Defined {
 		return nil
@@ -136,21 +136,21 @@ func aucIntervalJSON(s YesNoScore) *[2]float64 {
 	return &[2]float64{interval.Low, interval.High}
 }
 
-type jsonYesNo struct {
-	ID          string          `json:"id"`
-	Shape       string          `json:"shape"`
-	Labelled    int             `json:"labelled"`
-	Yes         int             `json:"yes"`
-	No          int             `json:"no"`
-	Failed      int             `json:"failed"`
-	AUC         *float64        `json:"auc"`
-	AUCInterval *[2]float64     `json:"auc_interval"`
-	Cuts        []jsonCutRow    `json:"cuts"`
-	Values      []jsonCutRow    `json:"values"`
-	Misses      []jsonYesNoMiss `json:"misses"`
+type jsonNoul struct {
+	ID          string         `json:"id"`
+	Shape       string         `json:"shape"`
+	Labelled    int            `json:"labelled"`
+	Yes         int            `json:"yes"`
+	No          int            `json:"no"`
+	Failed      int            `json:"failed"`
+	AUC         *float64       `json:"auc"`
+	AUCInterval *[2]float64    `json:"auc_interval"`
+	Cuts        []jsonCutRow   `json:"cuts"`
+	Values      []jsonCutRow   `json:"values"`
+	Misses      []jsonNoulMiss `json:"misses"`
 }
 
-type jsonYesNoMiss struct {
+type jsonNoulMiss struct {
 	jsonRecord
 	Text  string  `json:"text,omitempty"`
 	Label string  `json:"label"`

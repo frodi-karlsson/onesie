@@ -29,7 +29,7 @@ type Usage struct {
 type QuestionReport struct {
 	ID    string
 	Shape plan.Shape
-	YesNo *YesNoScore
+	Noul  *NoulScore
 	Pick  *PickScore
 	Rate  *RateScore
 }

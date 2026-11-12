@@ -278,12 +278,12 @@ func (r Requirement) Check(q QuestionReport, cut float64) Result {
 
 	if r.Measure == AreaUnderCurve {
 		switch {
-		case q.YesNo == nil:
+		case q.Noul == nil:
 			result.Reason = r.notApplicable(q)
-		case !q.YesNo.HasAUC:
+		case !q.Noul.HasAUC:
 			result.Reason = "AUC needs both yes and no labels"
 		default:
-			interval := aucInterval(*q.YesNo)
+			interval := aucInterval(*q.Noul)
 			result.Value, result.Low, result.High = interval.Value, interval.Low, interval.High
 			result.HasValue, result.HasInterval = true, true
 		}
@@ -365,7 +365,7 @@ func (r Requirement) NeedsCompare() string {
 	return fmt.Sprintf("reads %s, a change from a baseline, which needs --compare", r.Measure)
 }
 
-func pairedFlags(baseline, run []YesNoCase, cut float64, labelledYes bool) Interval {
+func pairedFlags(baseline, run []NoulCase, cut float64, labelledYes bool) Interval {
 	var before, after []bool
 
 	for i, c := range baseline {
@@ -381,12 +381,12 @@ func pairedFlags(baseline, run []YesNoCase, cut float64, labelledYes bool) Inter
 }
 
 func (r Requirement) shareOf(q QuestionReport, cut float64) (Share, string) {
-	if r.Measure.YesNo() {
-		if q.YesNo == nil {
+	if r.Measure.Noul() {
+		if q.Noul == nil {
 			return Share{}, r.notApplicable(q)
 		}
 
-		row, found := rowAt(q.YesNo.Cuts, cut)
+		row, found := rowAt(q.Noul.Cuts, cut)
 		if !found {
 			return Share{}, "the report has no row at cut " + cutText(cut)
 		}
@@ -526,8 +526,8 @@ func (m Measure) String() string {
 	return measureNames[m]
 }
 
-// YesNo reports whether the measure reads a yes or no question.
-func (m Measure) YesNo() bool {
+// Noul reports whether the measure reads a yes or no question.
+func (m Measure) Noul() bool {
 	switch m {
 	case Catches, FalseAlarms, RightWhenFlagged, AreaUnderCurve, AUCChange, CatchesChange, FalseAlarmsChange:
 		return true
@@ -539,7 +539,7 @@ func (m Measure) YesNo() bool {
 // NeedsCut reports whether the measure is read at one cut, which every yes or no measure but auc
 // and its change is.
 func (m Measure) NeedsCut() bool {
-	return m.YesNo() && m != AreaUnderCurve && m != AUCChange
+	return m.Noul() && m != AreaUnderCurve && m != AUCChange
 }
 
 // Change reports whether the measure reads a run less the baseline of a --compare.

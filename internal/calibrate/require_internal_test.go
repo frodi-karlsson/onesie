@@ -146,16 +146,16 @@ func TestRequirement_Check(t *testing.T) {
 	t.Parallel()
 
 	// At cut 0.5: 3 of 4 yes flagged, 1 of 4 no flagged, 3 of 4 flagged right.
-	yesNo := ScoreYesNo(
-		yesNoCases("yes", 0.9, "yes", 0.8, "yes", 0.6, "yes", 0.2, "no", 0.7, "no", 0.3, "no", 0.1, "no", 0.05),
+	noul := ScoreNoul(
+		noulCases("yes", 0.9, "yes", 0.8, "yes", 0.6, "yes", 0.2, "no", 0.7, "no", 0.3, "no", 0.1, "no", 0.05),
 		0, []float64{0.5, 0.95})
-	yesOnly := ScoreYesNo(yesNoCases("yes", 0.9, "yes", 0.8), 0, []float64{0.5})
+	yesOnly := ScoreNoul(noulCases("yes", 0.9, "yes", 0.8), 0, []float64{0.5})
 	pick := ScorePick(
 		choiceCases("a", "a", 0.9, "b", "b", 0.9, "a", "b", 0.9, "b", "b", 0.9), []string{"a", "b"}, 0, nil)
 	rate := ScoreRate(
 		choiceCases("1", "1", 0.9, "2", "3", 0.9, "3", "1", 0.9, "3", "3", 0.9), []string{"1", "2", "3"}, 0, nil)
 
-	yesNoQ := QuestionReport{ID: "x", Shape: plan.Noul, YesNo: &yesNo}
+	noulQ := QuestionReport{ID: "x", Shape: plan.Noul, Noul: &noul}
 	pickQ := QuestionReport{ID: "x", Shape: plan.Pick, Pick: &pick}
 	rateQ := QuestionReport{ID: "x", Shape: plan.Rate, Rate: &rate}
 
@@ -169,22 +169,22 @@ func TestRequirement_Check(t *testing.T) {
 		wantCut   bool
 		reason    string
 	}{
-		{name: "should hold catches at its point value", text: "x.catches >= 0.75", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.75, wantCut: true},
-		{name: "should fail a strict greater at the boundary", text: "x.catches > 0.75", q: yesNoQ, cut: 0.5, wantValue: 0.75, wantCut: true},
-		{name: "should hold at most at the boundary", text: "x.false_alarms <= 0.25", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.25, wantCut: true},
-		{name: "should fail a strict less at the boundary", text: "x.false_alarms < 0.25", q: yesNoQ, cut: 0.5, wantValue: 0.25, wantCut: true},
-		{name: "should read right when flagged", text: "x.right_when_flagged >= 0.7", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.75, wantCut: true},
-		{name: "should read the cut it is given", text: "x.catches >= 0.75", q: yesNoQ, cut: 0.95, wantCut: true},
-		{name: "should read auc", text: "x.auc >= 0.8", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.8125},
-		{name: "should compare the low end of auc's interval", text: "lower(x.auc) >= 0.8", q: yesNoQ, cut: 0.5, wantValue: 0.8125},
-		{name: "should compare the lower end of the interval", text: "lower(x.catches) >= 0.75", q: yesNoQ, cut: 0.5, wantValue: 0.75, wantCut: true},
-		{name: "should compare the upper end of the interval", text: "upper(x.false_alarms) <= 0.9", q: yesNoQ, cut: 0.5, wantHeld: true, wantValue: 0.25, wantCut: true},
+		{name: "should hold catches at its point value", text: "x.catches >= 0.75", q: noulQ, cut: 0.5, wantHeld: true, wantValue: 0.75, wantCut: true},
+		{name: "should fail a strict greater at the boundary", text: "x.catches > 0.75", q: noulQ, cut: 0.5, wantValue: 0.75, wantCut: true},
+		{name: "should hold at most at the boundary", text: "x.false_alarms <= 0.25", q: noulQ, cut: 0.5, wantHeld: true, wantValue: 0.25, wantCut: true},
+		{name: "should fail a strict less at the boundary", text: "x.false_alarms < 0.25", q: noulQ, cut: 0.5, wantValue: 0.25, wantCut: true},
+		{name: "should read right when flagged", text: "x.right_when_flagged >= 0.7", q: noulQ, cut: 0.5, wantHeld: true, wantValue: 0.75, wantCut: true},
+		{name: "should read the cut it is given", text: "x.catches >= 0.75", q: noulQ, cut: 0.95, wantCut: true},
+		{name: "should read auc", text: "x.auc >= 0.8", q: noulQ, cut: 0.5, wantHeld: true, wantValue: 0.8125},
+		{name: "should compare the low end of auc's interval", text: "lower(x.auc) >= 0.8", q: noulQ, cut: 0.5, wantValue: 0.8125},
+		{name: "should compare the lower end of the interval", text: "lower(x.catches) >= 0.75", q: noulQ, cut: 0.5, wantValue: 0.75, wantCut: true},
+		{name: "should compare the upper end of the interval", text: "upper(x.false_alarms) <= 0.9", q: noulQ, cut: 0.5, wantHeld: true, wantValue: 0.25, wantCut: true},
 		{name: "should read agreement on a pick", text: "x.agreement >= 0.75", q: pickQ, wantHeld: true, wantValue: 0.75},
 		{name: "should read agreement on a rate", text: "x.agreement < 0.75", q: rateQ, wantHeld: true, wantValue: 0.5},
 		{name: "should read within one on a rate", text: "x.within_one >= 0.75", q: rateQ, wantHeld: true, wantValue: 0.75},
-		{name: "should fail a measure over no records", text: "x.false_alarms <= 0.5", q: QuestionReport{ID: "x", Shape: plan.Noul, YesNo: &yesOnly}, cut: 0.5, wantCut: true, reason: "no record is labelled no"},
-		{name: "should fail auc without both labels", text: "x.auc >= 0.5", q: QuestionReport{ID: "x", Shape: plan.Noul, YesNo: &yesOnly}, reason: "both yes and no labels"},
-		{name: "should fail a cut the report has no row for", text: "x.catches >= 0.5", q: yesNoQ, cut: 0.33, wantCut: true, reason: "no row at cut 0.33"},
+		{name: "should fail a measure over no records", text: "x.false_alarms <= 0.5", q: QuestionReport{ID: "x", Shape: plan.Noul, Noul: &yesOnly}, cut: 0.5, wantCut: true, reason: "no record is labelled no"},
+		{name: "should fail auc without both labels", text: "x.auc >= 0.5", q: QuestionReport{ID: "x", Shape: plan.Noul, Noul: &yesOnly}, reason: "both yes and no labels"},
+		{name: "should fail a cut the report has no row for", text: "x.catches >= 0.5", q: noulQ, cut: 0.33, wantCut: true, reason: "no row at cut 0.33"},
 	}
 
 	for _, tc := range tests {
@@ -223,13 +223,13 @@ func TestRequirement_Check(t *testing.T) {
 			pairs = append(pairs, "yes", 0.9)
 		}
 
-		score := ScoreYesNo(yesNoCases(pairs...), 0, []float64{0.5})
+		score := ScoreNoul(noulCases(pairs...), 0, []float64{0.5})
 		req, err := ParseRequirement("lower(x.catches) >= 0.9")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		got := req.Check(QuestionReport{ID: "x", Shape: plan.Noul, YesNo: &score}, 0.5)
+		got := req.Check(QuestionReport{ID: "x", Shape: plan.Noul, Noul: &score}, 0.5)
 		if got.Held || !got.HasInterval || got.Low < 0.8 || got.Low > 0.82 || got.Value != 1 {
 			t.Errorf("Check = %+v, want a failure with a lower bound near 0.81", got)
 		}
@@ -248,13 +248,13 @@ func TestRequirement_Check(t *testing.T) {
 			pairs = append(pairs, "yes", value)
 		}
 
-		score := ScoreYesNo(yesNoCases(pairs...), 0, []float64{0.25})
+		score := ScoreNoul(noulCases(pairs...), 0, []float64{0.25})
 		req, err := ParseRequirement("instructs.catches >= 0.95")
 		if err != nil {
 			t.Fatal(err)
 		}
 
-		got := req.Check(QuestionReport{ID: "instructs", Shape: plan.Noul, YesNo: &score}, 0.25).String()
+		got := req.Check(QuestionReport{ID: "instructs", Shape: plan.Noul, Noul: &score}, 0.25).String()
 		want := "'instructs.catches >= 0.95' did not hold: 15/16 is 0.9375, interval 0.7167 to 0.9889, at cut 0.25"
 		if got != want {
 			t.Errorf("String() = %q, want %q", got, want)
@@ -300,20 +300,20 @@ func TestRequirement_Check(t *testing.T) {
 func TestRequirement_CheckChange(t *testing.T) {
 	t.Parallel()
 
-	cases := func(yes, no []float64) []YesNoCase {
-		out := make([]YesNoCase, 0, len(yes)+len(no))
+	cases := func(yes, no []float64) []NoulCase {
+		out := make([]NoulCase, 0, len(yes)+len(no))
 		for _, v := range yes {
-			out = append(out, YesNoCase{Yes: true, Value: v})
+			out = append(out, NoulCase{Yes: true, Value: v})
 		}
 
 		for _, v := range no {
-			out = append(out, YesNoCase{Value: v})
+			out = append(out, NoulCase{Value: v})
 		}
 
 		return out
 	}
 
-	question := QuestionComparison{ID: "u", Shape: plan.Noul, Scores: CompareYesNo([][]YesNoCase{
+	question := QuestionComparison{ID: "u", Shape: plan.Noul, Scores: CompareNoul([][]NoulCase{
 		cases([]float64{0.9, 0.8, 0.6, 0.3, 0.7}, []float64{0.1, 0.6, 0.2, 0.4}),
 		cases([]float64{0.9, 0.4, 0.7, 0.2, 0.3}, []float64{0.5, 0.3, 0.6, 0.1}),
 	}, nil, nil)}
