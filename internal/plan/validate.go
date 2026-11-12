@@ -257,7 +257,7 @@ func checkPick(q *Question) (string, error) {
 		return "", err
 	}
 
-	if err := checkPolicy(q, false); err != nil {
+	if err := checkPolicy(q); err != nil {
 		return "", err
 	}
 
@@ -277,7 +277,7 @@ func checkRate(q *Question) error {
 		}
 	}
 
-	return checkPolicy(q, false)
+	return checkPolicy(q)
 }
 
 func levelLabels(q *Question) []string {
@@ -368,7 +368,7 @@ func checkNoul(q *Question) error {
 		}
 	}
 
-	return checkPolicy(q, true)
+	return checkPolicy(q)
 }
 
 func checkBox(q *Question) error {
@@ -406,13 +406,13 @@ func countTrue(conditions ...bool) int {
 	return count
 }
 
-func checkPolicy(q *Question, yesNo bool) error {
-	policy := q.Policy
+func checkPolicy(q *Question) error {
+	policy, noul := q.Policy, q.Shape == Noul
 
 	if policy.Threshold != nil {
 		threshold := spelledAs(q, "--threshold", "--threshold")
 
-		if !yesNo {
+		if !noul {
 			noun := "options"
 			if q.Shape == Rate {
 				noun = "levels"
@@ -433,7 +433,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 	if policy.MinConfidence != nil {
 		confidence := spelledAs(q, "--min-confidence", "--min-confidence")
 
-		if yesNo {
+		if noul {
 			remedy := spelledAs(q, "--min-confidence", "--threshold")
 
 			// A flag never reshapes a question from a file, so only a flag question can take a shape.
@@ -458,7 +458,7 @@ func checkPolicy(q *Question, yesNo bool) error {
 		}
 	}
 
-	if yesNo && policy.Fallback != nil {
+	if noul && policy.Fallback != nil {
 		if _, ok := ParseFallback(policy.Fallback.Text); !ok {
 			return fmt.Errorf(
 				"%s on a yes or no question takes true, false, yes or no, got '%s'",
