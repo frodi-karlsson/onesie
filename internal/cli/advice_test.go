@@ -20,12 +20,11 @@ func TestExplain(t *testing.T) {
 	t.Parallel()
 
 	const (
-		tooMany    = `{"detail":"Too many score levels. Must have at most 10 levels."}`
-		tooLong    = `{"detail":"max_tokens_exceeded"}`
-		invalid    = `{"detail":"Invalid request."}`
-		longNote   = ". Pass --long-context to raise the context limit, which is slower and less accurate"
-		boxNote    = " A box question needs a model that serves it, such as -m jev-preview"
-		imagesNote = " The request carried images, and a model that reads none can refuse it this way. Try it without them to tell"
+		tooMany  = `{"detail":"Too many score levels. Must have at most 10 levels."}`
+		tooLong  = `{"detail":"max_tokens_exceeded"}`
+		invalid  = `{"detail":"Invalid request."}`
+		longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+		boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
 	)
 
 	typesafe := requestFacts{provider: onesie.TypeSafe(), model: onesie.TypeSafe().DefaultModel()}
@@ -54,25 +53,6 @@ func TestExplain(t *testing.T) {
 			status: http.StatusBadRequest, body: invalid,
 			facts: with(func(f *requestFacts) { f.provider, f.boxed = onesie.Levanto(), true }),
 			want:  "400 Invalid request. A box question needs a model that serves it",
-		},
-		{
-			name: "should suspect the images behind a 400 the route does not recognise", status: http.StatusBadRequest,
-			body: `{"error":{"message":"Could not find a reference to a model in the request."}}`,
-			facts: with(func(f *requestFacts) {
-				f.provider, f.model, f.images = onesie.Vercel(), "microsoft/microsoft-decision-1", true
-			}),
-			want: "400 Could not find a reference to a model in the request." + imagesNote,
-		},
-		{
-			name: "should leave a box note alone when the request also carried images", status: http.StatusBadRequest,
-			body: invalid, facts: with(func(f *requestFacts) { f.images, f.boxed = true, true }),
-			want: "400 Invalid request." + boxNote,
-		},
-		{
-			name: "should suspect no images behind a 400 without them", status: http.StatusBadRequest,
-			body:  `{"error":{"message":"Could not find a reference to a model in the request."}}`,
-			facts: with(func(f *requestFacts) { f.provider, f.model = onesie.Vercel(), "microsoft/microsoft-decision-1" }),
-			want:  "400 Could not find a reference to a model in the request.",
 		},
 	}
 
@@ -132,7 +112,7 @@ func requestRefusal(t *testing.T, status int, body string, facts requestFacts) e
 		Questions: onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}},
 	}
 
-	if facts.images || facts.boxed {
+	if facts.boxed {
 		img, imageErr := onesie.NewImage(squarePNG(t))
 		if imageErr != nil {
 			t.Fatal(imageErr)
@@ -615,14 +595,10 @@ func TestAdvise(t *testing.T) {
 		t.Parallel()
 
 		const (
-			invalid    = `{"detail":"Invalid request."}`
-			tooLong    = `{"detail":"max_tokens_exceeded"}`
-			boxNote    = " A box question needs a model that serves it, such as -m jev-preview"
-			imagesNote = " The request carried images, and a model that reads none can refuse it this way. Try it without them to tell"
-			longNote   = ". Pass --long-context to raise the context limit, which is slower and less accurate"
-
-			vercelImageless  = "microsoft/microsoft-decision-1"
-			noModelReference = `{"error":{"message":"Could not find a reference to a model in the request.","type":"AI_APICallError"}}`
+			invalid  = `{"detail":"Invalid request."}`
+			tooLong  = `{"detail":"max_tokens_exceeded"}`
+			boxNote  = " A box question needs a model that serves it, such as -m jev-preview"
+			longNote = ". Pass --long-context to raise the context limit, which is slower and less accurate"
 		)
 
 		square := map[string]string{"square.png": string(squarePNG(t))}
@@ -658,38 +634,6 @@ func TestAdvise(t *testing.T) {
 				response: invalid,
 				wantCode: ExitRecords,
 				wantOut:  []string{`"message":"400 Invalid request.` + boxNote + `"`},
-			},
-			{
-				name:     "should suspect the images behind a 400 vercel does not recognise",
-				args:     []string{"--image", "photo=square.png", "--ask", "q=is there a square in `photo`", "-m", vercelImageless},
-				files:    square,
-				stdin:    "look",
-				provider: "vercel",
-				status:   http.StatusBadRequest,
-				response: noModelReference,
-				wantCode: ExitUsage,
-				wantErr:  "onesie: 400 Could not find a reference to a model in the request." + imagesNote + "\n",
-			},
-			{
-				name: "should suspect the images behind a replayed body vercel does not recognise",
-				args: []string{"-i", "request"},
-				stdin: `{"state":{"photo":"r"},"model":"` + vercelImageless + `","questions":{"q":{"type":"noul","instructions":"x"}},` +
-					`"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
-				provider: "vercel",
-				status:   http.StatusBadRequest,
-				response: noModelReference,
-				wantCode: ExitRecords,
-				wantOut:  []string{`"message":"400 Could not find a reference to a model in the request.` + imagesNote + `"`},
-			},
-			{
-				name:     "should suspect no images on the provider's default model, which reads them",
-				args:     []string{"--image", "photo=square.png", "--ask", "q=is there a square in `photo`"},
-				files:    square,
-				stdin:    "look",
-				status:   http.StatusBadRequest,
-				response: invalid,
-				wantCode: ExitUsage,
-				wantErr:  "onesie: 400 Invalid request.\n",
 			},
 			{
 				name:     "should name --long-context when the state is over the context limit",

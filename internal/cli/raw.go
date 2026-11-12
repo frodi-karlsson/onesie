@@ -137,7 +137,7 @@ func (r *rawRun) send(ctx context.Context, body *onesie.PreparedBody) ([]byte, e
 	result, response, err := r.client.SendPrepared(ctx, body)
 	if err != nil {
 		advised := explain(err, requestFacts{
-			provider: r.provider, model: body.Model(), longContext: body.LongContext(), images: body.Images(), boxed: body.Box(),
+			provider: r.provider, model: body.Model(), longContext: body.LongContext(), boxed: body.Box(),
 		})
 
 		var unusable *onesie.ResponseError
