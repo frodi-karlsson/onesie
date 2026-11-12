@@ -13,9 +13,9 @@ const (
 	missGap      = 0.5
 )
 
-// ScoreYesNo scores yes or no answers, whose values lie in [0,1], against their labels. A record
+// ScoreNoul scores yes or no answers, whose values lie in [0,1], against their labels. A record
 // is flagged at a cut when its value is at or above the cut, and failed counts failed requests.
-func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
+func ScoreNoul(cases []NoulCase, failed int, cuts []float64) NoulScore {
 	yes, no := []float64{}, []float64{}
 
 	for _, c := range cases {
@@ -29,14 +29,14 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 	slices.Sort(yes)
 	slices.Sort(no)
 
-	score := YesNoScore{
+	score := NoulScore{
 		Labelled: len(cases),
 		Yes:      len(yes),
 		No:       len(no),
 		Failed:   failed,
 		Cuts:     make([]CutRow, 0, len(cuts)),
 		Values:   []CutRow{},
-		Misses:   []YesNoCase{},
+		Misses:   []NoulCase{},
 	}
 	score.AUC, score.HasAUC = auc(cases)
 
@@ -54,21 +54,21 @@ func ScoreYesNo(cases []YesNoCase, failed int, cuts []float64) YesNoScore {
 		}
 	}
 
-	slices.SortStableFunc(score.Misses, func(a, b YesNoCase) int {
+	slices.SortStableFunc(score.Misses, func(a, b NoulCase) int {
 		return cmp.Compare(gap(b), gap(a))
 	})
 
 	return score
 }
 
-// YesNoScore is how well a yes or no question's answers agree with its labels. Values holds a row
+// NoulScore is how well a yes or no question's answers agree with its labels. Values holds a row
 // at every distinct value answered, and Misses every case past the middle, widest gap first.
-type YesNoScore struct {
+type NoulScore struct {
 	Labelled, Yes, No, Failed int
 	AUC                       float64
 	HasAUC                    bool
 	Cuts, Values              []CutRow
-	Misses                    []YesNoCase
+	Misses                    []NoulCase
 }
 
 func cutRow(cut float64, sortedYes, sortedNo []float64) CutRow {
@@ -106,7 +106,7 @@ func distinct(sortedYes, sortedNo []float64) []float64 {
 	return slices.Compact(values)
 }
 
-func gap(c YesNoCase) float64 {
+func gap(c NoulCase) float64 {
 	miss := c.Value
 	if c.Yes {
 		miss = 1 - c.Value
@@ -116,7 +116,7 @@ func gap(c YesNoCase) float64 {
 	return math.Round(miss*gapPrecision) / gapPrecision
 }
 
-func auc(cases []YesNoCase) (float64, bool) {
+func auc(cases []NoulCase) (float64, bool) {
 	order := make([]int, len(cases))
 	for i := range order {
 		order[i] = i
@@ -156,9 +156,9 @@ func auc(cases []YesNoCase) (float64, bool) {
 	return roundedInside((yesRanks - y*(y+1)/2) / (y * float64(noCount))), true
 }
 
-// YesNoCase is one answered record of a yes or no question, with its label and the value answered.
+// NoulCase is one answered record of a yes or no question, with its label and the value answered.
 // ID is nil when the run has no --id, and Line is the record's input line.
-type YesNoCase struct {
+type NoulCase struct {
 	Name  string
 	ID    any
 	Line  int
@@ -374,7 +374,7 @@ func agreed(cases []ChoiceCase, cut float64) int {
 }
 
 // ChoiceCase is one answered record of a pick or rate question, with its label, the name picked
-// and the confidence given. ID and Line identify the record as they do for a YesNoCase.
+// and the confidence given. ID and Line identify the record as they do for a NoulCase.
 type ChoiceCase struct {
 	Name, Label, Picked string
 	ID                  any

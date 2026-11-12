@@ -393,7 +393,7 @@ func compareQuestion(
 	}
 
 	if question.Shape == plan.Noul {
-		compared.Scores = calibrate.CompareYesNo(casesOfRuns(cases, func(c recordCase) calibrate.YesNoCase { return c.yesNo }), cuts, budgets)
+		compared.Scores = calibrate.CompareNoul(casesOfRuns(cases, func(c recordCase) calibrate.NoulCase { return c.noul }), cuts, budgets)
 	} else {
 		compared.Choices = calibrate.CompareChoices(casesOfRuns(cases, func(c recordCase) calibrate.ChoiceCase { return c.choice }),
 			namesOf(question), question.Shape == plan.Rate, cuts)
@@ -493,7 +493,7 @@ func measureEachRun(
 
 			switch question.Shape {
 			case plan.Noul:
-				report.Questions[q].YesNo = &compared.Scores[r].YesNo
+				report.Questions[q].Noul = &compared.Scores[r].Noul
 			case plan.Pick:
 				report.Questions[q].Pick = &compared.Choices[r].Pick
 			case plan.Rate:

@@ -29,17 +29,17 @@ const (
 // both runs share, or each run's cut at the first false alarm budget.
 type CutSource int
 
-// MoveYesNo lists how each record's answer moved from the baseline to a run. A record crossed the
+// MoveNoul lists how each record's answer moved from the baseline to a run. A record crossed the
 // cut when it is flagged on one side and not the other, with baseCut on the baseline and runCut on
 // the run.
-func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSource) YesNoMoves {
-	moves := YesNoMoves{BaseCut: baseCut, RunCut: runCut, From: from, Worse: []YesNoMove{}, Better: []YesNoMove{}}
+func MoveNoul(baseline, run []NoulCase, baseCut, runCut float64, from CutSource) NoulMoves {
+	moves := NoulMoves{BaseCut: baseCut, RunCut: runCut, From: from, Worse: []NoulMove{}, Better: []NoulMove{}}
 
 	var yesTotal, noTotal float64
 
 	for i, before := range baseline {
 		after := run[i]
-		move := YesNoMove{Case: after, Before: before.Value, After: after.Value}
+		move := NoulMove{Case: after, Before: before.Value, After: after.Value}
 
 		// Positive is toward the wrong side of the label, so a yes falling and a no rising both got worse.
 		move.Move = num.Rounded(after.Value - before.Value)
@@ -85,8 +85,8 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 		moves.MeanNo = num.Rounded(noTotal / float64(moves.No))
 	}
 
-	for _, list := range [][]YesNoMove{moves.Worse, moves.Better} {
-		slices.SortStableFunc(list, func(a, b YesNoMove) int {
+	for _, list := range [][]NoulMove{moves.Worse, moves.Better} {
+		slices.SortStableFunc(list, func(a, b NoulMove) int {
 			return cmp.Or(
 				cmp.Compare(crossedFirst(b.Crossed), crossedFirst(a.Crossed)),
 				cmp.Compare(math.Abs(b.Move), math.Abs(a.Move)),
@@ -98,23 +98,23 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 	return moves
 }
 
-// YesNoMoves is one run against the baseline. Worse and Better hold the records that crossed the
+// NoulMoves is one run against the baseline. Worse and Better hold the records that crossed the
 // cut or moved by SmallMove or more, crossed records first, then by size. Small counts the rest.
 // MeanYes and MeanNo are the mean move in value over the Yes and No labelled records.
-type YesNoMoves struct {
+type NoulMoves struct {
 	BaseCut, RunCut float64
 	From            CutSource
-	Worse, Better   []YesNoMove
+	Worse, Better   []NoulMove
 	Small           int
 	Yes, No         int
 	MeanYes, MeanNo float64
 }
 
-// YesNoMove is one record's answer on the baseline and on the run. Case is the run's case, and Move
+// NoulMove is one record's answer on the baseline and on the run. Case is the run's case, and Move
 // is positive toward the wrong side of its label. CutMoved marks a crossing that happens only
 // because the two runs read different cuts.
-type YesNoMove struct {
-	Case                     YesNoCase
+type NoulMove struct {
+	Case                     NoulCase
 	Before, After, Move      float64
 	Crossed, Small, CutMoved bool
 }
@@ -162,7 +162,7 @@ type ChoiceMove struct {
 	BeforeConfidence float64
 }
 
-func writeYesNoMoves(b *strings.Builder, baseline, file string, moves YesNoMoves, budget float64) {
+func writeNoulMoves(b *strings.Builder, baseline, file string, moves NoulMoves, budget float64) {
 	b.WriteString("\n" + printable(file) + " against " + printable(baseline))
 
 	switch {
@@ -180,7 +180,7 @@ func writeYesNoMoves(b *strings.Builder, baseline, file string, moves YesNoMoves
 
 	for _, list := range []struct {
 		name  string
-		moves []YesNoMove
+		moves []NoulMove
 	}{{"got worse", moves.Worse}, {"got better", moves.Better}} {
 		if len(list.moves) == 0 {
 			continue
@@ -194,7 +194,7 @@ func writeYesNoMoves(b *strings.Builder, baseline, file string, moves YesNoMoves
 		}
 
 		fmt.Fprintf(b, "%s, %s, %d crossed the cut\n", list.name, wording.Plural(len(list.moves), "record", "records"), crossed)
-		writeYesNoRows(b, list.moves)
+		writeNoulRows(b, list.moves)
 	}
 
 	if moves.Small > 0 {
@@ -215,7 +215,7 @@ func signedTwoPlaces(value float64) string {
 	return text
 }
 
-func writeYesNoRows(b *strings.Builder, moves []YesNoMove) {
+func writeNoulRows(b *strings.Builder, moves []NoulMove) {
 	shown := moves[:min(len(moves), listedMoves)]
 	names, texts := make([]string, 0, len(shown)), make([]string, 0, len(shown))
 	labels, values, marks := make([]string, 0, len(shown)), make([]string, 0, len(shown)), make([]string, 0, len(shown))

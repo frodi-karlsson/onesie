@@ -15,7 +15,7 @@ func TestWriteComparisonTable(t *testing.T) {
 	cost := func(value float64) *float64 { return &value }
 	question := QuestionComparison{
 		ID: "urgent", Labelled: 2, LeftOut: make([]LeftOut, 2),
-		Scores: CompareYesNo([][]YesNoCase{
+		Scores: CompareNoul([][]NoulCase{
 			{{Yes: true, Value: 0.9}, {Value: 0.1}}, {{Yes: true, Value: 0.8}, {Value: 0.2}},
 		}, nil, nil),
 	}

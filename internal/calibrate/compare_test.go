@@ -5,30 +5,30 @@ import (
 	"testing"
 )
 
-func TestCompareYesNo(t *testing.T) {
+func TestCompareNoul(t *testing.T) {
 	t.Parallel()
 
-	separated := func(yes, no int) []YesNoCase {
-		cases := make([]YesNoCase, 0, yes+no)
+	separated := func(yes, no int) []NoulCase {
+		cases := make([]NoulCase, 0, yes+no)
 		for range yes {
-			cases = append(cases, YesNoCase{Yes: true, Value: 0.9})
+			cases = append(cases, NoulCase{Yes: true, Value: 0.9})
 		}
 
 		for range no {
-			cases = append(cases, YesNoCase{Value: 0.1})
+			cases = append(cases, NoulCase{Value: 0.1})
 		}
 
 		return cases
 	}
 
-	ranked := func(yes, no []float64) []YesNoCase {
-		cases := make([]YesNoCase, 0, len(yes)+len(no))
+	ranked := func(yes, no []float64) []NoulCase {
+		cases := make([]NoulCase, 0, len(yes)+len(no))
 		for _, value := range yes {
-			cases = append(cases, YesNoCase{Yes: true, Value: value})
+			cases = append(cases, NoulCase{Yes: true, Value: value})
 		}
 
 		for _, value := range no {
-			cases = append(cases, YesNoCase{Value: value})
+			cases = append(cases, NoulCase{Value: value})
 		}
 
 		return cases
@@ -38,7 +38,7 @@ func TestCompareYesNo(t *testing.T) {
 	// shows as a mismatch.
 	intervals := []struct {
 		name  string
-		cases []YesNoCase
+		cases []NoulCase
 		want  Interval
 	}{
 		{
@@ -67,7 +67,7 @@ func TestCompareYesNo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := CompareYesNo([][]YesNoCase{tc.cases}, nil, nil)[0].AUC
+			got := CompareNoul([][]NoulCase{tc.cases}, nil, nil)[0].AUC
 			if got != tc.want {
 				t.Errorf("AUC = %+v, want %+v", got, tc.want)
 			}
@@ -77,7 +77,7 @@ func TestCompareYesNo(t *testing.T) {
 	t.Run("should leave the baseline without a change", func(t *testing.T) {
 		t.Parallel()
 
-		scores := CompareYesNo([][]YesNoCase{separated(3, 3), separated(3, 3)}, nil, nil)
+		scores := CompareNoul([][]NoulCase{separated(3, 3), separated(3, 3)}, nil, nil)
 		if scores[0].Change != nil || scores[1].Change == nil {
 			t.Errorf("changes = %v and %v, want nil on the baseline and set on the run", scores[0].Change, scores[1].Change)
 		}
@@ -85,7 +85,7 @@ func TestCompareYesNo(t *testing.T) {
 
 	changes := []struct {
 		name           string
-		baseline, runs []YesNoCase
+		baseline, runs []NoulCase
 		want           Interval
 	}{
 		{
@@ -111,7 +111,7 @@ func TestCompareYesNo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := CompareYesNo([][]YesNoCase{tc.baseline, tc.runs}, nil, nil)[1].Change
+			got := CompareNoul([][]NoulCase{tc.baseline, tc.runs}, nil, nil)[1].Change
 			if got == nil || *got != tc.want {
 				t.Errorf("change = %+v, want %+v", got, tc.want)
 			}
@@ -142,7 +142,7 @@ func TestCompareYesNo(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := CompareYesNo([][]YesNoCase{budgetCases}, nil, []float64{tc.budget})[0].Budgets[0]
+			got := CompareNoul([][]NoulCase{budgetCases}, nil, []float64{tc.budget})[0].Budgets[0]
 			if got != tc.want {
 				t.Errorf("row = %+v, want %+v", got, tc.want)
 			}
@@ -154,7 +154,7 @@ func TestCompareYesNo(t *testing.T) {
 
 		cases := ranked([]float64{0.5}, []float64{0.9, 0.1})
 
-		got := CompareYesNo([][]YesNoCase{cases}, nil, []float64{0})[0].Budgets[0]
+		got := CompareNoul([][]NoulCase{cases}, nil, []float64{0})[0].Budgets[0]
 		if got.Found {
 			t.Errorf("row = %+v, want none found", got)
 		}

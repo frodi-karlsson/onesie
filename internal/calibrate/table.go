@@ -45,8 +45,8 @@ func WriteTable(w io.Writer, r Report) error {
 
 func writeQuestion(b *strings.Builder, q QuestionReport) error {
 	switch {
-	case q.Shape == plan.Noul && q.YesNo != nil:
-		writeYesNo(b, q.ID, *q.YesNo)
+	case q.Shape == plan.Noul && q.Noul != nil:
+		writeNoul(b, q.ID, *q.Noul)
 	case q.Shape == plan.Pick && q.Pick != nil:
 		writeChoice(b, q.ID, q.Shape, "option", *q.Pick, nil)
 	case q.Shape == plan.Rate && q.Rate != nil:
@@ -58,7 +58,7 @@ func writeQuestion(b *strings.Builder, q QuestionReport) error {
 	return nil
 }
 
-func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
+func writeNoul(b *strings.Builder, id string, s NoulScore) {
 	fmt.Fprintf(b, "%s, %s: labelled %d, %d yes, %d no, %s. %s\n",
 		printable(id), ShapeName(plan.Noul), s.Labelled, s.Yes, s.No, output.Count(output.Error, s.Failed), aucText(s))
 
@@ -106,7 +106,7 @@ func writeYesNo(b *strings.Builder, id string, s YesNoScore) {
 	writeColumns(b, missColumns(names, texts, column{cells: labels}, column{cells: answers})...)
 }
 
-func aucText(s YesNoScore) string {
+func aucText(s NoulScore) string {
 	if !s.HasAUC {
 		return "AUC needs both yes and no labels"
 	}

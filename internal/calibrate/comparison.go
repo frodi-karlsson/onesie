@@ -49,7 +49,7 @@ type QuestionComparison struct {
 	Choices  []ChoiceRunScore
 	// Moves and ChoiceMoves list each run against the baseline, by shape, with nothing at the
 	// baseline's own index.
-	Moves       []YesNoMoves
+	Moves       []NoulMoves
 	ChoiceMoves []ChoiceMoves
 }
 
@@ -97,7 +97,7 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 		return
 	}
 
-	baseline := q.Scores[0].YesNo
+	baseline := q.Scores[0].Noul
 	fmt.Fprintf(b, "%s, %s: compared %d of %d labelled, %d yes, %d no\n",
 		printable(q.ID), ShapeName(plan.Noul), baseline.Labelled, q.Labelled, baseline.Yes, baseline.No)
 
@@ -136,7 +136,7 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 	}
 
 	for r := 1; r < len(q.Moves); r++ {
-		writeYesNoMoves(b, runs[0].File, runs[r].File, q.Moves[r], budget)
+		writeNoulMoves(b, runs[0].File, runs[r].File, q.Moves[r], budget)
 	}
 }
 
@@ -361,7 +361,7 @@ func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 	}
 
 	if q.Shape == plan.Noul {
-		baseline := q.Scores[0].YesNo
+		baseline := q.Scores[0].Noul
 		compared.Compared, compared.Yes, compared.No = baseline.Labelled, &baseline.Yes, &baseline.No
 	} else {
 		compared.Compared = q.Choices[0].Pick.Labelled
@@ -381,7 +381,7 @@ func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 	}
 
 	for r := 1; r < len(q.Moves); r++ {
-		compared.Changes = append(compared.Changes, yesNoMovesJSON(runs[r].File, q.Moves[r]))
+		compared.Changes = append(compared.Changes, noulMovesJSON(runs[r].File, q.Moves[r]))
 	}
 
 	for r := 1; r < len(q.ChoiceMoves); r++ {
@@ -403,7 +403,7 @@ type jsonCompared struct {
 	Changes  []jsonChanges  `json:"changes,omitempty"`
 }
 
-func yesNoMovesJSON(file string, moves YesNoMoves) jsonChanges {
+func noulMovesJSON(file string, moves NoulMoves) jsonChanges {
 	entry := jsonChanges{
 		File: file, CutFrom: cutFromJSON(moves.From), Small: &moves.Small,
 		MeanMove: &jsonMeanMove{Yes: moves.MeanYes, No: moves.MeanNo},
@@ -415,7 +415,7 @@ func yesNoMovesJSON(file string, moves YesNoMoves) jsonChanges {
 	}
 
 	for _, list := range []struct {
-		moves []YesNoMove
+		moves []NoulMove
 		into  *[]jsonMove
 	}{{moves.Worse, &entry.GotWorse}, {moves.Better, &entry.GotBetter}} {
 		for _, move := range list.moves {
@@ -525,7 +525,7 @@ type jsonLeftOut struct {
 func runScoreJSON(file string, score RunScore) jsonRunScore {
 	entry := jsonRunScore{
 		File: file, AUC: intervalJSON(score.AUC), AtFalseAlarms: make([]jsonBudget, 0, len(score.Budgets)),
-		Cuts: cutRowsJSON(score.YesNo.Cuts),
+		Cuts: cutRowsJSON(score.Noul.Cuts),
 	}
 
 	if score.Change != nil {

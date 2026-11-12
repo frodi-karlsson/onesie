@@ -10,15 +10,15 @@ import (
 
 const bisections = 64
 
-// CompareYesNo scores a yes or no question in each of several runs over the same records, the first
+// CompareNoul scores a yes or no question in each of several runs over the same records, the first
 // run being the baseline. Every run's cases hold the same records, labelled alike, in the same order.
-func CompareYesNo(runs [][]YesNoCase, cuts, budgets []float64) []RunScore {
+func CompareNoul(runs [][]NoulCase, cuts, budgets []float64) []RunScore {
 	scores := make([]RunScore, len(runs))
 	ranks := make([]placements, len(runs))
 
 	for i, cases := range runs {
-		score := ScoreYesNo(cases, 0, cuts)
-		scores[i] = RunScore{YesNo: score, AUC: aucInterval(score), Budgets: budgetRows(score, budgets), Cases: cases}
+		score := ScoreNoul(cases, 0, cuts)
+		scores[i] = RunScore{Noul: score, AUC: aucInterval(score), Budgets: budgetRows(score, budgets), Cases: cases}
 		ranks[i] = placementsOf(cases)
 	}
 
@@ -34,11 +34,11 @@ func CompareYesNo(runs [][]YesNoCase, cuts, budgets []float64) []RunScore {
 // baseline, Budgets holds a row per false alarm budget, and Cases the records scored, in the order
 // every run shares.
 type RunScore struct {
-	YesNo   YesNoScore
+	Noul    NoulScore
 	AUC     Interval
 	Change  *Interval
 	Budgets []BudgetRow
-	Cases   []YesNoCase
+	Cases   []NoulCase
 }
 
 // Interval is a value with its 95 percent interval. Defined is false when there is no value.
@@ -55,7 +55,7 @@ type BudgetRow struct {
 	Catches, FalseAlarms Share
 }
 
-func aucInterval(score YesNoScore) Interval {
+func aucInterval(score NoulScore) Interval {
 	if !score.HasAUC {
 		return Interval{}
 	}
@@ -104,7 +104,7 @@ type placements struct {
 	yes, no []float64
 }
 
-func placementsOf(cases []YesNoCase) placements {
+func placementsOf(cases []NoulCase) placements {
 	// DeLong's components: for each yes case the share of no cases it outranks, and for each no case
 	// the share of yes cases that outrank it, ties counting half.
 	var yesValues, noValues []float64
@@ -202,7 +202,7 @@ func recovered(runSide, baselineSide, rho float64) float64 {
 	return math.Sqrt(math.Max(0, runSide*runSide+baselineSide*baselineSide-2*rho*runSide*baselineSide))
 }
 
-func budgetRows(score YesNoScore, budgets []float64) []BudgetRow {
+func budgetRows(score NoulScore, budgets []float64) []BudgetRow {
 	rows := make([]BudgetRow, 0, len(budgets))
 
 	for _, budget := range budgets {
@@ -281,7 +281,7 @@ func (q *QuestionComparison) ListMoves(assertCut float64, hasAssert bool) {
 		return
 	}
 
-	q.Moves = make([]YesNoMoves, len(q.Scores))
+	q.Moves = make([]NoulMoves, len(q.Scores))
 	baseline := q.Scores[0]
 
 	for r := 1; r < len(q.Scores); r++ {
@@ -292,7 +292,7 @@ func (q *QuestionComparison) ListMoves(assertCut float64, hasAssert bool) {
 			baseCut, runCut, from = budgetCuts(baseline, run)
 		}
 
-		q.Moves[r] = MoveYesNo(baseline.Cases, run.Cases, baseCut, runCut, from)
+		q.Moves[r] = MoveNoul(baseline.Cases, run.Cases, baseCut, runCut, from)
 	}
 }
 
