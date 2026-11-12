@@ -309,7 +309,7 @@ func TestMergeRun(t *testing.T) {
 			name:    "should refuse an ONESIE_CACHE the flag would not take, even beside the flag",
 			env:     map[string]string{settingEnv(setting.Cache.Name()): "yes"},
 			args:    []string{"--cache"},
-			wantErr: "ONESIE_CACHE=yes is not a value --cache takes. Use 1 or 0",
+			wantErr: "ONESIE_CACHE=yes is not a value --cache takes. Use 1, 0, true or false",
 		},
 		{
 			name:    "should refuse a negative ONESIE_CACHE_TTL",

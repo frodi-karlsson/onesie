@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/cache"
 	setting "github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -56,8 +57,8 @@ func TestNewCacheCmd(t *testing.T) {
 		fill(t, env)
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
-		want := regexp.MustCompile(`^3 entries, 1 of them expiring, since their model is an alias or their base URL ` +
-			`is custom, [0-9.]+ (B|KB|MB) in ` + regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) + "\n$")
+		want := regexp.MustCompile(`^3 entries, [0-9.]+ (B|KB|MB) in ` + regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) +
+			`\. 1 expires, since its model is an alias or its base URL is custom\n$`)
 
 		if code != ExitOK || !want.MatchString(out) {
 			t.Errorf("exit %d, stdout %q, want it to match %s\n%s", code, out, want, errOut)
@@ -76,7 +77,7 @@ func TestNewCacheCmd(t *testing.T) {
 		}
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
-		if code != ExitOK || !strings.HasPrefix(out, "1 entry, 1 of them expiring, since their model is an alias or ") {
+		if code != ExitOK || !strings.HasPrefix(out, "1 entry, ") || !strings.HasSuffix(out, ". 1 expires, since its model is an alias or its base URL is custom\n") {
 			t.Errorf("exit %d, stdout %q, want the entry counted as expiring\n%s", code, out, errOut)
 		}
 	})
@@ -267,6 +268,39 @@ func TestNewCacheCmd(t *testing.T) {
 
 			if _, errOut, code := runCached(t, cacheEnv(t), args, ""); code != ExitUsage || errOut == "" {
 				t.Errorf("exit %d, stderr %q, want exit 2 with a message", code, errOut)
+			}
+		})
+	}
+}
+
+func TestDescribeCache(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		summary cache.Summary
+		want    string
+	}{
+		{name: "should name only the directory when empty", summary: cache.Summary{}, want: "0 entries in /c"},
+		{name: "should leave out the expiry sentence when nothing expires", summary: cache.Summary{Entries: 2, Bytes: 10}, want: "2 entries, 10 B in /c"},
+		{
+			name:    "should give one expiring entry the singular reason",
+			summary: cache.Summary{Entries: 2, Aliases: 1, Bytes: 10},
+			want:    "2 entries, 10 B in /c. 1 expires, since its model is an alias or its base URL is custom",
+		},
+		{
+			name:    "should give several expiring entries the plural reason",
+			summary: cache.Summary{Entries: 3, Aliases: 2, Bytes: 10},
+			want:    "3 entries, 10 B in /c. 2 expire, since their model is an alias or their base URL is custom",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := describeCache(tc.summary, "/c"); got != tc.want {
+				t.Errorf("describeCache = %q, want %q", got, tc.want)
 			}
 		})
 	}

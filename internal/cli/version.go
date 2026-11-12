@@ -41,13 +41,11 @@ func newVersionCmd(info BuildInfo) *cobra.Command {
 				{"platform", runtime.GOOS + "/" + runtime.GOARCH},
 			}
 
-			for _, row := range rows {
-				if _, err := fmt.Fprintf(out, "%-9s %s\n", row[0], row[1]); err != nil {
-					return err
-				}
+			for _, entry := range limits.Report() {
+				rows = append(rows, [2]string{entry.Name, entry.Value})
 			}
 
-			return writeLimits(out)
+			return writeAligned(out, rows)
 		},
 	}
 
@@ -97,9 +95,14 @@ type versionReport struct {
 	Limits   map[string]string `json:"limits"`
 }
 
-func writeLimits(w io.Writer) error {
-	for _, entry := range limits.Report() {
-		if _, err := fmt.Fprintf(w, "%s %s\n", entry.Name, entry.Value); err != nil {
+func writeAligned(w io.Writer, rows [][2]string) error {
+	width := 0
+	for _, row := range rows {
+		width = max(width, len(row[0]))
+	}
+
+	for _, row := range rows {
+		if _, err := fmt.Fprintf(w, "%-*s %s\n", width, row[0], row[1]); err != nil {
 			return err
 		}
 	}

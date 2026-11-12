@@ -60,12 +60,25 @@ func TestExplain(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := explain(requestRefusal(t, tc.status, tc.body, tc.facts.boxed), tc.facts)
+			got := explain(requestRefusal(t, tc.status, tc.body, tc.facts), tc.facts)
 			if got == nil || text(got) != tc.want {
 				t.Errorf("explain = %v, want %q", got, tc.want)
 			}
 		})
 	}
+
+	t.Run("should name --max-retry-after for a Retry-After over the cap", func(t *testing.T) {
+		t.Parallel()
+
+		overCap := &onesie.RetryAfterError{
+			APIError: onesie.APIError{Status: http.StatusTooManyRequests}, RetryAfter: 2 * time.Minute, Cap: 30 * time.Second,
+		}
+
+		want := "status 429, the server asked to retry after 2m0s, above the 30s cap. Raise --max-retry-after to wait it out"
+		if got := explain(overCap, typesafe); got == nil || text(got) != want {
+			t.Errorf("explain = %v, want %q", got, want)
+		}
+	})
 
 	t.Run("should leave no error as none", func(t *testing.T) {
 		t.Parallel()
@@ -76,7 +89,7 @@ func TestExplain(t *testing.T) {
 	})
 }
 
-func requestRefusal(t *testing.T, status int, body string, boxed bool) error {
+func requestRefusal(t *testing.T, status int, body string, facts requestFacts) error {
 	t.Helper()
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -99,17 +112,18 @@ func requestRefusal(t *testing.T, status int, body string, boxed bool) error {
 		Questions: onesie.Questions{{ID: "urgent", Question: onesie.Noul{Instructions: "is this urgent"}}},
 	}
 
-	if boxed {
+	if facts.boxed {
 		img, imageErr := onesie.NewImage(squarePNG(t))
 		if imageErr != nil {
 			t.Fatal(imageErr)
 		}
 
-		req = onesie.Request{
-			State:     map[string]any{"photo": "ref"},
-			Assets:    onesie.Assets{"ref": img},
-			Questions: onesie.Questions{{ID: "mug", Question: onesie.Box{Instructions: "the mug in ref"}}},
-		}
+		req.State = map[string]any{"photo": "ref"}
+		req.Assets = onesie.Assets{"ref": img}
+	}
+
+	if facts.boxed {
+		req.Questions = onesie.Questions{{ID: "mug", Question: onesie.Box{Instructions: "the mug in ref"}}}
 	}
 
 	_, err = client.SystemOne(t.Context(), req)

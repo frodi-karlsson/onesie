@@ -227,7 +227,7 @@ func (r resolution) chosenProfile() bool {
 func modelSource(origin setting.Origin) string {
 	switch origin.Source {
 	case setting.SourceChosenProfile, setting.SourceDefaultProfile:
-		return "profile"
+		return "the profile's model"
 	case setting.SourceEnv:
 		return sourceEnv + " " + origin.Spelled
 	case setting.SourceDefault:
@@ -371,9 +371,17 @@ func (r resolution) accountSource(source onesie.BaseURLSource, resolveErr error)
 	case errors.Is(resolveErr, onesie.ErrNoAccountID):
 		return sourceNone
 	case source != onesie.BaseURLFromAccount:
-		return "base_url"
-	case r.endpointFrom == profileAccountID:
-		return "account_id"
+		return "the one in base_url"
+	case r.accountID == "":
+		return r.accountFrom()
+	}
+
+	return r.accountID + ", " + r.accountFrom()
+}
+
+func (r resolution) accountFrom() string {
+	if r.endpointFrom == profileAccountID {
+		return profileAccountID
 	}
 
 	return r.provider.EnvAccountID()

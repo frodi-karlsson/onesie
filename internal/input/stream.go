@@ -15,9 +15,10 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/delimiter"
 
 	"github.com/frodi-karlsson/onesie/internal/limits"
+	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
-var errRowTooLong = errors.New("a row is longer than the limit")
+var errRowTooLong = fmt.Errorf("a row is longer than %d bytes, the max-line-bytes limit", limits.MaxLineBytes)
 
 // NewStream reads one record per line, as opts says.
 func NewStream(r io.Reader, mode Mode, opts StreamOptions) *Stream {
@@ -111,7 +112,7 @@ func (s *Stream) Next() (Record, bool, error) {
 		if tooLong {
 			// The line itself is dropped rather than buffered, so Raw is empty and --merge wraps
 			// an empty state. LineError already names the line, which is what locates the record.
-			return s.fail("", errors.New("line is longer than the limit")), true, nil
+			return s.fail("", fmt.Errorf("line is longer than %d bytes, the max-line-bytes limit", limits.MaxLineBytes)), true, nil
 		}
 
 		// Trimmed, since a line of spaces is the same formatting accident and would pay for a
@@ -178,7 +179,7 @@ func (s *Stream) nextRow() (Record, bool, error) {
 	}
 
 	if len(fields) != len(s.header) {
-		return s.fail("", fmt.Errorf("row has %d fields, the header has %d", len(fields), len(s.header))), true, nil
+		return s.fail("", fmt.Errorf("row has %s, the header has %d", wording.Plural(len(fields), "field", "fields"), len(s.header))), true, nil
 	}
 
 	return s.row(fields), true, nil
@@ -375,7 +376,7 @@ func (s *Stream) row(fields []string) Record {
 	wire.WriteByte('}')
 
 	if wire.Len() > limits.MaxLineBytes {
-		return s.fail("", errors.New("row is longer than the limit"))
+		return s.fail("", fmt.Errorf("row is longer than %d bytes, the max-line-bytes limit", limits.MaxLineBytes))
 	}
 
 	record := s.ok(wire.String(), state, json.RawMessage(wire.Bytes()))

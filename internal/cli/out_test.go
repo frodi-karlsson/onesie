@@ -723,7 +723,7 @@ func TestOpenOut(t *testing.T) {
 			sidecar:   matching,
 			bare:      true,
 			args:      []string{"--list-models"},
-			wantFile:  "jev-latest  d  2026-08-01\n",
+			wantFile:  "jev-latest  2026-08-01  d\n",
 			wantCalls: 1,
 		},
 	}

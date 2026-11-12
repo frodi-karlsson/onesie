@@ -618,6 +618,19 @@ func TestNewRootCmd(t *testing.T) {
 			absent: []string{"flags go before"},
 		},
 		{
+			name:     "should name the near subcommand when a misspelled one takes arguments",
+			args:     []string{"profle", "list"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"onesie: expected one question, got 2 arguments. profle is not a subcommand, and the closest is profile\n"},
+		},
+		{
+			name:     "should name no subcommand for a near word after --",
+			args:     []string{"--", "profle", "list"},
+			wantCode: cli.ExitUsage,
+			contains: []string{"Quote a question that holds spaces"},
+			absent:   []string{"not a subcommand"},
+		},
+		{
 			name:     "should name calibrate when it is given two questions",
 			args:     []string{"calibrate", "is", "urgent"},
 			wantCode: cli.ExitUsage,
@@ -2490,38 +2503,42 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
-	t.Run("should print the limits for version as limits.Report lists them", func(t *testing.T) {
+	t.Run("should print the build facts and the limits as limits.Report lists them, in one aligned block", func(t *testing.T) {
 		t.Parallel()
 
-		var listed strings.Builder
-
+		rows := [][2]string{
+			{"version", "1.2.3"},
+			{"commit", "abc1234"},
+			{"built", "2026-10-27"},
+			{"go", runtime.Version()},
+			{"platform", runtime.GOOS + "/" + runtime.GOARCH},
+		}
 		for _, entry := range limits.Report() {
-			listed.WriteString(entry.Name + " " + entry.Value + "\n")
+			rows = append(rows, [2]string{entry.Name, entry.Value})
 		}
 
-		provenance := fmt.Sprintf("version   1.2.3\ncommit    abc1234\nbuilt     2026-10-27\ngo        %s\nplatform  %s/%s\n",
-			runtime.Version(), runtime.GOOS, runtime.GOARCH)
+		var out bytes.Buffer
 
-		for _, pin := range []struct {
-			args []string
-			want string
-		}{
-			{args: []string{"version"}, want: provenance + listed.String()},
-		} {
-			var out bytes.Buffer
+		root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
+			cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&out)
+		root.Command.SetArgs([]string{"version"})
 
-			root := cli.NewRootCmd(cli.BuildInfo{Version: "1.2.3", Commit: "abc1234", Date: "2026-10-27"},
-				cli.WithStdin(strings.NewReader("")), cli.WithStdinTTY(false))
-			root.Command.SetOut(&out)
-			root.Command.SetErr(&out)
-			root.Command.SetArgs(pin.args)
+		if code := root.Execute(t.Context()); code != cli.ExitOK {
+			t.Fatalf("onesie version exit code = %d, output:\n%s", code, out.String())
+		}
 
-			if code := root.Execute(t.Context()); code != cli.ExitOK {
-				t.Fatalf("onesie %s exit code = %d, output:\n%s", strings.Join(pin.args, " "), code, out.String())
-			}
+		lines := strings.Split(strings.TrimSuffix(out.String(), "\n"), "\n")
+		if len(lines) != len(rows) {
+			t.Fatalf("onesie version printed %d lines, want %d:\n%s", len(lines), len(rows), out.String())
+		}
 
-			if out.String() != pin.want {
-				t.Errorf("onesie %s =\n%s\nwant:\n%s", strings.Join(pin.args, " "), out.String(), pin.want)
+		column := strings.Index(lines[0], rows[0][1])
+		for i, line := range lines {
+			name, value, found := strings.Cut(line, " ")
+			if !found || name != rows[i][0] || strings.TrimLeft(value, " ") != rows[i][1] || strings.Index(line, rows[i][1]) != column {
+				t.Errorf("onesie version line %d = %q, want %s and %s with the value at column %d", i+1, line, rows[i][0], rows[i][1], column)
 			}
 		}
 	})

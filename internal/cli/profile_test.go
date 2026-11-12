@@ -1728,7 +1728,7 @@ func TestProfileShow(t *testing.T) {
 		openRouterOwn = "base_url: https://openrouter.ai/api, the provider's default\n"
 		accountURL    = "https://api.cloudflare.com/client/v4/accounts/" + testAccountID + "/ai"
 		workShown     = "profile: work, the default profile\nprovider: openrouter\nchosen by: the default\nkey: keychain, ends in 3f9a\n" +
-			"model: typesafe/jev, profile\n" + openRouterOwn
+			"model: typesafe/jev, the profile's model\n" + openRouterOwn
 		cfShown = "profile: cf, a chosen profile\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
 			"model: typesafe/jev, the provider's default\n"
 		typesafeOwn = "base_url: https://api.typesafe.ai, the provider's default\n"
@@ -1845,18 +1845,18 @@ func TestProfileShow(t *testing.T) {
 			wantCode: ExitUsage,
 		},
 		{
-			name:    "should name CLOUDFLARE_ACCOUNT_ID as the account",
+			name:    "should give the account and name CLOUDFLARE_ACCOUNT_ID",
 			file:    shown,
 			env:     map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID},
 			args:    []string{"profile", "show", "cf"},
-			wantOut: cfShown + "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\naccount: CLOUDFLARE_ACCOUNT_ID\n",
+			wantOut: cfShown + "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\naccount: " + testAccountID + ", CLOUDFLARE_ACCOUNT_ID\n",
 		},
 		{
-			name: "should name account_id as the account",
+			name: "should give the account and name account_id",
 			file: shown,
 			args: []string{"profile", "show", "cfa"},
 			wantOut: "profile: cfa, a chosen profile\nprovider: cloudflare\nchosen by: not active\nkey: file, ends in 6789\n" +
-				"model: typesafe/jev, the provider's default\nbase_url: " + accountURL + ", the profile's account_id\naccount: account_id\n",
+				"model: typesafe/jev, the provider's default\nbase_url: " + accountURL + ", the profile's account_id\naccount: " + testAccountID + ", the profile's account_id\n",
 		},
 		{
 			name: "should show a run under --provider with an environment key",
@@ -1904,7 +1904,7 @@ func TestProfileShow(t *testing.T) {
 			args:       []string{"profile", "show"},
 			wantOut:    tsShown + "model: jev-latest, the provider's default\n" + typesafeOwn,
 			wantCode:   ExitUsage,
-			wantStderr: "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+			wantStderr: "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1, 0, true or false\n",
 		},
 		{
 			name:       "should exit 2 after the report for an ONESIE_LONG_CONTEXT a run refuses",
@@ -1913,7 +1913,7 @@ func TestProfileShow(t *testing.T) {
 			args:       []string{"profile", "show"},
 			wantOut:    tsShown + "model: jev-latest, the provider's default\n" + typesafeOwn,
 			wantCode:   ExitUsage,
-			wantStderr: "onesie: ONESIE_LONG_CONTEXT=maybe is not a value --long-context takes. Use 1 or 0\n",
+			wantStderr: "onesie: ONESIE_LONG_CONTEXT=maybe is not a value --long-context takes. Use 1, 0, true or false\n",
 		},
 		{
 			name: "should print the missing key hint, then the switch a run refuses",
@@ -1941,7 +1941,7 @@ func TestProfileShow(t *testing.T) {
 			wantOut: "profile: none\nprovider: cloudflare\nchosen by: --provider\nkey: none\n" +
 				"model: typesafe/jev, the provider's default\nbase_url: none\naccount: none\n",
 			wantCode:   ExitUsage,
-			wantStderr: cfNoKey + cfNoAccount + "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1 or 0\n",
+			wantStderr: cfNoKey + cfNoAccount + "onesie: ONESIE_CACHE=maybe is not a value --cache takes. Use 1, 0, true or false\n",
 		},
 		{
 			name:    "should report TYPESAFE_DEFAULT_MODEL and TYPESAFE_BASE_URL when the profile sets neither",
@@ -1967,7 +1967,7 @@ func TestProfileShow(t *testing.T) {
 			},
 			args: []string{"profile", "show"},
 			wantOut: "profile: ts, a chosen profile\nprovider: typesafe\nchosen by: ONESIE_PROFILE\nkey: file, ends in 6789\n" +
-				"model: jev-1.13.0, profile\nbase_url: https://proxy.example, the profile's base_url\n",
+				"model: jev-1.13.0, the profile's model\nbase_url: https://proxy.example, the profile's base_url\n",
 		},
 		{
 			name: "should print none, not needed for a custom base URL for a keyless profile",
@@ -2157,7 +2157,7 @@ func TestProfileShow(t *testing.T) {
 
 		for _, want := range []string{
 			"key: env CLOUDFLARE_API_TOKEN\n", "base_url: " + accountURL + ", CLOUDFLARE_ACCOUNT_ID\n",
-			"account: CLOUDFLARE_ACCOUNT_ID\n",
+			"account: " + testAccountID + ", CLOUDFLARE_ACCOUNT_ID\n",
 		} {
 			if !strings.Contains(out, want) {
 				t.Errorf("profile show printed %q, want a line %q", out, want)

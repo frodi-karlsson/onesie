@@ -1174,13 +1174,13 @@ func TestMockSource(t *testing.T) {
 			wantCode: ExitOK,
 		},
 		{
-			name: "should refuse calibrate --print-request under ONESIE_MOCK",
+			name: "should skip ONESIE_MOCK silently under calibrate --print-request",
 			args: []string{
 				"calibrate", "is it urgent", "-i", "jsonl", "--map", ".body", "--label", ".u", "--print-request",
 			},
 			env:      func(path string) map[string]string { return map[string]string{"ONESIE_MOCK": path} },
-			stderr:   []string{"onesie: ONESIE_MOCK does not apply to --print-request, which writes the request bodies and sends none"},
-			wantCode: ExitUsage,
+			silent:   true,
+			wantCode: ExitOK,
 		},
 		{
 			name: "should refuse profile show under ONESIE_MOCK",

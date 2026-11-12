@@ -218,6 +218,24 @@ func fieldsSchema(rows []settingrow.Row) jsonschema.Node {
 	}
 }
 
+// ContentKeys lists the keys a question carries beside its settings.
+func ContentKeys() []ContentKey {
+	keys := make([]ContentKey, 0, len(contentProperties()))
+	for _, property := range contentProperties() {
+		if node, isNode := property.Schema.(jsonschema.Node); isNode {
+			keys = append(keys, ContentKey{Name: property.Name, Help: node.Description})
+		}
+	}
+
+	return keys
+}
+
+// ContentKey is a question key that is no setting, with the sentence the schema describes it by.
+type ContentKey struct {
+	Name string
+	Help string
+}
+
 func contentProperties() jsonschema.Properties {
 	return jsonschema.Properties{
 		{Name: "ask", Schema: jsonschema.Node{

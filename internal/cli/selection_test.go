@@ -629,16 +629,16 @@ func TestResolutionAccountSource(t *testing.T) {
 	}{
 		{name: "should name nothing off cloudflare", run: resolution{provider: onesie.OpenRouter()}},
 		{
-			name: "should name account_id",
+			name: "should give the account and name account_id",
 			run:  resolution{provider: onesie.Cloudflare(), accountID: testAccountID, endpointFrom: profileAccountID},
-			want: "account_id",
+			want: testAccountID + ", the profile's account_id",
 		},
 		{
-			name: "should name CLOUDFLARE_ACCOUNT_ID for an account the merge took from it",
+			name: "should give the account and name CLOUDFLARE_ACCOUNT_ID for an account the merge took from it",
 			run:  resolution{provider: onesie.Cloudflare(), accountID: testAccountID, endpointFrom: "CLOUDFLARE_ACCOUNT_ID"},
-			want: "CLOUDFLARE_ACCOUNT_ID",
+			want: testAccountID + ", CLOUDFLARE_ACCOUNT_ID",
 		},
-		{name: "should name base_url", run: resolution{provider: onesie.Cloudflare(), baseURL: "https://proxy.example"}, want: "base_url"},
+		{name: "should name base_url", run: resolution{provider: onesie.Cloudflare(), baseURL: "https://proxy.example"}, want: "the one in base_url"},
 		{
 			name: "should name CLOUDFLARE_ACCOUNT_ID", run: resolution{provider: onesie.Cloudflare()},
 			env: map[string]string{"CLOUDFLARE_ACCOUNT_ID": testAccountID}, want: "CLOUDFLARE_ACCOUNT_ID",

@@ -19,6 +19,12 @@ func atMostOneQuestion(cmd *cobra.Command, args []string) error {
 	got := fmt.Sprintf("expected one question, got %d arguments", len(args))
 
 	dash := cmd.ArgsLenAtDash()
+	if dash != 0 && bareWord.MatchString(args[0]) {
+		if near := nearSubcommands(cmd, args[0]); len(near) > 0 {
+			return fmt.Errorf("%s. %s is not a subcommand, and the closest is %s", got, args[0], strings.Join(near, " or "))
+		}
+	}
+
 	if dash < 0 || len(args)-dash < 2 || !anyFlagLike(args[dash+1:]) {
 		return fmt.Errorf("%s. Quote a question that holds spaces, as in %s 'is this urgent'", got, cmd.CommandPath())
 	}

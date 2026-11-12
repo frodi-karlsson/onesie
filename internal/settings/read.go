@@ -559,7 +559,7 @@ func (e *EnvironmentError) Unwrap() error { return e.Cause }
 func envErrorText(row settingrow.Row, variable settingrow.EnvSpec, raw string, err error) error {
 	switch row.Kind.Zero().(type) {
 	case bool:
-		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1 or 0", variable.Name, raw, row.Flag.Long)
+		return fmt.Errorf("%s=%s is not a value --%s takes. Use 1, 0, true or false", variable.Name, raw, row.Flag.Long)
 	case time.Duration:
 		return fmt.Errorf("%s=%s is not a duration of zero or more, such as 90m or 72h", variable.Name, raw)
 	case settingrow.EndpointValue:

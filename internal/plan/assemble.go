@@ -155,7 +155,7 @@ func build(g group, src Source) (Question, error) {
 
 		resolved, err := resolve(text, src.ReadFile)
 		if err != nil {
-			return question, err
+			return question, fmt.Errorf("--ask %s: %w", id, err)
 		}
 
 		question.ID = id
@@ -289,7 +289,7 @@ func prepare(events []argv.Event, src Source) ([]argv.Event, error) {
 
 			resolved, err := resolve(text, src.ReadFile)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("--desc %s: %w", key, err)
 			}
 
 			event.Value = key + "=" + resolved

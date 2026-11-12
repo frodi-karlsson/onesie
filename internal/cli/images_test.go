@@ -95,7 +95,7 @@ func TestImagingAttach(t *testing.T) {
 			name:    "should refuse a record without the field",
 			fields:  []string{"photo"},
 			state:   json.RawMessage(`{"id":1}`),
-			wantErr: "--image-field photo: the record has no 'photo'",
+			wantErr: "--image-field photo: the state has no 'photo'",
 		},
 		{
 			name:    "should refuse a field that is not a path",
@@ -623,7 +623,7 @@ func TestRun(t *testing.T) {
 			args:     []string{"--state", "s", "q", "--print-request"},
 			env:      map[string]string{"ONESIE_LONG_CONTEXT": "yes"},
 			wantCode: ExitUsage,
-			wantErr:  "onesie: ONESIE_LONG_CONTEXT=yes is not a value --long-context takes. Use 1 or 0\n",
+			wantErr:  "onesie: ONESIE_LONG_CONTEXT=yes is not a value --long-context takes. Use 1, 0, true or false\n",
 			emptyOut: true,
 		},
 		{
@@ -631,7 +631,7 @@ func TestRun(t *testing.T) {
 			args:     []string{"--state", "s", "q", "--mock", mockFile},
 			env:      map[string]string{"ONESIE_CACHE": "garbage"},
 			wantCode: ExitUsage,
-			wantErr:  "onesie: ONESIE_CACHE=garbage is not a value --cache takes. Use 1 or 0\n",
+			wantErr:  "onesie: ONESIE_CACHE=garbage is not a value --cache takes. Use 1, 0, true or false\n",
 			emptyOut: true,
 		},
 		{

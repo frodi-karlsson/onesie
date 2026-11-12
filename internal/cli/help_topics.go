@@ -19,11 +19,11 @@ const helpLabelledRecord = `{"id":"a","text":"The server is down","urgent":true}
 func helpTopics(command settingrow.Command) []helpTopic {
 	middle := helpTopic{name: "decisions", title: "Decisions", body: helpDecisions(), overview: 4}
 	output := helpTopic{name: "output", title: "Output", body: helpOutput(command), overview: 3}
-	codes := rootExitCodes
+	codes, codesNote := rootExitCodes, streamRank
 	if command == settingrow.CommandCalibrate {
 		middle = helpTopic{name: "evaluation", title: "Evaluation", body: helpEvaluation(), overview: 3}
 		output.overview = 4
-		codes = calibrateExitCodes
+		codes, codesNote = calibrateExitCodes, ""
 	}
 	return []helpTopic{
 		{name: "asking", title: "Asking", body: helpAsking(command), overview: 1},
@@ -32,16 +32,17 @@ func helpTopics(command settingrow.Command) []helpTopic {
 		output,
 		{name: "connections", title: "Connections", body: helpConnections(), overview: 5},
 		{name: "execution", title: "Execution", body: helpExecution(command), overview: 6},
-		{name: "exit-codes", codes: codes},
+		{name: "exit-codes", codes: codes, codesNote: codesNote},
 	}
 }
 
 type helpTopic struct {
-	name     string
-	title    string
-	body     string
-	overview int
-	codes    []exitCodeLine
+	name      string
+	title     string
+	body      string
+	overview  int
+	codes     []exitCodeLine
+	codesNote string
 }
 
 func helpAsking(command settingrow.Command) string {
@@ -53,7 +54,9 @@ func helpAsking(command settingrow.Command) string {
 		"--ask NAME=QUESTION opens a named group and may repeat. --for ID selects a question from --file. " +
 		"Root runs issue a notice for each setting overriding a selected file question. " +
 		"Repeated --pick adds options and repeated --rate adds levels after earlier ones. Together they replace the file question's options or levels. " +
-		"--desc KEY=TEXT replaces only that option, level, yes or no description. A rate needs every level described or none. --sep changes the separator for following --pick and --rate. " +
+		"--desc KEY=TEXT replaces only that option, level, yes or no description. A rate needs every level described or none. " +
+		"The text of --ask and --desc may be @FILE, which reads it from a file and drops one trailing newline. A leading @@ stands for a literal @. " +
+		"--sep changes the separator for following --pick and --rate. " +
 		"--for may repeat and keeps the wording and settings that no flag changes. It needs a file and an existing id and refuses --replace. Flags cannot change a file question shape.\n\n" +
 		"--file accepts a question file, a request body, a path or a saved name. Saved names are looked up in .onesie/questions, " +
 		"then the config directory, then built in starter sets. --ask needs --replace to replace an id from the file. " +
@@ -94,7 +97,7 @@ func helpInput(command settingrow.Command) string {
 		"An explicit delimiter takes one character. TSV uses tabs.\n\n" +
 		"--image NAME=PATH adds a PNG or JPEG under NAME. " + images + "Streams read stdin and add the fixed image to every record. " +
 		"--image-field reads a PNG or JPEG path from a state key per record. " + lineImage +
-		"Image support is experimental on the TypeSafe side. See version for image, file, token and model limits."
+		"Image support is experimental on the TypeSafe side. See version for the image and file limits."
 }
 
 func helpDecisions() string {

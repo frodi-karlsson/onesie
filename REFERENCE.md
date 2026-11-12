@@ -65,6 +65,11 @@ to see which profile, model and endpoint a command will use.
 <!-- settings:question_keys begin -->
 | Key | Where | What it does |
 |-----|-------|--------------|
+| `ask` | a question | the instructions sent to the API, as text or a mapping or sequence of it |
+| `yes_means` | a question | what a yes means |
+| `no_means` | a question | what a no means |
+| `true` | a question | another spelling of yes_means |
+| `false` | a question | another spelling of no_means |
 | `pick` | a question | the options, as a sequence of names or a mapping of name to description |
 | `rate` | a question | the levels from lowest to highest, as names, one key mappings of name to description, or a mapping of name to description |
 | `box` | a question | makes this a box question, answered with the edges of what it finds in an image |

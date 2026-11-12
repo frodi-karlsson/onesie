@@ -111,6 +111,11 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	})
 	addCompletionTakingNoArguments(root)
 
+	// Cobra refuses only a flag that does not exist or already completes, which no input can cause.
+	if err := addFlagCompletions(root, calibrate, settings); err != nil {
+		panic(err)
+	}
+
 	if settings.args != nil {
 		root.SetArgs(settings.args)
 	}

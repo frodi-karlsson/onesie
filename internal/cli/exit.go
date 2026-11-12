@@ -40,7 +40,7 @@ const (
 )
 
 var rootExitCodes = []exitCodeLine{
-	{ExitOK, "answered"},
+	{ExitOK, "answered, or pass: every --assert held"},
 	{ExitFail, "fail: an --assert was false and no --abstain-if held, or under -q alone the answer was judged no"},
 	{ExitUsage, "usage or validation error, including a missing key on the provider's own base URL, or a " +
 		"plain http base URL to another host without --allow-http"},
@@ -65,11 +65,17 @@ var calibrateExitCodes = []exitCodeLine{
 	{ExitInterrupt, "interrupted. No report prints"},
 }
 
-func exitCodesSection(codes []exitCodeLine) string {
+const streamRank = "A stream keeps the most severe code, so 6 beats 1 and 1 beats 7."
+
+func exitCodesSection(codes []exitCodeLine, note string) string {
 	var out bytes.Buffer
 	out.WriteString("Exit codes:\n")
 	for _, line := range codes {
 		writeHelpText(&out, line.meaning, fmt.Sprintf("  %-5d", line.code), "       ")
+	}
+	if note != "" {
+		out.WriteString("\n")
+		writeHelpText(&out, note, "  ", "  ")
 	}
 	return strings.TrimSuffix(out.String(), "\n")
 }

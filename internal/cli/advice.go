@@ -15,7 +15,7 @@ func explain(err error, facts requestFacts) error {
 
 	boxed := adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel())
 
-	return advise(adviseLimits(boxed), facts.model)
+	return advise(adviseRetryAfter(adviseLimits(boxed)), facts.model)
 }
 
 type requestFacts struct {
@@ -160,6 +160,15 @@ func (e *advisedError) Error() string {
 
 func (e *advisedError) Unwrap() error {
 	return e.cause
+}
+
+func adviseRetryAfter(err error) error {
+	var overCap *onesie.RetryAfterError
+	if !errors.As(err, &overCap) {
+		return err
+	}
+
+	return &advisedError{cause: err, note: "Raise --max-retry-after to wait it out"}
 }
 
 func adviseLimits(err error) error {
