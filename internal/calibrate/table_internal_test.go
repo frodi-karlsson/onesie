@@ -44,7 +44,7 @@ func TestWriteTable(t *testing.T) {
 			name:      "should print a cut in its shortest form with at least two places",
 			questions: []QuestionReport{urgentReport([]float64{0.9, 0.995, 1})},
 			want: []string{
-				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 error. AUC 0.89",
+				"urgent, yes/no: labelled 6, 3 yes, 3 no, 1 error. AUC 0.89, interval 0.40-0.99",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut    flagged  catches        false alarms  right when flagged",
@@ -138,7 +138,7 @@ func TestWriteTable(t *testing.T) {
 				namedYesNo("yes", 0.9, "no", 0.5), 0, []float64{0.5},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00",
+				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 1.00, interval 0.21-1.00",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches         false alarms    right when flagged",
@@ -235,7 +235,7 @@ func TestWriteTable(t *testing.T) {
 				0, []float64{0.5},
 			))},
 			want: []string{
-				`"urgent\nfake", yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00`,
+				`"urgent\nfake", yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00, interval 0.00-0.79`,
 				`flagged means "urgent\nfake".value >= cut`,
 				"",
 				"  cut   flagged  catches       false alarms    right when flagged",
@@ -282,7 +282,7 @@ func TestWriteTable(t *testing.T) {
 				Misses: []YesNoCase{},
 			})},
 			want: []string{
-				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 errors. AUC 0.50",
+				"urgent, yes/no: labelled 2000, 1000 yes, 1000 no, 0 errors. AUC 0.50, interval 0.47-0.53",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches              false alarms    right when flagged",
@@ -318,7 +318,7 @@ func TestWriteTable(t *testing.T) {
 				0, []float64{0.5},
 			))},
 			want: []string{
-				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00",
+				"urgent, yes/no: labelled 2, 1 yes, 1 no, 0 errors. AUC 0.00, interval 0.00-0.79",
 				"flagged means urgent.value >= cut",
 				"",
 				"  cut   flagged  catches       false alarms    right when flagged",

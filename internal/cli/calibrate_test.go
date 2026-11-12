@@ -961,7 +961,7 @@ func TestLiveCalibration(t *testing.T) {
 		}
 
 		return strings.Join([]string{
-			"urgent, yes/no: labelled 6, 3 yes, 3 no, " + counted + ". AUC 0.89",
+			"urgent, yes/no: labelled 6, 3 yes, 3 no, " + counted + ". AUC 0.89, interval 0.40-0.99",
 			"flagged means urgent.value >= cut",
 			"",
 			"  cut   flagged  catches         false alarms   right when flagged",
@@ -2972,7 +2972,7 @@ func TestCalibrateAnswers(t *testing.T) {
 				"--require", "u.right_when_flagged >= 0.5 at 0.95"),
 			wantCode: ExitFail,
 			wantReport: []requireJSON{
-				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125)},
+				{Expr: "u.auc >= 0.5", Held: true, Value: ptr(0.8125), Interval: true},
 				{Expr: "t.agreement >= 0.5", Held: true, Value: ptr(0.875), Interval: true},
 				{Expr: "u.right_when_flagged >= 0.5 at 0.95", Cut: ptr(0.95), Reason: "no record is flagged"},
 			},
@@ -3791,6 +3791,11 @@ func TestCasesOf(t *testing.T) {
 			name:   "should refuse a yes or no answer outside [0,1]",
 			record: output.Record{Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{Value: 1.5}}}},
 			want:   "question 'urgent' answered 1.5, which lies outside [0,1]",
+		},
+		{
+			name:   "should name an answer with no value rather than print nil",
+			record: output.Record{Answers: []output.Named{{ID: "urgent", Answer: &answer.Answer{}}}},
+			want:   "question 'urgent' has an answer with no value",
 		},
 	}
 

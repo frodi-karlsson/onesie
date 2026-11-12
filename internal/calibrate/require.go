@@ -239,8 +239,6 @@ func fraction(text string) (float64, error) {
 
 func (r *Requirement) checkCombination() error {
 	switch {
-	case r.Measure == AreaUnderCurve && r.Bound != Point:
-		return errors.New("reads auc, and auc has no interval, so lower and upper do not apply")
 	case r.Measure == AreaUnderCurve && r.At.Kind != AtNone:
 		return errors.New("reads auc, and auc covers every cut, so at does not apply")
 	case !r.Measure.YesNo() && r.At.Kind != AtNone:
@@ -270,7 +268,9 @@ func (r Requirement) Check(q QuestionReport, cut float64) Result {
 		case !q.YesNo.HasAUC:
 			result.Reason = "AUC needs both yes and no labels"
 		default:
-			result.Value, result.HasValue = q.YesNo.AUC, true
+			interval := aucInterval(*q.YesNo)
+			result.Value, result.Low, result.High = interval.Value, interval.Low, interval.High
+			result.HasValue, result.HasInterval = true, true
 		}
 	} else {
 		share, reason := r.shareOf(q, cut)
@@ -380,6 +380,8 @@ func (r Result) String() string {
 
 	switch {
 	case !r.HasValue:
+	case r.Measure == AreaUnderCurve:
+		measured = fmt.Sprintf("AUC %s, interval %s to %s", num.Format(r.Value), num.Format(r.Low), num.Format(r.High))
 	case r.HasInterval:
 		// The four place numbers the requirement compared, not the table's percents, so a miss by
 		// less than a percent still shows.

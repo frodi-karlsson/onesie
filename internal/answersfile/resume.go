@@ -553,6 +553,14 @@ func (l *Ledger) Forget(id any) {
 	delete(l.answered, keyOf(jq.IDText(id)))
 }
 
+// Unclaimed counts the answered lines no record has admitted, kept or forgotten.
+func (l *Ledger) Unclaimed() int {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return len(l.answered)
+}
+
 // Wrote records where the line for slot was written.
 func (l *Ledger) Wrote(slot int, at Span) {
 	l.mu.Lock()

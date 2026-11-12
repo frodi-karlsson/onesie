@@ -122,21 +122,32 @@ func yesNoJSON(id string, s YesNoScore) jsonYesNo {
 
 	return jsonYesNo{
 		ID: id, Shape: ShapeName(plan.Noul), Labelled: s.Labelled, Yes: s.Yes, No: s.No, Failed: s.Failed,
-		AUC: definedOrNull(s.AUC, s.HasAUC), Cuts: cutRowsJSON(s.Cuts), Values: cutRowsJSON(s.Values), Misses: misses,
+		AUC: definedOrNull(s.AUC, s.HasAUC), AUCInterval: aucIntervalJSON(s), Cuts: cutRowsJSON(s.Cuts),
+		Values: cutRowsJSON(s.Values), Misses: misses,
 	}
 }
 
+func aucIntervalJSON(s YesNoScore) *[2]float64 {
+	interval := aucInterval(s)
+	if !interval.Defined {
+		return nil
+	}
+
+	return &[2]float64{interval.Low, interval.High}
+}
+
 type jsonYesNo struct {
-	ID       string          `json:"id"`
-	Shape    string          `json:"shape"`
-	Labelled int             `json:"labelled"`
-	Yes      int             `json:"yes"`
-	No       int             `json:"no"`
-	Failed   int             `json:"failed"`
-	AUC      *float64        `json:"auc"`
-	Cuts     []jsonCutRow    `json:"cuts"`
-	Values   []jsonCutRow    `json:"values"`
-	Misses   []jsonYesNoMiss `json:"misses"`
+	ID          string          `json:"id"`
+	Shape       string          `json:"shape"`
+	Labelled    int             `json:"labelled"`
+	Yes         int             `json:"yes"`
+	No          int             `json:"no"`
+	Failed      int             `json:"failed"`
+	AUC         *float64        `json:"auc"`
+	AUCInterval *[2]float64     `json:"auc_interval"`
+	Cuts        []jsonCutRow    `json:"cuts"`
+	Values      []jsonCutRow    `json:"values"`
+	Misses      []jsonYesNoMiss `json:"misses"`
 }
 
 type jsonYesNoMiss struct {

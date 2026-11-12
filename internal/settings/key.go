@@ -48,6 +48,7 @@ var (
 	Mock           = Key[string]{name: "mock"}
 	Cuts           = Key[string]{name: "cuts"}
 	Offline        = Key[bool]{name: "offline"}
+	FalseAlarms    = Key[string]{name: "false_alarms"}
 	CacheTTL       = Key[time.Duration]{name: "cache_ttl"}
 	ConfigDir      = Key[string]{name: "config_dir"}
 	CacheDir       = Key[string]{name: "cache_dir"}

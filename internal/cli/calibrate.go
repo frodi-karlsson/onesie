@@ -81,6 +81,7 @@ func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[settingrow.Nam
 	maps.Copy(targets, map[settingrow.Name]any{
 		setting.Output.Name(): &calib.report, setting.Input.Name(): &calib.input, "label": &calib.labels,
 		setting.Cuts.Name(): &calib.cuts, "require": &calib.requires, setting.Offline.Name(): &calib.offline,
+		"compare": &calib.compare, setting.FalseAlarms.Name(): &calib.budgets,
 	})
 
 	return targets
@@ -146,6 +147,10 @@ func runCalibrate(
 
 	if setting.Get(flags.merged, setting.PrintRequest) {
 		return printCalibrateRequests(cmd, settings, flags, inputMode, inv, scope)
+	}
+
+	if len(ready.calibration.Compare) > 0 {
+		return compareCalibration(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration)
 	}
 
 	return liveCalibration(cmd, settings, flags, calib, inputMode, inv, scope, bound, ready.calibration.Cuts)
@@ -303,7 +308,9 @@ func namesOf(question plan.Question) []string {
 type calibrateFlags struct {
 	labels   []string
 	requires []string
+	compare  []string
 	cuts     string
+	budgets  string
 	report   string
 	input    string
 	offline  bool

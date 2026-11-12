@@ -113,9 +113,24 @@ func TestHelpExamples(t *testing.T) {
 		var stored []byte
 		for _, example := range helpExamples(settingrow.CommandCalibrate) {
 			args := slices.Clone(example.args)
+			november := filepath.Join(dir, "november.jsonl")
 			for i, arg := range args {
-				if arg == "answers.jsonl" {
+				switch arg {
+				case "answers.jsonl", "march.jsonl":
 					args[i] = answers
+				case "november.jsonl":
+					args[i] = november
+				}
+			}
+			if example.id == "compare" {
+				for _, suffix := range []string{"", ".onesie"} {
+					data, err := os.ReadFile(answers + suffix)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if err := os.WriteFile(november+suffix, data, 0o600); err != nil {
+						t.Fatal(err)
+					}
 				}
 			}
 			env := map[string]string{"ONESIE_CONFIG_DIR": dir}

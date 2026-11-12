@@ -3,6 +3,8 @@ package settings
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
+	"slices"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
@@ -10,12 +12,21 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/input"
 )
 
-const requireName settingrow.Name = "require"
+const (
+	requireName settingrow.Name = "require"
+	compareName settingrow.Name = "compare"
+)
+
+var defaultBudgets = []float64{0.1}
 
 func calibrateRules() []Rule {
 	return []Rule{
 		calibrating("calibrate-reads-records", checkCalibrateInput),
 		calibrating("offline-reads-out", checkOffline),
+		calibrating("compare-reads-files", checkCompare),
+		calibrating("false-alarms-parse", func(v View) error {
+			return v.budgetsError
+		}),
 		calibrating("calibrate-needs-map", func(v View) error {
 			if typed(v, Map.Name()) {
 				return nil
@@ -104,6 +115,68 @@ func checkOffline(v View) error {
 	}
 }
 
+func checkCompare(v View) error {
+	files := listOf(v, compareName)
+	if len(files) == 0 {
+		if typed(v, FalseAlarms.Name()) {
+			return errors.New("--false-alarms sets the budgets of a --compare report. Pass --compare or drop it")
+		}
+
+		return nil
+	}
+
+	if len(files) == 1 {
+		return fmt.Errorf("--compare needs two answers files or more, the first being the baseline, "+
+			"and got only %s", files[0])
+	}
+
+	for i, file := range files {
+		if slices.ContainsFunc(files[:i], func(earlier string) bool { return filepath.Clean(earlier) == filepath.Clean(file) }) {
+			return fmt.Errorf("--compare names %s twice", file)
+		}
+	}
+
+	if mocked(v) {
+		return fmt.Errorf("--compare reads saved answers, and %s answers from fixtures. Drop one", mockSpelled(v))
+	}
+
+	if flag, asks := askingFlag(v); asks {
+		return fmt.Errorf("--compare reads saved answers and asks nothing, so %s does not apply. Drop it", flag)
+	}
+
+	if !typed(v, ID.Name()) {
+		return errors.New("--compare pairs the records with each file's answers by id. Pass --id")
+	}
+
+	return nil
+}
+
+func askingFlag(v View) (string, bool) {
+	// Every flag that picks or tunes a connection sits under these topics, so a new one is refused
+	// without being listed here. A root flag such as --provider reaches calibrate unbound.
+	for _, row := range settingrow.Table() {
+		flag, bound := row.FlagOn(settingrow.CommandCalibrate)
+		if !bound {
+			flag = settingrow.BoundFlag{Long: row.Flag.Long, Short: row.Flag.Short, HelpTopic: row.HelpTopic}
+		}
+
+		asks := flag.HelpTopic == "connections" || flag.HelpTopic == "execution" ||
+			slices.Contains([]settingrow.Name{Out.Name(), Offline.Name(), Usage.Name(), Stats.Name()}, row.Name)
+
+		if flag.Long == "" || !asks || !typed(v, row.Name) {
+			continue
+		}
+
+		if flag.Short != "" {
+			return "-" + flag.Short + "/--" + flag.Long, true
+		}
+
+		return "--" + flag.Long, true
+	}
+
+	return "", false
+}
+
 func checkReport(v View) error {
 	switch report := Get(v.Merged, Output); report {
 	case "", "auto", "table", "json":
@@ -151,4 +224,17 @@ func calibrationRequirements(v View) ([]calibrate.Requirement, error) {
 		requirements = append(requirements, req)
 	}
 	return requirements, nil
+}
+
+func calibrationBudgets(v View) ([]float64, error) {
+	if !typed(v, FalseAlarms.Name()) {
+		return defaultBudgets, nil
+	}
+
+	budgets, err := calibrate.ParseCuts(Get(v.Merged, FalseAlarms))
+	if err != nil {
+		return nil, fmt.Errorf("--false-alarms %w", err)
+	}
+
+	return budgets, nil
 }

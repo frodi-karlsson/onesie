@@ -111,7 +111,9 @@ func aucText(s YesNoScore) string {
 		return "AUC needs both yes and no labels"
 	}
 
-	return "AUC " + strconv.FormatFloat(s.AUC, 'f', 2, 64)
+	interval := aucInterval(s)
+
+	return "AUC " + twoPlaces(interval.Value) + ", interval " + twoPlaces(interval.Low) + "-" + twoPlaces(interval.High)
 }
 
 func yesNoText(yes bool) string {

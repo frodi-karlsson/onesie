@@ -611,6 +611,16 @@ func calibrateRows() []Row {
 			Flag: FlagSpec{Long: "offline", Commands: onCalibrate()},
 			Help: "Read every answer from the --out file and ask nothing, needing no key. Needs --out and --resume.",
 		},
+		{
+			Name: "compare", HelpTopic: "evaluation", HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeCalibrate),
+			Flag: FlagSpec{Long: "compare", Repeat: true, Commands: onCalibrate()},
+			Help: "Score this saved answers file, asking nothing. Repeat, the first being the baseline.",
+		},
+		{
+			Name: "false_alarms", HelpTopic: "evaluation", HelpValue: "BUDGETS", Kind: Text(), Modes: Modes(ModeCalibrate),
+			Flag: FlagSpec{Long: "false-alarms", Commands: onCalibrate()},
+			Help: "Comma separated false alarm budgets for --compare, which shows the catches at each. Default: 0.1.",
+		},
 	}
 }
 
