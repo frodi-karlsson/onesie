@@ -39,6 +39,28 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
+			name: "should match each record by the input line its line names, whatever the order of the file",
+			file: `{"line":2,"u":0.2,"t":"billing","r":"curt"}` + "\n" + `{"line":1,"u":0.1,"t":"billing","r":"curt"}` + "\n",
+			lookups: []lookup{
+				{position: 1, line: 1, want: map[string]any{"u": 0.1}},
+				{position: 2, line: 2, want: map[string]any{"u": 0.2}},
+				{position: 3, line: 3, missing: true},
+			},
+		},
+		{
+			name: "should match by position when a line names no input line",
+			file: `{"line":2,"u":0.2,"t":"billing","r":"curt"}` + "\n" + `{"u":0.1,"t":"billing","r":"curt"}` + "\n",
+			lookups: []lookup{
+				{position: 1, line: 1, want: map[string]any{"u": 0.2}},
+				{position: 2, line: 2, want: map[string]any{"u": 0.1}},
+			},
+		},
+		{
+			name:    "should refuse an input line two lines name",
+			file:    `{"line":1,"u":0.2,"t":"billing","r":"curt"}` + "\n" + `{"line":1,"u":0.1,"t":"billing","r":"curt"}` + "\n",
+			wantErr: "--mock line 2 names input line 1, as --mock line 1 does",
+		},
+		{
 			name:  "should accept an entry that answers only the asked questions",
 			file:  `{"u":0.4}` + "\n",
 			asked: []string{"u"},
@@ -603,7 +625,7 @@ func TestLoad(t *testing.T) {
 					t.Fatalf("Load: %v", err)
 				}
 
-				entry, _ := answers.Lookup(1, nil)
+				entry, _ := answers.Lookup(1, nil, 0)
 				_, err = sendThrough(t, tc.provider, entry)
 
 				var refused *onesie.APIError
@@ -618,7 +640,7 @@ func TestLoad(t *testing.T) {
 func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look lookup) {
 	t.Helper()
 
-	entry, found := answers.Lookup(look.position, look.id)
+	entry, found := answers.Lookup(look.position, look.id, look.line)
 	if look.missing {
 		if found {
 			t.Errorf("position %d id %v found an entry, want none", look.position, look.id)
@@ -690,6 +712,7 @@ func checkLookup(t *testing.T, answers *Answers, questions []plan.Question, look
 
 type lookup struct {
 	position   int
+	line       int
 	id         any
 	want       map[string]any
 	confidence map[string]float64

@@ -73,6 +73,18 @@ func TestMockAnswers(t *testing.T) {
 		}
 	})
 
+	t.Run("should answer each record from the line naming its input line, as an --unordered file writes them", func(t *testing.T) {
+		t.Parallel()
+
+		unordered := `{"line":2,"answer":0.2}` + "\n" + `{"line":1,"answer":0.1}` + "\n"
+
+		out, errOut, code := runMocked(t, t.Context(), []string{"is it urgent", "-i", "jsonl", "-o", "values", "--mock", writeMock(t, unordered)},
+			`"a"`+"\n"+`"b"`+"\n", nil, nil)
+		if want := `{"line":1,"answer":0.1}` + "\n" + `{"line":2,"answer":0.2}` + "\n"; code != ExitOK || out != want {
+			t.Errorf("exit %d, stdout %q, want %q\nstderr: %s", code, out, want, errOut)
+		}
+	})
+
 	three := []string{
 		"--ask", "u=is it urgent", "--ask", "t=which team", "--pick", "billing,platform",
 		"--ask", "r=how rude", "--rate", "calm,curt,rude",
