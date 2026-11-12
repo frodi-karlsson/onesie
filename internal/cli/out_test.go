@@ -816,8 +816,8 @@ func TestOpenOut(t *testing.T) {
 				t.Fatalf("reading the file: %v", err)
 			}
 
-			if string(data) != tc.wantFile {
-				t.Errorf("file = %q, want %q", data, tc.wantFile)
+			if got, want := withoutLines(string(data)), withoutLines(tc.wantFile); got != want {
+				t.Errorf("file = %q, want %q", got, want)
 			}
 
 			if got := calls.Load(); got != tc.wantCalls {

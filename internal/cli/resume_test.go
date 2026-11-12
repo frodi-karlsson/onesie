@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -22,8 +23,30 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
+var lineKey = regexp.MustCompile(`"line":\d+,`)
+
 func TestResumed(t *testing.T) {
 	t.Parallel()
+
+	t.Run("should number the records a resume asks by their input line", func(t *testing.T) {
+		t.Parallel()
+
+		out := filepath.Join(t.TempDir(), "answers.jsonl")
+		args := []string{"is it urgent", "-i", "jsonl", "-o", "values", "--out", out, "--resume", "--mock", writeMock(t, `{"answer":0.9}`+"\n")}
+
+		if _, errOut, code := runMocked(t, t.Context(), args, "\"a\"\n\"b\"\n", nil, nil); code != ExitOK {
+			t.Fatalf("first run exit %d\n%s", code, errOut)
+		}
+
+		if _, errOut, code := runMocked(t, t.Context(), args, "\"a\"\n\"b\"\n\"c\"\n", nil, nil); code != ExitOK {
+			t.Fatalf("resumed run exit %d\n%s", code, errOut)
+		}
+
+		want := `{"line":1,"answer":0.9}` + "\n" + `{"line":2,"answer":0.9}` + "\n" + `{"line":3,"answer":0.9}` + "\n"
+		if got := readText(t, out); got != want {
+			t.Errorf("file = %q, want %q", got, want)
+		}
+	})
 
 	answeredBody := `{"model":"m","answers":{"answer":{"type":"noul","noul":0.5}},"usage":{}}` + "\n"
 	failedBody := `{"error":{"kind":"http","status":400,"message":"400 bad key"}}` + "\n"
@@ -697,8 +720,8 @@ func runResume(t *testing.T, label, path, stdin string, run resumeRun) {
 		t.Fatalf("%s: reading the file: %v", label, err)
 	}
 
-	if string(data) != run.wantFile {
-		t.Errorf("%s: file = %q, want %q", label, data, run.wantFile)
+	if got, want := withoutLines(string(data)), withoutLines(run.wantFile); got != want {
+		t.Errorf("%s: file = %q, want %q", label, got, want)
 	}
 
 	got := sent()
@@ -905,4 +928,10 @@ func abstainedLines(from, to int) string {
 	}
 
 	return lines.String()
+}
+
+func withoutLines(text string) string {
+	// A stream numbers its records by input line, which TestStream pins. These tests are about which
+	// records a run keeps, asks and stores, so they compare the records without it.
+	return lineKey.ReplaceAllString(text, "")
 }

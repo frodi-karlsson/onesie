@@ -959,7 +959,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Fatalf("first run exit %d, want 2\n%s", code, errOut)
 			}
 
-			if got := readText(t, out); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
+			if got := withoutLines(readText(t, out)); got != `{"id":1,"model":"jev-latest","answer":{"value":0.1}}`+"\n" {
 				t.Errorf("after the first run the file holds %q", got)
 			}
 
@@ -972,7 +972,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Errorf("the second run did not ask exactly the last two records: %s", errOut)
 			}
 
-			if got := readText(t, out); got != wantFile {
+			if got := withoutLines(readText(t, out)); got != wantFile {
 				t.Errorf("file = %q, want %q", got, wantFile)
 			}
 		})
@@ -992,7 +992,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Fatalf("first run exit %d, want 130\n%s", code, errOut)
 			}
 
-			if got := readText(t, out); !strings.HasPrefix(wantFile, got) {
+			if got := withoutLines(readText(t, out)); !strings.HasPrefix(wantFile, got) {
 				t.Errorf("the interrupted file %q is not a prefix of %q", got, wantFile)
 			}
 
@@ -1005,7 +1005,7 @@ func TestMockAnswers(t *testing.T) {
 				t.Errorf("the second run skipped no record: %s", errOut)
 			}
 
-			if got := readText(t, out); got != wantFile {
+			if got := withoutLines(readText(t, out)); got != wantFile {
 				t.Errorf("file = %q, want %q", got, wantFile)
 			}
 		})
@@ -1365,7 +1365,7 @@ func checkMocked(
 		t.Errorf("exit code = %d, want %d\nstdout:\n%s\nstderr:\n%s", code, wantCode, out, errOut)
 	}
 
-	if wantOut != nil && out != *wantOut {
+	if wantOut != nil && withoutLines(out) != withoutLines(*wantOut) {
 		t.Errorf("stdout\n got: %q\nwant: %q\nstderr:\n%s", out, *wantOut, errOut)
 	}
 
