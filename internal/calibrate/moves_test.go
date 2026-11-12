@@ -59,6 +59,24 @@ func TestMoveYesNo(t *testing.T) {
 		}
 	})
 
+	t.Run("should not blame the cut for jitter across two cuts that nearly agree", func(t *testing.T) {
+		t.Parallel()
+
+		got := MoveYesNo([]YesNoCase{yesNo(1, true, 0.515)}, []YesNoCase{yesNo(1, true, 0.505)}, 0.51, 0.52, CutFromBudget)
+		if len(got.Worse) != 1 || !got.Worse[0].Crossed || got.Worse[0].CutMoved {
+			t.Errorf("worse = %+v, want a crossing that also crosses the baseline's cut", got.Worse)
+		}
+	})
+
+	t.Run("should blame the cut for a large move that crosses only because the cut rose", func(t *testing.T) {
+		t.Parallel()
+
+		got := MoveYesNo([]YesNoCase{yesNo(1, true, 0.9)}, []YesNoCase{yesNo(1, true, 0.62)}, 0.5, 0.65, CutFromBudget)
+		if len(got.Worse) != 1 || !got.Worse[0].Crossed || got.Worse[0].Small || !got.Worse[0].CutMoved {
+			t.Errorf("worse = %+v, want a large crossing marked as the cut moving", got.Worse)
+		}
+	})
+
 	t.Run("should cross nothing without a cut", func(t *testing.T) {
 		t.Parallel()
 

@@ -50,8 +50,8 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 		flaggedBefore, flaggedAfter := before.Value >= baseCut, after.Value >= runCut
 		move.Crossed = from != CutFromNone && flaggedBefore != flaggedAfter
 		move.Small = math.Abs(move.Move) < SmallMove
-		// A small move only crosses on its own at a cut both runs share. Across two cuts the cut moved.
-		move.CutMoved = move.Crossed && move.Small && baseCut != runCut
+		// The cut moved when the record would not have crossed at the baseline's cut alone.
+		move.CutMoved = move.Crossed && flaggedBefore == (after.Value >= baseCut)
 
 		if before.Yes {
 			moves.Yes++
@@ -111,7 +111,7 @@ type YesNoMoves struct {
 }
 
 // YesNoMove is one record's answer on the baseline and on the run. Case is the run's case, and Move
-// is positive toward the wrong side of its label. CutMoved marks a small move that crossed only
+// is positive toward the wrong side of its label. CutMoved marks a crossing that happens only
 // because the two runs read different cuts.
 type YesNoMove struct {
 	Case                     YesNoCase
