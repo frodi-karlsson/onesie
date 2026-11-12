@@ -8,9 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"os/signal"
 	"slices"
+	"strings"
+
+	"github.com/frodi-karlsson/onesie-go"
 
 	"github.com/frodi-karlsson/onesie/examples"
 	"github.com/frodi-karlsson/onesie/internal/answersfile"
@@ -18,10 +22,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/creds"
 )
 
-const (
-	keyName = "TYPESAFE_API_KEY"
-	jobs    = "4"
-)
+const jobs = "4"
 
 var errNoKeychain = errors.New("examplesanswers never reads the keychain")
 
@@ -54,9 +55,9 @@ func run(ctx context.Context, opts options) (int, cli.Outcome) {
 		}
 	}
 
-	key, _ := opts.lookup(keyName)
-	if key == "" {
-		return cli.ExitUsage, cli.Outcome{Failure: errors.New("needs " + keyName + ", since it asks the live API")}
+	keys, err := keysOf(opts.lookup)
+	if err != nil {
+		return cli.ExitUsage, cli.Outcome{Failure: err}
 	}
 
 	sets, err := examples.Sets(opts.dir)
@@ -70,10 +71,44 @@ func run(ctx context.Context, opts options) (int, cli.Outcome) {
 		return cli.ExitUsage, cli.Outcome{Failure: err}
 	}
 
-	env := map[string]string{keyName: key, "ONESIE_CONFIG_DIR": scratch}
+	env := maps.Clone(keys)
+	env["ONESIE_CONFIG_DIR"] = scratch
 	code, err := answerEach(ctx, sets, opts, env, scratch)
 
 	return code, settled(err, os.RemoveAll(scratch))
+}
+
+func keysOf(lookup func(string) (string, bool)) (map[string]string, error) {
+	keys := map[string]string{}
+
+	var missing []string
+
+	for _, name := range keyNames() {
+		if key, _ := lookup(name); key != "" {
+			keys[name] = key
+		} else {
+			missing = append(missing, name)
+		}
+	}
+
+	if len(missing) > 0 {
+		return nil, errors.New("needs " + strings.Join(missing, " and ") + ", since it asks the live API")
+	}
+
+	return keys, nil
+}
+
+func keyNames() []string {
+	var names []string
+
+	for _, model := range examples.Models() {
+		provider, err := onesie.ProviderNamed(examples.Provider(model))
+		if err == nil && !slices.Contains(names, provider.EnvAPIKey()) {
+			names = append(names, provider.EnvAPIKey())
+		}
+	}
+
+	return names
 }
 
 func answerEach(

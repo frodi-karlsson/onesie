@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -27,7 +28,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 
 		code, ended := run(t.Context(), options{
-			lookup: envOf(map[string]string{"ONESIE_MOCK": "m.json", keyName: "k"}), dir: t.TempDir(),
+			lookup: envOf(withKeys(map[string]string{"ONESIE_MOCK": "m.json"})), dir: t.TempDir(),
 			stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
 		})
 		if code != cli.ExitUsage || ended.Failure == nil || !strings.Contains(ended.Failure.Error(), "ONESIE_MOCK") {
@@ -35,14 +36,26 @@ func TestRun(t *testing.T) {
 		}
 	})
 
-	t.Run("should refuse to run without a key", func(t *testing.T) {
+	t.Run("should refuse to run without a key, naming each missing one", func(t *testing.T) {
 		t.Parallel()
 
+		keys := withKeys(nil)
+		delete(keys, "LEVANTO_API_KEY")
+
 		code, ended := run(t.Context(), options{
+			lookup: envOf(keys), dir: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
+		})
+		if want := "needs LEVANTO_API_KEY, since it asks the live API"; code != cli.ExitUsage || ended.Failure == nil ||
+			ended.Failure.Error() != want {
+			t.Errorf("run = %d, %v, want exit 2 with %q", code, ended.Failure, want)
+		}
+
+		code, ended = run(t.Context(), options{
 			lookup: envOf(nil), dir: t.TempDir(), stdout: &bytes.Buffer{}, stderr: &bytes.Buffer{},
 		})
-		if code != cli.ExitUsage || ended.Failure == nil || !strings.Contains(ended.Failure.Error(), keyName) {
-			t.Errorf("run = %d, %v, want exit 2 naming %s", code, ended.Failure, keyName)
+		if want := "needs TYPESAFE_API_KEY and AI_GATEWAY_API_KEY and LEVANTO_API_KEY, since it asks the live API"; code != cli.ExitUsage ||
+			ended.Failure == nil || ended.Failure.Error() != want {
+			t.Errorf("run = %d, %v, want exit 2 with %q", code, ended.Failure, want)
 		}
 	})
 
@@ -61,9 +74,9 @@ func TestRun(t *testing.T) {
 
 			asked = append(asked, name)
 
-			return envOf(map[string]string{
-				keyName: "k", "ONESIE_PROVIDER": "openrouter", "ONESIE_CONFIG_DIR": t.TempDir(),
-			})(name)
+			return envOf(withKeys(map[string]string{
+				"ONESIE_PROVIDER": "openrouter", "ONESIE_CONFIG_DIR": t.TempDir(),
+			}))(name)
 		}
 
 		code, ended := runStubbed(t, dir, stub, lookup)
@@ -72,7 +85,7 @@ func TestRun(t *testing.T) {
 		}
 
 		slices.Sort(asked)
-		if want := []string{"ONESIE_MOCK", keyName}; !slices.Equal(slices.Compact(asked), want) {
+		if want := slices.Sorted(slices.Values(append(keyNames(), "ONESIE_MOCK"))); !slices.Equal(slices.Compact(asked), want) {
 			t.Errorf("run read %v from the environment, want only %v", asked, want)
 		}
 	})
@@ -82,15 +95,15 @@ func TestRun(t *testing.T) {
 
 		dir := starterDir(t)
 		stub := newStub(t)
-		lookup := envOf(map[string]string{keyName: "k"})
+		lookup := envOf(withKeys(nil))
 
 		if code, ended := runStubbed(t, dir, stub, lookup); code != cli.ExitOK || ended.Report() != nil {
 			t.Fatalf("first run = %d, %v", code, ended.Report())
 		}
 
-		// Two sets of two records, each asked of both models.
-		if got := stub.requests.Load(); got != 8 {
-			t.Fatalf("first run made %d requests, want 8", got)
+		// Two sets of two records, each asked of the four models.
+		if got := stub.requests.Load(); got != 16 {
+			t.Fatalf("first run made %d requests, want 16", got)
 		}
 
 		question := filepath.Join(dir, "questions", "alpha.yaml")
@@ -104,8 +117,8 @@ func TestRun(t *testing.T) {
 			t.Fatalf("second run = %d, %v", code, ended.Report())
 		}
 
-		if got := stub.requests.Load(); got != 4 {
-			t.Errorf("second run made %d requests, want the 4 of the stale set's two files alone", got)
+		if got := stub.requests.Load(); got != 8 {
+			t.Errorf("second run made %d requests, want the 8 of the stale set's four files alone", got)
 		}
 
 		for _, model := range examples.Models() {
@@ -279,6 +292,19 @@ func newStub(t *testing.T) *stubAPI {
 type stubAPI struct {
 	requests atomic.Int64
 	factory  func(context.Context, ...onesie.Option) (*onesie.Client, error)
+}
+
+func withKeys(values map[string]string) map[string]string {
+	keys := maps.Clone(values)
+	if keys == nil {
+		keys = map[string]string{}
+	}
+
+	for _, name := range keyNames() {
+		keys[name] = "k"
+	}
+
+	return keys
 }
 
 func envOf(values map[string]string) func(string) (string, bool) {

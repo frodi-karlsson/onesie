@@ -8,7 +8,11 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const bisections = 64
+const (
+	bisections = 64
+
+	maxCutPlaces = 17
+)
 
 // CompareNoul scores a yes or no question in each of several runs over the same records, the first
 // run being the baseline. Every run's cases hold the same records, labelled alike, in the same order.
@@ -209,9 +213,15 @@ func budgetRows(score NoulScore, budgets []float64) []BudgetRow {
 		row := BudgetRow{Budget: budget}
 		allowed := num.Rounded(budget * float64(score.No))
 
-		for _, at := range score.Values {
+		for i, at := range score.Values {
 			if score.No > 0 && float64(at.FalseAlarms.Hits) <= allowed {
-				row.Cut, row.Found, row.Catches, row.FalseAlarms = at.Cut, true, at.Catches, at.FalseAlarms
+				below := math.Inf(-1)
+				if i > 0 {
+					below = score.Values[i-1].Cut
+				}
+
+				row.Cut, row.Found = shortestCut(at.Cut, below), true
+				row.Catches, row.FalseAlarms = at.Catches, at.FalseAlarms
 
 				break
 			}
@@ -221,6 +231,25 @@ func budgetRows(score NoulScore, budgets []float64) []BudgetRow {
 	}
 
 	return rows
+}
+
+func shortestCut(cut, below float64) float64 {
+	// Any cut above the next lower answer and up to this one flags the same records, so the one with
+	// the fewest places, at least two, reads as the report shows and gates the same as the exact one.
+	for places := 2; places <= maxCutPlaces; places++ {
+		scale := math.Pow10(places)
+		floored := math.Floor(cut * scale)
+
+		// cut*scale may round below the whole number it stands for, so the next one up is tried first.
+		for _, whole := range []float64{floored + 1, floored} {
+			// A division, as DefaultCuts builds its cuts, gives the same float as the decimal parsed.
+			if short := whole / scale; short > below && short <= cut {
+				return short
+			}
+		}
+	}
+
+	return cut
 }
 
 // CompareChoices scores a pick or rate question in each of several runs over the same records, the

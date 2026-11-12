@@ -128,27 +128,29 @@ func TestReadme(t *testing.T) {
 
 		blocks := codeBlocks(readmeSection(t, "Compare two runs", "examples", "README.md"))
 
-		out, errOut, code := runCompareOnCommitted(t, readmeCommand(t, blocks[0].lines))
+		out, errOut, code := runCompareOnCommitted(t, "shell-safety.jsonl", readmeCommand(t, blocks[0].lines))
 		if code != cli.ExitOK || !strings.Contains(errOut, "differs from examples/data/shell-safety.answers.jsonl in the model") {
 			t.Fatalf("exit code = %d, want %d naming the model\nstderr:\n%s", code, cli.ExitOK, errOut)
 		}
 
-		// The temp copies make the table wider than a run from the repository root, so the lines
-		// are compared with their spacing collapsed.
-		var want []string
+		if want, got := collapsed(blocks[1].lines), collapsed(strings.Split(out, "\n")); !inOrder(got, want) {
+			t.Errorf("examples README shows\n%s\nwhich the comparison does not print. It prints\n%s",
+				strings.Join(want, "\n"), out)
+		}
+	})
 
-		for _, line := range blocks[1].lines {
-			if strings.TrimSpace(line) != "" {
-				want = append(want, strings.Join(strings.Fields(line), " "))
-			}
+	t.Run("should print the excerpt the examples README compare vendors section shows", func(t *testing.T) {
+		t.Parallel()
+
+		blocks := codeBlocks(readmeSection(t, "Compare vendors", "examples", "README.md"))
+
+		out, errOut, code := runCompareOnCommitted(t, "prompt-injection.jsonl", readmeCommand(t, blocks[0].lines))
+		if want := "differs from examples/data/prompt-injection.answers.jsonl in the provider and the model"; code != cli.ExitOK ||
+			strings.Count(errOut, want) != 2 {
+			t.Fatalf("exit code = %d, want %d naming the provider and the model twice\nstderr:\n%s", code, cli.ExitOK, errOut)
 		}
 
-		got := strings.Split(out, "\n")
-		for i, line := range got {
-			got[i] = strings.Join(strings.Fields(line), " ")
-		}
-
-		if !inOrder(got, want) {
+		if want, got := collapsed(blocks[1].lines), collapsed(strings.Split(out, "\n")); !inOrder(got, want) {
 			t.Errorf("examples README shows\n%s\nwhich the comparison does not print. It prints\n%s",
 				strings.Join(want, "\n"), out)
 		}
@@ -168,7 +170,7 @@ func TestReadme(t *testing.T) {
 			{requirement: "lower(network.catches_change) >= -0.25", code: cli.ExitOK},
 			{requirement: "lower(secrets.catches_change) >= -0.25", code: cli.ExitFail, stderr: "interval -0.4345 to 0.4345"},
 		} {
-			_, errOut, code := runCompareOnCommitted(t, append(slices.Clone(command), "--require", tc.requirement))
+			_, errOut, code := runCompareOnCommitted(t, "shell-safety.jsonl", append(slices.Clone(command), "--require", tc.requirement))
 			if code != tc.code || !strings.Contains(errOut, tc.stderr) {
 				t.Errorf("%s exit code = %d, want %d with %q\nstderr:\n%s", tc.requirement, code, tc.code, tc.stderr, errOut)
 			}
@@ -545,7 +547,7 @@ func runCalibrateOnCommitted(t *testing.T, command []string) (string, string, in
 	return runReadme(t, readRepoFile(t, "examples", "data", "shell-safety.jsonl"), args...)
 }
 
-func runCompareOnCommitted(t *testing.T, command []string) (string, string, int) {
+func runCompareOnCommitted(t *testing.T, records string, command []string) (string, string, int) {
 	t.Helper()
 
 	dir := filepath.Join(t.TempDir(), "data")
@@ -571,7 +573,7 @@ func runCompareOnCommitted(t *testing.T, command []string) (string, string, int)
 		args[i] = filepath.Join(dir, name)
 	}
 
-	out, errOut, code := runReadme(t, readRepoFile(t, "examples", "data", "shell-safety.jsonl"), args...)
+	out, errOut, code := runReadme(t, readRepoFile(t, "examples", "data", records), args...)
 
 	// The copies stand in for the committed files, so their paths read as the README writes them.
 	committed := func(text string) string {
@@ -639,6 +641,20 @@ func destroysSection(report, header string) []string {
 	}
 
 	return section
+}
+
+func collapsed(lines []string) []string {
+	// The temp copies make a table wider than a run from the repository root, so lines are compared
+	// with their spacing collapsed.
+	var kept []string
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) != "" {
+			kept = append(kept, strings.Join(strings.Fields(line), " "))
+		}
+	}
+
+	return kept
 }
 
 func inOrder(lines, want []string) bool {
