@@ -28,8 +28,14 @@ func TestAddFlagCompletions(t *testing.T) {
 		{name: "should offer the report formats for calibrate -o", args: []string{"calibrate", "-o", ""}, want: []string{"table", "json"}},
 		{name: "should offer the input modes for calibrate -i", args: []string{"calibrate", "-i", ""}, want: []string{"jsonl", "csv"}},
 		{name: "should offer every outcome for --stop-on", args: []string{"--stop-on", ""}, want: []string{"error", "fail", "unsure"}},
-		{name: "should offer the stored profiles to profile show", args: []string{"profile", "show", ""}, want: []string{"home", "work"}},
-		{name: "should offer the stored profiles to profile delete", args: []string{"profile", "delete", ""}, want: []string{"home", "work"}},
+	}
+
+	for _, sub := range []string{"update", "delete", "use", "show", "test"} {
+		tests = append(tests, struct {
+			name string
+			args []string
+			want []string
+		}{name: "should offer the stored profiles to profile " + sub, args: []string{"profile", sub, ""}, want: []string{"home", "work"}})
 	}
 
 	for _, tc := range tests {
