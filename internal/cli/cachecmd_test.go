@@ -57,7 +57,7 @@ func TestNewCacheCmd(t *testing.T) {
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
 		want := regexp.MustCompile(`^3 entries, [0-9.]+ (B|KB|MB) in ` + regexp.QuoteMeta(env["ONESIE_CACHE_DIR"]) +
-			`\. Expiring, since their model is an alias or their base URL is custom: 1\n$`)
+			`\. 1 expires, since its model is an alias or its base URL is custom\n$`)
 
 		if code != ExitOK || !want.MatchString(out) {
 			t.Errorf("exit %d, stdout %q, want it to match %s\n%s", code, out, want, errOut)
@@ -76,7 +76,7 @@ func TestNewCacheCmd(t *testing.T) {
 		}
 
 		out, errOut, code := runCached(t, env, []string{"cache"}, "")
-		if code != ExitOK || !strings.HasPrefix(out, "1 entry, ") || !strings.HasSuffix(out, "custom: 1\n") {
+		if code != ExitOK || !strings.HasPrefix(out, "1 entry, ") || !strings.HasSuffix(out, ". 1 expires, since its model is an alias or its base URL is custom\n") {
 			t.Errorf("exit %d, stdout %q, want the entry counted as expiring\n%s", code, out, errOut)
 		}
 	})

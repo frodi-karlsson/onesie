@@ -11,36 +11,63 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
 
+const noFiles = cobra.ShellCompDirectiveNoFileComp
+
 func addFlagCompletions(root, calibrate *cobra.Command, settings rootSettings) error {
 	files := func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 		return savedNames(settings), cobra.ShellCompDirectiveDefault
 	}
 
-	completions := map[string]cobra.CompletionFunc{
+	shared := map[string]cobra.CompletionFunc{
 		"provider": fixedCompletion(providerNames()),
 		"profile": func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {
 			return profileNamesIn(settings), noFiles
 		},
-		"file": files,
 	}
 
+	for _, name := range slices.Sorted(maps.Keys(shared)) {
+		if err := root.RegisterFlagCompletionFunc(name, shared[name]); err != nil {
+			return err
+		}
+	}
+
+	for command, cmd := range map[settingrow.Command]*cobra.Command{settingrow.CommandRoot: root, settingrow.CommandCalibrate: calibrate} {
+		if err := addLocalCompletions(cmd, command, files); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func addLocalCompletions(cmd *cobra.Command, command settingrow.Command, files cobra.CompletionFunc) error {
+	completions := map[string]cobra.CompletionFunc{"file": files}
+
 	for _, row := range settingrow.Table() {
-		bound, onRoot := row.FlagOn(settingrow.CommandRoot)
-		if choices := settingrow.ChoicesOf(row.Kind); onRoot && len(choices) > 0 {
+		bound, onCommand := row.FlagOn(command)
+		if choices := settingrow.ChoicesOf(bound.Kind); onCommand && len(choices) > 0 {
 			completions[bound.Long] = fixedCompletion(choices)
 		}
 	}
 
 	for _, name := range slices.Sorted(maps.Keys(completions)) {
-		if err := root.RegisterFlagCompletionFunc(name, completions[name]); err != nil {
+		if err := cmd.RegisterFlagCompletionFunc(name, completions[name]); err != nil {
 			return err
 		}
 	}
 
-	return calibrate.RegisterFlagCompletionFunc("file", files)
+	return nil
 }
 
-const noFiles = cobra.ShellCompDirectiveNoFileComp
+func completeProfileName(settings rootSettings) cobra.CompletionFunc {
+	return func(_ *cobra.Command, args []string, _ string) ([]string, cobra.ShellCompDirective) {
+		if len(args) > 0 {
+			return nil, noFiles
+		}
+
+		return profileNamesIn(settings), noFiles
+	}
+}
 
 func fixedCompletion(values []string) cobra.CompletionFunc {
 	return func(*cobra.Command, []string, string) ([]string, cobra.ShellCompDirective) {

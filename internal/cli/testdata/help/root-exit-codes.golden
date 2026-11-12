@@ -11,9 +11,10 @@ Exit codes:
   5    transport error or timeout
   6    a stream finished with one or more errors, or --stop-on=error stopped it at a
        record that never became a request
-  7    unsure: an --assert was false and --abstain-if held, so the gate could not
-       decide. A stream keeps the most severe code, so 6 beats 1 and 1 beats 7
+  7    unsure: an --assert was false and --abstain-if held, so the gate could not decide
   130  interrupted
+
+  A stream keeps the most severe code, so 6 beats 1 and 1 beats 7.
 
 More help:
   onesie help asking

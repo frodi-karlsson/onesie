@@ -88,7 +88,7 @@ func redirected(api *onesie.APIError) bool {
 func apiDetail(cause error, api *onesie.APIError) string {
 	var overCap *onesie.RetryAfterError
 	if errors.As(cause, &overCap) {
-		return fmt.Sprintf("The server asked to retry after %s, above the %s --max-retry-after cap", overCap.RetryAfter, overCap.Cap)
+		return fmt.Sprintf("The server asked to retry after %s, above the %s cap", overCap.RetryAfter, overCap.Cap)
 	}
 
 	return api.Detail()

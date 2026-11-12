@@ -118,8 +118,13 @@ func describeCache(summary cache.Summary, dir string) string {
 		return "0 entries in " + dir
 	}
 
-	return fmt.Sprintf("%s, %s in %s. Expiring, since their model is an alias or their base URL is custom: %d",
-		wording.Plural(summary.Entries, "entry", "entries"), size(summary.Bytes), dir, summary.Aliases)
+	expiring := fmt.Sprintf("%d expire, since their model is an alias or their base URL is custom", summary.Aliases)
+	if summary.Aliases == 1 {
+		expiring = "1 expires, since its model is an alias or its base URL is custom"
+	}
+
+	return fmt.Sprintf("%s, %s in %s. %s",
+		wording.Plural(summary.Entries, "entry", "entries"), size(summary.Bytes), dir, expiring)
 }
 
 func size(bytes int64) string {

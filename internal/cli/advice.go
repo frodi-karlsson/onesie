@@ -13,7 +13,8 @@ import (
 func explain(err error, facts requestFacts) error {
 	helps := longContextHelps(facts.provider, facts.model, facts.longContext)
 
-	boxed := adviseImages(adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel()), facts.images)
+	imagesSuspect := facts.images && facts.model != facts.provider.DefaultModel()
+	boxed := adviseImages(adviseBox(adviseLongContext(err, helps), facts.boxed, facts.provider.BoxModel()), imagesSuspect)
 
 	return advise(adviseRetryAfter(adviseLimits(boxed)), facts.model)
 }
@@ -87,7 +88,8 @@ func adviseBox(err error, boxed bool, boxModel string) error {
 
 func adviseImages(err error, images bool) error {
 	// Vercel words a model that reads no images as a request naming no model, so an unrecognised 400
-	// is the only sign. A recognised one or a box note already says what went wrong.
+	// is the only sign. A recognised one or a box note already says what went wrong, and the caller
+	// leaves out the provider's default model, which reads images.
 	var api *onesie.APIError
 	if !images || !errors.As(err, &api) || api.Status != http.StatusBadRequest || api.Recognised() {
 		return err

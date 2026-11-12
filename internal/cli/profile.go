@@ -180,7 +180,8 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		Example: "  onesie profile update work --model typesafe/jev-1.13\n" +
 			"  pass show work | head -n 1 | onesie profile update work --key\n" +
 			"  onesie profile update work --name personal",
-		Args: profileNames("update", 1, 1),
+		Args:              profileNames("update", 1, 1),
+		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileUpdate(cmd, settings, flags, given, args[0], *fields)
 		},
@@ -434,7 +435,8 @@ func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		Short: "Remove a profile and its keychain item",
 		Long: "Remove a profile from profiles.json, then its keychain item, unless another profile names the " +
 			"same item. Deleting the default leaves no default, and deleting the last profile removes the file.",
-		Args: profileNames("delete", 1, 1),
+		Args:              profileNames("delete", 1, 1),
+		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileDelete(cmd, settings, flags, args[0])
 		},
@@ -467,7 +469,8 @@ func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Short: "Make a profile the default a run uses",
 		Long: "Make a profile the default, which a run uses when neither --profile, --provider, " +
 			"ONESIE_PROFILE nor ONESIE_PROVIDER chooses.",
-		Args: profileNames("use", 1, 1),
+		Args:              profileNames("use", 1, 1),
+		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileUse(cmd, settings, flags, args[0])
 		},
@@ -619,7 +622,8 @@ func newProfileShowCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"hint a run gives for each, when the account is not 32 hexadecimal characters, or when " +
 			"ONESIE_CACHE, ONESIE_LONG_CONTEXT or ONESIE_CACHE_TTL holds " +
 			"a value a run refuses, as a real run does.",
-		Args: profileNames("show", 0, 1),
+		Args:              profileNames("show", 0, 1),
+		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileShow(cmd, settings, flags, args)
 		},
@@ -725,7 +729,8 @@ func newProfileTestCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"a bad key, so a proxy set as the base URL must serve it too. Berget lists its models to any key, " +
 			"so on berget profile test also asks one small question with the profile's model, which spends a " +
 			"few tokens.",
-		Args: profileNames("test", 0, 1),
+		Args:              profileNames("test", 0, 1),
+		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return profileTest(cmd, settings, flags, args)
 		},

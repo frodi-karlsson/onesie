@@ -112,7 +112,7 @@ func TestSentence(t *testing.T) {
 			cause: &onesie.RetryAfterError{
 				APIError: *refusal(typesafe, http.StatusTooManyRequests, ""), RetryAfter: 2 * time.Minute, Cap: 30 * time.Second,
 			},
-			want: "the server is limiting requests, status 429. The server asked to retry after 2m0s, above the 30s --max-retry-after cap",
+			want: "the server is limiting requests, status 429. The server asked to retry after 2m0s, above the 30s cap",
 		},
 		{
 			name:  "should say the server failed for a 503 with no body",

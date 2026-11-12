@@ -620,6 +620,9 @@ func TestAdvise(t *testing.T) {
 			boxNote    = " A box question needs a model that serves it, such as -m jev-preview"
 			imagesNote = " The request carried images, and a model that reads none can refuse it this way. Try it without them to tell"
 			longNote   = ". Pass --long-context to raise the context limit, which is slower and less accurate"
+
+			vercelImageless  = "microsoft/microsoft-decision-1"
+			noModelReference = `{"error":{"message":"Could not find a reference to a model in the request.","type":"AI_APICallError"}}`
 		)
 
 		square := map[string]string{"square.png": string(squarePNG(t))}
@@ -655,6 +658,38 @@ func TestAdvise(t *testing.T) {
 				response: invalid,
 				wantCode: ExitRecords,
 				wantOut:  []string{`"message":"400 Invalid request.` + boxNote + `"`},
+			},
+			{
+				name:     "should suspect the images behind a 400 vercel does not recognise",
+				args:     []string{"--image", "photo=square.png", "--ask", "q=is there a square in `photo`", "-m", vercelImageless},
+				files:    square,
+				stdin:    "look",
+				provider: "vercel",
+				status:   http.StatusBadRequest,
+				response: noModelReference,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 Could not find a reference to a model in the request." + imagesNote + "\n",
+			},
+			{
+				name: "should suspect the images behind a replayed body vercel does not recognise",
+				args: []string{"-i", "request"},
+				stdin: `{"state":{"photo":"r"},"model":"` + vercelImageless + `","questions":{"q":{"type":"noul","instructions":"x"}},` +
+					`"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
+				provider: "vercel",
+				status:   http.StatusBadRequest,
+				response: noModelReference,
+				wantCode: ExitRecords,
+				wantOut:  []string{`"message":"400 Could not find a reference to a model in the request.` + imagesNote + `"`},
+			},
+			{
+				name:     "should suspect no images on the provider's default model, which reads them",
+				args:     []string{"--image", "photo=square.png", "--ask", "q=is there a square in `photo`"},
+				files:    square,
+				stdin:    "look",
+				status:   http.StatusBadRequest,
+				response: invalid,
+				wantCode: ExitUsage,
+				wantErr:  "onesie: 400 Invalid request.\n",
 			},
 			{
 				name:     "should name --long-context when the state is over the context limit",

@@ -124,13 +124,16 @@ type Kind interface {
 	ValueName() string
 }
 
-// ChoicesOf returns the values a kind takes one of, or nil for a kind that takes free text.
+// ChoicesOf returns the values a kind takes one or more of, or nil for a kind that takes free text.
 func ChoicesOf(kind Kind) []string {
-	if enum, ok := kind.(enumKind); ok {
+	switch enum := kind.(type) {
+	case enumKind:
 		return slices.Clone(enum.values)
+	case enumListKind:
+		return slices.Clone(enum.values)
+	default:
+		return nil
 	}
-
-	return nil
 }
 
 // EmptyPolicyOf returns the empty value policy used when registering a kind.

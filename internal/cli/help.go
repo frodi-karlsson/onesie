@@ -52,7 +52,7 @@ func writeHelp(w io.Writer, cmd *cobra.Command, command settingrow.Command, topi
 				b.WriteString("\n")
 			}
 			if section.codes != nil {
-				b.WriteString(exitCodesSection(section.codes) + "\n")
+				b.WriteString(exitCodesSection(section.codes, section.codesNote) + "\n")
 				continue
 			}
 			fmt.Fprintf(&b, "%s\n", section.title)

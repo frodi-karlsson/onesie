@@ -51,8 +51,7 @@ var rootExitCodes = []exitCodeLine{
 	{ExitTransport, "transport error or timeout"},
 	{ExitRecords, "a stream finished with one or more errors, or --stop-on=error stopped it at " +
 		"a record that never became a request"},
-	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide. A stream " +
-		"keeps the most severe code, so 6 beats 1 and 1 beats 7"},
+	{ExitAbstain, "unsure: an --assert was false and --abstain-if held, so the gate could not decide"},
 	{ExitInterrupt, "interrupted"},
 }
 
@@ -66,11 +65,17 @@ var calibrateExitCodes = []exitCodeLine{
 	{ExitInterrupt, "interrupted. No report prints"},
 }
 
-func exitCodesSection(codes []exitCodeLine) string {
+const streamRank = "A stream keeps the most severe code, so 6 beats 1 and 1 beats 7."
+
+func exitCodesSection(codes []exitCodeLine, note string) string {
 	var out bytes.Buffer
 	out.WriteString("Exit codes:\n")
 	for _, line := range codes {
 		writeHelpText(&out, line.meaning, fmt.Sprintf("  %-5d", line.code), "       ")
+	}
+	if note != "" {
+		out.WriteString("\n")
+		writeHelpText(&out, note, "  ", "  ")
 	}
 	return strings.TrimSuffix(out.String(), "\n")
 }
