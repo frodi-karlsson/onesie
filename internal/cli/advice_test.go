@@ -139,7 +139,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitUsage,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "onesie: model 'onesie-1.12' not found. Try --list-models\n",
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
@@ -184,7 +184,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
-				wantOut: []string{`{"error":{"kind":"http","status":400,` +
+				wantOut: []string{`{"error":{"kind":"request","status":400,` +
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}}`},
 			},
 			{
@@ -196,7 +196,7 @@ func TestAdvise(t *testing.T) {
 				wantCode: ExitRecords,
 				wantSent: `"model":"onesie-1.12"`,
 				wantErr:  "",
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
 					`"message":"model 'onesie-1.12' not found. Try --list-models"}`},
 			},
 			{
@@ -325,7 +325,7 @@ func TestAdvise(t *testing.T) {
 				response: tooManyLevels,
 				wantCode: ExitRecords,
 				wantErr:  "",
-				wantOut: []string{`{"error":{"kind":"http","status":400,` +
+				wantOut: []string{`{"error":{"kind":"request","status":400,` +
 					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}}`},
 			},
 			{
@@ -346,7 +346,7 @@ func TestAdvise(t *testing.T) {
 				status:   http.StatusBadRequest,
 				response: tooManyLevels,
 				wantCode: ExitRecords,
-				wantOut: []string{`"error":{"kind":"http","status":400,` +
+				wantOut: []string{`"error":{"kind":"request","status":400,` +
 					`"message":"` + strings.TrimPrefix(refused, "onesie: ") + note + `"}`},
 			},
 			{

@@ -130,6 +130,8 @@ func (p parser) writtenFailure(failure map[string]any, refused error, where stri
 		}
 
 		return httpEntry(status, failure)
+	case "request":
+		return p.requestEntry(failure, refused, where)
 	case "transport":
 		return connectionEntry(), nil
 	case "response":
@@ -140,6 +142,26 @@ func (p parser) writtenFailure(failure map[string]any, refused error, where stri
 	}
 
 	return nil, refused
+}
+
+func (p parser) requestEntry(failure map[string]any, refused error, where string) (*Entry, error) {
+	number, isNumber := failure["status"].(json.Number)
+	if !isNumber {
+		return nil, refused
+	}
+
+	status, isStatus := errorStatus(number)
+	if !isStatus {
+		return nil, refused
+	}
+
+	// The client reads a request refusal from the body alone, which a written error line does not keep.
+	if _, hasBody := failure["body"]; !hasBody {
+		return nil, fmt.Errorf("%s: error %s is a request refusal, which replays only from the body the provider sent. "+
+			"Add that body as \"body\", or replace the line with {\"error\": %d}", where, shown(failure), status)
+	}
+
+	return httpEntry(status, failure)
 }
 
 func (p parser) authEntry(failure map[string]any, refused error, where string) (*Entry, error) {

@@ -5,6 +5,11 @@
 Only exit 1 means a fail, a gate that said no. Exits 2 through 5 mean an error, so no answer
 arrived at all. Exit 6 means a stream finished with one or more errors, and only the lines
 carrying an error are affected, the rest answered normally.
+An error line's `kind` says what failed. `request` is a provider refusing the request itself, such
+as an unknown model or a question the model does not serve, so fix it rather than retry, and a
+fresh run exits 2 on it whatever its status, even a 500. `http` is any other status, `auth` a
+refused key, `transport` a connection or timeout, `response` an answer onesie could not use, and
+`input` a record that never became a request.
 A resume without `--id` skips a stored error line instead of asking again, and still exits 6
 over it. Under `--stop-on=error` a trailing error line is the exception, as below.
 Exit 7 is unsure, an answer too, neither a pass nor a fail, so route it to whoever decides
@@ -103,7 +108,7 @@ Exit 3 also covers these:
 | `names no host`, `is not an http or https URL` or `does not parse` | the base URL the message names is not an absolute http or https URL with a host. Write it as `https://HOST`, with a path after it when the server needs one |
 | `Insufficient balance` | Cloudflare's AI Gateway has no credits for Jev. Add credits, or ask Clef with `-m clef-flash`, which runs on the free allowance |
 | `No such model` | Workers AI does not serve that model id. Clef's are `clef`, `clef-flash` and `clef-omni`. Try `--list-models` |
-| `A box question needs a model that serves it` | the model refused a `--box` question on TypeSafe or OpenRouter. Pass `-m jev-preview` |
+| `A box question needs a model that serves it` | the model does not serve `--box` questions, on TypeSafe, OpenRouter or Vercel, such as Gemini through Vercel. Pass the model the message names, such as `-m jev-preview` or `-m jev-latest` |
 | `max_tokens_exceeded` | the state and questions are over the model's context limit. Trim the state with `--map`, or pass `--long-context`, which is slower and less accurate |
 
 Every flag and question error is caught before any network call. Reach for `--print-request` or

@@ -364,6 +364,21 @@ func TestMockAnswers(t *testing.T) {
 			wantCode: ExitAuth,
 		},
 		{
+			name:     "should refuse a stored request refusal with no body, since the client reads it from the body",
+			args:     with("--state", "x"),
+			mock:     `{"error":{"kind":"request","status":500,"message":"500 not served"}}`,
+			stderr:   []string{"is a request refusal, which replays only from the body the provider sent. Add that body as \"body\", or replace the line with {\"error\": 500}"},
+			wantCode: ExitUsage,
+		},
+		{
+			name:     "should replay a request refusal with its body as the request refusal a live run gives",
+			args:     with("-i", "lines", "-o", "json"),
+			stdin:    "x\n",
+			mock:     `{"error":{"kind":"request","status":400,"body":{"detail":"Unknown model: jev-latest"}}}`,
+			contains: []string{`"error":{"kind":"request","status":400`},
+			wantCode: ExitRecords,
+		},
+		{
 			name:     "should fail a mocked null body as a mocked status with no body",
 			args:     with("--state", "x"),
 			mock:     `{"error":{"kind":"http","status":402,"body":null}}`,
