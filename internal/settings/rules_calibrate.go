@@ -69,8 +69,7 @@ func calibrateRules() []Rule {
 
 			for _, req := range v.Calibration.Requirements {
 				if req.Measure.Change() {
-					return fmt.Errorf("--require '%s' reads %s, a change from a baseline, which needs --compare",
-						req.Source, req.Measure)
+					return fmt.Errorf("--require '%s' %s", req.Source, req.NeedsCompare())
 				}
 			}
 

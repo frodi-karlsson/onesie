@@ -269,12 +269,7 @@ func changeText(change *Interval) string {
 		return "-"
 	}
 
-	signed := twoPlaces(change.Value)
-	if change.Value > 0 && signed != "0.00" {
-		signed = "+" + signed
-	}
-
-	return signed + "  " + twoPlaces(change.Low) + " to " + twoPlaces(change.High)
+	return signedTwoPlaces(change.Value) + "  " + twoPlaces(change.Low) + " to " + twoPlaces(change.High)
 }
 
 func twoPlaces(value float64) string {
@@ -411,6 +406,7 @@ type jsonCompared struct {
 func yesNoMovesJSON(file string, moves YesNoMoves) jsonChanges {
 	entry := jsonChanges{
 		File: file, CutFrom: cutFromJSON(moves.From), Small: &moves.Small,
+		MeanMove: &jsonMeanMove{Yes: moves.MeanYes, No: moves.MeanNo},
 		GotWorse: make([]jsonMove, 0, len(moves.Worse)), GotBetter: make([]jsonMove, 0, len(moves.Better)),
 	}
 
@@ -427,7 +423,7 @@ func yesNoMovesJSON(file string, moves YesNoMoves) jsonChanges {
 			before, after, size := move.Before, move.After, move.Move
 			*list.into = append(*list.into, jsonMove{
 				jsonRecord: recordJSON(move.Case.ID, move.Case.Line), Label: label, Before: before, After: after,
-				Move: &size, Crossed: &move.Crossed, Small: &move.Small,
+				Move: &size, Crossed: &move.Crossed, Small: &move.Small, CutMoved: &move.CutMoved,
 			})
 		}
 	}
@@ -471,14 +467,20 @@ func choiceMovesJSON(file string, moves ChoiceMoves) jsonChanges {
 // jsonChanges lists one run against the baseline. A yes or no question fills the cut and small
 // fields, and a pick or rate question unchanged.
 type jsonChanges struct {
-	File        string     `json:"file"`
-	CutFrom     string     `json:"cut_from,omitempty"`
-	BaselineCut *float64   `json:"baseline_cut,omitempty"`
-	RunCut      *float64   `json:"run_cut,omitempty"`
-	GotWorse    []jsonMove `json:"got_worse"`
-	GotBetter   []jsonMove `json:"got_better"`
-	Small       *int       `json:"small,omitempty"`
-	Unchanged   *int       `json:"unchanged,omitempty"`
+	File        string        `json:"file"`
+	CutFrom     string        `json:"cut_from,omitempty"`
+	BaselineCut *float64      `json:"baseline_cut,omitempty"`
+	RunCut      *float64      `json:"run_cut,omitempty"`
+	GotWorse    []jsonMove    `json:"got_worse"`
+	GotBetter   []jsonMove    `json:"got_better"`
+	Small       *int          `json:"small,omitempty"`
+	MeanMove    *jsonMeanMove `json:"mean_move,omitempty"`
+	Unchanged   *int          `json:"unchanged,omitempty"`
+}
+
+type jsonMeanMove struct {
+	Yes float64 `json:"yes"`
+	No  float64 `json:"no"`
 }
 
 // jsonMove is one record's answer before and after. Before and After are values for a yes or no
@@ -491,6 +493,7 @@ type jsonMove struct {
 	Move             *float64 `json:"move,omitempty"`
 	Crossed          *bool    `json:"crossed,omitempty"`
 	Small            *bool    `json:"small,omitempty"`
+	CutMoved         *bool    `json:"cut_moved,omitempty"`
 	BeforeConfidence *float64 `json:"before_confidence,omitempty"`
 	AfterConfidence  *float64 `json:"after_confidence,omitempty"`
 }

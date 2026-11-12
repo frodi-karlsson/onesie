@@ -251,8 +251,8 @@ func (r *Requirement) checkCombination() error {
 	case (r.Measure == AreaUnderCurve || r.Measure == AUCChange) && r.At.Kind != AtNone:
 		return fmt.Errorf("reads %s, and auc covers every cut, so at does not apply", r.Measure)
 	case !r.Measure.NeedsCut() && r.At.Kind != AtNone:
-		return fmt.Errorf("reads %s, and at applies only to catches, false_alarms, right_when_flagged and "+
-			"their changes", r.Measure)
+		return fmt.Errorf("reads %s, and at applies only to catches, false_alarms, right_when_flagged, "+
+			"catches_change and false_alarms_change", r.Measure)
 	case r.Bound == Lower && (r.Op == OpLE || r.Op == OpLT):
 		return errors.New("uses lower with an upper limit. lower takes >= or >, since it reads the low end of the interval")
 	case r.Bound == Upper && (r.Op == OpGE || r.Op == OpGT):
@@ -271,7 +271,7 @@ func (r Requirement) Check(q QuestionReport, cut float64) Result {
 	}
 
 	if r.Measure.Change() {
-		result.Reason = r.Measure.String() + " reads a change from a baseline, which only --compare has"
+		result.Reason = r.NeedsCompare()
 
 		return result
 	}
@@ -341,7 +341,7 @@ func (r Requirement) CheckChange(q QuestionComparison, run int, cut float64) Res
 	case r.Measure == WithinOneChange && q.Shape == plan.Rate:
 		change = q.Choices[run].WithinOneChange
 	default:
-		result.Reason = fmt.Sprintf("'%s' is a %s question, so %s does not apply", q.ID, ShapeName(q.Shape), r.Measure)
+		result.Reason = r.notApplicable(QuestionReport{ID: q.ID, Shape: q.Shape})
 
 		return result
 	}
@@ -357,6 +357,12 @@ func (r Requirement) CheckChange(q QuestionComparison, run int, cut float64) Res
 	result.Held = r.Op.holds(result.compared(), r.Threshold)
 
 	return result
+}
+
+// NeedsCompare says why a change measure cannot be read outside a --compare, in words that follow
+// the requirement.
+func (r Requirement) NeedsCompare() string {
+	return fmt.Sprintf("reads %s, a change from a baseline, which needs --compare", r.Measure)
 }
 
 func pairedFlags(baseline, run []YesNoCase, cut float64, labelledYes bool) Interval {
@@ -538,7 +544,12 @@ func (m Measure) NeedsCut() bool {
 
 // Change reports whether the measure reads a run less the baseline of a --compare.
 func (m Measure) Change() bool {
-	return m >= AUCChange
+	switch m {
+	case AUCChange, CatchesChange, FalseAlarmsChange, AgreementChange, WithinOneChange:
+		return true
+	default:
+		return false
+	}
 }
 
 // Within reports whether the measure reads the share within one level, which only a rate question

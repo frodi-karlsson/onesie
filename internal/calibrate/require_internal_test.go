@@ -369,7 +369,7 @@ func TestRequirement_CheckChange(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		if got := req.Check(QuestionReport{ID: "u", Shape: plan.Noul}, 0); got.Held || !strings.Contains(got.Reason, "only --compare has") {
+		if got := req.Check(QuestionReport{ID: "u", Shape: plan.Noul}, 0); got.Held || !strings.Contains(got.Reason, "which needs --compare") {
 			t.Errorf("result = %+v", got)
 		}
 	})

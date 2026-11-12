@@ -83,7 +83,8 @@ func TestCompareCalibration(t *testing.T) {
 			"got worse, 2 records, 1 crossed the cut\n" +
 			"  T-2  b  labelled yes  0.80 to 0.40  crossed\n" +
 			"  T-5  e  labelled no   0.20 to 0.60\n" +
-			"4 records moved less than 0.10\n"
+			"4 records moved less than 0.10\n" +
+			"mean move -0.13 on the 3 yes records, +0.13 on the 3 no records\n"
 		if code != ExitOK || out != want {
 			t.Errorf("exit %d\nstdout:\n%s\nwant:\n%s\nstderr:\n%s", code, out, want, errOut)
 		}

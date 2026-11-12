@@ -34,8 +34,8 @@ func TestMoveYesNo(t *testing.T) {
 			t.Errorf("better lines = %v and small = %d, want [5] and 1", lines, got.Small)
 		}
 
-		if small := got.Worse[2]; !small.Crossed || !small.Small || small.Move != 0.04 {
-			t.Errorf("third worse = %+v, want a crossing under the small move of 0.04", small)
+		if small := got.Worse[2]; !small.Crossed || !small.Small || small.CutMoved || small.Move != 0.04 {
+			t.Errorf("third worse = %+v, want a crossing under the small move of 0.04 at a shared cut", small)
 		}
 	})
 
@@ -43,8 +43,19 @@ func TestMoveYesNo(t *testing.T) {
 		t.Parallel()
 
 		got := MoveYesNo(baseline[1:2], []YesNoCase{yesNo(2, true, 0.52)}, 0.5, 0.55, CutFromBudget)
-		if len(got.Worse) != 1 || !got.Worse[0].Crossed || got.Worse[0].Move != 0 {
-			t.Errorf("worse = %+v, want one crossing with no move", got.Worse)
+		if len(got.Worse) != 1 || !got.Worse[0].Crossed || !got.Worse[0].CutMoved || got.Worse[0].Move != 0 {
+			t.Errorf("worse = %+v, want one crossing with no move, marked as the cut moving", got.Worse)
+		}
+	})
+
+	t.Run("should give the mean move in value of each label, so a shift across a label shows", func(t *testing.T) {
+		t.Parallel()
+
+		got := MoveYesNo(baseline, run, 0.5, 0.5, CutFromAssert)
+
+		// Yes moves -0.7, -0.04 and +0.35, no moves +0.5, +0.02 and +0.25.
+		if got.Yes != 3 || got.No != 3 || got.MeanYes != -0.13 || got.MeanNo != 0.2567 {
+			t.Errorf("moves = %d yes at %v and %d no at %v, want 3 at -0.13 and 3 at 0.2567", got.Yes, got.MeanYes, got.No, got.MeanNo)
 		}
 	})
 

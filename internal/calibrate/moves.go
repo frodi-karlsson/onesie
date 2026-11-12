@@ -35,6 +35,8 @@ type CutSource int
 func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSource) YesNoMoves {
 	moves := YesNoMoves{BaseCut: baseCut, RunCut: runCut, From: from, Worse: []YesNoMove{}, Better: []YesNoMove{}}
 
+	var yesTotal, noTotal float64
+
 	for i, before := range baseline {
 		after := run[i]
 		move := YesNoMove{Case: after, Before: before.Value, After: after.Value}
@@ -48,6 +50,16 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 		flaggedBefore, flaggedAfter := before.Value >= baseCut, after.Value >= runCut
 		move.Crossed = from != CutFromNone && flaggedBefore != flaggedAfter
 		move.Small = math.Abs(move.Move) < SmallMove
+		// A small move only crosses on its own at a cut both runs share. Across two cuts the cut moved.
+		move.CutMoved = move.Crossed && move.Small && baseCut != runCut
+
+		if before.Yes {
+			moves.Yes++
+			yesTotal += after.Value - before.Value
+		} else {
+			moves.No++
+			noTotal += after.Value - before.Value
+		}
 
 		worse := move.Move > 0
 		if move.Crossed {
@@ -62,6 +74,15 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 		default:
 			moves.Better = append(moves.Better, move)
 		}
+	}
+
+	// Jitter averages out, so a mean far from zero shows a shift across a whole label.
+	if moves.Yes > 0 {
+		moves.MeanYes = num.Rounded(yesTotal / float64(moves.Yes))
+	}
+
+	if moves.No > 0 {
+		moves.MeanNo = num.Rounded(noTotal / float64(moves.No))
 	}
 
 	for _, list := range [][]YesNoMove{moves.Worse, moves.Better} {
@@ -79,19 +100,23 @@ func MoveYesNo(baseline, run []YesNoCase, baseCut, runCut float64, from CutSourc
 
 // YesNoMoves is one run against the baseline. Worse and Better hold the records that crossed the
 // cut or moved by SmallMove or more, crossed records first, then by size. Small counts the rest.
+// MeanYes and MeanNo are the mean move in value over the Yes and No labelled records.
 type YesNoMoves struct {
 	BaseCut, RunCut float64
 	From            CutSource
 	Worse, Better   []YesNoMove
 	Small           int
+	Yes, No         int
+	MeanYes, MeanNo float64
 }
 
 // YesNoMove is one record's answer on the baseline and on the run. Case is the run's case, and Move
-// is positive toward the wrong side of its label.
+// is positive toward the wrong side of its label. CutMoved marks a small move that crossed only
+// because the two runs read different cuts.
 type YesNoMove struct {
-	Case                YesNoCase
-	Before, After, Move float64
-	Crossed, Small      bool
+	Case                     YesNoCase
+	Before, After, Move      float64
+	Crossed, Small, CutMoved bool
 }
 
 func crossedFirst(crossed bool) int {
@@ -175,6 +200,19 @@ func writeYesNoMoves(b *strings.Builder, baseline, file string, moves YesNoMoves
 	if moves.Small > 0 {
 		fmt.Fprintf(b, "%s moved less than %s\n", wording.Plural(moves.Small, "record", "records"), cutText(SmallMove))
 	}
+
+	fmt.Fprintf(b, "mean move %s on the %s, %s on the %s\n",
+		signedTwoPlaces(moves.MeanYes), wording.Plural(moves.Yes, "yes record", "yes records"),
+		signedTwoPlaces(moves.MeanNo), wording.Plural(moves.No, "no record", "no records"))
+}
+
+func signedTwoPlaces(value float64) string {
+	text := twoPlaces(value)
+	if value > 0 && text != "0.00" {
+		return "+" + text
+	}
+
+	return text
 }
 
 func writeYesNoRows(b *strings.Builder, moves []YesNoMove) {
@@ -189,6 +227,8 @@ func writeYesNoRows(b *strings.Builder, moves []YesNoMove) {
 		values = append(values, twoPlaces(move.Before)+" to "+twoPlaces(move.After))
 
 		switch {
+		case move.CutMoved:
+			marks = append(marks, "crossed, the cut moved")
 		case move.Crossed && move.Small:
 			marks = append(marks, "crossed, under "+cutText(SmallMove))
 		case move.Crossed:
