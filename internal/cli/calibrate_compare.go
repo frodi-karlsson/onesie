@@ -28,11 +28,7 @@ func compareCalibration(
 ) error {
 	questions := scope.scored.Questions
 
-	if refuseErr := refuseUncompared(questions, bound); refuseErr != nil {
-		return refuseErr
-	}
-
-	if noteErr := writeUncompared(cmd.ErrOrStderr(), scope.skipped, questions); noteErr != nil {
+	if noteErr := writeSkipped(cmd.ErrOrStderr(), scope.skipped, false, ""); noteErr != nil {
 		return noteErr
 	}
 
@@ -86,36 +82,6 @@ func compareCalibration(
 
 	if unmet {
 		return &failError{}
-	}
-
-	return nil
-}
-
-func refuseUncompared(questions []plan.Question, bound []boundRequirement) error {
-	for _, req := range bound {
-		if question := questions[req.question]; question.Shape != plan.Noul {
-			return fmt.Errorf("--require '%s' reads '%s', a %s question, and --compare compares only yes or "+
-				"no questions so far", req.Source, question.ID, shapeWords(question.Shape))
-		}
-	}
-
-	return nil
-}
-
-func writeUncompared(w io.Writer, skipped []string, questions []plan.Question) error {
-	if err := writeSkipped(w, skipped, false, ""); err != nil {
-		return err
-	}
-
-	for _, question := range questions {
-		if question.Shape == plan.Noul {
-			continue
-		}
-
-		if err := output.Notice(w, fmt.Sprintf("skipping '%s', a %s question, since --compare compares only "+
-			"yes or no questions so far", question.ID, shapeWords(question.Shape))); err != nil {
-			return err
-		}
 	}
 
 	return nil
@@ -308,10 +274,6 @@ func comparisonOf(
 	inSet := make([]bool, len(set.records))
 
 	for q, question := range questions {
-		if question.Shape != plan.Noul {
-			continue
-		}
-
 		compared, indices, err := compareQuestion(q, question, set, runs, cuts[q], budgets)
 		if err != nil {
 			return calibrate.Comparison{}, err
@@ -369,8 +331,10 @@ func comparedUsage(run storedRun, inSet []bool) *calibrate.Usage {
 func compareQuestion(
 	q int, question plan.Question, set labelledSet, runs []storedRun, cuts, budgets []float64,
 ) (calibrate.QuestionComparison, []int, error) {
-	compared := calibrate.QuestionComparison{ID: question.ID, LeftOut: make([]calibrate.LeftOut, len(runs))}
-	cases := make([][]calibrate.YesNoCase, len(runs))
+	compared := calibrate.QuestionComparison{
+		ID: question.ID, Shape: question.Shape, LeftOut: make([]calibrate.LeftOut, len(runs)),
+	}
+	cases := make([][]recordCase, len(runs))
 	answered := make([]int, len(runs))
 	unusable := make([]error, len(runs))
 
@@ -383,7 +347,7 @@ func compareQuestion(
 		}
 
 		compared.Labelled++
-		recordCases := make([]calibrate.YesNoCase, len(runs))
+		recordCases := make([]recordCase, len(runs))
 		usable := true
 
 		for r, run := range runs {
@@ -423,28 +387,45 @@ func compareQuestion(
 		}
 	}
 
-	compared.Scores = calibrate.CompareYesNo(cases, cuts, budgets)
+	if question.Shape == plan.Noul {
+		compared.Scores = calibrate.CompareYesNo(casesOfRuns(cases, func(c recordCase) calibrate.YesNoCase { return c.yesNo }), cuts, budgets)
+	} else {
+		compared.Choices = calibrate.CompareChoices(casesOfRuns(cases, func(c recordCase) calibrate.ChoiceCase { return c.choice }),
+			namesOf(question), question.Shape == plan.Rate, cuts)
+	}
 
 	return compared, indices, nil
 }
 
+func casesOfRuns[T any](cases [][]recordCase, pick func(recordCase) T) [][]T {
+	picked := make([][]T, len(cases))
+	for r, run := range cases {
+		picked[r] = make([]T, len(run))
+		for i, c := range run {
+			picked[r][i] = pick(c)
+		}
+	}
+
+	return picked
+}
+
 func storedCase(
 	run storedRun, rec labelledRecord, question plan.Question, label *calibrate.Label, left *calibrate.LeftOut,
-) (calibrate.YesNoCase, bool, error) {
+) (recordCase, bool, error) {
 	if !run.answered[rec.index] {
 		left.Unanswered++
 
-		return calibrate.YesNoCase{}, false, nil
+		return recordCase{}, false, nil
 	}
 
 	scored, err := caseOf(question, label, rec, run.records[rec.index])
 	if err != nil {
 		left.Unusable++
 
-		return calibrate.YesNoCase{}, false, err
+		return recordCase{}, false, err
 	}
 
-	return scored.yesNo, true, nil
+	return scored, true, nil
 }
 
 func writeLeftOut(w io.Writer, comparison calibrate.Comparison) error {
@@ -500,14 +481,18 @@ func measureEachRun(
 
 	for r, run := range comparison.Runs {
 		report := calibrate.Report{Questions: make([]calibrate.QuestionReport, len(questions))}
-		compared := 0
 
 		for q, question := range questions {
+			compared := comparison.Questions[q]
 			report.Questions[q] = calibrate.QuestionReport{ID: question.ID, Shape: question.Shape}
 
-			if question.Shape == plan.Noul {
-				report.Questions[q].YesNo = &comparison.Questions[compared].Scores[r].YesNo
-				compared++
+			switch question.Shape {
+			case plan.Noul:
+				report.Questions[q].YesNo = &compared.Scores[r].YesNo
+			case plan.Pick:
+				report.Questions[q].Pick = &compared.Choices[r].Pick
+			case plan.Rate:
+				report.Questions[q].Rate = compared.Choices[r].Rate
 			}
 		}
 

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/frodi-karlsson/onesie-go"
+
+	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
 func TestWriteComparisonTable(t *testing.T) {
@@ -74,6 +76,60 @@ func TestWriteComparisonTable(t *testing.T) {
 
 			if !tc.without && !strings.HasSuffix(out, tc.want) {
 				t.Errorf("table ends\n%s\nwant it to end\n%s", out, tc.want)
+			}
+		})
+	}
+
+	checkChoiceTables(t)
+}
+
+func checkChoiceTables(t *testing.T) {
+	t.Helper()
+
+	cases := func(picks ...string) []ChoiceCase {
+		labels := []string{"1", "3", "5"}
+		out := make([]ChoiceCase, len(picks))
+		for i, pick := range picks {
+			out[i] = ChoiceCase{Label: labels[i], Picked: pick, Confidence: 0.9}
+		}
+
+		return out
+	}
+
+	levels := []string{"1", "2", "3", "4", "5"}
+	runs := []Run{{File: "march.jsonl"}, {File: "november.jsonl"}}
+
+	tests := []struct {
+		name  string
+		shape plan.Shape
+		want  string
+	}{
+		{
+			name: "should give a pick question one change from the baseline", shape: plan.Pick,
+			want: "  run             model  agreement       change from baseline\n",
+		},
+		{
+			name: "should name each change of a rate question after its measure", shape: plan.Rate,
+			want: "  run             model  agreement       agreement change      within one level  within one change\n",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			question := QuestionComparison{
+				ID: "tone", Shape: tc.shape, Labelled: 3, LeftOut: make([]LeftOut, 2),
+				Choices: CompareChoices([][]ChoiceCase{cases("1", "3", "5"), cases("2", "3", "1")}, levels, tc.shape == plan.Rate, nil),
+			}
+
+			var b strings.Builder
+			if err := WriteComparisonTable(&b, Comparison{Runs: runs, Questions: []QuestionComparison{question}}); err != nil {
+				t.Fatal(err)
+			}
+
+			if lines := strings.Split(b.String(), "\n"); len(lines) < 3 || lines[2]+"\n" != tc.want {
+				t.Errorf("table =\n%s\nwant its header row\n%s", b.String(), tc.want)
 			}
 		})
 	}

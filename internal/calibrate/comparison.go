@@ -38,13 +38,15 @@ type Run struct {
 	Usage  *Usage
 }
 
-// QuestionComparison is one yes or no question compared. LeftOut and Scores hold an entry per run,
-// in run order.
+// QuestionComparison is one question compared. LeftOut holds an entry per run in run order, and so
+// does Scores for a yes or no question or Choices for a pick or rate question.
 type QuestionComparison struct {
 	ID       string
+	Shape    plan.Shape
 	Labelled int
 	LeftOut  []LeftOut
 	Scores   []RunScore
+	Choices  []ChoiceRunScore
 }
 
 // LeftOut counts the labelled records a run leaves out of a question's comparison: those no line
@@ -85,6 +87,12 @@ func WriteComparisonTable(w io.Writer, c Comparison) error {
 }
 
 func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
+	if q.Shape != plan.Noul {
+		writeComparedChoices(b, runs, q)
+
+		return
+	}
+
 	baseline := q.Scores[0].YesNo
 	fmt.Fprintf(b, "%s, %s: compared %d of %d labelled, %d yes, %d no\n",
 		printable(q.ID), ShapeName(plan.Noul), baseline.Labelled, q.Labelled, baseline.Yes, baseline.No)
@@ -114,6 +122,52 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 
 	for at, budget := range q.Scores[0].Budgets {
 		columns = append(columns, budgetColumn(budget.Budget, q.Scores, at))
+	}
+
+	writeColumns(b, columns...)
+}
+
+func writeComparedChoices(b *strings.Builder, runs []Run, q QuestionComparison) {
+	compared := q.Choices[0].Pick.Labelled
+	fmt.Fprintf(b, "%s, %s: compared %d of %d labelled\n", printable(q.ID), ShapeName(q.Shape), compared, q.Labelled)
+
+	if compared == 0 {
+		return
+	}
+
+	b.WriteString("\n")
+
+	files, models := make([]string, 0, len(runs)), make([]string, 0, len(runs))
+	agreements, agreementChanges := make([]Share, 0, len(runs)), make([]string, 0, len(runs))
+	within, withinChanges := make([]Share, 0, len(runs)), make([]string, 0, len(runs))
+
+	for i, run := range runs {
+		score := q.Choices[i]
+		files = append(files, printable(run.File))
+		models = append(models, modelsText(run.Models))
+		agreements = append(agreements, score.Pick.Agreement)
+		agreementChanges = append(agreementChanges, changeText(score.AgreementChange))
+
+		if score.Rate != nil {
+			within = append(within, score.Rate.WithinOne)
+			withinChanges = append(withinChanges, changeText(score.WithinOneChange))
+		}
+	}
+
+	columns := []column{
+		{header: "run", cells: files},
+		{header: "model", cells: models},
+		{header: "agreement", cells: shareCells(agreements)},
+		{header: "change from baseline", cells: agreementChanges},
+	}
+
+	// A rate row carries two changes, so each names its measure.
+	if q.Shape == plan.Rate {
+		columns[3].header = "agreement change"
+		columns = append(columns,
+			column{header: "within one level", cells: shareCells(within)},
+			column{header: "within one change", cells: withinChanges},
+		)
 	}
 
 	writeColumns(b, columns...)
@@ -289,11 +343,16 @@ type jsonRun struct {
 }
 
 func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
-	baseline := q.Scores[0].YesNo
 	compared := jsonCompared{
-		ID: q.ID, Shape: ShapeName(plan.Noul), Labelled: q.Labelled, Compared: baseline.Labelled,
-		Yes: baseline.Yes, No: baseline.No,
-		LeftOut: make([]jsonLeftOut, 0, len(runs)), Runs: make([]jsonRunScore, 0, len(runs)),
+		ID: q.ID, Shape: ShapeName(q.Shape), Labelled: q.Labelled,
+		LeftOut: make([]jsonLeftOut, 0, len(runs)), Runs: make([]any, 0, len(runs)),
+	}
+
+	if q.Shape == plan.Noul {
+		baseline := q.Scores[0].YesNo
+		compared.Compared, compared.Yes, compared.No = baseline.Labelled, &baseline.Yes, &baseline.No
+	} else {
+		compared.Compared = q.Choices[0].Pick.Labelled
 	}
 
 	for i, run := range runs {
@@ -301,21 +360,52 @@ func comparedJSON(runs []Run, q QuestionComparison) jsonCompared {
 		compared.LeftOut = append(compared.LeftOut, jsonLeftOut{
 			File: run.File, Unanswered: left.Unanswered, Unusable: left.Unusable,
 		})
-		compared.Runs = append(compared.Runs, runScoreJSON(run.File, q.Scores[i]))
+
+		if q.Shape == plan.Noul {
+			compared.Runs = append(compared.Runs, runScoreJSON(run.File, q.Scores[i]))
+		} else {
+			compared.Runs = append(compared.Runs, choiceScoreJSON(run.File, q.Choices[i]))
+		}
 	}
 
 	return compared
 }
 
 type jsonCompared struct {
-	ID       string         `json:"id"`
-	Shape    string         `json:"shape"`
-	Labelled int            `json:"labelled"`
-	Compared int            `json:"compared"`
-	Yes      int            `json:"yes"`
-	No       int            `json:"no"`
-	LeftOut  []jsonLeftOut  `json:"left_out"`
-	Runs     []jsonRunScore `json:"runs"`
+	ID       string        `json:"id"`
+	Shape    string        `json:"shape"`
+	Labelled int           `json:"labelled"`
+	Compared int           `json:"compared"`
+	Yes      *int          `json:"yes,omitempty"`
+	No       *int          `json:"no,omitempty"`
+	LeftOut  []jsonLeftOut `json:"left_out"`
+	Runs     []any         `json:"runs"`
+}
+
+func choiceScoreJSON(file string, score ChoiceRunScore) jsonChoiceScore {
+	entry := jsonChoiceScore{File: file, Agreement: score.Pick.Agreement}
+
+	if score.AgreementChange != nil {
+		entry.AgreementChange = intervalJSON(*score.AgreementChange)
+	}
+
+	if score.Rate != nil {
+		entry.WithinOne = &score.Rate.WithinOne
+	}
+
+	if score.WithinOneChange != nil {
+		entry.WithinOneChange = intervalJSON(*score.WithinOneChange)
+	}
+
+	return entry
+}
+
+type jsonChoiceScore struct {
+	File            string        `json:"file"`
+	Agreement       Share         `json:"agreement"`
+	AgreementChange *jsonInterval `json:"agreement_change,omitempty"`
+	WithinOne       *Share        `json:"within_one,omitempty"`
+	WithinOneChange *jsonInterval `json:"within_one_change,omitempty"`
 }
 
 type jsonLeftOut struct {
