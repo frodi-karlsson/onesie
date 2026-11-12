@@ -10,7 +10,7 @@ import (
 )
 
 // Names joins every provider's name in the library's order, as typesafe, openrouter, berget,
-// levanto or cloudflare.
+// levanto, cloudflare or vercel.
 func Names() string {
 	return joined(onesie.Providers(), onesie.Provider.Name)
 }

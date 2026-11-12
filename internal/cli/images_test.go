@@ -416,22 +416,22 @@ func TestRun(t *testing.T) {
 			env:      levanto,
 			stdin:    `{"state":{"p":"r"},"model":"m","questions":{"answer":{"type":"noul","instructions":"q"}},"assets":{"r":{"type":"image","format":"png","data_base64":"AQ=="}}}` + "\n",
 			wantCode: ExitRecords,
-			wantOut:  "takes no images. The typesafe, openrouter and cloudflare providers do",
+			wantOut:  "takes no images. The typesafe, openrouter, cloudflare and vercel providers do",
 		},
 		{
 			name:     "should refuse --long-context on cloudflare before any request",
 			args:     []string{"--long-context", "--state", "s", "q"},
 			env:      cloudflare,
 			wantCode: ExitUsage,
-			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget, levanto and vercel providers do\n",
 		},
 		{
 			name:     "should say ONESIE_LONG_CONTEXT turned long context on when cloudflare refuses it",
 			args:     []string{"--state", "s", "q"},
 			env:      map[string]string{"ONESIE_PROVIDER": "cloudflare", "ONESIE_LONG_CONTEXT": "1"},
 			wantCode: ExitUsage,
-			wantErr: "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and " +
-				"levanto providers do. ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false\n",
+			wantErr: "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget, levanto and " +
+				"vercel providers do. ONESIE_LONG_CONTEXT turned it on, so unset it or pass --long-context=false\n",
 		},
 		{
 			name:     "should say ONESIE_LONG_CONTEXT turned long context on under -i request",
@@ -446,7 +446,7 @@ func TestRun(t *testing.T) {
 			args:     []string{"--image", "photo=" + square, "--ask", "mug=the mug in `photo`", "--box"},
 			env:      cloudflare,
 			wantCode: ExitUsage,
-			wantErr:  "onesie: the cloudflare provider takes no box questions. The typesafe and openrouter providers do\n",
+			wantErr:  "onesie: the cloudflare provider takes no box questions. The typesafe, openrouter and vercel providers do\n",
 		},
 		{
 			name:     "should refuse a question file's long context on cloudflare before any request",
@@ -479,28 +479,28 @@ func TestRun(t *testing.T) {
 			stdin:    `{"state":"s","questions":{"q":{"type":"noul","instructions":"q"}}}` + "\n",
 			env:      cloudflare,
 			wantCode: ExitUsage,
-			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget, levanto and vercel providers do\n",
 		},
 		{
 			name:     "should refuse --image on levanto before any request",
 			args:     []string{"--image", "photo=" + square, "q"},
 			env:      levanto,
 			wantCode: ExitUsage,
-			wantErr:  refused + ". The typesafe, openrouter and cloudflare providers do\n",
+			wantErr:  refused + ". The typesafe, openrouter, cloudflare and vercel providers do\n",
 		},
 		{
 			name:     "should refuse --box on levanto before any request",
 			args:     []string{"--ask", "mug=the mug", "--box", "--state", "s"},
 			env:      levanto,
 			wantCode: ExitUsage,
-			wantErr:  "onesie: the levanto provider takes no box questions. The typesafe and openrouter providers do\n",
+			wantErr:  "onesie: the levanto provider takes no box questions. The typesafe, openrouter and vercel providers do\n",
 		},
 		{
 			name:     "should refuse an image and a box question on levanto, naming who takes both",
 			args:     []string{"--image", "photo=" + square, "--ask", "mug=the mug in `photo`", "--box"},
 			env:      levanto,
 			wantCode: ExitUsage,
-			wantErr:  refused + " or box questions. The typesafe and openrouter providers do\n",
+			wantErr:  refused + " or box questions. The typesafe, openrouter and vercel providers do\n",
 		},
 		{
 			name:     "should refuse a levanto stream once with no error lines",
@@ -528,7 +528,7 @@ func TestRun(t *testing.T) {
 			args:     []string{"--image", "photo=" + square, "q", "--print-request"},
 			env:      levanto,
 			wantCode: ExitUsage,
-			wantErr:  refused + ". The typesafe, openrouter and cloudflare providers do\n",
+			wantErr:  refused + ". The typesafe, openrouter, cloudflare and vercel providers do\n",
 			emptyOut: true,
 		},
 		{
@@ -537,7 +537,7 @@ func TestRun(t *testing.T) {
 			env:      cloudflare,
 			stdin:    "a\nb\n",
 			wantCode: ExitUsage,
-			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do\n",
+			wantErr:  "onesie: the cloudflare provider takes no long context. The typesafe, openrouter, berget, levanto and vercel providers do\n",
 			emptyOut: true,
 		},
 		{
@@ -1211,7 +1211,7 @@ func noisePNG(t *testing.T, side, names int) []byte {
 func TestLongContextCause(t *testing.T) {
 	t.Parallel()
 
-	const refused = "the cloudflare provider takes no long context. The typesafe, openrouter, berget and levanto providers do"
+	const refused = "the cloudflare provider takes no long context. The typesafe, openrouter, berget, levanto and vercel providers do"
 
 	refusal := onesie.Cloudflare().Refuse(onesie.Cloudflare().DefaultModel(), onesie.Needs{LongContext: true})
 

@@ -107,7 +107,7 @@ func TestProfilesValidate(t *testing.T) {
 		{
 			name:     "should refuse an unknown provider",
 			profiles: creds.Profiles{Profiles: map[string]creds.Profile{"x": {Provider: "nope", APIKey: "k"}}},
-			wantErr:  "profile 'x' names provider 'nope', which is not typesafe, openrouter, berget, levanto or cloudflare",
+			wantErr:  "profile 'x' names provider 'nope', which is not typesafe, openrouter, berget, levanto, cloudflare or vercel",
 		},
 		{
 			name:     "should refuse a provider spelled with spaces",

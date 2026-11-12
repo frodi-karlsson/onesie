@@ -301,7 +301,7 @@ func TestProfileCreate(t *testing.T) {
 			stdinUnread: true,
 			wantCode:    ExitUsage,
 			wantErr: []string{"onesie: --provider names 'nope', which is not typesafe, openrouter, berget, " +
-				"levanto or cloudflare"},
+				"levanto, cloudflare or vercel"},
 			wantNoFile: true,
 		},
 		{

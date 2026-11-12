@@ -22,7 +22,7 @@ Flags:
   -h, --help                    Show this help.
       --model MODEL             The model a run uses when it names none.
       --provider PROVIDER       The profile's provider: typesafe, openrouter, berget,
-                                levanto or cloudflare. Required.
+                                levanto, cloudflare or vercel. Required.
 
 Global Flags:
       --profile NAME            The profile a run uses, from profiles.json in the config

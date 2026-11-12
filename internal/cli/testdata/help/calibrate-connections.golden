@@ -2,9 +2,9 @@ Connections
 
 Flags:
       --provider PROVIDER       Run on this provider without a profile: typesafe,
-                                openrouter, berget, levanto or cloudflare. Overrides
-                                ONESIE_PROVIDER and the default profile. Refused beside
-                                --profile or ONESIE_PROFILE.
+                                openrouter, berget, levanto, cloudflare or vercel.
+                                Overrides ONESIE_PROVIDER and the default profile.
+                                Refused beside --profile or ONESIE_PROFILE.
       --profile NAME            The profile a run uses, from profiles.json in the config
                                 dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER.
                                 Otherwise the default profile runs, which onesie profile
@@ -17,20 +17,20 @@ Flags:
 
 How they work together:
   onesie is a Unix filter over the System One API, served by typesafe, openrouter,
-  berget, levanto or cloudflare. A profile in profiles.json holds a provider, a key in
-  the OS keychain or file, and optionally a model and base URL or cloudflare account.
-  onesie profile create stores one and onesie profile use makes it the default.
+  berget, levanto, cloudflare or vercel. A profile in profiles.json holds a provider, a
+  key in the OS keychain or file, and optionally a model and base URL or cloudflare
+  account. onesie profile create stores one and onesie profile use makes it the default.
 
   A run uses the profile named by --profile, then ONESIE_PROFILE, then the default
   profile. --profile overrides ONESIE_PROVIDER. --provider runs without a profile and
   overrides ONESIE_PROVIDER and the default profile. It is refused beside --profile or
   ONESIE_PROFILE. ONESIE_PROVIDER beside ONESIE_PROFILE is also refused. With no
   profiles, typesafe runs directly. Provider keys come from TYPESAFE_API_KEY,
-  OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY or CLOUDFLARE_API_TOKEN. The
-  chosen profile key and endpoint beat the environment. Provider variables beat the
-  default profile. --base-url wins over a chosen profile, then ONESIE_BASE_URL, then the
-  provider base URL or account variable, then the default profile. On typesafe,
-  ONESIE_BASE_URL beats TYPESAFE_BASE_URL.
+  OPENROUTER_API_KEY, BERGET_API_KEY, LEVANTO_API_KEY, CLOUDFLARE_API_TOKEN or
+  AI_GATEWAY_API_KEY. The chosen profile key and endpoint beat the environment. Provider
+  variables beat the default profile. --base-url wins over a chosen profile, then
+  ONESIE_BASE_URL, then the provider base URL or account variable, then the default
+  profile. On typesafe, ONESIE_BASE_URL beats TYPESAFE_BASE_URL.
 
   A key goes only with its own endpoint. A custom profile endpoint takes only the key
   from that profile. A custom URL from a variable takes only the provider key variable.

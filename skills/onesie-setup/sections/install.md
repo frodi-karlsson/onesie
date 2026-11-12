@@ -28,6 +28,7 @@ built in limits.
 | berget | `onesie profile create work --provider berget` | `BERGET_API_KEY` |
 | levanto | `onesie profile create work --provider levanto` | `LEVANTO_API_KEY` |
 | cloudflare | `onesie profile create work --provider cloudflare --account-id ACCOUNT_ID` | `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID` |
+| vercel | `onesie profile create work --provider vercel` | `AI_GATEWAY_API_KEY` |
 
 A name in place of `work` is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`,
 and is not `none`. A profile holds the provider, its key, and optionally `--model`, the model a run

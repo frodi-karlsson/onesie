@@ -16,7 +16,7 @@ Read each row from left to right. The first source that supplies the setting win
 | `long_context` | `--long-context` |  | the request body's `long_context` | `ONESIE_LONG_CONTEXT` |  |
 | `mock` | `--mock` |  |  | `ONESIE_MOCK` |  |
 | `cache` | `--cache` |  |  | `ONESIE_CACHE` |  |
-| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter, or `BERGET_API_KEY` on berget, or `LEVANTO_API_KEY` on levanto, or `CLOUDFLARE_API_TOKEN` on cloudflare | `api_key` |
+| `api_key` |  | `api_key` |  | `TYPESAFE_API_KEY` on typesafe, or `OPENROUTER_API_KEY` on openrouter, or `BERGET_API_KEY` on berget, or `LEVANTO_API_KEY` on levanto, or `CLOUDFLARE_API_TOKEN` on cloudflare, or `AI_GATEWAY_API_KEY` on vercel | `api_key` |
 <!-- settings:run_uses end -->
 
 ### Choosing a profile
@@ -31,7 +31,7 @@ to see which profile, model and endpoint a command will use.
 |--------|---------|
 | `default` | the profile a run uses when nothing else chooses one. Optional |
 | `profiles` | name to profile. May be empty |
-| `provider` | `typesafe`, `openrouter`, `berget`, `levanto` or `cloudflare`. Required |
+| `provider` | `typesafe`, `openrouter`, `berget`, `levanto`, `cloudflare` or `vercel`. Required |
 | `api_key` | the key, held in the file |
 | `store`, `account` | `keychain` and the keychain item's name, for a key held in the keychain |
 | `key_end` | the last four characters of a keychain key of 16 characters or more, so `profile show` tells two keys apart without reading the keychain |
@@ -45,7 +45,7 @@ to see which profile, model and endpoint a command will use.
 <!-- settings:environment begin -->
 | Variable | What it does |
 |----------|--------------|
-| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` | the key for each provider. It beats the default profile's key, and a chosen profile's beats it, as in What a run uses |
+| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN`, `AI_GATEWAY_API_KEY` | the key for each provider. It beats the default profile's key, and a chosen profile's beats it, as in What a run uses |
 | `CLOUDFLARE_ACCOUNT_ID` | the Cloudflare account when no flag, chosen profile or base URL variable names one. It beats the default profile's, as in What a run uses |
 | `TYPESAFE_DEFAULT_MODEL` | the model on typesafe when neither `-m`, a chosen profile nor a request body names one. It beats the default profile's `model` |
 | `ONESIE_BASE_URL` | the API root on every provider when neither `--base-url` nor a chosen profile's `base_url` or `account_id` names one. It beats the default profile's |

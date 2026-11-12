@@ -437,7 +437,7 @@ func TestResolveRun(t *testing.T) {
 			},
 			{
 				name: "should refuse an unknown provider", args: []string{"--provider", "bogus"},
-				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto or cloudflare",
+				wantErr: "unknown provider 'bogus'. Use typesafe, openrouter, berget, levanto, cloudflare or vercel",
 			},
 		}
 

@@ -20,6 +20,6 @@ Global Flags:
                                 Otherwise the default profile runs, which onesie profile
                                 use sets.
       --provider PROVIDER       Run on this provider without a profile: typesafe,
-                                openrouter, berget, levanto or cloudflare. Overrides
-                                ONESIE_PROVIDER and the default profile. Refused beside
-                                --profile or ONESIE_PROFILE.
+                                openrouter, berget, levanto, cloudflare or vercel.
+                                Overrides ONESIE_PROVIDER and the default profile.
+                                Refused beside --profile or ONESIE_PROFILE.
