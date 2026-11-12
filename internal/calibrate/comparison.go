@@ -20,10 +20,11 @@ const (
 
 // Comparison is several answers files scored against one label set, the first file being the
 // baseline. Records counts the input records, and each question compares only the records every
-// file answers.
+// file answers. Compared counts the records any question compares, which usage covers.
 type Comparison struct {
 	Runs      []Run
 	Records   int
+	Compared  int
 	Questions []QuestionComparison
 	Require   []RunResult
 }
@@ -76,7 +77,7 @@ func WriteComparisonTable(w io.Writer, c Comparison) error {
 		writeCompared(&b, c.Runs, q)
 	}
 
-	writeUsage(&b, c.Runs)
+	writeUsage(&b, c.Runs, c.Compared)
 
 	_, err := io.WriteString(w, b.String())
 
@@ -118,7 +119,7 @@ func writeCompared(b *strings.Builder, runs []Run, q QuestionComparison) {
 	writeColumns(b, columns...)
 }
 
-func writeUsage(b *strings.Builder, runs []Run) {
+func writeUsage(b *strings.Builder, runs []Run, compared int) {
 	if !slices.ContainsFunc(runs, func(run Run) bool { return run.Usage != nil }) {
 		return
 	}
@@ -148,7 +149,7 @@ func writeUsage(b *strings.Builder, runs []Run) {
 		}
 	}
 
-	b.WriteString("\nusage, mean per compared record\n\n")
+	fmt.Fprintf(b, "\nusage, mean per record over the %d records any question compares\n\n", compared)
 	writeColumns(b,
 		column{header: "run", cells: files},
 		column{header: "records", cells: records, right: true},
@@ -244,6 +245,7 @@ func WriteComparisonJSON(w io.Writer, c Comparison) error {
 	doc := jsonComparison{
 		Runs:      make([]jsonRun, 0, len(c.Runs)),
 		Records:   c.Records,
+		Compared:  c.Compared,
 		Questions: make([]jsonCompared, 0, len(c.Questions)),
 		Require:   runRequireJSON(c.Require),
 	}
@@ -275,6 +277,7 @@ type jsonComparison struct {
 	Baseline  string           `json:"baseline"`
 	Runs      []jsonRun        `json:"runs"`
 	Records   int              `json:"records"`
+	Compared  int              `json:"compared"`
 	Questions []jsonCompared   `json:"questions"`
 	Require   []jsonRunRequire `json:"require,omitempty"`
 }

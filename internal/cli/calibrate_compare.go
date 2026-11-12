@@ -69,6 +69,10 @@ func compareCalibration(
 		return noteErr
 	}
 
+	if noteErr := writePartialUsage(cmd.ErrOrStderr(), comparison); noteErr != nil {
+		return noteErr
+	}
+
 	comparison.Require = measureEachRun(comparison, questions, bound)
 
 	if writeErr := writeComparison(cmd.OutOrStdout(), calib.report, comparison); writeErr != nil {
@@ -300,6 +304,7 @@ func comparisonOf(
 		})
 	}
 
+	// One request answers every question, so usage covers the records any question compares.
 	inSet := make([]bool, len(set.records))
 
 	for q, question := range questions {
@@ -307,9 +312,16 @@ func comparisonOf(
 			continue
 		}
 
-		compared, err := compareQuestion(q, question, set, runs, cuts[q], budgets, inSet)
+		compared, indices, err := compareQuestion(q, question, set, runs, cuts[q], budgets)
 		if err != nil {
 			return calibrate.Comparison{}, err
+		}
+
+		for _, index := range indices {
+			if !inSet[index] {
+				inSet[index] = true
+				comparison.Compared++
+			}
 		}
 
 		comparison.Questions = append(comparison.Questions, compared)
@@ -355,12 +367,14 @@ func comparedUsage(run storedRun, inSet []bool) *calibrate.Usage {
 }
 
 func compareQuestion(
-	q int, question plan.Question, set labelledSet, runs []storedRun, cuts, budgets []float64, inSet []bool,
-) (calibrate.QuestionComparison, error) {
+	q int, question plan.Question, set labelledSet, runs []storedRun, cuts, budgets []float64,
+) (calibrate.QuestionComparison, []int, error) {
 	compared := calibrate.QuestionComparison{ID: question.ID, LeftOut: make([]calibrate.LeftOut, len(runs))}
 	cases := make([][]calibrate.YesNoCase, len(runs))
 	answered := make([]int, len(runs))
 	unusable := make([]error, len(runs))
+
+	var indices []int
 
 	for _, rec := range set.records {
 		label := rec.labels[q]
@@ -390,7 +404,7 @@ func compareQuestion(
 			continue
 		}
 
-		inSet[rec.index] = true
+		indices = append(indices, rec.index)
 
 		for r := range runs {
 			cases[r] = append(cases[r], recordCases[r])
@@ -401,17 +415,17 @@ func compareQuestion(
 		switch {
 		case answered[r] > 0 || compared.Labelled == 0:
 		case unusable[r] != nil:
-			return calibrate.QuestionComparison{}, fmt.Errorf("%s answers question '%s' in no way that can be "+
+			return calibrate.QuestionComparison{}, nil, fmt.Errorf("%s answers question '%s' in no way that can be "+
 				"scored, as for %v", run.file, question.ID, unusable[r])
 		default:
-			return calibrate.QuestionComparison{}, fmt.Errorf("%s holds no answer to question '%s' for a "+
+			return calibrate.QuestionComparison{}, nil, fmt.Errorf("%s holds no answer to question '%s' for a "+
 				"labelled record. Every file compared needs the same question ids and record ids", run.file, question.ID)
 		}
 	}
 
 	compared.Scores = calibrate.CompareYesNo(cases, cuts, budgets)
 
-	return compared, nil
+	return compared, indices, nil
 }
 
 func storedCase(
@@ -453,6 +467,21 @@ func writeLeftOut(w io.Writer, comparison calibrate.Comparison) error {
 		}
 
 		if err := output.Notice(w, fmt.Sprintf("left out of '%s': %s", q.ID, joinedAnd(parts))); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func writePartialUsage(w io.Writer, comparison calibrate.Comparison) error {
+	for _, run := range comparison.Runs {
+		if run.Usage == nil || run.Usage.Records == comparison.Compared {
+			continue
+		}
+
+		if err := output.Notice(w, fmt.Sprintf("%s carries usage on %d of the %d compared records, so its "+
+			"usage covers only those", run.File, run.Usage.Records, comparison.Compared)); err != nil {
 			return err
 		}
 	}

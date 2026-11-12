@@ -32,7 +32,7 @@ func TestWriteComparisonTable(t *testing.T) {
 				}},
 				{File: "november.jsonl"},
 			},
-			want: "\nusage, mean per compared record\n\n" +
+			want: "\nusage, mean per record over the 2 records any question compares\n\n" +
 				"  run             records  input tokens  output tokens  cost per 1000\n" +
 				"  march.jsonl           2           413              6        $0.0441\n" +
 				"  november.jsonl        -             -              -              -\n",
@@ -45,7 +45,7 @@ func TestWriteComparisonTable(t *testing.T) {
 					Usage: onesie.Usage{InputTokens: 1000, OutputTokens: 10, Cost: cost(24)}, Records: 2,
 				}},
 			},
-			want: "\nusage, mean per compared record\n\n" +
+			want: "\nusage, mean per record over the 2 records any question compares\n\n" +
 				"  run             records  input tokens  output tokens  cost per 1000\n" +
 				"  march.jsonl           2           500              5              -\n" +
 				"  november.jsonl        2           500              5         $12000\n",
@@ -62,7 +62,7 @@ func TestWriteComparisonTable(t *testing.T) {
 			t.Parallel()
 
 			var b strings.Builder
-			if err := WriteComparisonTable(&b, Comparison{Runs: tc.runs, Questions: []QuestionComparison{question}}); err != nil {
+			if err := WriteComparisonTable(&b, Comparison{Runs: tc.runs, Compared: 2, Questions: []QuestionComparison{question}}); err != nil {
 				t.Fatal(err)
 			}
 
