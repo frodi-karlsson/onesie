@@ -8,8 +8,8 @@ allowed-tools: Bash(onesie:*)
 ---
 
 onesie is a command line tool that asks System One models typed questions about text. It needs the
-`onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto or Cloudflare.
-This skill walks a user from nothing to a working first command.
+`onesie` binary on PATH and an API key, from TypeSafe, OpenRouter, Berget, Levanto, Cloudflare or
+Vercel. This skill walks a user from nothing to a working first command.
 
 There are two ways in. A user who installs onesie first can add the plugin afterwards. A user who
 installs the plugin first gets a session start line saying onesie is missing or has no key, and this
@@ -32,7 +32,7 @@ For a flag this skill does not cover, run `onesie help all`, `onesie profile --h
 
 Anything typed into the conversation is sent to the model and kept in the transcript. `onesie profile create NAME --provider PROVIDER` reads the key from a hidden prompt in a real terminal, or from stdin otherwise, and never prints it. So ask the user to run it in their own terminal, or to pipe the key from a password manager, as in `pass show typesafe | head -n 1 | onesie profile create work --provider typesafe`. `pass show` and its siblings print metadata after the secret, and `profile create` refuses stdin that holds more than one non blank line, so keep the `head -n 1`. A command that reads from a password manager is safe to run for them, since only stderr lines naming the keychain item or the file come back.
 
-### Ask which account the user has, TypeSafe, OpenRouter, Berget, Levanto or Cloudflare, before storing a key.
+### Ask which account the user has, TypeSafe, OpenRouter, Berget, Levanto, Cloudflare or Vercel, before storing a key.
 
 A profile names its provider, so `onesie profile create work --provider openrouter` makes an OpenRouter profile. The first profile becomes the default, and a run with no `--profile` uses the default. An exported key variable, `ONESIE_BASE_URL` or `TYPESAFE_DEFAULT_MODEL` beats the default profile, with a notice on stderr, so set `ONESIE_PROFILE=NAME` to keep the profile ahead of them. On a custom base URL, a profile's key never goes to one from a variable, the default profile's key never goes to a typed `--base-url`, and a key variable never goes to a profile's `base_url`. To switch to another profile, run `onesie profile use NAME`. Do not export `ONESIE_PROVIDER` for a stored key, since `--provider` and `ONESIE_PROVIDER` run without a profile and read only the provider's key variable. For cloudflare, pass the account too, as in `onesie profile create cf --provider cloudflare --account-id ACCOUNT_ID`. `--model` stores the model a run uses when it names none.
 
@@ -74,6 +74,7 @@ built in limits.
 | berget | `onesie profile create work --provider berget` | `BERGET_API_KEY` |
 | levanto | `onesie profile create work --provider levanto` | `LEVANTO_API_KEY` |
 | cloudflare | `onesie profile create work --provider cloudflare --account-id ACCOUNT_ID` | `CLOUDFLARE_API_TOKEN`, with `CLOUDFLARE_ACCOUNT_ID` |
+| vercel | `onesie profile create work --provider vercel` | `AI_GATEWAY_API_KEY` |
 
 A name in place of `work` is 1 to 64 lowercase letters, digits, `-` or `_`, does not start with `-`,
 and is not `none`. A profile holds the provider, its key, and optionally `--model`, the model a run

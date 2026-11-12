@@ -40,8 +40,8 @@ review the diff.
 ## Live suite
 
 The live suite asks the real APIs. It reads `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`,
-`LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` from the environment or from a
-gitignored `.env`, and skips the cases of a provider whose key is absent:
+`LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID` and `AI_GATEWAY_API_KEY` from the
+environment or from a gitignored `.env`, and skips the cases of a provider whose key is absent:
 
 ```sh
 make test-integration
@@ -55,8 +55,8 @@ test reads or converts your own `profiles.json` or `credentials.json`.
 
 ## Repository secrets
 
-- `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` and
-  `CLOUDFLARE_ACCOUNT_ID`: the weekly live suite in
+- `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN`,
+  `CLOUDFLARE_ACCOUNT_ID` and `AI_GATEWAY_API_KEY`: the weekly live suite in
   `.github/workflows/integration.yml`. The history lessons check uses `TYPESAFE_API_KEY`.
 - `HOMEBREW_TAP_TOKEN`: the release job's push to the tap, as in The Homebrew formula below.
 - The five `MACOS_*` secrets, for signing and notarization, as in Signing and notarization below.

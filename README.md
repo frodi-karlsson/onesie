@@ -111,9 +111,9 @@ for each profile, which also removes its key from the OS keychain. Then remove:
 comments, ranking and local servers. [Mock answers](examples/README.md#testing-a-gate) exercise a
 script without calling a model.
 
-onesie supports TypeSafe, OpenRouter, Berget, Levanto and Cloudflare. Profiles hold provider
-settings and keys. `--cache` reuses answers, `--print-request` previews requests without a key,
-and experimental `--image` and `--box` questions work with images.
+onesie supports TypeSafe, OpenRouter, Berget, Levanto, Cloudflare and Vercel AI Gateway. Profiles
+hold provider settings and keys. `--cache` reuses answers, `--print-request` previews requests
+without a key, and experimental `--image` and `--box` questions work with images.
 
 ## Help and settings
 

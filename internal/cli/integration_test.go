@@ -248,7 +248,32 @@ func TestFilterIntegration(t *testing.T) {
 		}
 	})
 
-	t.Run("should answer a pick and a rate with one of the names and p over exactly those names on openrouter, levanto and cloudflare", func(t *testing.T) {
+	t.Run("should answer through --provider vercel and report the cost the gateway charged", func(t *testing.T) {
+		if strings.TrimSpace(os.Getenv("AI_GATEWAY_API_KEY")) == "" {
+			t.Skip("AI_GATEWAY_API_KEY is not set, skipping the Vercel case")
+		}
+
+		out, errOut, code := runLive(t,
+			[]string{"--provider", "vercel", "does this convey urgency", "--usage", "-o", "json"},
+			"EVERYTHING IS DOWN, CUSTOMERS CANNOT CHECK OUT, CALL ME NOW")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		var usage struct {
+			Cost *float64 `json:"cost"`
+		}
+
+		if err := json.Unmarshal(decodeRecord(t, out)["usage"], &usage); err != nil {
+			t.Fatalf("decoding the usage: %v\n%s", err, out)
+		}
+
+		if usage.Cost == nil || *usage.Cost <= 0 {
+			t.Errorf("usage = %s, want a cost above 0", out)
+		}
+	})
+
+	t.Run("should answer a pick and a rate with one of the names and p over exactly those names on openrouter, levanto, cloudflare and vercel", func(t *testing.T) {
 		for _, provider := range []struct {
 			name string
 			args []string
@@ -268,6 +293,7 @@ func TestFilterIntegration(t *testing.T) {
 				name: "cloudflare clef-flash", args: []string{"--provider", "cloudflare", "-m", "clef-flash"},
 				keys: []string{"CLOUDFLARE_API_TOKEN", "CLOUDFLARE_ACCOUNT_ID"},
 			},
+			{name: "vercel", args: []string{"--provider", "vercel"}, keys: []string{"AI_GATEWAY_API_KEY"}},
 		} {
 			for _, question := range []struct {
 				shape string
@@ -367,6 +393,51 @@ func TestFilterIntegration(t *testing.T) {
 
 			if math.Abs(got-want) > tolerance {
 				t.Errorf("edge %d = %.3f, want %.2f within %.2f. Edges: %s", i, got, want, tolerance, out)
+			}
+		}
+	})
+
+	t.Run("should see and box the red square through --provider vercel", func(t *testing.T) {
+		if strings.TrimSpace(os.Getenv("AI_GATEWAY_API_KEY")) == "" {
+			t.Skip("AI_GATEWAY_API_KEY is not set, skipping the Vercel case")
+		}
+
+		out, errOut, code := runLive(t, []string{
+			"--provider", "vercel", "--image", "photo=" + liveImage(t, true),
+			"--ask", "there=is there a red square in `photo`", "--ask", "where=the red square in `photo`", "--box",
+			"-o", "json",
+		}, "")
+		if code != cli.ExitOK {
+			t.Fatalf("exit code = %d, stderr:\n%s", code, errOut)
+		}
+
+		record := decodeRecord(t, out)
+
+		var there struct {
+			Value float64 `json:"value"`
+		}
+
+		if err := json.Unmarshal(record["there"], &there); err != nil || there.Value < 0.8 {
+			t.Errorf("there = %s, %v, want a clear yes", record["there"], err)
+		}
+
+		var where struct {
+			Left   float64 `json:"left"`
+			Top    float64 `json:"top"`
+			Right  float64 `json:"right"`
+			Bottom float64 `json:"bottom"`
+		}
+
+		if err := json.Unmarshal(record["where"], &where); err != nil {
+			t.Fatalf("decoding where: %v\n%s", err, out)
+		}
+
+		// The square's edges are 0.25, 0.25, 0.5 and 0.5.
+		const tolerance = 0.05
+
+		for i, edge := range []float64{where.Left - 0.25, where.Top - 0.25, where.Right - 0.5, where.Bottom - 0.5} {
+			if math.Abs(edge) > tolerance {
+				t.Errorf("edge %d is off by %.3f, want within %.2f. Box: %s", i, edge, tolerance, record["where"])
 			}
 		}
 	})
@@ -980,6 +1051,10 @@ func TestCalibrateIntegration(t *testing.T) {
 		{
 			name: "should separate obvious yes from obvious no records through --provider cloudflare",
 			env:  "CLOUDFLARE_API_TOKEN", also: "CLOUDFLARE_ACCOUNT_ID", provider: []string{"--provider", "cloudflare"},
+		},
+		{
+			name: "should separate obvious yes from obvious no records through --provider vercel",
+			env:  "AI_GATEWAY_API_KEY", provider: []string{"--provider", "vercel"},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

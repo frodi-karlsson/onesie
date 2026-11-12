@@ -35,7 +35,7 @@ func TestGenerate(t *testing.T) {
 				reference := files.text("REFERENCE.md")
 				for _, want := range []string{
 					"<!-- settings:environment begin -->\n| Variable | What it does |\n",
-					"| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN` |",
+					"| `TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `BERGET_API_KEY`, `LEVANTO_API_KEY`, `CLOUDFLARE_API_TOKEN`, `AI_GATEWAY_API_KEY` |",
 					"| `ONESIE_MOCK` | a file to answer from, as `--mock`. Skipped beside `--list-models`, `-i request`, `--print-request` and `--print-questions` |\n",
 					"anything else exits 2 where it applies |\n<!-- settings:environment end -->",
 					"<!-- settings:question_keys begin -->\n| Key | Where | What it does |\n",
