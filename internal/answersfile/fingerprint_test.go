@@ -182,6 +182,37 @@ func TestFingerprint(t *testing.T) {
 		})
 	}
 
+	versions := []struct {
+		name   string
+		stored func(Print) string
+	}{
+		{name: "should resume a version 3 file when usage is on", stored: func(p Print) string { return "v3:" + strings.TrimPrefix(p.String(), "v4:") }},
+		{name: "should resume a version 2 file when usage is on", stored: func(p Print) string { return p.older }},
+	}
+
+	for _, tc := range versions {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			before, err := Fingerprint(questions, wired, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			used := inputs
+			used.Usage = true
+
+			current, err := Fingerprint(questions, wired, used)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if stored := tc.stored(before); !current.Matches(stored) {
+				t.Errorf("Matches(%q) = false, want the parts version 4 added left uncompared", stored)
+			}
+		})
+	}
+
 	t.Run("should resume a version 4 file whose sidecar holds the profile it was written under", func(t *testing.T) {
 		t.Parallel()
 
