@@ -345,8 +345,8 @@ func decodeLine(text []byte) (any, map[string]any, bool) {
 }
 
 func verdictOf(answers map[string]any) Stored {
-	// The error key outranks the verdict, as a fresh run ranks them, so a line edited to claim
-	// both is counted once, as an error.
+	// An error line names the verdict error too, and its error key holds the failure. Read first,
+	// since namedVerdict reads any word but fail and unsure as a pass.
 	if stored, failed := answers["error"]; failed {
 		return Stored{Verdict: output.Error, Failure: failureOf(stored)}
 	}
