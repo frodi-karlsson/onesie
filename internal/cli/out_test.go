@@ -37,6 +37,7 @@ func TestOpenOut(t *testing.T) {
 	}
 
 	matching := valuesFor("is this urgent", "typesafe", onesie.TypeSafe().DefaultModel(), "", "")
+	_, matchingParts, _ := strings.Cut(matching, ":")
 	picking := fingerprintWith(t, plan.Source{
 		Positional: "which team",
 		Events: []argv.Event{
@@ -642,14 +643,14 @@ func TestOpenOut(t *testing.T) {
 			wantErr:          malformed,
 		},
 		{
-			name:        "should say an older onesie wrote a version 4 fingerprint of the same run",
+			name:        "should say an older onesie wrote a fingerprint of an earlier version, even of the same run",
 			existing:    "keep me\n",
-			sidecar:     "v4:" + strings.TrimPrefix(matching, "v5:"),
+			sidecar:     "v1:" + matchingParts,
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v4:" + strings.TrimPrefix(matching, "v5:"),
+			wantSidecar: "v1:" + matchingParts,
 			wantErr:     "an older onesie wrote",
 		},
 		{

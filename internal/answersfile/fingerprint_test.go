@@ -2,6 +2,7 @@ package answersfile
 
 import (
 	"encoding/json"
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -26,7 +27,7 @@ func TestFingerprint(t *testing.T) {
 		}
 
 		names := []string{}
-		for _, part := range strings.Split(strings.TrimPrefix(got.String(), "v5:"), ",") {
+		for _, part := range strings.Split(afterTag(got.String()), ",") {
 			name, sum, _ := strings.Cut(part, "=")
 			if len(sum) != 2*partSumLength {
 				t.Errorf("part %s has the sum %q, want %d hex digits", name, sum, 2*partSumLength)
@@ -203,36 +204,36 @@ func TestStaleReason(t *testing.T) {
 			want: ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 5 fingerprint with no parts", stored: "v5:" + strings.Repeat("0", 64),
+			name: "should refuse a fingerprint of this version with no parts", stored: tagged(strings.Repeat("0", 64)),
 			found: true, want: ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 5 fingerprint that names a part twice", found: true,
-			stored: "v5:model=" + strings.Repeat("cd", 8) + ",model=" + strings.Repeat("cd", 8),
+			name: "should refuse a fingerprint of this version that names a part twice", found: true,
+			stored: tagged("model=" + strings.Repeat("cd", 8) + ",model=" + strings.Repeat("cd", 8)),
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 5 fingerprint that names a part onesie does not write", found: true,
-			stored: "v5:questions=" + strings.Repeat("ab", 8) + ",colour=" + strings.Repeat("cd", 8),
+			name: "should refuse a fingerprint of this version that names a part onesie does not write", found: true,
+			stored: tagged("questions=" + strings.Repeat("ab", 8) + ",colour=" + strings.Repeat("cd", 8)),
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
 			name: "should accept the run's own fingerprint written in uppercase hex", found: true,
-			stored: "v5:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8),
+			stored: tagged("questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8)),
 		},
 		{
 			name: "should refuse an older version", stored: "v4:model=" + strings.Repeat("ab", 8), found: true,
 			want: OlderFingerprint, wantStale: true,
 		},
-		{name: "should refuse a newer version", stored: "v6:x", found: true, want: NewerFingerprint, wantStale: true},
+		{name: "should refuse a newer version", stored: fmt.Sprintf("v%d:x", fingerprintVersion+1), found: true, want: NewerFingerprint, wantStale: true},
 		{
 			name: "should name the part that changed", found: true,
-			stored: "v5:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8),
+			stored: tagged("questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)),
 			want:   ChangedRun, wantChanged: []string{"the model"}, wantStale: true,
 		},
 		{
 			name: "should name every part that changed, a part the file lacks and one the run lacks", found: true,
-			stored: "v5:questions=" + strings.Repeat("00", 8) + ",mock=" + strings.Repeat("00", 8),
+			stored: tagged("questions=" + strings.Repeat("00", 8) + ",mock=" + strings.Repeat("00", 8)),
 			want:   ChangedRun, wantChanged: []string{"the questions", "the model", "--mock"}, wantStale: true,
 		},
 	}
@@ -262,7 +263,7 @@ func TestPrint_Matches(t *testing.T) {
 		want   bool
 	}{
 		{name: "should match the run's own fingerprint", stored: current.String(), want: true},
-		{name: "should not match a run whose model changed", stored: "v5:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)},
+		{name: "should not match a run whose model changed", stored: tagged("questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8))},
 	}
 
 	for _, tc := range tests {
@@ -417,4 +418,14 @@ func TestDifferences(t *testing.T) {
 			t.Errorf("partOrder = %v, want the runPrint fields %v", partOrder, names)
 		}
 	})
+}
+
+func tagged(parts string) string {
+	return fmt.Sprintf("v%d:%s", fingerprintVersion, parts)
+}
+
+func afterTag(fingerprint string) string {
+	_, parts, _ := strings.Cut(fingerprint, ":")
+
+	return parts
 }

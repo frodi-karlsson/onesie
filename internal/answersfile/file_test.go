@@ -745,7 +745,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			wantErr:    "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse a newer version", sidecar: new("v6:abc"), checking: current, wantReason: NewerFingerprint,
+			name: "should refuse a newer version", sidecar: new(fmt.Sprintf("v%d:abc", fingerprintVersion+1)), checking: current, wantReason: NewerFingerprint,
 			wantErr: "a newer onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
@@ -754,7 +754,7 @@ func TestFile_CheckFingerprint(t *testing.T) {
 		},
 		{
 			name:    "should accept the same fingerprint in uppercase hex and leave its sidecar to be rewritten",
-			sidecar: new("v5:questions=" + strings.Repeat("A", 2*partSumLength)), checking: current,
+			sidecar: new(tagged("questions=" + strings.Repeat("A", 2*partSumLength))), checking: current,
 		},
 	}
 
