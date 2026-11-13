@@ -693,7 +693,7 @@ func (o *File) checkFingerprint(fingerprint Print) (matched bool, err error) {
 		}
 	}
 
-	// An older version's sidecar that matches is not this version's, so the run writes its own in its place.
+	// A matching sidecar in uppercase hex or another part order is rewritten as this version writes it.
 	return stored == fingerprint.String(), nil
 }
 

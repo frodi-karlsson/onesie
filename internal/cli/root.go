@@ -296,8 +296,6 @@ func wordAnswersError(err error) error {
 		return &plainError{cause: err, message: fmt.Sprintf(
 			"--%s '%s' writes '%s', and %s uses '%s'. Drop --resume to start over",
 			flagDelimiter, given, given, separator.Path, escaped(string(separator.Found)))}
-	case errors.As(err, &stale) && stale.Reason == answersfile.OlderColumns:
-		return &plainError{cause: err, message: text(err) + ". Regenerate it without --resume, or write to a new --out"}
 	case errors.As(err, &stale), errors.Is(err, answersfile.ErrNoLock):
 		return &plainError{cause: err, message: text(err) + ". Drop --resume to start over"}
 	default:

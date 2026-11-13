@@ -721,9 +721,6 @@ func TestFile_CheckFingerprint(t *testing.T) {
 	t.Parallel()
 
 	current := testPrint()
-	current.older = "v2:" + strings.Repeat("ab", 32)
-	withColumns := current
-	withColumns.olderColumns = "v2:" + strings.Repeat("cd", 32)
 
 	tests := []struct {
 		name        string
@@ -743,23 +740,22 @@ func TestFile_CheckFingerprint(t *testing.T) {
 			wantErr:    "A.onesie does not hold a fingerprint onesie wrote, so onesie cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse an older version", sidecar: new("v1:abc"), checking: current, wantReason: OlderFingerprint,
-			wantErr: "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
+			name: "should refuse an older version", sidecar: new("v4:model=" + strings.Repeat("ab", partSumLength)), checking: current,
+			wantReason: OlderFingerprint,
+			wantErr:    "an older onesie wrote A.onesie, so this one cannot tell which run wrote A",
 		},
 		{
-			name: "should refuse a newer version", sidecar: new("v5:abc"), checking: current, wantReason: NewerFingerprint,
+			name: "should refuse a newer version", sidecar: new("v6:abc"), checking: current, wantReason: NewerFingerprint,
 			wantErr: "a newer onesie wrote A.onesie, so this one cannot tell which run wrote A",
-		},
-		{
-			name: "should refuse a file written without the fallback columns", sidecar: new(withColumns.olderColumns),
-			checking: withColumns, wantReason: OlderColumns,
-			wantErr: "A was written by an older onesie, without the fallback columns this run adds",
 		},
 		{
 			name: "should accept the same fingerprint", sidecar: new(current.String()), checking: current,
 			wantMatched: true,
 		},
-		{name: "should accept a version 2 sum and leave its sidecar to be rewritten", sidecar: new(current.older), checking: current},
+		{
+			name:    "should accept the same fingerprint in uppercase hex and leave its sidecar to be rewritten",
+			sidecar: new("v5:questions=" + strings.Repeat("A", 2*partSumLength)), checking: current,
+		},
 	}
 
 	for _, tc := range tests {
@@ -810,45 +806,25 @@ func TestFile_Bind(t *testing.T) {
 	questions := []plan.Question{{ID: "urgent", Policy: plan.Policy{Fallback: &plan.Fallback{Text: "no"}}}}
 	wired := json.RawMessage(`[]`)
 	inputs := FingerprintInputs{Provider: "typesafe", Model: "m", Output: "csv", Input: "lines"}
-	older := inputs
-	older.withoutFallbackColumns = true
-	changed := older
+	changed := inputs
 	changed.Model = "n"
+	changed.Output = "json"
 
 	tests := []struct {
 		name        string
 		written     FingerprintInputs
-		version2    bool
 		wantReason  StaleReason
 		wantChanged string
 		wantErr     bool
 	}{
 		{
-			name:       "should say an older onesie wrote the file when only the fallback columns are new",
-			written:    older,
-			version2:   true,
-			wantReason: OlderColumns,
-			wantErr:    true,
-		},
-		{
-			name:       "should report any other difference from a version 2 sum as a changed run",
-			written:    changed,
-			version2:   true,
-			wantReason: ChangedRun,
-			wantErr:    true,
-		},
-		{
-			name:        "should name each part that differs from a version 3 sidecar",
+			name:        "should name each part that differs from the sidecar",
 			written:     changed,
 			wantReason:  ChangedRun,
-			wantChanged: "the model and the fallback columns",
+			wantChanged: "the model, -o and the fallback columns",
 			wantErr:     true,
 		},
-		{
-			name:     "should resume a file whose version 2 sum matches",
-			written:  inputs,
-			version2: true,
-		},
+		{name: "should resume a file whose sidecar matches", written: inputs},
 	}
 
 	for _, tc := range tests {
@@ -866,9 +842,6 @@ func TestFile_Bind(t *testing.T) {
 			}
 
 			sidecar := written.String()
-			if tc.version2 {
-				sidecar = written.older
-			}
 
 			if writeErr := os.WriteFile(path+fingerprintSuffix, []byte(sidecar+"\n"), 0o600); writeErr != nil {
 				t.Fatal(writeErr)
@@ -887,8 +860,8 @@ func TestFile_Bind(t *testing.T) {
 
 			bindErr := out.Bind(questions, wired, inputs)
 			if !tc.wantErr {
-				if bindErr != nil || out.matched {
-					t.Errorf("Bind = %v, matched = %v, want no error and a sidecar left to rewrite", bindErr, out.matched)
+				if bindErr != nil || !out.matched {
+					t.Errorf("Bind = %v, matched = %v, want no error and the sidecar matched", bindErr, out.matched)
 				}
 
 				return

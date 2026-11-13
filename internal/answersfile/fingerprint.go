@@ -18,9 +18,7 @@ import (
 )
 
 const (
-	fingerprintVersion = 4
-	partsVersion       = 3
-	olderVersion       = 2
+	fingerprintVersion = 5
 	partSumLength      = 8
 )
 
@@ -30,7 +28,6 @@ const (
 	ForeignFingerprint
 	OlderFingerprint
 	NewerFingerprint
-	OlderColumns
 	ChangedRun
 )
 
@@ -41,16 +38,12 @@ var partOrder = []string{
 	"account_id", "usage",
 }
 
-// A version 4 sidecar can hold these parts. They are read and never compared, since the provider,
-// base URL and account parts already cover what a profile changes about a run.
-var retiredParts = []string{"profile"}
-
 // ErrStaleAnswers matches every StaleAnswersError, so a caller tells a stale file apart without
 // reading the message.
 var ErrStaleAnswers = errors.New("stale answers")
 
 // Fingerprint sums each part of a run that changes an answer, so a refusal can name the parts that
-// changed. It also holds the single sum version 2 kept, which a version 2 sidecar still matches.
+// changed.
 func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs FingerprintInputs) (Print, error) {
 	encoded, err := json.Marshal(printedRun(questions, wired, inputs))
 	if err != nil {
@@ -62,32 +55,7 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 		return Print{}, fmt.Errorf("fingerprinting the run: %w", err)
 	}
 
-	older, err := json.Marshal(printedRun(questions, wired, beforeVersion4(inputs)))
-	if err != nil {
-		return Print{}, fmt.Errorf("fingerprinting the run: %w", err)
-	}
-
-	fingerprint := Print{parts: parts, older: olderSum(older)}
-
-	if delimitedOutput(inputs.Output) && hasFallback(questions) {
-		without := beforeVersion4(inputs)
-		without.withoutFallbackColumns = true
-
-		encoded, err = json.Marshal(printedRun(questions, wired, without))
-		if err != nil {
-			return Print{}, fmt.Errorf("fingerprinting the run: %w", err)
-		}
-
-		fingerprint.olderColumns = olderSum(encoded)
-	}
-
-	return fingerprint, nil
-}
-
-func beforeVersion4(inputs FingerprintInputs) FingerprintInputs {
-	inputs.BaseURL, inputs.AccountID, inputs.Usage = "", "", false
-
-	return inputs
+	return Print{parts: parts}, nil
 }
 
 func printedRun(questions []plan.Question, wired json.Marshaler, inputs FingerprintInputs) runPrint {
@@ -109,7 +77,7 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 
 		LongContext: inputs.LongContext,
 
-		FallbackColumns: !inputs.withoutFallbackColumns && delimitedOutput(inputs.Output) && hasFallback(questions),
+		FallbackColumns: delimitedOutput(inputs.Output) && hasFallback(questions),
 		Mock:            inputs.Mock,
 		BaseURL:         inputs.BaseURL,
 		AccountID:       inputs.AccountID,
@@ -130,7 +98,6 @@ func delimiterSetting(delimiter input.Delimiter) string {
 }
 
 type runPrint struct {
-	// Each member is encoded as version 2 encoded it, so a version 2 sum still matches.
 	Questions   json.Marshaler `json:"questions"`
 	Policies    []policyPrint  `json:"policies"`
 	Provider    string         `json:"provider"`
@@ -150,8 +117,7 @@ type runPrint struct {
 	// a resume into it is refused.
 	FallbackColumns bool `json:"fallback_columns,omitempty"`
 	// A mock run and a real run never resume each other's file.
-	Mock bool `json:"mock,omitempty"`
-	// Added in version 4. A file of an older version resumes without comparing them.
+	Mock      bool   `json:"mock,omitempty"`
 	BaseURL   string `json:"base_url,omitempty"`
 	AccountID string `json:"account_id,omitempty"`
 	Usage     bool   `json:"usage,omitempty"`
@@ -193,20 +159,12 @@ type partSum struct {
 	sum  string
 }
 
-func olderSum(encoded []byte) string {
-	sum := sha256.Sum256(encoded)
-
-	return fmt.Sprintf("v%d:%s", olderVersion, hex.EncodeToString(sum[:]))
-}
-
 // Print is a run's fingerprint. Its String is what the sidecar beside the answers file holds.
 type Print struct {
-	parts        []partSum
-	older        string
-	olderColumns string
+	parts []partSum
 }
 
-// String writes each part's sum after the version, as v4:assert=SUM,id=SUM, in the order the run's
+// String writes each part's sum after the version, as v5:assert=SUM,id=SUM, in the order the run's
 // parts come in.
 func (p Print) String() string {
 	written := make([]string, 0, len(p.parts))
@@ -217,8 +175,7 @@ func (p Print) String() string {
 	return fmt.Sprintf("v%d:%s", fingerprintVersion, strings.Join(written, ","))
 }
 
-// Matches reports whether stored is this run's fingerprint, written by this version or as the
-// single sum version 2 kept.
+// Matches reports whether stored is this run's fingerprint.
 func (p Print) Matches(stored string) bool {
 	_, _, stale := staleReason(stored, true, p)
 
@@ -258,8 +215,6 @@ type FingerprintInputs struct {
 	BaseURL   string
 	AccountID string
 	Usage     bool
-
-	withoutFallbackColumns bool
 }
 
 func policiesOf(questions []plan.Question) []policyPrint {
@@ -299,26 +254,20 @@ func staleReason(stored string, found bool, current Print) (StaleReason, []strin
 	switch {
 	case !ok:
 		return ForeignFingerprint, nil, true
-	case version < olderVersion:
+	case version < fingerprintVersion:
 		return OlderFingerprint, nil, true
 	case version > fingerprintVersion:
 		return NewerFingerprint, nil, true
-	case version == olderVersion && strings.EqualFold(stored, current.older):
-		return 0, nil, false
-	case version == olderVersion && current.olderColumns != "" && strings.EqualFold(stored, current.olderColumns):
-		return OlderColumns, nil, true
-	case version == olderVersion:
-		return ChangedRun, nil, true
 	}
 
-	if changed := current.changedFrom(sums, version); len(changed) > 0 {
+	if changed := current.changedFrom(sums); len(changed) > 0 {
 		return ChangedRun, changed, true
 	}
 
 	return 0, nil, false
 }
 
-func (p Print) changedFrom(stored map[string]string, version int) []string {
+func (p Print) changedFrom(stored map[string]string) []string {
 	var changed []string
 
 	seen := make(map[string]bool, len(p.parts))
@@ -326,17 +275,13 @@ func (p Print) changedFrom(stored map[string]string, version int) []string {
 	for _, part := range p.parts {
 		seen[part.name] = true
 
-		if version < fingerprintVersion && addedInVersion4(part.name) {
-			continue
-		}
-
 		if stored[part.name] != part.sum {
 			changed = append(changed, partLabel(part.name))
 		}
 	}
 
 	for _, name := range slices.Sorted(maps.Keys(stored)) {
-		if !seen[name] && !slices.Contains(retiredParts, name) {
+		if !seen[name] {
 			changed = append(changed, partLabel(name))
 		}
 	}
@@ -396,8 +341,7 @@ func partLabel(name string) string {
 type StaleAnswersError struct {
 	Path, Sidecar string
 	Reason        StaleReason
-	// Changed is empty when the sidecar holds a single sum, which cannot tell the parts apart.
-	Changed []string
+	Changed       []string
 }
 
 // StaleReason says why a file's fingerprint does not match the run.
@@ -415,8 +359,6 @@ func (e *StaleAnswersError) Error() string {
 		return fmt.Sprintf("an older onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
 	case NewerFingerprint:
 		return fmt.Sprintf("a newer onesie wrote %s, so this one cannot tell which run wrote %s", e.Sidecar, e.Path)
-	case OlderColumns:
-		return e.Path + " was written by an older onesie, without the fallback columns this run adds"
 	default:
 		return e.changed() + " changed since " + e.Path + " was written"
 	}
@@ -433,8 +375,6 @@ func (e *StaleAnswersError) Cause() string {
 		return "an older onesie wrote its fingerprint"
 	case NewerFingerprint:
 		return "a newer onesie wrote its fingerprint"
-	case OlderColumns:
-		return "an older onesie wrote its columns"
 	default:
 		return e.changed() + " changed since it was written"
 	}
@@ -465,23 +405,11 @@ func Differences(baseline, other string) (changed []string, known bool) {
 	switch {
 	case !baseRead || !otherRead:
 		return nil, false
-	case baseVersion == olderVersion && otherVersion == olderVersion:
-		if strings.EqualFold(baseline, other) {
-			return nil, true
-		}
-
-		return []string{"the questions, model or flags"}, true
-	case baseSums == nil || otherSums == nil:
+	case baseVersion != fingerprintVersion || otherVersion != fingerprintVersion:
 		return nil, false
 	}
 
-	both := min(baseVersion, otherVersion)
-
 	for _, name := range partOrder {
-		if both < fingerprintVersion && addedInVersion4(name) {
-			continue
-		}
-
 		if baseSums[name] != otherSums[name] {
 			changed = append(changed, partLabel(name))
 		}
@@ -503,30 +431,23 @@ func parsePrint(stored string) (version int, sums map[string]string, ok bool) {
 		return 0, nil, false
 	}
 
-	switch version {
-	case olderVersion:
-		decoded, err := hex.DecodeString(rest)
-
-		return version, nil, err == nil && len(decoded) == sha256.Size
-	case partsVersion, fingerprintVersion:
-		sums, ok := parseSums(rest, version)
-
-		return version, sums, ok
+	if version != fingerprintVersion {
+		return version, nil, true
 	}
 
-	return version, nil, true
+	sums, ok = parseSums(rest)
+
+	return version, sums, ok
 }
 
-func parseSums(written string, version int) (map[string]string, bool) {
+func parseSums(written string) (map[string]string, bool) {
 	sums := map[string]string{}
 
 	for _, part := range strings.Split(written, ",") {
 		name, sum, found := strings.Cut(part, "=")
 		decoded, err := hex.DecodeString(sum)
 
-		named := partLabel(name) != "" || slices.Contains(retiredParts, name)
-		known := named && (version >= fingerprintVersion || !addedInVersion4(name))
-		if !found || !known || err != nil || len(decoded) != partSumLength {
+		if !found || partLabel(name) == "" || err != nil || len(decoded) != partSumLength {
 			return nil, false
 		}
 
@@ -538,13 +459,4 @@ func parseSums(written string, version int) (map[string]string, bool) {
 	}
 
 	return sums, true
-}
-
-func addedInVersion4(name string) bool {
-	switch name {
-	case "base_url", "account_id", "profile", "usage":
-		return true
-	default:
-		return false
-	}
 }

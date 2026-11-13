@@ -74,27 +74,9 @@ func TestResumed(t *testing.T) {
 	})
 	contradictory := `{"error":{"kind":"http","status":503,"message":"503 bad key"},"assert":false,"abstain":true,"answer":0.5}` + "\n"
 
-	jsonPrint := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
-		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "json", Input: "jsonl",
-	})
 	firstMock, secondMock := writeMock(t, `{"answer": 0.1}`), writeMock(t, `{"answer": 0.2}`)
-	jsonLine := "{\"model\":\"m\",\"answer\":{\"value\":0.5}}\n"
 
 	runResumeCases(t, []resumeCase{
-		{
-			name:     "should resume a version 3 file under --usage",
-			existing: &jsonLine,
-			sidecar:  "v3:" + strings.TrimPrefix(jsonPrint, "v4:"),
-			stdin:    idRecords(1, 2),
-			runs: []resumeRun{
-				{
-					args: []string{"-i", "jsonl", "-o", "json", "--resume", "--usage"},
-					wantFile: jsonLine +
-						"{\"model\":\"m\",\"usage\":{\"input_tokens\":0,\"output_tokens\":0},\"answer\":{\"value\":0.5}}\n",
-					wantSent: []string{`{"id":2}`},
-				},
-			},
-		},
 		{
 			name:  "should resume with a different --mock file",
 			stdin: idRecords(1, 2),

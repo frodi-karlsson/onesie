@@ -26,7 +26,7 @@ func TestFingerprint(t *testing.T) {
 		}
 
 		names := []string{}
-		for _, part := range strings.Split(strings.TrimPrefix(got.String(), "v4:"), ",") {
+		for _, part := range strings.Split(strings.TrimPrefix(got.String(), "v5:"), ",") {
 			name, sum, _ := strings.Cut(part, "=")
 			if len(sum) != 2*partSumLength {
 				t.Errorf("part %s has the sum %q, want %d hex digits", name, sum, 2*partSumLength)
@@ -122,23 +122,6 @@ func TestFingerprint(t *testing.T) {
 		}
 	})
 
-	t.Run("should match the single sum version 2 kept and its sum without the fallback columns", func(t *testing.T) {
-		t.Parallel()
-
-		got, err := Fingerprint(questions, wired, inputs)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if !got.Matches(got.older) || !strings.HasPrefix(got.older, "v2:") {
-			t.Errorf("older sum %q does not match, want a version 2 sum that does", got.older)
-		}
-
-		if got.olderColumns == "" || got.Matches(got.olderColumns) {
-			t.Errorf("older columns sum %q, want one that is set and is not a match", got.olderColumns)
-		}
-	})
-
 	sumChanges := []struct {
 		name   string
 		change func(*FingerprintInputs)
@@ -172,7 +155,7 @@ func TestFingerprint(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			if got := after.changedFrom(sumsOf(t, before), fingerprintVersion); !reflect.DeepEqual(got, []string{partLabel(tc.part)}) {
+			if got := after.changedFrom(sumsOf(t, before)); !reflect.DeepEqual(got, []string{partLabel(tc.part)}) {
 				t.Errorf("changed = %q, want only %q", got, partLabel(tc.part))
 			}
 
@@ -181,51 +164,6 @@ func TestFingerprint(t *testing.T) {
 			}
 		})
 	}
-
-	versions := []struct {
-		name   string
-		stored func(Print) string
-	}{
-		{name: "should resume a version 3 file when usage is on", stored: func(p Print) string { return "v3:" + strings.TrimPrefix(p.String(), "v4:") }},
-		{name: "should resume a version 2 file when usage is on", stored: func(p Print) string { return p.older }},
-	}
-
-	for _, tc := range versions {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			before, err := Fingerprint(questions, wired, inputs)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			used := inputs
-			used.Usage = true
-
-			current, err := Fingerprint(questions, wired, used)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			if stored := tc.stored(before); !current.Matches(stored) {
-				t.Errorf("Matches(%q) = false, want the parts version 4 added left uncompared", stored)
-			}
-		})
-	}
-
-	t.Run("should resume a version 4 file whose sidecar holds the profile it was written under", func(t *testing.T) {
-		t.Parallel()
-
-		current, err := Fingerprint(questions, wired, inputs)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		stored := current.String() + ",profile=" + strings.Repeat("cd", partSumLength)
-		if !current.Matches(stored) {
-			t.Errorf("Matches(%q) = false, want the profile left uncompared", stored)
-		}
-	})
 
 	t.Run("should leave the sum alone for the provider's own base URL", func(t *testing.T) {
 		t.Parallel()
@@ -241,22 +179,6 @@ func TestFingerprint(t *testing.T) {
 			}
 		}
 	})
-
-	t.Run("should keep no sum without the fallback columns for json output", func(t *testing.T) {
-		t.Parallel()
-
-		json := inputs
-		json.Output = "json"
-
-		got, err := Fingerprint(questions, wired, json)
-		if err != nil {
-			t.Fatal(err)
-		}
-
-		if got.olderColumns != "" {
-			t.Errorf("older columns sum = %q, want none", got.olderColumns)
-		}
-	})
 }
 
 func TestStaleReason(t *testing.T) {
@@ -264,7 +186,6 @@ func TestStaleReason(t *testing.T) {
 
 	current := Print{
 		parts: []partSum{{name: "questions", sum: strings.Repeat("ab", 8)}, {name: "model", sum: strings.Repeat("cd", 8)}},
-		older: "v2:" + strings.Repeat("ab", 32), olderColumns: "v2:" + strings.Repeat("ef", 32),
 	}
 
 	tests := []struct {
@@ -276,60 +197,42 @@ func TestStaleReason(t *testing.T) {
 		wantStale   bool
 	}{
 		{name: "should accept the run's own fingerprint", stored: current.String(), found: true},
-		{name: "should accept the single sum version 2 kept", stored: current.older, found: true},
 		{name: "should refuse a file with no fingerprint", want: NoFingerprint, wantStale: true},
 		{
 			name: "should refuse a fingerprint onesie did not write", stored: "not a fingerprint", found: true,
 			want: ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 3 fingerprint with no parts", stored: "v3:" + strings.Repeat("0", 64),
+			name: "should refuse a version 5 fingerprint with no parts", stored: "v5:" + strings.Repeat("0", 64),
 			found: true, want: ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 3 fingerprint that names a part twice", found: true,
-			stored: "v3:model=" + strings.Repeat("cd", 8) + ",model=" + strings.Repeat("cd", 8),
+			name: "should refuse a version 5 fingerprint that names a part twice", found: true,
+			stored: "v5:model=" + strings.Repeat("cd", 8) + ",model=" + strings.Repeat("cd", 8),
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should refuse a version 3 fingerprint that names a part onesie does not write", found: true,
-			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",colour=" + strings.Repeat("cd", 8),
-			want:   ForeignFingerprint, wantStale: true,
-		},
-		{
-			name: "should refuse a version 3 fingerprint that names a part version 4 added", found: true,
-			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",profile=" + strings.Repeat("cd", 8),
+			name: "should refuse a version 5 fingerprint that names a part onesie does not write", found: true,
+			stored: "v5:questions=" + strings.Repeat("ab", 8) + ",colour=" + strings.Repeat("cd", 8),
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
 			name: "should accept the run's own fingerprint written in uppercase hex", found: true,
-			stored: "v3:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8),
+			stored: "v5:questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8),
 		},
 		{
-			name: "should accept the single sum version 2 kept written in uppercase hex", found: true,
-			stored: "v2:" + strings.Repeat("AB", 32),
-		},
-		{
-			name: "should refuse an older version", stored: "v1:" + strings.Repeat("ab", 32), found: true,
+			name: "should refuse an older version", stored: "v4:model=" + strings.Repeat("ab", 8), found: true,
 			want: OlderFingerprint, wantStale: true,
 		},
-		{name: "should refuse a newer version", stored: "v5:x", found: true, want: NewerFingerprint, wantStale: true},
-		{
-			name: "should name the older columns when a version 2 sum is theirs", stored: current.olderColumns,
-			found: true, want: OlderColumns, wantStale: true,
-		},
-		{
-			name:   "should refuse any other version 2 sum as a changed run, naming no part",
-			stored: "v2:" + strings.Repeat("cd", 32), found: true, want: ChangedRun, wantStale: true,
-		},
+		{name: "should refuse a newer version", stored: "v6:x", found: true, want: NewerFingerprint, wantStale: true},
 		{
 			name: "should name the part that changed", found: true,
-			stored: "v3:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8),
+			stored: "v5:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8),
 			want:   ChangedRun, wantChanged: []string{"the model"}, wantStale: true,
 		},
 		{
 			name: "should name every part that changed, a part the file lacks and one the run lacks", found: true,
-			stored: "v3:questions=" + strings.Repeat("00", 8) + ",mock=" + strings.Repeat("00", 8),
+			stored: "v5:questions=" + strings.Repeat("00", 8) + ",mock=" + strings.Repeat("00", 8),
 			want:   ChangedRun, wantChanged: []string{"the questions", "the model", "--mock"}, wantStale: true,
 		},
 	}
@@ -351,7 +254,6 @@ func TestPrint_Matches(t *testing.T) {
 
 	current := Print{
 		parts: []partSum{{name: "questions", sum: strings.Repeat("ab", 8)}, {name: "model", sum: strings.Repeat("cd", 8)}},
-		older: "v2:" + strings.Repeat("ab", 32),
 	}
 
 	tests := []struct {
@@ -360,7 +262,7 @@ func TestPrint_Matches(t *testing.T) {
 		want   bool
 	}{
 		{name: "should match the run's own fingerprint", stored: current.String(), want: true},
-		{name: "should not match a run whose model changed", stored: "v3:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)},
+		{name: "should not match a run whose model changed", stored: "v5:questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8)},
 	}
 
 	for _, tc := range tests {
@@ -384,7 +286,7 @@ func TestStaleAnswersError(t *testing.T) {
 		wantCause string
 	}{
 		{
-			name:      "should keep the wording of a version 2 sidecar, which names no part",
+			name:      "should name the questions, model or flags when no part is given",
 			wantError: "the questions, model or flags changed since A was written",
 			wantCause: "the questions, model or flags changed since it was written",
 		},
@@ -474,32 +376,8 @@ func TestDifferences(t *testing.T) {
 			want: []string{"--long-context"}, wantKnown: true,
 		},
 		{
-			name:     "should leave out the parts version 4 added when one side is version 3",
-			baseline: func(*testing.T) string { return "v3:model=" + strings.Repeat("ab", partSumLength) },
-			other: func(*testing.T) string {
-				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",usage=" + strings.Repeat("cd", partSumLength)
-			},
-			wantKnown: true,
-		},
-		{
-			name: "should name no difference between two version 4 files written under different profiles",
-			baseline: func(*testing.T) string {
-				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",profile=" + strings.Repeat("cd", partSumLength)
-			},
-			other: func(*testing.T) string {
-				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",profile=" + strings.Repeat("ef", partSumLength)
-			},
-			wantKnown: true,
-		},
-		{
-			name:     "should say two different version 2 sums differ without naming a part",
-			baseline: func(*testing.T) string { return "v2:" + strings.Repeat("ab", 32) },
-			other:    func(*testing.T) string { return "v2:" + strings.Repeat("cd", 32) },
-			want:     []string{"the questions, model or flags"}, wantKnown: true,
-		},
-		{
-			name:     "should not compare a version 2 sum with one kept by part",
-			baseline: func(*testing.T) string { return "v2:" + strings.Repeat("ab", 32) },
+			name:     "should not compare a fingerprint of an older version",
+			baseline: func(*testing.T) string { return "v4:model=" + strings.Repeat("ab", partSumLength) },
 			other:    func(t *testing.T) string { return print(t, march, `[]`) },
 		},
 		{

@@ -653,47 +653,26 @@ func TestOpenOut(t *testing.T) {
 			wantErr:     "an older onesie wrote",
 		},
 		{
-			name:        "should say an older onesie wrote a fingerprint that leaves out the flags and the gate",
+			name:        "should say an older onesie wrote a version 4 fingerprint of the same run",
 			existing:    "keep me\n",
-			sidecar:     "v1:1ac939d902a081db7010b65849b69fc0a88cfa4373d81bd466316aae7dd6caef",
+			sidecar:     "v4:" + strings.TrimPrefix(matching, "v5:"),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v1:1ac939d902a081db7010b65849b69fc0a88cfa4373d81bd466316aae7dd6caef",
+			wantSidecar: "v4:" + strings.TrimPrefix(matching, "v5:"),
 			wantErr:     "an older onesie wrote",
 		},
 		{
 			name:        "should say a newer onesie wrote a fingerprint of a later version",
 			existing:    "keep me\n",
-			sidecar:     "v5:" + strings.Repeat("0", 64),
+			sidecar:     "v6:" + strings.Repeat("0", 64),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v5:" + strings.Repeat("0", 64),
+			wantSidecar: "v6:" + strings.Repeat("0", 64),
 			wantErr:     "a newer onesie wrote",
-		},
-		{
-			name:        "should resume beside a version 2 fingerprint of the same run and rewrite it as version 3",
-			existing:    "old one\nold two\n",
-			sidecar:     "v2:c6cb0ce75715a88e73cbd80422caef95045da2d35c37adb56f9cb26083e08d60",
-			wantSidecar: matching,
-			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
-			stdin:       input,
-			wantFile:    "old one\nold two\n" + strings.Repeat("{\"answer\":0.5}\n", 2),
-			wantCalls:   2,
-		},
-		{
-			name:        "should refuse a version 2 fingerprint of another run with the cause it gave",
-			existing:    "keep me\n",
-			sidecar:     "v2:" + strings.Repeat("0", 64),
-			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
-			stdin:       input,
-			wantCode:    ExitUsage,
-			wantFile:    "keep me\n",
-			wantSidecar: "v2:" + strings.Repeat("0", 64),
-			wantErr:     "the questions, model or flags changed since",
 		},
 		{
 			name:     "should write json to --out on a terminal under -o auto",
@@ -973,7 +952,6 @@ func TestFingerprint(t *testing.T) {
 		source plan.Source
 		inputs answersfile.FingerprintInputs
 		want   string
-		older  string
 	}{
 		{
 			name: "should change a csv fingerprint once a fallback adds its column",
@@ -996,12 +974,11 @@ func TestFingerprint(t *testing.T) {
 				Assert:    "answer.p.billing > 0.5",
 				AbstainIf: "answer.p.billing > 0.2",
 			},
-			want: "v4:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+			want: "v5:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=26404ed58953e2d4," +
 				"id=5152f15b7c76274f,output=82cacb7d3298441d,input=fd309d2a6fbf0a72," +
 				"merge_key=e1f273b2f00df9f2,assert=9147762d071485b5," +
 				"abstain_if=7fce507bbb6ae556,fallback_columns=b5bea41b6c623f7c",
-			older: "v2:6503a1da7f53909577dcdf301457dd5133c7ab408d885c408b7d02af578ef5d8",
 		},
 		{
 			name: "should keep a json fingerprint for a question that has a fallback",
@@ -1016,23 +993,21 @@ func TestFingerprint(t *testing.T) {
 			inputs: answersfile.FingerprintInputs{
 				Provider: "typesafe", Model: "jev-latest", Output: "json", Input: "jsonl", MergeKey: "answers",
 			},
-			want: "v4:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
+			want: "v5:questions=4f579ab51a6fa46b,policies=ec9e72eadbbaf292," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
 				"id=12ae32cb1ec02d01,output=4e23b392048439ac,input=fd309d2a6fbf0a72," +
 				"merge_key=e1f273b2f00df9f2,assert=12ae32cb1ec02d01," +
 				"abstain_if=12ae32cb1ec02d01",
-			older: "v2:92623101f8f774431ea1d792b28932b5a8e345d66688be20209169aa31dc94e4",
 		},
 		{
 			name:   "should keep a csv fingerprint with no fallback",
 			source: plan.Source{Positional: "is this urgent"},
 			inputs: answersfile.FingerprintInputs{Provider: "typesafe", Model: "jev-latest", Output: "csv", Input: "csv"},
-			want: "v4:questions=f842cc73c9dd84a0,policies=f99b13fd4eeef9c6," +
+			want: "v5:questions=f842cc73c9dd84a0,policies=f99b13fd4eeef9c6," +
 				"provider=6a454e47a7eb49a1,model=93d926fb5a12ad7d,map=12ae32cb1ec02d01," +
 				"id=12ae32cb1ec02d01,output=82cacb7d3298441d,input=82cacb7d3298441d," +
 				"merge_key=12ae32cb1ec02d01,assert=12ae32cb1ec02d01," +
 				"abstain_if=12ae32cb1ec02d01",
-			older: "v2:b960f50ff4f87b31d39fe0889f79ab00daf3e178256a20470f092b0f356c2ae6",
 		},
 	}
 
@@ -1043,10 +1018,6 @@ func TestFingerprint(t *testing.T) {
 			got := printWith(t, tc.source, tc.inputs)
 			if got.String() != tc.want {
 				t.Errorf("fingerprint = %q, want %q", got, tc.want)
-			}
-
-			if !got.Matches(tc.older) {
-				t.Errorf("fingerprint %q does not match the version 2 sum %q", got, tc.older)
 			}
 		})
 	}
@@ -1250,13 +1221,7 @@ func TestWordAnswersError(t *testing.T) {
 				"Drop --resume to start over",
 		},
 		{
-			name: "should advise regenerating a file written without the fallback columns",
-			err:  stale(answersfile.OlderColumns),
-			want: "a.jsonl was written by an older onesie, without the fallback columns this run adds. " +
-				"Regenerate it without --resume, or write to a new --out",
-		},
-		{
-			name: "should advise dropping --resume for a run changed since a version 2 sidecar",
+			name: "should advise dropping --resume for a changed run that names no part",
 			err:  stale(answersfile.ChangedRun),
 			want: "the questions, model or flags changed since a.jsonl was written. Drop --resume to start over",
 		},
