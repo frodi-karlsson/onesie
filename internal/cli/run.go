@@ -884,15 +884,15 @@ func writeRecord(
 	}
 
 	if merging(flags) {
-		return writeMerged(cmd.OutOrStdout(), mode, record, resolved, flags)
+		return writeMerged(cmd.OutOrStdout(), mode, record, resolved, flags, inv.gate != nil)
 	}
 
 	if mode == output.Table {
 		return output.WriteTable(
-			cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, settings.terminalWidth))
+			cmd.OutOrStdout(), record, output.Width(settings.lookupEnv, settings.terminalWidth), inv.gate != nil)
 	}
 
-	return output.Write(cmd.OutOrStdout(), mode, record)
+	return output.Write(cmd.OutOrStdout(), mode, record, inv.gate != nil)
 }
 
 func markdownOptions(gate, abstain *assert.Expr) output.MarkdownOptions {
@@ -903,7 +903,7 @@ func markdown(
 	out io.Writer,
 	mode output.Mode,
 	built *plan.Plan,
-	withGate bool,
+	withVerdict bool,
 	withID bool,
 ) *output.MarkdownTable {
 	if mode != output.Markdown {
@@ -915,14 +915,14 @@ func markdown(
 		ids = append(ids, question.ID)
 	}
 
-	return output.NewMarkdownTable(out, output.MarkdownTableOptions{IDs: ids, ID: withID, Gate: withGate})
+	return output.NewMarkdownTable(out, output.MarkdownTableOptions{IDs: ids, ID: withID, Verdict: withVerdict})
 }
 
 func delimited(
 	out io.Writer,
 	mode output.Mode,
 	built *plan.Plan,
-	withAssert bool,
+	withVerdict bool,
 	withID bool,
 	headerWritten bool,
 	comma rune,
@@ -938,7 +938,7 @@ func delimited(
 
 	return output.NewDelimited(out, mode, output.DelimitedOptions{
 		IDs: ids, Boxes: boxIDs(built.Questions), Fallbacks: fallbackIDs(built.Questions), ID: withID,
-		Assert: withAssert, Header: !headerWritten, Comma: comma,
+		Verdict: withVerdict, Header: !headerWritten, Comma: comma,
 	})
 }
 
@@ -976,8 +976,9 @@ func writeMerged(
 	record output.Record,
 	resolved input.Resolved,
 	flags runConfig,
+	gated bool,
 ) error {
-	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags))
+	return output.WriteMerged(w, mode, record, resolved.Raw, resolved.Wire, mergeKey(flags), gated)
 }
 
 func mergeKey(flags runConfig) string {

@@ -385,7 +385,7 @@ func (r *labelledRun) write(l askedLine) error {
 	}
 
 	start := out.Offset()
-	err := output.Write(out, output.JSON, l.record)
+	err := output.Write(out, output.JSON, l.record, false)
 
 	if r.book != nil {
 		r.book.Wrote(l.slot, answersfile.Span{Start: start, End: out.Offset()})

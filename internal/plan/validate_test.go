@@ -372,10 +372,10 @@ func TestValidate(t *testing.T) {
 		{
 			name: "should refuse a reserved id before counting its levels",
 			events: []argv.Event{
-				{Name: "ask", Value: "abstain=x"},
+				{Name: "ask", Value: "verdict=x"},
 				{Name: "rate", Value: strings.Join(generated("l", 11), ",")},
 			},
-			wantExact: "question id 'abstain' is reserved",
+			wantExact: "question id 'verdict' is reserved",
 		},
 		{
 			name: "should refuse a repeated option as listed twice when the distinct options fit",

@@ -11,7 +11,7 @@ import (
 
 func FuzzLineVerdict(f *testing.F) {
 	f.Add("http", "status 500", 500, true, uint8(1), "T-1", []byte(`{"error":{"kind":"http","status":500,"message":"x"}}`+"\n"))
-	f.Add("input", "line 2: not json", 0, false, uint8(1), "", []byte(`{"id":"a","assert":false,"urgent":{"value":0.9}}`+"\n"))
+	f.Add("input", "line 2: not json", 0, false, uint8(1), "", []byte(`{"id":"a","verdict":"fail","urgent":{"value":0.9}}`+"\n"))
 	f.Add("", "", 0, false, uint8(0), "a,b", []byte(`{"error":{"kind":"input","status":null,"message":"x"},"extra":1}`+"\n"))
 	f.Add("transport", "a\r\nb\t\"c\"", 0, false, uint8(2), "\n", []byte(`{"error":{"kind":"x","status":null,"message":"<&>"}}`))
 	f.Add("response", "\xff", 200, true, uint8(3), "\"", []byte(`{"error":{"kind":"x","status":1e0,"message":"m"}}`+"\n"))
@@ -23,7 +23,7 @@ func FuzzLineVerdict(f *testing.F) {
 
 		for _, mode := range []output.Mode{output.JSON, output.Values} {
 			var written bytes.Buffer
-			if err := output.Write(&written, mode, rec); err != nil {
+			if err := output.Write(&written, mode, rec, true); err != nil {
 				t.Fatalf("writing %+v: %v", rec, err)
 			}
 
@@ -37,7 +37,7 @@ func FuzzLineVerdict(f *testing.F) {
 			var written bytes.Buffer
 
 			rows := output.NewDelimited(&written, mode, output.DelimitedOptions{
-				IDs: []string{"urgent"}, ID: rec.ID != nil, Assert: true, Header: true,
+				IDs: []string{"urgent"}, ID: rec.ID != nil, Verdict: true, Header: true,
 			})
 			if err := rows.Write(rec, nil, nil); err != nil {
 				t.Fatalf("writing %+v: %v", rec, err)

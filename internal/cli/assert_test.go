@@ -44,26 +44,25 @@ func TestAsk(t *testing.T) {
 			noRequest bool
 		}{
 			{
-				name:     "should exit zero and write no assert key when the assertion holds",
+				name:     "should exit zero and write pass when the assertion holds",
 				args:     []string{"is this urgent", "-o", "json", "--assert", "answer.value > 0.5"},
 				response: urgent,
 				wantCode: cli.ExitOK,
-				contains: []string{`"answer":{"value":0.9}`},
-				missing:  []string{"assert"},
+				contains: []string{`"verdict":"pass","model"`, `"answer":{"value":0.9}`},
 			},
 			{
 				name:     "should print the record and exit one when the assertion is false",
 				args:     []string{"is this urgent", "-o", "json", "--assert", "answer.value > 0.95"},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				contains: []string{`"assert":false`, `"answer":{"value":0.9}`, `"model":"onesie-1.13.0"`},
+				contains: []string{`"verdict":"fail"`, `"answer":{"value":0.9}`, `"model":"onesie-1.13.0"`},
 			},
 			{
 				name:     "should carry the key in values mode",
 				args:     []string{"is this urgent", "-o", "values", "--assert", "answer.value > 0.95"},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				wantOut:  "{\"assert\":false,\"answer\":0.9}\n",
+				wantOut:  "{\"verdict\":\"fail\",\"answer\":0.9}\n",
 			},
 			{
 				name:     "should print assert false beside the model in table mode",
@@ -97,7 +96,7 @@ func TestAsk(t *testing.T) {
 				},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				contains: []string{`"assert":false`},
+				contains: []string{`"verdict":"fail"`},
 			},
 			{
 				name: "should hold when every combined assertion holds",
@@ -117,7 +116,7 @@ func TestAsk(t *testing.T) {
 				},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				wantOut: "{\"state\":\"a ticket\",\"answers\":{\"assert\":false," +
+				wantOut: "{\"state\":\"a ticket\",\"answers\":{\"verdict\":\"fail\"," +
 					"\"model\":\"onesie-1.13.0\",\"answer\":{\"value\":0.9}}}\n",
 			},
 			{
@@ -127,7 +126,7 @@ func TestAsk(t *testing.T) {
 				},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				contains: []string{`"assert":false`},
+				contains: []string{`"verdict":"fail"`},
 				wantErr:  "1 request, 1 fail, 1 question asked",
 			},
 			{
@@ -194,14 +193,14 @@ func TestAsk(t *testing.T) {
 				args:     []string{"is this urgent", "-o", "json", "--assert", "false"},
 				response: urgent,
 				wantCode: cli.ExitFail,
-				contains: []string{`"assert":false`},
+				contains: []string{`"verdict":"fail"`},
 			},
 			{
 				name:     "should abstain under the constant true as --abstain-if",
 				args:     []string{"is this urgent", "-o", "json", "--assert", "answer.value < 0.5", "--abstain-if", "true"},
 				response: urgent,
 				wantCode: cli.ExitAbstain,
-				contains: []string{`"abstain":true`},
+				contains: []string{`"verdict":"unsure"`},
 			},
 			{
 				name:      "should point an id with a space at the bracket form",
@@ -347,7 +346,7 @@ func TestAsk(t *testing.T) {
 				gate:      holds,
 				abstain:   holds,
 				wantCode:  cli.ExitOK,
-				wantOut:   "{\"answer\":0.9}\n",
+				wantOut:   "{\"verdict\":\"pass\",\"answer\":0.9}\n",
 				wantStats: "1 request, 1 question asked",
 			},
 			{
@@ -355,7 +354,7 @@ func TestAsk(t *testing.T) {
 				gate:      fails,
 				abstain:   holds,
 				wantCode:  cli.ExitAbstain,
-				wantOut:   "{\"abstain\":true,\"answer\":0.9}\n",
+				wantOut:   "{\"verdict\":\"unsure\",\"answer\":0.9}\n",
 				wantStats: "1 request, 1 unsure, 1 question asked",
 			},
 			{
@@ -363,7 +362,7 @@ func TestAsk(t *testing.T) {
 				gate:      fails,
 				abstain:   fails,
 				wantCode:  cli.ExitFail,
-				wantOut:   "{\"assert\":false,\"answer\":0.9}\n",
+				wantOut:   "{\"verdict\":\"fail\",\"answer\":0.9}\n",
 				wantStats: "1 request, 1 fail, 1 question asked",
 			},
 		}
@@ -586,7 +585,7 @@ func TestGateOf(t *testing.T) {
 			file:     "assert: urgent.value > 0.95\n" + question,
 			args:     []string{"-o", "json"},
 			wantCode: cli.ExitFail,
-			contains: []string{`"assert":false`, `"urgent":{"value":0.9}`},
+			contains: []string{`"verdict":"fail"`, `"urgent":{"value":0.9}`},
 		},
 		{
 			name:     "should exit zero when the file's assertion holds",
@@ -601,7 +600,7 @@ func TestGateOf(t *testing.T) {
 			file:     "assert: urgent.value > 0.5\n" + question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.95"},
 			wantCode: cli.ExitFail,
-			contains: []string{`"assert":false`},
+			contains: []string{`"verdict":"fail"`},
 			wantErr:  "onesie: --assert overrides the question file's assert\n",
 		},
 		{
@@ -617,15 +616,15 @@ func TestGateOf(t *testing.T) {
 			file:     question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5", "--assert", "urgent.value > 0.95"},
 			wantCode: cli.ExitFail,
-			contains: []string{`"assert":false`},
+			contains: []string{`"verdict":"fail"`},
 		},
 		{
 			name:     "should replace the file's abstain_if with --abstain-if",
 			file:     "assert: urgent.value > 0.95\nabstain_if: urgent.value > 0.5\n" + question,
 			args:     []string{"-o", "json", "--abstain-if", "urgent.value < 0.5"},
 			wantCode: cli.ExitFail,
-			contains: []string{`"assert":false`},
-			missing:  []string{"abstain"},
+			contains: []string{`"verdict":"fail"`},
+			missing:  []string{"unsure"},
 			wantErr:  "onesie: --abstain-if overrides the question file's abstain_if\n",
 		},
 		{
@@ -686,8 +685,7 @@ func TestGateOf(t *testing.T) {
 			file:     "abstain_if: urgent.value > 0.5\n" + question,
 			args:     []string{"-o", "json", "--assert", "urgent.value > 0.5"},
 			wantCode: cli.ExitOK,
-			contains: []string{`"urgent":{"value":0.9}`},
-			missing:  []string{"assert", "abstain"},
+			contains: []string{`"verdict":"pass"`, `"urgent":{"value":0.9}`},
 		},
 		{
 			name:      "should name the file's key when its abstain expression names an unknown question",

@@ -429,7 +429,7 @@ func TestOpenOut(t *testing.T) {
 			questions:   "assert: answer.value > 0.4\n",
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
-			wantFile:    "old one\nold two\n" + strings.Repeat("{\"answer\":0.5}\n", 2),
+			wantFile:    "old one\nold two\n" + strings.Repeat("{\"verdict\":\"pass\",\"answer\":0.5}\n", 2),
 			wantCalls:   2,
 		},
 		{

@@ -770,7 +770,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    stopRecords,
 			files:    map[string]string{"mock.jsonl": stopMock},
 			wantCode: cli.ExitAbstain,
-			contains: []string{`{"id":2,"line":2,"abstain":true`, ", 1 unsure,"},
+			contains: []string{`{"id":2,"line":2,"verdict":"unsure"`, ", 1 unsure,"},
 			absent:   []string{`"id":3`, `"id":4`, " fail"},
 		},
 		{
@@ -783,7 +783,7 @@ func TestNewRootCmd(t *testing.T) {
 			stdin:    stopRecords,
 			files:    map[string]string{"mock.jsonl": stopMock},
 			wantCode: cli.ExitAbstain,
-			contains: []string{`{"id":2,"line":2,"abstain":true`, ", 1 unsure,"},
+			contains: []string{`{"id":2,"line":2,"verdict":"unsure"`, ", 1 unsure,"},
 			absent:   []string{`"id":3`, `"id":4`, " fail"},
 		},
 		{

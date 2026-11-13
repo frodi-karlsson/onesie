@@ -50,6 +50,12 @@ func TestWrite(t *testing.T) {
 		},
 	}
 
+	passed := output.Record{
+		Model:   "onesie-1.13.0",
+		Answers: simple.Answers,
+		Gate:    output.Pass,
+	}
+
 	asserted := output.Record{
 		Model:   "onesie-1.13.0",
 		Answers: simple.Answers,
@@ -85,10 +91,11 @@ func TestWrite(t *testing.T) {
 	}
 
 	tests := []struct {
-		name string
-		mode output.Mode
-		rec  output.Record
-		want string
+		name  string
+		mode  output.Mode
+		rec   output.Record
+		gated bool
+		want  string
 	}{
 		{
 			name: "should write a box as its edges and confidence in json output",
@@ -281,46 +288,62 @@ func TestWrite(t *testing.T) {
 				`"message":"connection refused"}}`,
 		},
 		{
-			name: "should write the assert key in json output when the assertion is false",
+			name:  "should write the verdict in json output when the gate says fail",
+			mode:  output.JSON,
+			rec:   asserted,
+			gated: true,
+			want:  `{"verdict":"fail","model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name:  "should write the verdict in values output too",
+			mode:  output.Values,
+			rec:   asserted,
+			gated: true,
+			want:  `{"verdict":"fail","urgent":0.92}`,
+		},
+		{
+			name:  "should write pass in json output when the gate held",
+			mode:  output.JSON,
+			rec:   passed,
+			gated: true,
+			want:  `{"verdict":"pass","model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name:  "should write unsure in json output when the record abstained",
+			mode:  output.JSON,
+			rec:   abstained,
+			gated: true,
+			want:  `{"verdict":"unsure","model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+		},
+		{
+			name: "should write error after the error key in json output when a gated record failed",
 			mode: output.JSON,
-			rec:  asserted,
-			want: `{"assert":false,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+			rec: output.Record{
+				Failure: &output.Failure{Kind: "transport", Message: "connection refused"},
+				Answers: []output.Named{{ID: "urgent"}},
+			},
+			gated: true,
+			want:  `{"error":{"kind":"transport","status":null,"message":"connection refused"},"verdict":"error"}`,
 		},
 		{
-			name: "should write the assert key in values output too",
-			mode: output.Values,
-			rec:  asserted,
-			want: `{"assert":false,"urgent":0.92}`,
-		},
-		{
-			name: "should leave the assert key out of json output when the assertion held",
+			name: "should leave the verdict out of json output when the run has no gate",
 			mode: output.JSON,
 			rec:  simple,
 			want: `{"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
 		},
 		{
-			name: "should write the abstain key in json output when the record abstained",
-			mode: output.JSON,
-			rec:  abstained,
-			want: `{"abstain":true,"model":"onesie-1.13.0","urgent":{"value":0.92}}`,
+			name:  "should print the bare scalar for an unsure in raw output",
+			mode:  output.Raw,
+			rec:   abstained,
+			gated: true,
+			want:  "0.92",
 		},
 		{
-			name: "should write the abstain key in values output too",
-			mode: output.Values,
-			rec:  abstained,
-			want: `{"abstain":true,"urgent":0.92}`,
-		},
-		{
-			name: "should print the bare scalar for an abstain in raw output",
-			mode: output.Raw,
-			rec:  abstained,
-			want: "0.92",
-		},
-		{
-			name: "should print only the value for a false assertion in raw output",
-			mode: output.Raw,
-			rec:  asserted,
-			want: "0.92",
+			name:  "should print only the value for a fail in raw output",
+			mode:  output.Raw,
+			rec:   asserted,
+			gated: true,
+			want:  "0.92",
 		},
 		{
 			name: "should print the fallback word in raw output on failure",
@@ -354,7 +377,7 @@ func TestWrite(t *testing.T) {
 
 			var buf strings.Builder
 
-			if err := output.Write(&buf, tc.mode, tc.rec); err != nil {
+			if err := output.Write(&buf, tc.mode, tc.rec, tc.gated); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 

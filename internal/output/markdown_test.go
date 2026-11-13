@@ -329,14 +329,14 @@ func TestNewMarkdownTable(t *testing.T) {
 	}{
 		{
 			name:     "should write one header, a row per record, the summary and the model",
-			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Verdict: true},
 			records:  []output.Record{failing, passed("T-2", 0.08, "shipping"), failed},
 			complete: true,
-			want: "| id | `urgent` | `team` | gate | error |\n" +
+			want: "| id | `urgent` | `team` | verdict | error |\n" +
 				"|---|---|---|---|---|\n" +
 				"| `T-1` | 0.97 | `billing` | fail | |\n" +
 				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
-				"| `T-3` | | | | `http 500: upstream failed` |\n" +
+				"| `T-3` | | | error | `http 500: upstream failed` |\n" +
 				"\n" +
 				"> [!CAUTION]\n" +
 				"> 3 records: 1 pass, 1 fail, 1 error.\n" +
@@ -344,7 +344,7 @@ func TestNewMarkdownTable(t *testing.T) {
 				"_`jev-1.13.0`_\n",
 		},
 		{
-			name:     "should leave out the id and gate columns and tip when every record answered",
+			name:     "should leave out the id and verdict columns and tip when every record answered",
 			opts:     output.MarkdownTableOptions{IDs: both},
 			records:  []output.Record{answered(nil, 0.1, "billing"), answered(nil, 0.2, "sales")},
 			complete: true,
@@ -360,10 +360,10 @@ func TestNewMarkdownTable(t *testing.T) {
 		},
 		{
 			name:     "should tip when every record passed",
-			opts:     output.MarkdownTableOptions{IDs: both, Gate: true},
+			opts:     output.MarkdownTableOptions{IDs: both, Verdict: true},
 			records:  []output.Record{passed(nil, 0.1, "billing")},
 			complete: true,
-			want: "| `urgent` | `team` | gate | error |\n" +
+			want: "| `urgent` | `team` | verdict | error |\n" +
 				"|---|---|---|---|\n" +
 				"| 0.1 | `billing` | pass | |\n" +
 				"\n" +
@@ -374,10 +374,10 @@ func TestNewMarkdownTable(t *testing.T) {
 		},
 		{
 			name:     "should warn when the worst record is an unsure",
-			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			opts:     output.MarkdownTableOptions{IDs: both, ID: true, Verdict: true},
 			records:  []output.Record{passed("T-2", 0.08, "shipping"), unsure},
 			complete: true,
-			want: "| id | `urgent` | `team` | gate | error |\n" +
+			want: "| id | `urgent` | `team` | verdict | error |\n" +
 				"|---|---|---|---|---|\n" +
 				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
 				"| `T-4` | 0.5 | `sales` | unsure | |\n" +
@@ -421,9 +421,9 @@ func TestNewMarkdownTable(t *testing.T) {
 		},
 		{
 			name:    "should say the run stopped early when it did not read every record",
-			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Gate: true},
+			opts:    output.MarkdownTableOptions{IDs: both, ID: true, Verdict: true},
 			records: []output.Record{passed("T-2", 0.08, "shipping"), failing},
-			want: "| id | `urgent` | `team` | gate | error |\n" +
+			want: "| id | `urgent` | `team` | verdict | error |\n" +
 				"|---|---|---|---|---|\n" +
 				"| `T-2` | 0.08 | `shipping` | pass | |\n" +
 				"| `T-1` | 0.97 | `billing` | fail | |\n" +

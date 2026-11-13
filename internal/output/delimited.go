@@ -41,9 +41,8 @@ type DelimitedOptions struct {
 	// Fallbacks are the ids of the questions that have a fallback. Each gets an ID_fallback column
 	// after its answer, holding why the fallback replaced it, or nothing when it did not.
 	Fallbacks []string
-	// Assert adds an assert column, true, false or abstain per row, when the run carries an
-	// assertion.
-	Assert bool
+	// Verdict adds a verdict column, pass, fail, unsure or error per row, when the run is gated.
+	Verdict bool
 	// Header writes the header row before the first row. A resume into a file that has one leaves
 	// it out.
 	Header bool
@@ -82,8 +81,8 @@ func (d *Delimited) Write(rec Record, header []string, fields map[string]any) er
 		}
 	}
 
-	if d.opts.Assert {
-		row = append(row, assertCell(rec))
+	if d.opts.Verdict {
+		row = append(row, rec.Verdict().String())
 	}
 
 	failure := ""
@@ -114,8 +113,8 @@ func (d *Delimited) start(header []string) error {
 		}
 	}
 
-	if d.opts.Assert {
-		columns = append(columns, "assert")
+	if d.opts.Verdict {
+		columns = append(columns, "verdict")
 	}
 
 	columns = append(columns, "error")
@@ -183,20 +182,6 @@ func fallbackCell(rec Record, id string) string {
 	}
 
 	return ""
-}
-
-func assertCell(rec Record) string {
-	switch rec.Verdict() {
-	case Error:
-		// A failed record was never judged, so it claims neither outcome.
-		return ""
-	case Unsure:
-		return "abstain"
-	case Fail:
-		return "false"
-	default:
-		return "true"
-	}
 }
 
 func cell(value any) string {

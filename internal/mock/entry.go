@@ -20,7 +20,7 @@ import (
 const normTolerance = 1e-9
 
 var (
-	lineKeys = []string{"id", "line", "model", "usage", "assert", "abstain", "error"}
+	lineKeys = []string{"id", "line", "model", "usage", "verdict", "error"}
 
 	// The keys -o json writes inside an answer, which a replay accepts and leaves to the real code.
 	echoedKeys = []string{"p", "legend", "decision", "fallback", "score", "norm"}

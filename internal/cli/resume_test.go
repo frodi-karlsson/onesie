@@ -62,7 +62,7 @@ func TestResumed(t *testing.T) {
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.4",
 	})
-	stored := "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n"
+	stored := "{\"verdict\":\"unsure\",\"answer\":0.5}\n{\"verdict\":\"fail\",\"answer\":0.5}\n"
 	byPositionFailing := fingerprintWith(t, plan.Source{Positional: "is this urgent"}, answersfile.FingerprintInputs{
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9", AbstainIf: "answer.value > 0.6",
@@ -72,7 +72,7 @@ func TestResumed(t *testing.T) {
 		Provider: "typesafe", Model: onesie.TypeSafe().DefaultModel(), Output: "values", Input: "jsonl",
 		Assert: "answer.value > 0.9",
 	})
-	contradictory := `{"error":{"kind":"http","status":503,"message":"503 bad key"},"assert":false,"abstain":true,"answer":0.5}` + "\n"
+	contradictory := `{"error":{"kind":"http","status":503,"message":"503 bad key"},"verdict":"fail","verdict":"unsure","answer":0.5}` + "\n"
 
 	firstMock, secondMock := writeMock(t, `{"answer": 0.1}`), writeMock(t, `{"answer": 0.2}`)
 
@@ -406,7 +406,7 @@ func TestResumed(t *testing.T) {
 		},
 		{
 			name:     "should exit 1 over a skipped abstain when a record asked this run failed its assertion",
-			existing: fileOf("{\"abstain\":true,\"answer\":0.5}\n"),
+			existing: fileOf("{\"verdict\":\"unsure\",\"answer\":0.5}\n"),
 			sidecar:  byPositionFailing,
 			stdin:    idRecords(1, 2),
 			runs: []resumeRun{{
@@ -415,7 +415,7 @@ func TestResumed(t *testing.T) {
 					"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.6",
 				},
 				wantCode:   ExitFail,
-				wantFile:   "{\"abstain\":true,\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
+				wantFile:   "{\"verdict\":\"unsure\",\"answer\":0.5}\n{\"verdict\":\"fail\",\"answer\":0.5}\n",
 				wantSent:   []string{`{"id":2}`},
 				wantStderr: "1 skipped by --resume, 1 fail, 1 unsure, ",
 			}},
@@ -455,7 +455,7 @@ func TestResumed(t *testing.T) {
 				{
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
 					wantCode: ExitFail,
-					wantFile: strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantFile: strings.Repeat("{\"verdict\":\"fail\",\"answer\":0.5}\n", 2),
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -463,7 +463,7 @@ func TestResumed(t *testing.T) {
 						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
 					},
 					wantCode:   ExitFail,
-					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 2),
+					wantFile:   strings.Repeat("{\"verdict\":\"fail\",\"answer\":0.5}\n", 2),
 					wantStderr: "2 records, 2 skipped by --resume, 2 fail, ",
 				},
 			},
@@ -478,7 +478,7 @@ func TestResumed(t *testing.T) {
 						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4",
 					},
 					wantCode: ExitAbstain,
-					wantFile: strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantFile: strings.Repeat("{\"verdict\":\"unsure\",\"answer\":0.5}\n", 2),
 					wantSent: []string{`{"id":1}`, `{"id":2}`},
 				},
 				{
@@ -487,7 +487,7 @@ func TestResumed(t *testing.T) {
 						"--assert", "answer.value > 0.9", "--abstain-if", "answer.value > 0.4", "--stats",
 					},
 					wantCode:   ExitAbstain,
-					wantFile:   strings.Repeat("{\"abstain\":true,\"answer\":0.5}\n", 2),
+					wantFile:   strings.Repeat("{\"verdict\":\"unsure\",\"answer\":0.5}\n", 2),
 					wantStderr: "2 records, 2 skipped by --resume, 2 unsure, ",
 				},
 			},
@@ -500,7 +500,7 @@ func TestResumed(t *testing.T) {
 			runs: []resumeRun{{
 				args:       []string{"-i", "jsonl", "-o", "values", "--resume", "--stats", "--assert", "answer.value > 0.9"},
 				wantCode:   ExitRecords,
-				wantFile:   contradictory + "{\"assert\":false,\"answer\":0.5}\n",
+				wantFile:   contradictory + "{\"verdict\":\"fail\",\"answer\":0.5}\n",
 				wantSent:   []string{`{"id":2}`},
 				wantStderr: "2 records, 1 skipped by --resume, 1 error, 1 fail, 1 request, ",
 			}},
@@ -513,7 +513,7 @@ func TestResumed(t *testing.T) {
 			runs: []resumeRun{{
 				args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--stop-on=fail", "--assert", "answer.value > 0.9"},
 				wantCode: ExitRecords,
-				wantFile: contradictory + "{\"answer\":0.5}\n{\"assert\":false,\"answer\":0.5}\n",
+				wantFile: contradictory + "{\"answer\":0.5}\n{\"verdict\":\"fail\",\"answer\":0.5}\n",
 				wantSent: []string{`{"id":3}`},
 			}},
 		},
@@ -537,7 +537,7 @@ func TestResumed(t *testing.T) {
 					args:     []string{"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9"},
 					input:    idRecords(1, 1),
 					wantCode: ExitFail,
-					wantFile: "{\"assert\":false,\"answer\":0.5}\n",
+					wantFile: "{\"verdict\":\"fail\",\"answer\":0.5}\n",
 					wantSent: []string{`{"id":1}`},
 				},
 				{
@@ -545,7 +545,7 @@ func TestResumed(t *testing.T) {
 						"-i", "jsonl", "-o", "values", "--resume", "--assert", "answer.value > 0.9", "--stats",
 					},
 					wantCode:   ExitFail,
-					wantFile:   strings.Repeat("{\"assert\":false,\"answer\":0.5}\n", 3),
+					wantFile:   strings.Repeat("{\"verdict\":\"fail\",\"answer\":0.5}\n", 3),
 					wantSent:   []string{`{"id":2}`, `{"id":3}`},
 					wantStderr: "3 records, 1 skipped by --resume, 3 fail, ",
 				},
@@ -894,19 +894,28 @@ func lockAnswers(path string) (*answersfile.File, error) {
 	return held, err
 }
 
-func rejectedLines(from, to int) string {
+func passedLines(from, to int) string {
 	var lines strings.Builder
 	for id := from; id <= to; id++ {
-		fmt.Fprintf(&lines, "{\"id\":%d,\"assert\":false,\"answer\":0.5}\n", id)
+		fmt.Fprintf(&lines, "{\"id\":%d,\"verdict\":\"pass\",\"answer\":0.5}\n", id)
 	}
 
 	return lines.String()
 }
 
-func abstainedLines(from, to int) string {
+func failedLines(from, to int) string {
 	var lines strings.Builder
 	for id := from; id <= to; id++ {
-		fmt.Fprintf(&lines, "{\"id\":%d,\"abstain\":true,\"answer\":0.5}\n", id)
+		fmt.Fprintf(&lines, "{\"id\":%d,\"verdict\":\"fail\",\"answer\":0.5}\n", id)
+	}
+
+	return lines.String()
+}
+
+func unsureLines(from, to int) string {
+	var lines strings.Builder
+	for id := from; id <= to; id++ {
+		fmt.Fprintf(&lines, "{\"id\":%d,\"verdict\":\"unsure\",\"answer\":0.5}\n", id)
 	}
 
 	return lines.String()

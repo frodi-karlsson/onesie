@@ -115,8 +115,8 @@ type MarkdownTableOptions struct {
 	IDs []string
 	// ID adds an id column ahead of the answers, for a run that names its records with --id.
 	ID bool
-	// Gate adds a gate column, pass, fail or unsure per row, when the run carries an assertion.
-	Gate bool
+	// Verdict adds a verdict column, pass, fail, unsure or error per row, when the run is gated.
+	Verdict bool
 }
 
 // Write writes one record as a row, after the header when it is the first.
@@ -140,8 +140,8 @@ func (m *MarkdownTable) Write(rec Record) error {
 		cells = append(cells, streamAnswer(rec, id))
 	}
 
-	if m.opts.Gate {
-		cells = append(cells, gateText(rec))
+	if m.opts.Verdict {
+		cells = append(cells, rec.Verdict().String())
 	}
 
 	failure := ""
@@ -187,8 +187,8 @@ func (m *MarkdownTable) head() string {
 		columns = append(columns, codeSpan(id, true))
 	}
 
-	if m.opts.Gate {
-		columns = append(columns, "gate")
+	if m.opts.Verdict {
+		columns = append(columns, "verdict")
 	}
 
 	return tableHead(append(columns, "error")...)
@@ -239,17 +239,6 @@ func streamAnswer(rec Record, id string) string {
 	}
 
 	return ""
-}
-
-func gateText(rec Record) string {
-	switch verdict := rec.Verdict(); verdict {
-	case Error:
-		return ""
-	case Fail, Unsure:
-		return verdict.String()
-	default:
-		return Pass.String()
-	}
 }
 
 type tally struct {

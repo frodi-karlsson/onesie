@@ -112,6 +112,7 @@ func helpDecisions() string {
 		"Each record ends in one verdict: answered with no gate, pass, fail, unsure or error. --assert is a boolean expression over the record. Repeated assertions are combined with and and replace the file's assert. " +
 		"Acceptance is checked first. Only when it fails is --abstain-if checked. Repeated abstain expressions combine with and, " +
 		"need --assert and replace the file's abstain_if. A false assertion is a fail and exits 1. When --abstain-if holds instead, the record is unsure and exits 7. " +
+		"Under --assert the output names each record's verdict, in a verdict key, column or line, while -o raw prints only the answer. " +
 		"Quiet beside --assert only suppresses output.\n\n" +
 		"An --assert path is a question id, a dot and a field, as in urgent.value. Compare with ==, !=, <, <=, > and >=, " +
 		`test a string with in ["a", "b"], and combine with and, or, not and parentheses. Strings take double quotes. ` +

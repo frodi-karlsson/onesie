@@ -570,7 +570,7 @@ func TestStream(t *testing.T) {
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{`{"line":2,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				contains:  []string{`{"line":2,"verdict":"unsure","model":"onesie-1.13.0","answer":{"value":0.9}}`},
 				wantErr:   "3 records, 1 unsure, 3 requests, 3 questions",
 			},
 			{
@@ -582,7 +582,7 @@ func TestStream(t *testing.T) {
 				stdin:     "hot\ncold\nhot\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{`{"line":3,"abstain":true,"model":"onesie-1.13.0","answer":{"value":0.9}}`},
+				contains:  []string{`{"line":3,"verdict":"unsure","model":"onesie-1.13.0","answer":{"value":0.9}}`},
 				wantErr:   "3 records, 1 deduplicated, 2 unsure, 2 requests, 2 questions",
 			},
 			{
@@ -594,7 +594,7 @@ func TestStream(t *testing.T) {
 				stdin:     "hot\nboom\n",
 				wantCode:  cli.ExitRecords,
 				wantLines: 2,
-				contains:  []string{`"abstain":true`, `"kind":"http"`},
+				contains:  []string{`"verdict":"unsure"`, `"kind":"http"`},
 			},
 			{
 				name: "should end the run at the first unsure under --stop-on=unsure",
@@ -605,7 +605,7 @@ func TestStream(t *testing.T) {
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 2,
-				contains:  []string{`{"line":2,"abstain":true,`},
+				contains:  []string{`{"line":2,"verdict":"unsure",`},
 			},
 			{
 				name: "should not stop on an unsure under --stop-on=fail",
@@ -616,10 +616,10 @@ func TestStream(t *testing.T) {
 				stdin:     "cold\nhot\ncold\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{`"abstain":true`},
+				contains:  []string{`"verdict":"unsure"`},
 			},
 			{
-				name: "should write abstain in the csv assert column",
+				name: "should write unsure in the csv verdict column",
 				args: []string{
 					"is this urgent", "-i", "lines", "-o", "csv", "--assert", gate,
 					"--abstain-if", "answer.value < 0.95",
@@ -627,7 +627,7 @@ func TestStream(t *testing.T) {
 				stdin:     "cold\nhot\n",
 				wantCode:  cli.ExitAbstain,
 				wantLines: 3,
-				contains:  []string{"answer,assert,error\n0.1,true,\n0.9,abstain,\n"},
+				contains:  []string{"answer,verdict,error\n0.1,pass,\n0.9,unsure,\n"},
 			},
 			{
 				name: "should read the whole stream under --stop-on=fail when nothing is false",
@@ -659,7 +659,7 @@ func TestStream(t *testing.T) {
 					t.Errorf("lines = %d, want %d\ngot:\n%s", lines, tc.wantLines, out)
 				}
 
-				if got := strings.Count(out, `"assert":false`); got != tc.wantFalse {
+				if got := strings.Count(out, `"verdict":"fail"`); got != tc.wantFalse {
 					t.Errorf("false assertions = %d, want %d\ngot:\n%s", got, tc.wantFalse, out)
 				}
 
@@ -1377,16 +1377,16 @@ func TestStream(t *testing.T) {
 			wantFile string
 		}{
 			{
-				name: "should write one table with a gate column, the summary and the model",
+				name: "should write one table with a verdict column, the summary and the model",
 				args: []string{
 					"is this urgent", "-i", "jsonl", "--id", ".id", "-o", "markdown", "--assert", "answer.value > 0.4",
 				},
 				stdin:    tickets,
 				wantCode: cli.ExitRecords,
-				want: "| id | `answer` | gate | error |\n" +
+				want: "| id | `answer` | verdict | error |\n" +
 					"|---|---|---|---|\n" +
 					"| `T-1` | 0.5 | pass | |\n" +
-					"| | | | `line 2: line is not valid UTF-8` |\n" +
+					"| | | error | `line 2: line is not valid UTF-8` |\n" +
 					"| `@T-2` | 0.5 | pass | |\n" +
 					"\n" +
 					"> [!CAUTION]\n" +
@@ -1395,7 +1395,7 @@ func TestStream(t *testing.T) {
 					"_`m`_\n",
 			},
 			{
-				name:  "should leave out the id and gate columns and sum the usage",
+				name:  "should leave out the id and verdict columns and sum the usage",
 				args:  []string{"--ask", "urgent=is this urgent", "-i", "lines", "-o", "md", "--usage"},
 				stdin: "site down\nslow\n",
 				want: "| `urgent` | error |\n" +
@@ -1416,7 +1416,7 @@ func TestStream(t *testing.T) {
 				},
 				stdin:    "site down\n",
 				wantCode: cli.ExitAbstain,
-				want: "| `answer` | gate | error |\n" +
+				want: "| `answer` | verdict | error |\n" +
 					"|---|---|---|\n" +
 					"| 0.5 | unsure | |\n" +
 					"\n" +
@@ -1433,7 +1433,7 @@ func TestStream(t *testing.T) {
 				},
 				stdin:    "site down\nslow\nfine\n",
 				wantCode: cli.ExitFail,
-				want: "| `answer` | gate | error |\n" +
+				want: "| `answer` | verdict | error |\n" +
 					"|---|---|---|\n" +
 					"| 0.5 | fail | |\n" +
 					"\n" +

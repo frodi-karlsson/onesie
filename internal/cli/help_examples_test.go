@@ -191,11 +191,11 @@ func TestHelpDecisions(t *testing.T) {
 		lines       int
 	}{
 		{name: "should add a false threshold decision without rejecting", args: []string{"is this urgent", "--threshold", "0.5"}, mock: `{"answer":0.1}`, code: ExitOK, contains: []string{`"decision":false`, `"value":0.1`}},
-		{name: "should abstain only after an assertion fails", args: []string{"is this urgent", "--assert", "answer.value >= 0.5", "--abstain-if", "answer.value >= 0.05"}, mock: `{"answer":0.1}`, code: ExitAbstain, contains: []string{`"abstain":true`}},
+		{name: "should abstain only after an assertion fails", args: []string{"is this urgent", "--assert", "answer.value >= 0.5", "--abstain-if", "answer.value >= 0.05"}, mock: `{"answer":0.1}`, code: ExitAbstain, contains: []string{`"verdict":"unsure"`}},
 		{name: "should retain the model value beside a low confidence fallback", args: []string{"which team", "--pick", "billing,support", "--min-confidence", "0.9", "--fallback", "review"}, mock: `{"answer":{"value":"billing","confidence":0.5,"p":{"billing":0.5,"support":0.5}}}`, code: ExitOK, contains: []string{`"value":"billing"`, `"decision":"review"`, `"fallback":"low_confidence"`}},
 		{name: "should retain an error and failure exit beside a fallback", args: []string{"is this urgent", "--fallback", "no", "--retries", "0"}, mock: `{"error":503}`, code: ExitUnavailable, contains: []string{`"status":503`, `"decision":false`, `"fallback":"error"`}},
-		{name: "should emit both pass and fail stream records", args: []string{"is this urgent", "-i", "lines", "--assert", "answer.value >= 0.5"}, stdin: "a\nb\n", mock: "{\"answer\":0.1}\n{\"answer\":0.9}\n", code: ExitFail, lines: 2, contains: []string{`"assert":false`, `"value":0.9`}},
-		{name: "should emit the first fail before stopping", args: []string{"is this urgent", "-i", "lines", "--assert", "answer.value >= 0.5", "--stop-on=fail"}, stdin: "a\nb\n", mock: "{\"answer\":0.1}\n{\"answer\":0.9}\n", code: ExitFail, lines: 1, contains: []string{`"assert":false`}},
+		{name: "should emit both pass and fail stream records", args: []string{"is this urgent", "-i", "lines", "--assert", "answer.value >= 0.5"}, stdin: "a\nb\n", mock: "{\"answer\":0.1}\n{\"answer\":0.9}\n", code: ExitFail, lines: 2, contains: []string{`"verdict":"fail"`, `"value":0.9`}},
+		{name: "should emit the first fail before stopping", args: []string{"is this urgent", "-i", "lines", "--assert", "answer.value >= 0.5", "--stop-on=fail"}, stdin: "a\nb\n", mock: "{\"answer\":0.1}\n{\"answer\":0.9}\n", code: ExitFail, lines: 1, contains: []string{`"verdict":"fail"`}},
 		{name: "should put merged metadata at the selected location", args: []string{"is this urgent", "-i", "json", "--merge-key", "judgment"}, stdin: `{"text":"down"}`, mock: `{"answer":0.9}`, code: ExitOK, contains: []string{`"judgment":{`, `"answer":{"value":0.9}`, `"text":"down"`}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

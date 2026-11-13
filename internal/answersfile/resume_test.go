@@ -375,24 +375,25 @@ func TestFormat_eachVerdict(t *testing.T) {
 		want    []output.Verdict
 	}{
 		{
-			name:   "should read one verdict per json line, an error first, then a fail, then an unsure",
+			name:   "should read one verdict per json line, the error key before the verdict",
 			format: Format{Mode: output.JSON, Gated: true},
-			written: `{"error":{"kind":"http","status":503,"message":"x"},"assert":false,"abstain":true}` + "\n" +
-				`{"assert":false,"abstain":true,"u":0.1}` + "\n" +
-				`{"abstain":true,"u":0.4}` + "\n" +
+			written: `{"error":{"kind":"http","status":503,"message":"x"},"verdict":"fail"}` + "\n" +
+				`{"verdict":"fail","u":0.1}` + "\n" +
+				`{"verdict":"unsure","u":0.4}` + "\n" +
+				`{"verdict":"pass","u":0.9}` + "\n" +
 				`{"u":0.9}` + "\n",
-			want: []output.Verdict{output.Error, output.Fail, output.Unsure, output.Pass},
+			want: []output.Verdict{output.Error, output.Fail, output.Unsure, output.Pass, output.Pass},
 		},
 		{
 			name:    "should read every line but an error as answered when the run has no gate",
 			format:  Format{Mode: output.JSON},
-			written: `{"assert":false,"u":0.1}` + "\n" + `{"error":{"kind":"input","status":null,"message":"x"}}` + "\n",
+			written: `{"verdict":"fail","u":0.1}` + "\n" + `{"error":{"kind":"input","status":null,"message":"x"}}` + "\n",
 			want:    []output.Verdict{output.Answered, output.Error},
 		},
 		{
-			name:    "should read an error row before its assert cell",
+			name:    "should read an error row before its verdict cell",
 			format:  Format{Mode: output.CSV, Gated: true},
-			written: "u,assert,error\n0.1,false,boom\n0.4,abstain,\n0.9,true,\n0.2,false,\n",
+			written: "u,verdict,error\n0.1,fail,boom\n0.4,unsure,\n0.9,pass,\n0.2,fail,\n",
 			want:    []output.Verdict{output.Error, output.Unsure, output.Pass, output.Fail},
 		},
 	}
