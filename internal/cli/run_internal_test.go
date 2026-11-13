@@ -406,11 +406,11 @@ func TestRunInputs(t *testing.T) {
 			want:     answersfile.FingerprintInputs{Provider: "typesafe", BaseURL: "https://onesie.example.com"},
 		},
 		{
-			name:   "should fingerprint a profile's base URL and name",
+			name:   "should fingerprint a profile's base URL and not its name",
 			chosen: resolution{provider: onesie.TypeSafe(), profile: "work"}, from: setting.SourceChosenProfile,
 			endpoint: settingrow.EndpointValue{BaseURL: "https://onesie.example.com"},
 			want: answersfile.FingerprintInputs{
-				Provider: "typesafe", Profile: "work", BaseURL: "https://onesie.example.com",
+				Provider: "typesafe", BaseURL: "https://onesie.example.com",
 			},
 		},
 		{
@@ -423,7 +423,7 @@ func TestRunInputs(t *testing.T) {
 			name:   "should fingerprint a profile's cloudflare account",
 			chosen: resolution{provider: onesie.Cloudflare(), profile: "edge"}, from: setting.SourceChosenProfile,
 			endpoint: settingrow.EndpointValue{AccountID: other},
-			want:     answersfile.FingerprintInputs{Provider: "cloudflare", Profile: "edge", AccountID: other},
+			want:     answersfile.FingerprintInputs{Provider: "cloudflare", AccountID: other},
 		},
 		{
 			name:   "should fingerprint a whole cloudflare account URL as the base URL",
