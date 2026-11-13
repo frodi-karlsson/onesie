@@ -103,8 +103,7 @@ func TestFingerprint(t *testing.T) {
 			Provider: "typesafe", Model: "m", MapSource: ".body", IDSource: ".id", Output: "csv", Input: "csv",
 			MergeKey: "onesie", Assert: "urgent", AbstainIf: "urgent > 0.5", SkipBlank: true,
 			Images: []string{"square.png"}, Delimiter: input.Delimiter{Comma: ';'}, LongContext: true, Mock: true,
-			BaseURL: "https://onesie.example.com/v1", AccountID: strings.Repeat("ab", 16), Profile: "work",
-			Usage: true,
+			BaseURL: "https://onesie.example.com/v1", AccountID: strings.Repeat("ab", 16), Usage: true,
 		}
 
 		got, err := Fingerprint(questions, wired, every)
@@ -154,9 +153,6 @@ func TestFingerprint(t *testing.T) {
 		{name: "should change the sum when usage is turned on", change: func(in *FingerprintInputs) {
 			in.Usage = true
 		}, part: "usage"},
-		{name: "should change the sum when the profile changes", change: func(in *FingerprintInputs) {
-			in.Profile = "work"
-		}, part: "profile"},
 	}
 
 	for _, tc := range sumChanges {
@@ -186,56 +182,19 @@ func TestFingerprint(t *testing.T) {
 		})
 	}
 
-	versions := []struct {
-		name      string
-		stored    func(Print) string
-		wantMatch bool
-		wantStale []string
-	}{
-		{
-			name:      "should resume a version 3 file under a profile",
-			stored:    func(p Print) string { return "v3:" + strings.TrimPrefix(p.String(), "v4:") },
-			wantMatch: true,
-		},
-		{
-			name:      "should resume a version 2 file under a profile",
-			stored:    func(p Print) string { return p.older },
-			wantMatch: true,
-		},
-		{
-			name:      "should refuse a changed profile on a version 4 file",
-			stored:    Print.String,
-			wantStale: []string{"the profile"},
-		},
-	}
+	t.Run("should resume a version 4 file whose sidecar holds the profile it was written under", func(t *testing.T) {
+		t.Parallel()
 
-	for _, tc := range versions {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+		current, err := Fingerprint(questions, wired, inputs)
+		if err != nil {
+			t.Fatal(err)
+		}
 
-			before, err := Fingerprint(questions, wired, inputs)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			profiled := inputs
-			profiled.Profile = "work"
-
-			current, err := Fingerprint(questions, wired, profiled)
-			if err != nil {
-				t.Fatal(err)
-			}
-
-			stored := tc.stored(before)
-			if got := current.Matches(stored); got != tc.wantMatch {
-				t.Errorf("Matches(%q) = %v, want %v", stored, got, tc.wantMatch)
-			}
-
-			if _, changed, _ := staleReason(stored, true, current); !reflect.DeepEqual(changed, tc.wantStale) {
-				t.Errorf("changed = %q, want %q", changed, tc.wantStale)
-			}
-		})
-	}
+		stored := current.String() + ",profile=" + strings.Repeat("cd", partSumLength)
+		if !current.Matches(stored) {
+			t.Errorf("Matches(%q) = false, want the profile left uncompared", stored)
+		}
+	})
 
 	t.Run("should leave the sum alone for the provider's own base URL", func(t *testing.T) {
 		t.Parallel()
@@ -245,7 +204,7 @@ func TestFingerprint(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		for _, part := range []string{"base_url=", "account_id=", "profile=", "usage="} {
+		for _, part := range []string{"base_url=", "account_id=", "usage="} {
 			if strings.Contains(got.String(), part) {
 				t.Errorf("fingerprint %q carries %s, want none for a run on the defaults", got, part)
 			}
@@ -487,7 +446,17 @@ func TestDifferences(t *testing.T) {
 			name:     "should leave out the parts version 4 added when one side is version 3",
 			baseline: func(*testing.T) string { return "v3:model=" + strings.Repeat("ab", partSumLength) },
 			other: func(*testing.T) string {
+				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",usage=" + strings.Repeat("cd", partSumLength)
+			},
+			wantKnown: true,
+		},
+		{
+			name: "should name no difference between two version 4 files written under different profiles",
+			baseline: func(*testing.T) string {
 				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",profile=" + strings.Repeat("cd", partSumLength)
+			},
+			other: func(*testing.T) string {
+				return "v4:model=" + strings.Repeat("ab", partSumLength) + ",profile=" + strings.Repeat("ef", partSumLength)
 			},
 			wantKnown: true,
 		},

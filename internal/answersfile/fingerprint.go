@@ -38,8 +38,12 @@ const (
 var partOrder = []string{
 	"questions", "policies", "provider", "model", "map", "id", "output", "input", "merge_key", "assert",
 	"abstain_if", "skip_blank", "images", "delimiter", "long_context", "fallback_columns", "mock", "base_url",
-	"account_id", "profile", "usage",
+	"account_id", "usage",
 }
+
+// A version 4 sidecar can hold these parts. They are read and never compared, since the provider,
+// base URL and account parts already cover what a profile changes about a run.
+var retiredParts = []string{"profile"}
 
 // ErrStaleAnswers matches every StaleAnswersError, so a caller tells a stale file apart without
 // reading the message.
@@ -81,7 +85,7 @@ func Fingerprint(questions []plan.Question, wired json.Marshaler, inputs Fingerp
 }
 
 func beforeVersion4(inputs FingerprintInputs) FingerprintInputs {
-	inputs.BaseURL, inputs.AccountID, inputs.Profile, inputs.Usage = "", "", "", false
+	inputs.BaseURL, inputs.AccountID, inputs.Usage = "", "", false
 
 	return inputs
 }
@@ -109,7 +113,6 @@ func printedRun(questions []plan.Question, wired json.Marshaler, inputs Fingerpr
 		Mock:            inputs.Mock,
 		BaseURL:         inputs.BaseURL,
 		AccountID:       inputs.AccountID,
-		Profile:         inputs.Profile,
 		Usage:           inputs.Usage,
 	}
 }
@@ -151,7 +154,6 @@ type runPrint struct {
 	// Added in version 4. A file of an older version resumes without comparing them.
 	BaseURL   string `json:"base_url,omitempty"`
 	AccountID string `json:"account_id,omitempty"`
-	Profile   string `json:"profile,omitempty"`
 	Usage     bool   `json:"usage,omitempty"`
 }
 
@@ -255,7 +257,6 @@ type FingerprintInputs struct {
 	// base URL is built from.
 	BaseURL   string
 	AccountID string
-	Profile   string
 	Usage     bool
 
 	withoutFallbackColumns bool
@@ -335,7 +336,7 @@ func (p Print) changedFrom(stored map[string]string, version int) []string {
 	}
 
 	for _, name := range slices.Sorted(maps.Keys(stored)) {
-		if !seen[name] {
+		if !seen[name] && !slices.Contains(retiredParts, name) {
 			changed = append(changed, partLabel(name))
 		}
 	}
@@ -383,8 +384,6 @@ func partLabel(name string) string {
 		return "the base URL"
 	case "account_id":
 		return "the cloudflare account"
-	case "profile":
-		return "the profile"
 	case "usage":
 		return "--usage"
 	default:
@@ -525,7 +524,8 @@ func parseSums(written string, version int) (map[string]string, bool) {
 		name, sum, found := strings.Cut(part, "=")
 		decoded, err := hex.DecodeString(sum)
 
-		known := partLabel(name) != "" && (version >= fingerprintVersion || !addedInVersion4(name))
+		named := partLabel(name) != "" || slices.Contains(retiredParts, name)
+		known := named && (version >= fingerprintVersion || !addedInVersion4(name))
 		if !found || !known || err != nil || len(decoded) != partSumLength {
 			return nil, false
 		}

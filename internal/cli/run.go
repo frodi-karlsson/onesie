@@ -438,7 +438,6 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 	inputs.SkipBlank = setting.Get(flags.merged, setting.SkipBlank) && !resumesByID(flags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 	inputs.Delimiter = flags.parsedDelimiter
-	inputs.Profile = chosen.profile
 
 	// A mock run ignores the base URL and the account.
 	if !inputs.Mock {
