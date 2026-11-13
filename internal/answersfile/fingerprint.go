@@ -381,14 +381,12 @@ func (e *StaleAnswersError) Cause() string {
 }
 
 func (e *StaleAnswersError) changed() string {
-	switch len(e.Changed) {
-	case 0:
-		return "the questions, model or flags"
-	case 1:
+	last := len(e.Changed) - 1
+	if last == 0 {
 		return e.Changed[0]
 	}
 
-	return strings.Join(e.Changed[:len(e.Changed)-1], ", ") + " and " + e.Changed[len(e.Changed)-1]
+	return strings.Join(e.Changed[:last], ", ") + " and " + e.Changed[last]
 }
 
 // Is matches ErrStaleAnswers.

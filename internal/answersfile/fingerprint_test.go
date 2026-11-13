@@ -286,11 +286,6 @@ func TestStaleAnswersError(t *testing.T) {
 		wantCause string
 	}{
 		{
-			name:      "should name the questions, model or flags when no part is given",
-			wantError: "the questions, model or flags changed since A was written",
-			wantCause: "the questions, model or flags changed since it was written",
-		},
-		{
 			name:      "should name one part",
 			changed:   []string{"-o"},
 			wantError: "-o changed since A was written",

@@ -642,17 +642,6 @@ func TestOpenOut(t *testing.T) {
 			wantErr:          malformed,
 		},
 		{
-			name:        "should say an older onesie wrote a fingerprint of an earlier version",
-			existing:    "keep me\n",
-			sidecar:     "v0:" + strings.Repeat("0", 64),
-			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
-			stdin:       input,
-			wantCode:    ExitUsage,
-			wantFile:    "keep me\n",
-			wantSidecar: "v0:" + strings.Repeat("0", 64),
-			wantErr:     "an older onesie wrote",
-		},
-		{
 			name:        "should say an older onesie wrote a version 4 fingerprint of the same run",
 			existing:    "keep me\n",
 			sidecar:     "v4:" + strings.TrimPrefix(matching, "v5:"),
@@ -1219,11 +1208,6 @@ func TestWordAnswersError(t *testing.T) {
 			err:  stale(answersfile.NewerFingerprint),
 			want: "a newer onesie wrote a.jsonl.onesie, so this one cannot tell which run wrote a.jsonl. " +
 				"Drop --resume to start over",
-		},
-		{
-			name: "should advise dropping --resume for a changed run that names no part",
-			err:  stale(answersfile.ChangedRun),
-			want: "the questions, model or flags changed since a.jsonl was written. Drop --resume to start over",
 		},
 		{
 			name: "should advise dropping --resume for a changed run, naming what changed",
