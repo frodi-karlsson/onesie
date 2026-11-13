@@ -656,12 +656,12 @@ func TestOpenOut(t *testing.T) {
 		{
 			name:        "should say a newer onesie wrote a fingerprint of a later version",
 			existing:    "keep me\n",
-			sidecar:     "v6:" + strings.Repeat("0", 64),
+			sidecar:     "v99:" + strings.Repeat("0", 64),
 			args:        []string{"is this urgent", "-i", "jsonl", "--resume"},
 			stdin:       input,
 			wantCode:    ExitUsage,
 			wantFile:    "keep me\n",
-			wantSidecar: "v6:" + strings.Repeat("0", 64),
+			wantSidecar: "v99:" + strings.Repeat("0", 64),
 			wantErr:     "a newer onesie wrote",
 		},
 		{
