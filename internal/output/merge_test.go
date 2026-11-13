@@ -26,9 +26,21 @@ func TestWriteMerged(t *testing.T) {
 		state   any
 		key     string
 		rec     output.Record
+		gated   bool
 		want    string
 		wantErr string
 	}{
+		{
+			name:  "should put the verdict of a gated run in the answers",
+			mode:  output.JSON,
+			raw:   `{"id":7,"body":"hello"}`,
+			state: map[string]any{"id": float64(7), "body": "hello"},
+			key:   "answers",
+			rec:   output.Record{Model: simple.Model, Answers: simple.Answers, Gate: output.Fail},
+			gated: true,
+			want: `{"id":7,"body":"hello","answers":{"verdict":"fail","model":"onesie-1.13.0",` +
+				`"urgent":{"value":0.92}}}`,
+		},
 		{
 			name:  "should fold answers into a json object",
 			mode:  output.JSON,
@@ -214,7 +226,7 @@ func TestWriteMerged(t *testing.T) {
 
 			var buf strings.Builder
 
-			err := output.WriteMerged(&buf, tc.mode, tc.rec, tc.raw, tc.state, tc.key)
+			err := output.WriteMerged(&buf, tc.mode, tc.rec, tc.raw, tc.state, tc.key, tc.gated)
 
 			if tc.wantErr != "" {
 				if err == nil {

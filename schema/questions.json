@@ -18,12 +18,12 @@
           {
             "enum": [
               "answer",
-              "abstain",
               "answers",
               "error",
               "id",
               "model",
               "usage",
+              "verdict",
               "questions",
               "state"
             ]

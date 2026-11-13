@@ -28,16 +28,17 @@ const (
 	KindInput Kind = "input"
 )
 
-// Write encodes one record in the requested mode. The table mode is rendered at a default width,
-// so a caller that knows the terminal width should call WriteTable directly.
-func Write(w io.Writer, mode Mode, rec Record) error {
+// Write encodes one record in the requested mode, naming its verdict when the run is gated. The
+// table mode is rendered at a default width, so a caller that knows the terminal width should call
+// WriteTable directly.
+func Write(w io.Writer, mode Mode, rec Record, gated bool) error {
 	switch mode {
 	case Values:
-		return writeValues(w, rec)
+		return writeValues(w, rec, gated)
 	case Raw:
 		return writeRaw(w, rec)
 	case Table:
-		return WriteTable(w, rec, fallbackWidth)
+		return WriteTable(w, rec, fallbackWidth, gated)
 	case Markdown:
 		return WriteMarkdown(w, rec, MarkdownOptions{})
 	case CSV, TSV:
@@ -53,10 +54,10 @@ func Write(w io.Writer, mode Mode, rec Record) error {
 			}
 		}
 
-		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, Boxes: boxes, ID: rec.ID != nil, Header: true}).
+		return NewDelimited(w, mode, DelimitedOptions{IDs: ids, Boxes: boxes, ID: rec.ID != nil, Verdict: gated, Header: true}).
 			Write(rec, nil, nil)
 	default:
-		return writeJSON(w, rec)
+		return writeJSON(w, rec, gated)
 	}
 }
 

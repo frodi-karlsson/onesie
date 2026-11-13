@@ -196,8 +196,8 @@ func TestLoad(t *testing.T) {
 			},
 		},
 		{
-			name: "should read one line that carries usage, assert or abstain as the lines shape",
-			file: `{"usage":{"input_tokens":1},"assert":false,"abstain":true,` + full + "}\n",
+			name: "should read one line that carries usage or a verdict as the lines shape",
+			file: `{"usage":{"input_tokens":1},"verdict":"unsure",` + full + "}\n",
 			lookups: []lookup{
 				{position: 1, want: map[string]any{"u": 0.9}},
 				{position: 2, missing: true},
@@ -230,11 +230,11 @@ func TestLoad(t *testing.T) {
 		},
 		{
 			name: "should load a gated answers line as onesie writes it",
-			file: `{"id":"T-1","assert":false,"model":"jev-1.13.0","usage":{"input_tokens":120,"output_tokens":9},` +
+			file: `{"id":"T-1","verdict":"fail","model":"jev-1.13.0","usage":{"input_tokens":120,"output_tokens":9},` +
 				`"u":{"value":0.9,"decision":true},` +
 				`"t":{"value":"billing","confidence":0.8,"p":{"billing":0.8,"platform":0.2},"fallback":"low_confidence","decision":"platform"},` +
 				`"r":{"value":"curt","score":1.2,"norm":0.6,"confidence":0.7,"p":{"calm":0.1,"curt":0.6,"rude":0.3},"legend":{"0":"calm"}}}` + "\n" +
-				`{"id":"T-2","abstain":true,"model":"jev-1.13.0","u":0.4,"t":"platform","r":"calm"}` + "\n",
+				`{"id":"T-2","verdict":"unsure","model":"jev-1.13.0","u":0.4,"t":"platform","r":"calm"}` + "\n",
 			byID: true,
 			lookups: []lookup{
 				{position: 1, id: "T-1", want: map[string]any{"u": 0.9, "t": "billing", "r": "curt"}},
@@ -773,11 +773,11 @@ func TestAnswersMissing(t *testing.T) {
 		},
 		{
 			name:     "should name the key that made a one line file a replay",
-			file:     `{"abstain":true,` + full + "}\n",
+			file:     `{"verdict":"unsure",` + full + "}\n",
 			position: 2,
 			line:     2,
 			want: "--mock has no line 2, so input line 2 has no answer. The file was read as -o json " +
-				"lines, since its one line carries abstain. Add a line per record, or drop abstain to answer " +
+				"lines, since its one line carries verdict. Add a line per record, or drop verdict to answer " +
 				"every record",
 		},
 		{

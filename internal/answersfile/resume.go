@@ -193,7 +193,7 @@ func (f Format) eachVerdict(r io.Reader, note func(at Span, judged Stored)) erro
 }
 
 func (f Format) kept(judged Stored) Stored {
-	// A run with no gate wrote no verdict, so an assert it reads is an input field. Under a merge
+	// A run with no gate wrote no verdict, so a verdict it reads is an input field. Under a merge
 	// only a gated run keeps an input column from taking that name. The error key and column are
 	// reserved in every run, so a failure still stands.
 	if !f.Gated && judged.Verdict != output.Error {
@@ -345,20 +345,13 @@ func decodeLine(text []byte) (any, map[string]any, bool) {
 }
 
 func verdictOf(answers map[string]any) Stored {
-	// One verdict per line, ranked as a fresh run ranks them, so a line edited to claim several is
-	// counted once: an error, then a fail, then an unsure.
+	// An error line names the verdict error too, and its error key holds the failure. Read first,
+	// since namedVerdict reads any word but fail and unsure as a pass.
 	if stored, failed := answers["error"]; failed {
 		return Stored{Verdict: output.Error, Failure: failureOf(stored)}
 	}
 
-	switch {
-	case answers["assert"] == false:
-		return Stored{Verdict: output.Fail}
-	case answers["abstain"] == true:
-		return Stored{Verdict: output.Unsure}
-	default:
-		return Stored{Verdict: output.Pass}
-	}
+	return Stored{Verdict: namedVerdict(answers["verdict"])}
 }
 
 // Stored is a stored line's verdict, with the failure an error line carries.
@@ -424,13 +417,17 @@ func rowVerdict(row map[string]any) Stored {
 		return Stored{Verdict: output.Error, Failure: &output.Failure{Message: message}}
 	}
 
-	switch row["assert"] {
-	case "false":
-		return Stored{Verdict: output.Fail}
-	case "abstain":
-		return Stored{Verdict: output.Unsure}
+	return Stored{Verdict: namedVerdict(row["verdict"])}
+}
+
+func namedVerdict(named any) output.Verdict {
+	switch named {
+	case output.Fail.String():
+		return output.Fail
+	case output.Unsure.String():
+		return output.Unsure
 	default:
-		return Stored{Verdict: output.Pass}
+		return output.Pass
 	}
 }
 

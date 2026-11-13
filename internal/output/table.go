@@ -34,8 +34,8 @@ func Width(lookupEnv func(string) (string, bool), terminalWidth func() (int, boo
 }
 
 // WriteTable renders the human readable form at an explicit width, so the caller owns any
-// environment lookup.
-func WriteTable(w io.Writer, rec Record, columns int) error {
+// environment lookup. A gated run's record names its verdict.
+func WriteTable(w io.Writer, rec Record, columns int, gated bool) error {
 	bars := columns - labelWidth - rowPadding - widestProbability(rec)
 	if bars < minBarWidth {
 		bars = minBarWidth
@@ -47,7 +47,7 @@ func WriteTable(w io.Writer, rec Record, columns int) error {
 		}
 	}
 
-	if err := writeHeader(w, rec); err != nil {
+	if err := writeHeader(w, rec, gated); err != nil {
 		return err
 	}
 
@@ -88,7 +88,7 @@ func widestProbability(rec Record) int {
 	return widest
 }
 
-func writeHeader(w io.Writer, rec Record) error {
+func writeHeader(w io.Writer, rec Record, gated bool) error {
 	if rec.Model != "" {
 		line := "model: " + Printable(rec.Model)
 		if rec.Usage != nil {
@@ -104,14 +104,13 @@ func writeHeader(w io.Writer, rec Record) error {
 		}
 	}
 
-	switch verdict := rec.Verdict(); verdict {
-	case Fail, Unsure:
-		_, err := fmt.Fprintln(w, "verdict: "+verdict.String())
-
-		return err
-	default:
+	if !gated {
 		return nil
 	}
+
+	_, err := fmt.Fprintln(w, "verdict: "+rec.Verdict().String())
+
+	return err
 }
 
 func writeBlock(w io.Writer, named Named, bars int) error {

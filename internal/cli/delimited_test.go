@@ -42,11 +42,11 @@ func TestDelimited(t *testing.T) {
 			want:  "urgent\terror\n0.5\t\n0.5\t\n",
 		},
 		{
-			name:     "should add an assert column and exit 1 on a false assertion",
+			name:     "should add a verdict column and exit 1 when the gate says fail",
 			args:     []string{"is this urgent", "-i", "tsv", "-o", "csv", "--assert", "answer.value > 0.9"},
 			stdin:    "body\nsite down\n",
 			wantCode: ExitFail,
-			want:     "answer,assert,error\n0.5,false,\n",
+			want:     "answer,verdict,error\n0.5,fail,\n",
 		},
 		{
 			name:  "should write one record as a header and a row",

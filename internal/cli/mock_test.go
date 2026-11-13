@@ -247,7 +247,7 @@ func TestMockAnswers(t *testing.T) {
 			name:     "should judge --assert and write the record",
 			args:     with("-o", "json", "--assert", "u.value < 0.5", "--state", "x"),
 			mock:     mockAll,
-			wantOut:  fileOf(`{"assert":false,"model":"jev-latest",` + mockAllJSON + "}\n"),
+			wantOut:  fileOf(`{"verdict":"fail","model":"jev-latest",` + mockAllJSON + "}\n"),
 			wantCode: ExitFail,
 		},
 		{
@@ -255,7 +255,7 @@ func TestMockAnswers(t *testing.T) {
 			args: with("-o", "values", "--assert", "u.value < 0.5", "--abstain-if", "u.value < 0.95",
 				"--state", "x"),
 			mock:     mockAll,
-			contains: []string{`"abstain":true`},
+			contains: []string{`"verdict":"unsure"`},
 			wantCode: ExitAbstain,
 		},
 		{

@@ -95,7 +95,7 @@ Exit 3 also covers these:
 | `--usage does not apply to` | `-o values` and `-o raw` write only the answers, so the message says to use `-o json`. `-o csv` and `-o tsv` have no column for it, and `-q` suppresses output |
 | `--merge-key does not apply to` | `-o csv` and `-o tsv` put the answers in columns, so they refuse `--merge-key` even beside `--merge` |
 | `wraps every record under a state key`, `would repeat that key` or `cannot write this record's error` | `--merge` writes an input that is not an object, or a record with an error, as `{"state":INPUT,"answers":ANSWERS}`, so `--merge-key state` would write `state` twice. The record's own error follows the colon. Pick another key |
-| `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `assert` column under a gate. An input `id` column never clashes |
+| `has the name of an output column` | under `--merge`, an input column clashes with a question id or the `error` column, or with the `verdict` column under a gate. An input `id` column never clashes |
 | `model '...' not found` | the provider does not serve that model id. Try `--list-models` |
 | `each side must be`, `an image must be PNG or JPEG` or `an image is at most` | onesie refused an `--image` file before any request, naming the limit `onesie version` lists. Resize it to at most 1568 pixels a side, or convert it to PNG or a smaller JPEG. An `--image-field` file is an error line instead |
 | `needs an image in the request` | a `--box` question was asked with no `--image` or `--image-field` to look in |

@@ -38,6 +38,9 @@ func TestNewDelimited(t *testing.T) {
 		},
 	}
 
+	passed := answered
+	passed.Gate = output.Pass
+
 	gated := answered
 	gated.Gate = output.Fail
 
@@ -81,31 +84,21 @@ func TestNewDelimited(t *testing.T) {
 			want:    "id,body,urgent,team,error\n7,site down,0.92,billing,\n",
 		},
 		{
-			name:    "should add an assert column when there is an assertion",
+			name:    "should add a verdict column when the run is gated",
 			mode:    output.TSV,
-			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Assert: true, Header: true},
-			records: []output.Record{answered, gated, failed},
-			want: "urgent\tteam\tassert\terror\n" +
-				"0.92\tbilling\ttrue\t\n" +
-				"0.92\tbilling\tfalse\t\n" +
-				"\t\t\tonesie: 400 bad, request\n",
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Verdict: true, Header: true},
+			records: []output.Record{passed, gated, failed},
+			want: "urgent\tteam\tverdict\terror\n" +
+				"0.92\tbilling\tpass\t\n" +
+				"0.92\tbilling\tfail\t\n" +
+				"\t\terror\tonesie: 400 bad, request\n",
 		},
 		{
-			name:    "should write abstain in the csv assert column when the record abstained",
+			name:    "should write unsure in the verdict column when the record abstained",
 			mode:    output.CSV,
-			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Assert: true, Header: true},
-			records: []output.Record{answered, gated, abstained},
-			want: "urgent,team,assert,error\n" +
-				"0.92,billing,true,\n" +
-				"0.92,billing,false,\n" +
-				"0.92,billing,abstain,\n",
-		},
-		{
-			name:    "should write abstain in the tsv assert column when the record abstained",
-			mode:    output.TSV,
-			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Assert: true, Header: true},
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, Verdict: true, Header: true},
 			records: []output.Record{abstained},
-			want:    "urgent\tteam\tassert\terror\n0.92\tbilling\tabstain\t\n",
+			want:    "urgent,team,verdict,error\n0.92,billing,unsure,\n",
 		},
 		{
 			name: "should write tsv without quoting and flatten tabs and newlines",
@@ -129,11 +122,11 @@ func TestNewDelimited(t *testing.T) {
 		{
 			name:    "should put the id column first when the run names its records",
 			mode:    output.CSV,
-			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, ID: true, Assert: true, Header: true},
-			records: []output.Record{withID(answered, "T-1"), withID(failed, json.Number("12"))},
-			want: "id,urgent,team,assert,error\n" +
-				"T-1,0.92,billing,true,\n" +
-				"12,,,,\"onesie: 400 bad, request\"\n",
+			opts:    output.DelimitedOptions{IDs: []string{"urgent", "team"}, ID: true, Verdict: true, Header: true},
+			records: []output.Record{withID(passed, "T-1"), withID(failed, json.Number("12"))},
+			want: "id,urgent,team,verdict,error\n" +
+				"T-1,0.92,billing,pass,\n" +
+				"12,,,error,\"onesie: 400 bad, request\"\n",
 		},
 		{
 			name:    "should leave the id cell empty for a record with no id",

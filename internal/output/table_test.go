@@ -85,6 +85,7 @@ func TestWriteTable(t *testing.T) {
 		name     string
 		rec      output.Record
 		columns  int
+		gated    bool
 		want     string
 		contains []string
 		absent   []string
@@ -168,8 +169,9 @@ func TestWriteTable(t *testing.T) {
 			want: "error: bad news\nmodel: m[2J1\n\nteam: billing\n",
 		},
 		{
-			name:    "should print a false assertion beside the model in the header",
+			name:    "should print a fail beside the model in the header",
 			columns: 80,
+			gated:   true,
 			rec: output.Record{
 				Model: "onesie-1.13.0",
 				Answers: []output.Named{
@@ -180,19 +182,22 @@ func TestWriteTable(t *testing.T) {
 			want: "model: onesie-1.13.0\nverdict: fail\n\nurgent: 0.92\n",
 		},
 		{
-			name:    "should print no assert line when the assertion held",
+			name:    "should print a pass beside the model when the gate held",
 			columns: 80,
+			gated:   true,
 			rec: output.Record{
 				Model: "onesie-1.13.0",
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
 				},
+				Gate: output.Pass,
 			},
-			absent: []string{"assert", "abstain", "verdict"},
+			want: "model: onesie-1.13.0\nverdict: pass\n\nurgent: 0.92\n",
 		},
 		{
-			name:    "should print an abstain line beside the model when the record abstained",
+			name:    "should print an unsure beside the model when the record abstained",
 			columns: 80,
+			gated:   true,
 			rec: output.Record{
 				Model: "onesie-1.13.0",
 				Answers: []output.Named{
@@ -203,8 +208,19 @@ func TestWriteTable(t *testing.T) {
 			want: "model: onesie-1.13.0\nverdict: unsure\n\nurgent: 0.92\n",
 		},
 		{
-			name:    "should print a false assertion with no model in the header",
+			name:    "should print an error verdict under the error line when a gated record failed",
 			columns: 80,
+			gated:   true,
+			rec: output.Record{
+				Failure: &output.Failure{Kind: "transport", Message: "connection refused"},
+				Answers: []output.Named{{ID: "urgent"}},
+			},
+			want: "error: connection refused\nverdict: error\n",
+		},
+		{
+			name:    "should print a fail with no model in the header",
+			columns: 80,
+			gated:   true,
 			rec: output.Record{
 				Answers: []output.Named{
 					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
@@ -212,6 +228,17 @@ func TestWriteTable(t *testing.T) {
 				Gate: output.Fail,
 			},
 			want: "verdict: fail\n\nurgent: 0.92\n",
+		},
+		{
+			name:    "should print no verdict line when the run has no gate",
+			columns: 80,
+			rec: output.Record{
+				Model: "onesie-1.13.0",
+				Answers: []output.Named{
+					{ID: "urgent", Answer: &answer.Answer{Value: 0.92}},
+				},
+			},
+			absent: []string{"verdict"},
 		},
 		{
 			name:    "should add usage to the header when present",
@@ -518,7 +545,7 @@ func TestWriteTable(t *testing.T) {
 
 			var buf strings.Builder
 
-			if err := output.WriteTable(&buf, tc.rec, tc.columns); err != nil {
+			if err := output.WriteTable(&buf, tc.rec, tc.columns, tc.gated); err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
@@ -553,7 +580,7 @@ func TestWriteTable(t *testing.T) {
 			},
 		}}}}
 
-		if err := output.WriteTable(&buf, rec, 80); err != nil {
+		if err := output.WriteTable(&buf, rec, 80, false); err != nil {
 			t.Fatal(err)
 		}
 
@@ -592,7 +619,7 @@ func TestWriteTable(t *testing.T) {
 					},
 				}
 
-				if err := output.WriteTable(&buf, rec, tc.columns); err != nil {
+				if err := output.WriteTable(&buf, rec, tc.columns, false); err != nil {
 					t.Fatalf("unexpected error: %v", err)
 				}
 			})

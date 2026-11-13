@@ -328,9 +328,9 @@ func (r *streamRun) writeLine(l line) error {
 	case r.table != nil:
 		return r.table.Write(l.record, l.header, l.fields)
 	case !merge:
-		return output.Write(r.out, r.outputMode, l.record)
+		return output.Write(r.out, r.outputMode, l.record, r.gate != nil)
 	default:
-		return output.WriteMerged(r.out, r.outputMode, l.record, l.raw, l.state, mergeKey(r.flags))
+		return output.WriteMerged(r.out, r.outputMode, l.record, l.raw, l.state, mergeKey(r.flags), r.gate != nil)
 	}
 }
 

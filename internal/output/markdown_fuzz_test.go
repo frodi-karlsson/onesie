@@ -84,7 +84,7 @@ func FuzzMarkdownTable(f *testing.F) {
 
 		var stream bytes.Buffer
 
-		table := NewMarkdownTable(&stream, MarkdownTableOptions{IDs: []string{question, "decided"}, ID: true, Gate: true})
+		table := NewMarkdownTable(&stream, MarkdownTableOptions{IDs: []string{question, "decided"}, ID: true, Verdict: true})
 		for _, rec := range []Record{
 			rec,
 			{ID: level, Model: legend, Failure: &Failure{Kind: "input", Message: message}},

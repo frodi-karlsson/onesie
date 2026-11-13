@@ -15,7 +15,7 @@ import (
 )
 
 var reservedIDs = []string{
-	"$schema", "abstain", "abstain_if", "answers", "assert", "error", "id", "model", "usage",
+	"$schema", "abstain_if", "answers", "assert", "error", "id", "model", "usage", "verdict",
 	"questions", "state",
 }
 

@@ -8,8 +8,8 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/answer"
 )
 
-func writeJSON(w io.Writer, rec Record) error {
-	buf, err := jsonBytes(rec)
+func writeJSON(w io.Writer, rec Record, gated bool) error {
+	buf, err := jsonBytes(rec, gated)
 	if err != nil {
 		return err
 	}
@@ -19,8 +19,8 @@ func writeJSON(w io.Writer, rec Record) error {
 	return err
 }
 
-func writeValues(w io.Writer, rec Record) error {
-	buf, err := valuesBytes(rec)
+func writeValues(w io.Writer, rec Record, gated bool) error {
+	buf, err := valuesBytes(rec, gated)
 	if err != nil {
 		return err
 	}
@@ -30,15 +30,15 @@ func writeValues(w io.Writer, rec Record) error {
 	return err
 }
 
-func encode(mode Mode, rec Record) ([]byte, error) {
+func encode(mode Mode, rec Record, gated bool) ([]byte, error) {
 	if mode == Values {
-		return valuesBytes(rec)
+		return valuesBytes(rec, gated)
 	}
 
-	return jsonBytes(rec)
+	return jsonBytes(rec, gated)
 }
 
-func jsonBytes(rec Record) ([]byte, error) {
+func jsonBytes(rec Record, gated bool) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
@@ -50,7 +50,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 
 	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
-	buf = appendVerdict(buf, rec.Verdict())
+	buf = appendVerdict(buf, rec.Verdict(), gated)
 
 	if rec.Model != "" {
 		buf = appendKey(buf, "model")
@@ -92,7 +92,7 @@ func jsonBytes(rec Record) ([]byte, error) {
 	return append(buf, '}'), nil
 }
 
-func valuesBytes(rec Record) ([]byte, error) {
+func valuesBytes(rec Record, gated bool) ([]byte, error) {
 	var buf []byte
 
 	buf = append(buf, '{')
@@ -104,7 +104,7 @@ func valuesBytes(rec Record) ([]byte, error) {
 
 	buf = appendLine(buf, rec.Line)
 	buf = appendFailure(buf, rec.Failure)
-	buf = appendVerdict(buf, rec.Verdict())
+	buf = appendVerdict(buf, rec.Verdict(), gated)
 
 	for _, named := range rec.Answers {
 		if named.Answer == nil {
@@ -168,15 +168,12 @@ func appendFailure(buf []byte, failure *Failure) []byte {
 	return append(buf, encoded...)
 }
 
-func appendVerdict(buf []byte, verdict Verdict) []byte {
-	switch verdict {
-	case Fail:
-		return append(appendKey(buf, "assert"), "false"...)
-	case Unsure:
-		return append(appendKey(buf, "abstain"), "true"...)
-	default:
+func appendVerdict(buf []byte, verdict Verdict, gated bool) []byte {
+	if !gated {
 		return buf
 	}
+
+	return strconv.AppendQuote(appendKey(buf, "verdict"), verdict.String())
 }
 
 func appendKey(buf []byte, name string) []byte {
