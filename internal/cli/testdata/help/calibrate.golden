@@ -17,9 +17,9 @@ Examples:
     onesie calibrate --ask 'urgent=is this urgent' -i jsonl --map .text --label urgent=.urgent --id .id --out answers.jsonl --resume --offline --require 'urgent.catches >= 0.9 at 0.5' < labelled.jsonl
 
 Asking:
-      --ask NAME=QUESTION       Ask a named question. Repeat for several.
-      --pick OPTIONS            Choose from comma separated options.
-      --rate LEVELS             Rate against levels from lowest to highest.
+      --ask NAME=QUESTION       Ask a named question. Repeatable.
+      --pick OPTIONS            Choose from comma separated options. Repeatable.
+      --rate LEVELS             Rate against levels from lowest to highest. Repeatable.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
 
@@ -35,7 +35,7 @@ Evaluation:
       --label [ID=]EXPR         Read the right answer for question ID with this jq
                                 expression, run on the record, not on the mapped state.
                                 A question with none is skipped. With one question ID=
-                                may be left out.
+                                may be left out. Repeatable.
       --cuts CUTS               Comma separated cuts between 0 and 1. See Evaluation for
                                 defaults.
       --require CONDITION       A requirement the report must meet, as
@@ -50,7 +50,8 @@ Output:
                                 table.
 
 Execution:
-      --resume                  Skip the ids the --out file already answers. Needs --id.
+      --resume                  Skip the ids the --out file already answers. Needs --out
+                                and --id.
 
 More help:
   onesie help calibrate asking

@@ -19,10 +19,10 @@ Examples:
     onesie 'is this a complaint' -i lines --keep pass < reviews.txt
 
 Asking:
-      --ask NAME=QUESTION       Ask a named question. Repeat for several.
-      --pick OPTIONS            Choose from comma separated options.
-      --rate LEVELS             Rate against levels from lowest to highest.
-      --desc KEY=TEXT           Describe an option, level, yes or no.
+      --ask NAME=QUESTION       Ask a named question. Repeatable.
+      --pick OPTIONS            Choose from comma separated options. Repeatable.
+      --rate LEVELS             Rate against levels from lowest to highest. Repeatable.
+      --desc KEY=TEXT           Describe an option, level, yes or no. Repeatable.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
 
@@ -39,7 +39,7 @@ Output:
 
 Decisions:
       --threshold NUMBER        Turn a yes or no probability into a boolean decision.
-      --assert EXPR             Exit 1 when an answer fails this condition.
+      --assert EXPR             Exit 1 when an answer fails this condition. Repeatable.
   -q, --quiet                   Suppress output. Without --assert, judge one answer.
 
 Available Commands:

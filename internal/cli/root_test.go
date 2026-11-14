@@ -1461,13 +1461,13 @@ func TestNewRootCmd(t *testing.T) {
 			name:     "should refuse --for without -f",
 			args:     []string{"--ask", "a=is it a", "--for", "a", "--threshold", "0.9", "--print-questions"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
+			contains: []string{"onesie: --for needs -f, the file it selects a question from\n"},
 		},
 		{
 			name:     "should refuse --for without -f before the values after it",
 			args:     []string{"--ask", "a=is it a", "--for", "a", "--threshold", "high", "--print-questions"},
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --for selects a question from -f, which was not given\n"},
+			contains: []string{"onesie: --for needs -f, the file it selects a question from\n"},
 			absent:   []string{"takes a number"},
 		},
 		{
@@ -1672,7 +1672,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"--replace", "is this urgent"},
 			stdin:    "the server is down",
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --replace applies to -f, which was not given"},
+			contains: []string{"onesie: --replace needs -f, which was not given"},
 		},
 		{
 			name: "should refuse a structured fallback in a question file",

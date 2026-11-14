@@ -92,7 +92,7 @@ func TestValidate(t *testing.T) {
 			events: []argv.Event{
 				{Name: "ask", Value: "a=q"}, {Name: "for", Value: "a"}, {Name: "threshold", Value: "high"},
 			},
-			wantExact: "--for selects a question from -f, which was not given",
+			wantExact: "--for needs -f, the file it selects a question from",
 		},
 		{
 			name:   "should name a built in set the way the file is named elsewhere",
@@ -894,12 +894,12 @@ func TestValidate(t *testing.T) {
 				name:    "should refuse --prune without --resume",
 				set:     values{"input": "jsonl", "out": "a.jsonl", "prune": true, "jobs": 1},
 				typed:   []settingrow.Name{"id"},
-				wantErr: "--prune applies to --resume, which was not given",
+				wantErr: "--prune needs --resume, which was not given",
 			},
 			{
 				name:    "should refuse --prune without --id",
 				set:     values{"input": "jsonl", "resume": true, "out": "a.jsonl", "prune": true, "jobs": 1},
-				wantErr: "--prune drops the answered ids the input no longer has, so it needs --id",
+				wantErr: "--prune needs --id, since it drops the answered ids the input no longer has",
 			},
 			{
 				name:  "should accept --prune with --resume and --id",
@@ -1293,6 +1293,28 @@ func TestRules(t *testing.T) {
 			},
 		},
 		{
+			name: "should hold a needs rule for every flag whose row needs a setting",
+			check: func(t *testing.T, rules []settings.Rule) {
+				t.Helper()
+
+				for _, row := range settingrow.Table() {
+					refused := func(needs []settingrow.Need) bool {
+						return slices.ContainsFunc(needs, func(need settingrow.Need) bool { return !need.HelpOnly })
+					}
+
+					needs := refused(row.Needs)
+					for _, override := range row.Flag.PerCommand {
+						needs = needs || refused(override.Needs)
+					}
+
+					id := settings.NeedsRuleID(row.Name)
+					if needs && !slices.ContainsFunc(rules, func(rule settings.Rule) bool { return rule.ID == id }) {
+						t.Errorf("%s needs a setting, and Rules holds no %s", row.Name, id)
+					}
+				}
+			},
+		},
+		{
 			name: "should give every rule something to do",
 			check: func(t *testing.T, rules []settings.Rule) {
 				t.Helper()
@@ -1325,6 +1347,18 @@ func ruleCases() []ruleCase {
 			refused: run{facts: calibrating},
 			passed:  run{facts: calibrating, set: values{"input": "jsonl"}, typed: []settingrow.Name{"input"}},
 			wantErr: "calibrate needs -i jsonl, csv or tsv, since only a record has fields to label",
+		},
+		{
+			rule:    "needs-offline",
+			refused: run{facts: calibrating, set: values{"offline": true, "out": "answers.jsonl"}},
+			passed:  run{facts: calibrating, set: values{"offline": true, "out": "answers.jsonl", "resume": true}},
+			wantErr: "--offline needs --resume, since it reads the answers --out already holds",
+		},
+		{
+			rule:    "offline-keeps-out",
+			refused: run{facts: calibrating, set: values{"offline": true, "prune": true}},
+			passed:  run{facts: calibrating, set: values{"offline": true}},
+			wantErr: "--offline never rewrites --out, so --prune has nothing to drop. Drop one",
 		},
 		{
 			rule:    "offline-reads-out",
@@ -1420,16 +1454,22 @@ func ruleCases() []ruleCase {
 			wantErr: "-m does not apply to --list-models, which only lists the models a provider serves",
 		},
 		{
-			rule:    "resume-needs-a-stream",
+			rule:    "needs-resume",
 			refused: run{set: values{"resume": true}},
-			passed:  run{set: values{"resume": true, "out": "answers.jsonl", "input": "jsonl"}},
+			passed:  run{set: values{"resume": true, "out": "answers.jsonl"}},
 			wantErr: "--resume needs --out, the file it picks up from",
 		},
 		{
-			rule:    "prune-needs-resume-and-id",
+			rule:    "resume-needs-a-stream",
+			refused: run{set: values{"resume": true, "out": "answers.jsonl", "input": "text"}},
+			passed:  run{set: values{"resume": true, "out": "answers.jsonl", "input": "jsonl"}},
+			wantErr: "--resume applies to streaming input. -i text reads one record",
+		},
+		{
+			rule:    "needs-prune",
 			refused: run{set: values{"prune": true}},
 			passed:  run{set: values{"prune": true, "resume": true}, typed: []settingrow.Name{"id"}},
-			wantErr: "--prune applies to --resume, which was not given",
+			wantErr: "--prune needs --resume, which was not given",
 		},
 		{
 			rule:    "dry-run-and-request",
@@ -1450,7 +1490,7 @@ func ruleCases() []ruleCase {
 			wantErr: "--delimiter applies to -i csv and -o csv. -i jsonl has no delimiter",
 		},
 		{
-			rule:    "abstain-needs-assert",
+			rule:    "needs-abstain-if",
 			refused: run{set: values{"abstain_if": []string{"answer.value > 0.4"}}},
 			passed: run{
 				set:      values{"assert": []string{"answer.value > 0.5"}, "abstain_if": []string{"answer.value > 0.4"}},
@@ -1465,10 +1505,16 @@ func ruleCases() []ruleCase {
 			wantErr: "-q suppresses output, which leaves -o markdown nothing to write",
 		},
 		{
-			rule:    "replace-needs-file",
+			rule:    "needs-replace",
 			refused: run{set: values{"replace": true}},
 			passed:  run{set: values{"replace": true, "file": "triage.yaml"}},
-			wantErr: "--replace applies to -f, which was not given",
+			wantErr: "--replace needs -f, which was not given",
+		},
+		{
+			rule:    "needs-for",
+			refused: run{events: []argv.Event{{Name: "for", Value: "urgent"}}},
+			passed:  run{set: values{"file": "one.yaml"}, events: []argv.Event{{Name: "for", Value: "urgent"}}},
+			wantErr: "--for needs -f, the file it selects a question from",
 		},
 		{
 			rule:    "merge-needs-mergeable-output",

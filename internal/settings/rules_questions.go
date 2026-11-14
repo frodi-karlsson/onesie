@@ -25,29 +25,12 @@ func noQuestionRule() Rule {
 	}
 }
 
-func replaceNeedsFileRule() Rule {
-	return Rule{
-		ID: "replace-needs-file",
-		Check: func(v View) error {
-			if Get(v.Merged, Replace) && Get(v.Merged, File) == "" {
-				return errors.New("--replace applies to -f, which was not given")
-			}
-
-			return nil
-		},
-	}
-}
-
 func forSelectsRule() Rule {
 	return Rule{
 		ID: "for-selects-a-file-question",
 		Check: func(v View) error {
 			if v.Plan == nil || len(v.Plan.Selections) == 0 {
 				return nil
-			}
-
-			if Get(v.Merged, File) == "" {
-				return errors.New("--for selects a question from -f, which was not given")
 			}
 
 			if Get(v.Merged, Replace) {

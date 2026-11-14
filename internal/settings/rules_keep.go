@@ -91,12 +91,5 @@ func keepVerdictRefusal(v View) error {
 		return nil
 	}
 
-	switch {
-	case !hasAssert(v):
-		return errors.New("--keep unsure needs --assert, since without one no record can be unsure")
-	case !hasAbstainIf(v):
-		return errors.New("--keep unsure needs --abstain-if, since without one no record is unsure")
-	default:
-		return nil
-	}
+	return unsureRefusal(v, "--keep unsure")
 }

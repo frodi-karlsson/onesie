@@ -26,6 +26,7 @@ func TestNewRootCmd(t *testing.T) {
 	t.Parallel()
 
 	t.Run("should match the gate merge compatibility cases", checkMergedGateCases)
+	t.Run("should refuse each root flag on one record or a stream exactly where its row leaves the mode out", checkModes)
 
 	const (
 		profiles = `{"default":"home","profiles":{` +

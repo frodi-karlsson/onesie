@@ -3,13 +3,14 @@ Execution
 Flags:
       --print-request           Write API shaped request bodies to stdout and exit.
       --resume                  Carry on after the last complete line in the --out file.
-                                Streaming only. Under --id it skips the ids the file
-                                answers, so a record whose content changed but whose id
-                                did not keeps its old answer. It then rewrites the file
-                                in input order, with the answered ids the input no
-                                longer has kept after them, which --prune drops.
-      --prune                   Drop the answered ids the input no longer has. Needs
-                                --resume and --id.
+                                Under --id it skips the ids the file answers, so a
+                                record whose content changed but whose id did not keeps
+                                its old answer. It then rewrites the file in input
+                                order, with the answered ids the input no longer has
+                                kept after them, which --prune drops. Streaming only.
+                                Needs --out.
+      --prune                   Drop the answered ids the input no longer has. Streaming
+                                only. Needs --resume and --id.
       --unordered               Emit records as they complete. Match on line in JSON
                                 output, or pass --id. Streaming only.
       --stop-on VERDICTS        End the run at the first record with one of these
@@ -29,7 +30,7 @@ Flags:
                                 error object is one record.
       --cache                   Store responses on disk and answer a repeated request
                                 from them. Also ONESIE_CACHE=1.
-  -j, --jobs N                  Records in flight at once. Default: 1.
+  -j, --jobs N                  Records in flight at once. Streaming only. Default: 1.
       --timeout SECONDS         Seconds per attempt, 60 for a request with images unless
                                 given. Default: 10.
       --retries N               Retries after a failed attempt. Default: 2.

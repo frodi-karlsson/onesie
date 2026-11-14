@@ -1,10 +1,10 @@
 Asking
 
 Flags:
-      --ask NAME=QUESTION       Ask a named question. Repeat for several.
-      --pick OPTIONS            Choose from comma separated options.
-      --rate LEVELS             Rate against levels from lowest to highest.
-      --desc KEY=TEXT           Describe an option, level, yes or no.
+      --ask NAME=QUESTION       Ask a named question. Repeatable.
+      --pick OPTIONS            Choose from comma separated options. Repeatable.
+      --rate LEVELS             Rate against levels from lowest to highest. Repeatable.
+      --desc KEY=TEXT           Describe an option, level, yes or no. Repeatable.
   -f, --file FILE               Load saved questions, a request body or a built in
                                 starter set.
       --print-questions         Write a question file to stdout and exit. Its first line
@@ -13,14 +13,14 @@ Flags:
                                 exit.
       --for ID                  Select a question from -f by ID, so the question flags
                                 after it apply to that question, each with a notice.
-                                Repeatable.
+                                Repeatable. Needs -f.
       --sep SEP                 Set the separator for the --pick and --rate that follow
-                                it.
+                                it. Repeatable.
       --box                     Make this a box question, answered with the left, top,
                                 right and bottom edges of what it finds in an image,
                                 each from 0 to 1. Takes no value. Experimental on
                                 TypeSafe's side.
-      --replace                 Let --ask override an id from -f.
+      --replace                 Let --ask override an id from -f. Needs -f.
 
 How they work together:
   A positional question has the id answer. By default a question asks for a yes or no

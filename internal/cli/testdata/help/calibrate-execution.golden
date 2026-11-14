@@ -1,7 +1,8 @@
 Execution
 
 Flags:
-      --resume                  Skip the ids the --out file already answers. Needs --id.
+      --resume                  Skip the ids the --out file already answers. Needs --out
+                                and --id.
       --print-request           Write API shaped request bodies to stdout and exit.
       --prune                   Drop the answered ids the input no longer has. Needs
                                 --resume.

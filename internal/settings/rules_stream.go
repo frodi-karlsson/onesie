@@ -23,20 +23,9 @@ func singleRecordRefusal(v View) error {
 		return nil
 	}
 
-	for _, flag := range []struct {
-		name string
-		set  bool
-	}{
-		{"--unordered", Get(v.Merged, Unordered)},
-		{"--stop-on", Get(v.Merged, StopOn) != ""},
-		{"--keep", Get(v.Merged, Keep) != ""},
-		{"--skip-blank", Get(v.Merged, SkipBlank)},
-		{"--no-dedup", Get(v.Merged, NoDedup)},
-		{"--id", typed(v, ID.Name())},
-		{"--image-field", len(listOf(v, imageFieldName)) > 0},
-	} {
-		if flag.set {
-			return fmt.Errorf("%s applies to streaming input. -i %s reads one record", flag.name, inputName(v))
+	for _, refused := range streamOnly() {
+		if refused.given(v) {
+			return fmt.Errorf("%s applies to streaming input. -i %s reads one record", refused.spelled(v), inputName(v))
 		}
 	}
 
@@ -51,6 +40,24 @@ func singleRecordRefusal(v View) error {
 	}
 
 	return nil
+}
+
+func streamOnly() []refusal {
+	var refusals []refusal
+
+	for _, row := range settingrow.Table() {
+		bound, registered := row.FlagOn(settingrow.CommandRoot)
+
+		// A one record run asks with -j 1, so only a -j above it is refused, below.
+		if !registered || row.Name == Jobs.Name() || !row.Modes.Has(settingrow.ModeStream) || row.Modes.Has(settingrow.ModeAsk) {
+			continue
+		}
+
+		given, name := modeException(row, bound, settingrow.ModeAsk)
+		refusals = append(refusals, refusal{row.Name, func(v View) bool { return typed(v, row.Name) || given(v) }, name})
+	}
+
+	return refusals
 }
 
 func streamStateRule() Rule {

@@ -8,19 +8,20 @@ Flags:
       --delimiter CHAR          Set the field separator -i csv reads and -o csv writes:
                                 auto, which needs -i csv and writes the one it detects,
                                 or one character. Defaults to a comma.
-      --image NAME=PATH         Put a PNG or JPEG in the state under NAME. Repeatable.
-                                For one record stdin is read beside it only through
-                                --state -, so text joins it from --state or --state -. A
-                                stream reads its records from stdin and adds the image
-                                to each. Experimental on TypeSafe's side.
+      --image NAME=PATH         Put a PNG or JPEG in the state under NAME. For one
+                                record stdin is read beside it only through --state -,
+                                so text joins it from --state or --state -. A stream
+                                reads its records from stdin and adds the image to each.
+                                Experimental on TypeSafe's side. Repeatable.
       --image-field NAME        Read a PNG or JPEG per record from the path this state
-                                key holds. Streaming only, repeatable. Under -i lines
-                                the line is the path. Experimental on TypeSafe's side.
+                                key holds. Under -i lines the line is the path.
+                                Experimental on TypeSafe's side. Repeatable. Streaming
+                                only.
       --id EXPR                 Name each record on every output line with the string or
-                                number this jq expression returns. Streaming only. It
-                                runs one record at a time as the input is read, so keep
-                                it cheap, such as a field lookup. onesie version lists
-                                the cap on its length.
+                                number this jq expression returns. It runs one record at
+                                a time as the input is read, so keep it cheap, such as a
+                                field lookup. onesie version lists the cap on its
+                                length. Streaming only.
       --skip-blank              Drop blank lines with no output line. Streaming only.
 
 How they work together:

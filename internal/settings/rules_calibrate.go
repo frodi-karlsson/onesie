@@ -23,6 +23,8 @@ func calibrateRules() []Rule {
 	return []Rule{
 		calibrating("calibrate-reads-records", checkCalibrateInput),
 		calibrating("offline-reads-out", checkOffline),
+		needsRule("offline"),
+		calibrating("offline-keeps-out", checkOfflinePrune),
 		calibrating("compare-reads-files", checkCompare),
 		calibrating("false-alarms-parse", func(v View) error {
 			return v.budgetsError
@@ -117,15 +119,17 @@ func checkOffline(v View) error {
 			"its own. Drop one", mockSpelled(v))
 	case Get(v.Merged, PrintRequest):
 		return errors.New("--offline reads answers, and --print-request sends no request. Drop one")
-	case Get(v.Merged, Out) == "":
-		return errors.New("--offline reads every answer from --out. Pass --out FILE --resume")
-	case !Get(v.Merged, Resume):
-		return errors.New("--offline needs --resume, since it reads the answers --out already holds")
-	case Get(v.Merged, Prune):
-		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
 	default:
 		return nil
 	}
+}
+
+func checkOfflinePrune(v View) error {
+	if Get(v.Merged, Offline) && Get(v.Merged, Prune) {
+		return errors.New("--offline never rewrites --out, so --prune has nothing to drop. Drop one")
+	}
+
+	return nil
 }
 
 func checkCompare(v View) error {

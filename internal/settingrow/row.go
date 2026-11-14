@@ -5,6 +5,7 @@ package settingrow
 import (
 	"maps"
 	"slices"
+	"strings"
 )
 
 // FlagOn returns the row's flag as command registers it, with the command's overrides applied, and
@@ -16,7 +17,7 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 
 	bound := BoundFlag{
 		Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default,
-		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue,
+		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue, Needs: r.Needs,
 	}
 	override := r.Flag.PerCommand[command]
 
@@ -32,17 +33,78 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 		bound.Default = override.Default
 	}
 
+	if override.Needs != nil {
+		bound.Needs = override.Needs
+	}
+
 	if override.NoShort {
 		bound.Short = ""
 	}
 
 	bound.Member = override.Member
+	bound.Help = joinPhrases(bound.Help, r.phrases(command, bound.Needs))
 
 	return bound, true
 }
 
+func (r Row) phrases(command Command, needs []Need) []string {
+	var phrases []string
+
+	if r.Flag.Repeat {
+		phrases = append(phrases, "Repeatable.")
+	}
+
+	// Calibrate always reads a stream, so only the root run has a mode the flag is refused in.
+	if command == CommandRoot && r.Modes.Has(ModeStream) && !r.Modes.Has(ModeAsk) {
+		phrases = append(phrases, "Streaming only.")
+	}
+
+	if len(needs) > 0 {
+		spelled := make([]string, 0, len(needs))
+		for _, need := range needs {
+			spelled = append(spelled, spellingOn(need.Name, command))
+		}
+
+		phrases = append(phrases, "Needs "+andList(spelled)+".")
+	}
+
+	return phrases
+}
+
+func joinPhrases(help string, phrases []string) string {
+	if len(phrases) == 0 {
+		return help
+	}
+
+	return strings.TrimSpace(help + " " + strings.Join(phrases, " "))
+}
+
+func spellingOn(name Name, command Command) string {
+	for _, row := range Table() {
+		if row.Name != name {
+			continue
+		}
+
+		if row.Flag.Short != "" && !row.Flag.PerCommand[command].NoShort {
+			return "-" + row.Flag.Short
+		}
+
+		return "--" + row.Flag.Long
+	}
+
+	return string(name)
+}
+
+func andList(items []string) string {
+	if len(items) < 2 {
+		return strings.Join(items, "")
+	}
+
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
+}
+
 // Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
-// not a question file.
+// not a question file. Needs lists the settings its flag is refused without.
 type Row struct {
 	Name       Name
 	Scope      Scope
@@ -56,6 +118,7 @@ type Row struct {
 	Default    any
 	Shapes     []Shape
 	Modes      ModeSet
+	Needs      []Need
 	Help       string
 	HelpTopic  string
 	HelpCommon map[Command]int
@@ -74,6 +137,15 @@ type BoundFlag struct {
 	Kind        Kind
 	Default     any
 	Member      ProfileMember
+	Needs       []Need
+}
+
+// Need is a setting a flag is refused without, and the reason that ends the refusal, as in
+// "--resume needs --out, the file it picks up from". HelpOnly marks a need another rule refuses.
+type Need struct {
+	Name     Name
+	Reason   string
+	HelpOnly bool
 }
 
 // Name is a setting's canonical name, as notices and rules spell it.
@@ -101,13 +173,15 @@ type FlagSpec struct {
 }
 
 // CommandFlag overrides a row's flag on one command, where the flag means something narrower. Member
-// names the profile member the flag writes on a command that writes a profile.
+// names the profile member the flag writes on a command that writes a profile, and Needs replaces
+// the row's needs.
 type CommandFlag struct {
 	Help    string
 	Kind    Kind
 	Default any
 	NoShort bool
 	Member  ProfileMember
+	Needs   []Need
 }
 
 // Command names a command whose flags come from the rows.

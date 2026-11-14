@@ -18,8 +18,6 @@ func checkResume(v View) error {
 	}
 
 	switch {
-	case Get(v.Merged, Out) == "":
-		return errors.New("--resume needs --out, the file it picks up from")
 	case Get(v.Merged, ListModels):
 		return errors.New("--resume applies to streaming input, which --list-models does not read")
 	case Get(v.Merged, PrintQuestions):
@@ -40,23 +38,5 @@ func checkResume(v View) error {
 			"which a markdown table does not keep. Use -o json, values, csv or tsv")
 	default:
 		return nil
-	}
-}
-
-func pruneRule() Rule {
-	return Rule{
-		ID: "prune-needs-resume-and-id",
-		Check: func(v View) error {
-			switch {
-			case !Get(v.Merged, Prune):
-				return nil
-			case !Get(v.Merged, Resume):
-				return errors.New("--prune applies to --resume, which was not given")
-			case !typed(v, ID.Name()):
-				return errors.New("--prune drops the answered ids the input no longer has, so it needs --id")
-			default:
-				return nil
-			}
-		},
 	}
 }

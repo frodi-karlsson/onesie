@@ -187,7 +187,7 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 	switch row.Name {
 	case File.Name(), Output.Name(), StopOn.Name(), Keep.Name():
 		return func(v View) bool { return Get(v.Merged, Key[string]{name: row.Name}) != "" }, name
-	case Replace.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(),
+	case Replace.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(), NoDedup.Name(),
 		SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
 		return func(v View) bool { return Get(v.Merged, Key[bool]{name: row.Name}) }, name
 	case assertName, abstainIfName:
