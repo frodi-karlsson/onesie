@@ -182,6 +182,23 @@ func (p Print) Matches(stored string) bool {
 	return !stale
 }
 
+// SameQuestions reports whether stored was written with this run's questions and policies, whatever
+// else about the run changed.
+func (p Print) SameQuestions(stored string) bool {
+	version, sums, ok := parsePrint(stored)
+	if !ok || version != fingerprintVersion {
+		return false
+	}
+
+	for _, part := range p.parts {
+		if (part.name == "questions" || part.name == "policies") && sums[part.name] != part.sum {
+			return false
+		}
+	}
+
+	return true
+}
+
 func delimitedOutput(name string) bool {
 	return name == output.CSV.String() || name == output.TSV.String()
 }

@@ -111,7 +111,7 @@ func askedPlan(
 		return nil, err
 	}
 
-	if whole.Matches(stored) {
+	if whole.SameQuestions(stored) {
 		return scope.full, nil
 	}
 

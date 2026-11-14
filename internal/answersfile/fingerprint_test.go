@@ -277,6 +277,42 @@ func TestPrint_Matches(t *testing.T) {
 	}
 }
 
+func TestPrint_SameQuestions(t *testing.T) {
+	t.Parallel()
+
+	questions, policies, model := strings.Repeat("ab", 8), strings.Repeat("ef", 8), strings.Repeat("cd", 8)
+	current := Print{
+		parts: []partSum{{name: "questions", sum: questions}, {name: "policies", sum: policies}, {name: "model", sum: model}},
+	}
+
+	tests := []struct {
+		name   string
+		stored string
+		want   bool
+	}{
+		{name: "should hold for the run's own fingerprint", stored: current.String(), want: true},
+		{
+			name:   "should hold when only the model changed",
+			stored: tagged("questions=" + questions + ",policies=" + policies + ",model=" + strings.Repeat("00", 8)),
+			want:   true,
+		},
+		{name: "should not hold when the questions changed", stored: tagged("questions=" + strings.Repeat("00", 8) + ",policies=" + policies + ",model=" + model)},
+		{name: "should not hold when the policies changed", stored: tagged("questions=" + questions + ",policies=" + strings.Repeat("00", 8) + ",model=" + model)},
+		{name: "should not hold for an older version", stored: "v4:questions=" + questions + ",policies=" + policies},
+		{name: "should not hold for a sidecar it cannot read", stored: "nonsense"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			if got := current.SameQuestions(tc.stored); got != tc.want {
+				t.Errorf("SameQuestions(%q) = %v, want %v", tc.stored, got, tc.want)
+			}
+		})
+	}
+}
+
 func TestStaleAnswersError(t *testing.T) {
 	t.Parallel()
 
