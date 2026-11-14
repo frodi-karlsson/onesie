@@ -2708,7 +2708,7 @@ func TestNewRootCmd(t *testing.T) {
 			{path: []string{"profile", "delete"}, args: []string{"work"}, flags: both},
 			{path: []string{"profile", "use"}, args: []string{"work"}, flags: both},
 			{path: []string{"profile", "list"}, flags: both},
-			// Both take a --provider of their own, the provider the profile stores.
+			// Both take a separate --provider, the provider the profile stores.
 			{path: []string{"profile", "create"}, args: []string{"work"}, flags: []string{"--profile"}},
 			{path: []string{"profile", "update"}, args: []string{"work"}, flags: []string{"--profile"}},
 		}

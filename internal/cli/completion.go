@@ -31,7 +31,7 @@ func addFlagCompletions(root, calibrate *cobra.Command, settings rootSettings) e
 		}
 	}
 
-	// profile create and profile update take a --provider of their own, the provider the profile stores.
+	// profile create and profile update take a separate --provider, the provider the profile stores.
 	for _, path := range [][]string{{"profile", "create"}, {"profile", "update"}} {
 		cmd, _, err := root.Find(path)
 		if err != nil {
