@@ -501,7 +501,7 @@ func TestValidate(t *testing.T) {
 				args: []string{"q", "-m", "a", "-m", "b"}, unread: true, want: []string{"--model is given twice, 'b' overrides 'a'"},
 			},
 			{
-				name:    "should note a persistent flag typed twice on calibrate",
+				name:    "should note a shared root flag typed twice on calibrate",
 				command: settingrow.CommandCalibrate, args: []string{"--profile", "a", "--profile", "b"},
 				want: []string{"--profile is given twice, 'b' overrides 'a'"},
 			},
@@ -538,8 +538,7 @@ func TestValidate(t *testing.T) {
 
 				if tc.command == settingrow.CommandCalibrate {
 					parsed = register(settingrow.CommandCalibrate)
-					parsed.persistent = root.persistent
-					parsed.given.Inherit(root.persistent)
+					parsed.share(root, "profile", "provider")
 					parsed.given.Within(root.given)
 					facts.Command, facts.Given = settingrow.CommandCalibrate, parsed.given
 				}

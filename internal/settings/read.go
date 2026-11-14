@@ -187,9 +187,8 @@ func boundOn(row settingrow.Row, command settingrow.Command) (settingrow.BoundFl
 		return bound, registered
 	}
 
-	bound, registered := row.FlagOn(settingrow.CommandRoot)
-
-	return bound, registered && bound.Persistent
+	// A root flag that command shares reads as root binds it. A flag command lacks is not in its set.
+	return row.FlagOn(settingrow.CommandRoot)
 }
 
 func offTheChoice(row settingrow.Row, command settingrow.Command) bool {

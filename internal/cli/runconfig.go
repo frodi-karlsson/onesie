@@ -96,3 +96,7 @@ func (c runConfig) list(name settingrow.Name) []string {
 	}
 	return nil
 }
+
+func (c runConfig) comparing() bool {
+	return c.calibrate != nil && len(c.calibrate.compare) > 0
+}

@@ -38,7 +38,7 @@ var refusedReasons = map[string]string{
 	flagState:         "calibrate reads each state from its input through --map",
 }
 
-func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.FlagSet) *cobra.Command {
+func newCalibrateCmd(settings rootSettings, flags *runFlags, choice []*pflag.Flag) *cobra.Command {
 	recorder := argv.New()
 	calib := &calibrateFlags{}
 
@@ -68,12 +68,11 @@ func newCalibrateCmd(settings rootSettings, flags *runFlags, persistent *pflag.F
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), recorder, settingrow.CommandCalibrate,
+	given = setting.Register(cmd.Flags(), settingrow.Table(), recorder, settingrow.CommandCalibrate,
 		calibrateTargets(flags, calib))
-	given.Inherit(persistent)
 	given.Within(flags.given)
 
-	return cmd
+	return shareChoice(cmd, choice)
 }
 
 func calibrateTargets(flags *runFlags, calib *calibrateFlags) map[settingrow.Name]any {

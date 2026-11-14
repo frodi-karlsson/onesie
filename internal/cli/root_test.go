@@ -2692,6 +2692,80 @@ func TestNewRootCmd(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse --profile and --provider on every command that reads no profile, before or after it", func(t *testing.T) {
+		t.Parallel()
+
+		both := []string{"--profile", "--provider"}
+		commands := []struct {
+			path, args, flags []string
+		}{
+			{path: []string{"cache"}, flags: both},
+			{path: []string{"cache", "clear"}, flags: both},
+			{path: []string{"version"}, flags: both},
+			{path: []string{"questions"}, flags: both},
+			{path: []string{"completion", "bash"}, flags: both},
+			{path: []string{"help"}, flags: both},
+			{path: []string{"profile", "delete"}, args: []string{"work"}, flags: both},
+			{path: []string{"profile", "use"}, args: []string{"work"}, flags: both},
+			{path: []string{"profile", "list"}, flags: both},
+			// Both take a --provider of their own, the provider the profile stores.
+			{path: []string{"profile", "create"}, args: []string{"work"}, flags: []string{"--profile"}},
+			{path: []string{"profile", "update"}, args: []string{"work"}, flags: []string{"--profile"}},
+		}
+
+		for _, command := range commands {
+			typed := append(append([]string{}, command.path...), command.args...)
+
+			for _, flag := range command.flags {
+				for _, args := range [][]string{
+					append(append([]string{}, typed...), flag, "typesafe"),
+					append([]string{flag, "typesafe"}, typed...),
+				} {
+					var out, errOut bytes.Buffer
+
+					root := cli.NewRootCmd(
+						cli.BuildInfo{Version: "1.2.3"},
+						cli.WithKeychain(offKeychain()),
+						cli.WithStdin(strings.NewReader("")),
+						cli.WithLookupEnv(func(string) (string, bool) { return "", false }),
+					)
+
+					root.Command.SetOut(&out)
+					root.Command.SetErr(&errOut)
+					root.Command.SetArgs(args)
+
+					name := strings.Join(command.path, " ")
+					want := fmt.Sprintf("onesie: %s has no flag %s. %s belongs to a run, not to %s\n", name, flag, flag, name)
+					if code := root.Execute(t.Context()); code != cli.ExitUsage || errOut.String() != want {
+						t.Errorf("onesie %s: exit %d, stderr %q, want 2 and %q", strings.Join(args, " "), code, errOut.String(), want)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("should read no ONESIE_PROFILE or ONESIE_PROVIDER on a command that reads no profile", func(t *testing.T) {
+		t.Parallel()
+
+		var out, errOut bytes.Buffer
+
+		env := map[string]string{"ONESIE_PROFILE": "missing", "ONESIE_PROVIDER": "nonsense"}
+		root := cli.NewRootCmd(
+			cli.BuildInfo{Version: "1.2.3"},
+			cli.WithKeychain(offKeychain()),
+			cli.WithStdin(strings.NewReader("")),
+			cli.WithLookupEnv(func(name string) (string, bool) { value, found := env[name]; return value, found }),
+		)
+
+		root.Command.SetOut(&out)
+		root.Command.SetErr(&errOut)
+		root.Command.SetArgs([]string{"version"})
+
+		if code := root.Execute(t.Context()); code != cli.ExitOK || errOut.Len() != 0 {
+			t.Errorf("exit %d, stderr %q, want 0 and nothing", code, errOut.String())
+		}
+	})
+
 	t.Run("should hint that a subcommand refused a flag the root knows", func(t *testing.T) {
 		t.Parallel()
 

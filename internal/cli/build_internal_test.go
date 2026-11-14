@@ -83,9 +83,8 @@ func TestBuild(t *testing.T) {
 
 			parsed := &runFlags{}
 			cmd := &cobra.Command{Use: "onesie"}
-			parsed.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+			parsed.given = setting.Register(cmd.Flags(), settingrow.Table(), argv.New(),
 				settingrow.CommandRoot, runTargets(parsed))
-			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 			args := append([]string{"-f", "gated.yaml"}, tc.args...)
 			if tc.quiet {

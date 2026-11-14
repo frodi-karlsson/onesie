@@ -66,7 +66,7 @@ func TestHelpFlags(t *testing.T) {
 			}
 		})
 	}
-	t.Run("should use requested command ranks on inherited metadata", func(t *testing.T) {
+	t.Run("should use requested command ranks on a shared root flag", func(t *testing.T) {
 		cmd := helpTestCommand(t, settingrow.CommandCalibrate)
 		rows := settingrow.Table()
 		for i := range rows {
@@ -81,14 +81,14 @@ func TestHelpFlags(t *testing.T) {
 		for _, flag := range flags {
 			if flag.flag.Name == "profile" {
 				if flag.commonRank != 99 {
-					t.Fatal("lost inherited rank")
+					t.Fatal("lost shared rank")
 				}
 				return
 			}
 		}
-		t.Fatal("missing inherited profile")
+		t.Fatal("missing shared profile")
 	})
-	t.Run("should respect local shadowing of inherited flags", func(t *testing.T) {
+	t.Run("should refuse root metadata to a local flag that shadows a shared one", func(t *testing.T) {
 		root := helpTestCommand(t, settingrow.CommandRoot)
 		var cmd *cobra.Command
 		for _, sub := range root.Commands() {
@@ -104,7 +104,9 @@ func TestHelpFlags(t *testing.T) {
 		cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) { locals = append(locals, flag) })
 		cmd.ResetFlags()
 		for _, flag := range locals {
-			cmd.Flags().AddFlag(flag)
+			if flag.Name != "profile" {
+				cmd.Flags().AddFlag(flag)
+			}
 		}
 		cmd.Flags().Bool("profile", false, "local shadow")
 		if _, err := helpFlags(cmd, settingrow.CommandCalibrate, settingrow.Table()); err == nil {
@@ -198,23 +200,20 @@ func TestDescribedFlag(t *testing.T) {
 	plain.String("model", "", "the model")
 	plain.String("profile", "", "the profile")
 	tests := []struct {
-		name       string
-		flag       *pflag.Flag
-		command    settingrow.Command
-		persistent bool
-		wantFound  bool
-		wantValue  string
+		name      string
+		flag      *pflag.Flag
+		command   settingrow.Command
+		wantFound bool
+		wantValue string
 	}{
 		{name: "should take the value name from a borrowed annotation", flag: annotated.Lookup("output"), wantFound: true, wantValue: "FORMAT"},
 		{name: "should describe a bool flag as a switch", flag: plain.Lookup("switch"), wantFound: true},
 		{name: "should refuse a valued flag with no row or annotation", flag: plain.Lookup("unclassified")},
 		{name: "should describe a flag from the row its command binds", flag: plain.Lookup("model"), command: settingrow.CommandProfileCreate, wantFound: true, wantValue: "MODEL"},
-		{name: "should accept an inherited flag only from a persistent binding", flag: plain.Lookup("profile"), command: settingrow.CommandRoot, persistent: true, wantFound: true, wantValue: "NAME"},
-		{name: "should refuse an inherited flag whose binding is not persistent", flag: plain.Lookup("model"), command: settingrow.CommandRoot, persistent: true},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			described, found := describedFlag(tc.flag, tc.command, tc.persistent)
+			described, found := describedFlag(tc.flag, tc.command)
 			if found != tc.wantFound {
 				t.Fatalf("found = %v, want %v", found, tc.wantFound)
 			}

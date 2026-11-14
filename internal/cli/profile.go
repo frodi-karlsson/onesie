@@ -14,6 +14,7 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 
 	"github.com/frodi-karlsson/onesie-go"
 	"github.com/frodi-karlsson/onesie/internal/creds"
@@ -32,7 +33,7 @@ const (
 	providersOwn   = "the provider's default"
 )
 
-func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newProfileCmd(settings rootSettings, flags *runFlags, choice []*pflag.Flag) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "profile",
 		Short: "Create, inspect and remove the named connections a run uses",
@@ -57,12 +58,12 @@ func newProfileCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 	cmd.AddCommand(
 		newProfileCreateCmd(settings, flags),
 		newProfileUpdateCmd(settings, flags),
-		newProfileDeleteCmd(settings, flags),
-		newProfileUseCmd(settings, flags),
-		newProfileListCmd(settings, flags),
-		newProfileShowCmd(settings, flags),
-		newProfilePreflightCmd(settings, flags),
-		newProfileTestCmd(settings, flags),
+		newProfileDeleteCmd(settings),
+		newProfileUseCmd(settings),
+		newProfileListCmd(settings),
+		shareChoice(newProfileShowCmd(settings, flags), choice),
+		shareChoice(newProfilePreflightCmd(settings, flags), choice),
+		shareChoice(newProfileTestCmd(settings, flags), choice),
 	)
 
 	return cmd
@@ -100,7 +101,7 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), nil, settingrow.CommandProfileCreate,
+	given = setting.Register(cmd.Flags(), settingrow.Table(), nil, settingrow.CommandProfileCreate,
 		profileTargets(fields, flags))
 
 	return cmd
@@ -109,10 +110,6 @@ func newProfileCreateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 func profileCreate(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, given *setting.Given, name string, fields profileFlags,
 ) error {
-	if refused := refuseChosen(flags, "create", false); refused != nil {
-		return refused
-	}
-
 	if invalid := creds.ValidName(name); invalid != nil {
 		return invalid
 	}
@@ -187,7 +184,7 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		},
 	}
 
-	given = setting.Register(cmd.Flags(), nil, settingrow.Table(), nil, settingrow.CommandProfileUpdate,
+	given = setting.Register(cmd.Flags(), settingrow.Table(), nil, settingrow.CommandProfileUpdate,
 		profileTargets(fields, flags))
 
 	return cmd
@@ -196,10 +193,6 @@ func newProfileUpdateCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 func profileUpdate(
 	cmd *cobra.Command, settings rootSettings, flags *runFlags, given *setting.Given, name string, fields profileFlags,
 ) error {
-	if refused := refuseChosen(flags, "update", false); refused != nil {
-		return refused
-	}
-
 	if fields.toFile && !fields.key {
 		return errors.New("profile update: --file applies to a new key, so it needs --key")
 	}
@@ -429,7 +422,7 @@ func profileMember(profile *creds.Profile, key string) *string {
 	panic("cli: no profile member " + key)
 }
 
-func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newProfileDeleteCmd(settings rootSettings) *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete NAME",
 		Short: "Remove a profile and its keychain item",
@@ -438,16 +431,12 @@ func newProfileDeleteCmd(settings rootSettings, flags *runFlags) *cobra.Command 
 		Args:              profileNames("delete", 1, 1),
 		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return profileDelete(cmd, settings, flags, args[0])
+			return profileDelete(cmd, settings, args[0])
 		},
 	}
 }
 
-func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, name string) error {
-	if refused := refuseChosen(flags, "delete", true); refused != nil {
-		return refused
-	}
-
+func profileDelete(cmd *cobra.Command, settings rootSettings, name string) error {
 	path, opened, err := profilesToWrite(settings)
 	if err != nil {
 		return err
@@ -463,7 +452,7 @@ func profileDelete(cmd *cobra.Command, settings rootSettings, flags *runFlags, n
 	return reported(cmd, settings.laterFailures, change, notices, err)
 }
 
-func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newProfileUseCmd(settings rootSettings) *cobra.Command {
 	return &cobra.Command{
 		Use:   "use NAME",
 		Short: "Make a profile the default a run uses",
@@ -472,16 +461,12 @@ func newProfileUseCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 		Args:              profileNames("use", 1, 1),
 		ValidArgsFunction: completeProfileName(settings),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return profileUse(cmd, settings, flags, args[0])
+			return profileUse(cmd, settings, args[0])
 		},
 	}
 }
 
-func profileUse(cmd *cobra.Command, settings rootSettings, flags *runFlags, name string) error {
-	if refused := refuseChosen(flags, "use", true); refused != nil {
-		return refused
-	}
-
+func profileUse(cmd *cobra.Command, settings rootSettings, name string) error {
 	path, opened, err := profilesToWrite(settings)
 	if err != nil {
 		return err
@@ -498,7 +483,7 @@ func profileUse(cmd *cobra.Command, settings rootSettings, flags *runFlags, name
 	return saveProfiles(cmd, settings, path, profiles)
 }
 
-func newProfileListCmd(settings rootSettings, flags *runFlags) *cobra.Command {
+func newProfileListCmd(settings rootSettings) *cobra.Command {
 	return &cobra.Command{
 		Use:   "list",
 		Short: "List the profiles, marking the one a run would use",
@@ -507,16 +492,12 @@ func newProfileListCmd(settings rootSettings, flags *runFlags) *cobra.Command {
 			"profile, a stderr line says why.",
 		Args: profileNames("list", 0, 0),
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return profileList(cmd, settings, flags)
+			return profileList(cmd, settings)
 		},
 	}
 }
 
-func profileList(cmd *cobra.Command, settings rootSettings, flags *runFlags) error {
-	if refused := refuseChosen(flags, "list", true); refused != nil {
-		return refused
-	}
-
+func profileList(cmd *cobra.Command, settings rootSettings) error {
 	opened, err := settings.holder.opened()
 	if err != nil {
 		return err
@@ -822,7 +803,7 @@ func profileTestModelEndpointKeyEnv(lookupEnv func(string) (string, bool)) func(
 
 func shownResolution(settings rootSettings, flags *runFlags, args []string, command string) (resolution, error) {
 	if len(args) == 1 {
-		if refused := refuseChosen(flags, command, true); refused != nil {
+		if refused := refuseChosen(flags, command); refused != nil {
 			return resolution{}, refused
 		}
 	}
@@ -920,12 +901,12 @@ type profileFlags struct {
 	toFile    bool
 }
 
-func refuseChosen(flags *runFlags, command string, provider bool) error {
+func refuseChosen(flags *runFlags, command string) error {
 	if flags.profileChosen() {
 		return fmt.Errorf("--profile does not apply to profile %s", command)
 	}
 
-	if provider && flags.providerChosen() {
+	if flags.providerChosen() {
 		return fmt.Errorf("--provider does not apply to profile %s", command)
 	}
 

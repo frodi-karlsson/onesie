@@ -88,10 +88,8 @@ func TestNewRunConfig(t *testing.T) {
 func registeredRun() (*runFlags, *cobra.Command) {
 	flags := &runFlags{}
 	cmd := &cobra.Command{Use: "onesie"}
-	flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+	flags.given = setting.Register(cmd.Flags(), settingrow.Table(), argv.New(),
 		settingrow.CommandRoot, runTargets(flags))
-
-	cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 	return flags, cmd
 }

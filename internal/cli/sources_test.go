@@ -324,9 +324,8 @@ func TestMergeRun(t *testing.T) {
 
 			flags := &runFlags{}
 			cmd := &cobra.Command{Use: "onesie"}
-			flags.given = setting.Register(cmd.Flags(), cmd.PersistentFlags(), settingrow.Table(), argv.New(),
+			flags.given = setting.Register(cmd.Flags(), settingrow.Table(), argv.New(),
 				settingrow.CommandRoot, runTargets(flags))
-			cmd.Flags().AddFlagSet(cmd.PersistentFlags())
 
 			if err := cmd.Flags().Parse(tc.args); err != nil {
 				t.Fatal(err)

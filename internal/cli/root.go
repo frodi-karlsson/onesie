@@ -92,12 +92,12 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 		},
 	}
 
-	flags.given = setting.Register(root.Flags(), root.PersistentFlags(), settingrow.Table(), recorder,
-		settingrow.CommandRoot, runTargets(flags))
+	flags.given = setting.Register(root.Flags(), settingrow.Table(), recorder, settingrow.CommandRoot, runTargets(flags))
+	choice := choiceFlags(root.Flags())
 
 	root.AddCommand(newVersionCmd(info))
-	root.AddCommand(newProfileCmd(settings, flags))
-	calibrate := newCalibrateCmd(settings, flags, root.PersistentFlags())
+	root.AddCommand(newProfileCmd(settings, flags, choice))
+	calibrate := newCalibrateCmd(settings, flags, choice)
 	root.AddCommand(calibrate)
 	root.AddCommand(newQuestionsCmd(settings))
 	root.AddCommand(newCacheCmd(settings))
@@ -125,6 +125,18 @@ func NewRootCmd(info BuildInfo, opts ...RootOption) *Root {
 	asksNothing(root.Flags(), "help")
 
 	return &Root{Command: root, laterFailures: settings.laterFailures}
+}
+
+func choiceFlags(root *pflag.FlagSet) []*pflag.Flag {
+	return []*pflag.Flag{root.Lookup(flagProfile), root.Lookup(flagProvider)}
+}
+
+func shareChoice(cmd *cobra.Command, choice []*pflag.Flag) *cobra.Command {
+	for _, flag := range choice {
+		cmd.Flags().AddFlag(flag)
+	}
+
+	return cmd
 }
 
 func runTargets(flags *runFlags) map[settingrow.Name]any {

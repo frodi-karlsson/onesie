@@ -97,18 +97,15 @@ func overviewOrder(topics []helpTopic) []helpTopic {
 func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow.Row) ([]helpFlag, error) {
 	var flags []helpFlag
 	seen := map[*pflag.Flag]bool{}
-	local, inherited := cmd.LocalFlags(), cmd.InheritedFlags()
+	local := cmd.LocalFlags()
 	topics := helpTopics(command)
 	for _, row := range rows {
 		bound, available := row.FlagOn(command)
 		var flag *pflag.Flag
 		if available {
 			flag = local.Lookup(bound.Long)
-		} else {
-			bound, available = row.FlagOn(settingrow.CommandRoot)
-			if available && bound.Persistent {
-				flag = inherited.Lookup(bound.Long)
-			}
+		} else if bound, available = row.FlagOn(settingrow.CommandRoot); available {
+			flag = sharedFlag(cmd, bound.Long)
 		}
 		if flag == nil || flag.Hidden || seen[flag] {
 			continue
@@ -124,13 +121,11 @@ func helpFlags(cmd *cobra.Command, command settingrow.Command, rows []settingrow
 		seen[flag] = true
 	}
 	var missing error
-	for _, set := range []*pflag.FlagSet{local, inherited} {
-		set.VisitAll(func(flag *pflag.Flag) {
-			if !flag.Hidden && !seen[flag] {
-				missing = fmt.Errorf("flag --%s has no help metadata", flag.Name)
-			}
-		})
-	}
+	local.VisitAll(func(flag *pflag.Flag) {
+		if !flag.Hidden && !seen[flag] {
+			missing = fmt.Errorf("flag --%s has no help metadata", flag.Name)
+		}
+	})
 	return flags, missing
 }
 
@@ -157,7 +152,7 @@ func selectHelpFlags(flags []helpFlag, topic string, common bool) []helpFlag {
 }
 
 func writeSubcommandHelp(w io.Writer, cmd *cobra.Command) error {
-	local, inherited, err := commandHelpFlags(cmd)
+	local, err := commandHelpFlags(cmd)
 	if err != nil {
 		return err
 	}
@@ -175,7 +170,6 @@ func writeSubcommandHelp(w io.Writer, cmd *cobra.Command) error {
 	}
 	writeHelpCommands(&b, cmd)
 	writeHelpSection(&b, "Flags", local)
-	writeHelpSection(&b, "Global Flags", inherited)
 	if cmd.HasAvailableSubCommands() {
 		fmt.Fprintf(&b, "\nUse \"%s [command] --help\" for more information about a command.\n", cmd.CommandPath())
 	}
@@ -183,30 +177,23 @@ func writeSubcommandHelp(w io.Writer, cmd *cobra.Command) error {
 	return err
 }
 
-func commandHelpFlags(cmd *cobra.Command) (local, inherited []helpFlag, missing error) {
-	describe := func(flag *pflag.Flag, owner *cobra.Command, persistent bool) helpFlag {
-		described, found := describedFlag(flag, rowCommand(owner), persistent)
+func commandHelpFlags(cmd *cobra.Command) (local []helpFlag, missing error) {
+	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
+		if flag.Hidden {
+			return
+		}
+		described, found := describedFlag(flag, rowCommand(flagOwner(cmd, flag)))
 		if !found && missing == nil {
 			missing = fmt.Errorf("flag --%s has no help metadata", flag.Name)
 		}
-		return described
-	}
-	cmd.LocalFlags().VisitAll(func(flag *pflag.Flag) {
-		if !flag.Hidden {
-			local = append(local, describe(flag, cmd, false))
-		}
+		local = append(local, described)
 	})
-	cmd.InheritedFlags().VisitAll(func(flag *pflag.Flag) {
-		if !flag.Hidden {
-			inherited = append(inherited, describe(flag, flagOwner(cmd, flag), true))
-		}
-	})
-	return local, inherited, missing
+	return local, missing
 }
 
-func describedFlag(flag *pflag.Flag, command settingrow.Command, persistent bool) (helpFlag, bool) {
+func describedFlag(flag *pflag.Flag, command settingrow.Command) (helpFlag, bool) {
 	for _, row := range settingrow.Table() {
-		if bound, available := row.FlagOn(command); available && bound.Long == flag.Name && (!persistent || bound.Persistent) {
+		if bound, available := row.FlagOn(command); available && bound.Long == flag.Name {
 			return helpFlag{flag: flag, bound: bound}, true
 		}
 	}
@@ -232,12 +219,18 @@ func rowCommand(cmd *cobra.Command) settingrow.Command {
 }
 
 func flagOwner(cmd *cobra.Command, flag *pflag.Flag) *cobra.Command {
-	for parent := cmd.Parent(); parent != nil; parent = parent.Parent() {
-		if parent.PersistentFlags().Lookup(flag.Name) == flag {
-			return parent
-		}
+	if sharedFlag(cmd, flag.Name) != nil {
+		return cmd.Root()
 	}
 	return cmd
+}
+
+func sharedFlag(cmd *cobra.Command, name string) *pflag.Flag {
+	flag := cmd.LocalFlags().Lookup(name)
+	if flag == nil || cmd == cmd.Root() || cmd.Root().Flags().Lookup(name) != flag {
+		return nil
+	}
+	return flag
 }
 
 func writeHelpUsage(w *bytes.Buffer, cmd *cobra.Command, useLine string) {

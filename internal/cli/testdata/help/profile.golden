@@ -18,14 +18,4 @@ Available Commands:
 Flags:
   -h, --help                    Show this help.
 
-Global Flags:
-      --profile NAME            The profile a run uses, from profiles.json in the config
-                                dir. Overrides ONESIE_PROFILE and ONESIE_PROVIDER.
-                                Otherwise the default profile runs, which onesie profile
-                                use sets.
-      --provider PROVIDER       Run on this provider without a profile: typesafe,
-                                openrouter, berget, levanto, cloudflare or vercel.
-                                Overrides ONESIE_PROVIDER and the default profile.
-                                Refused beside --profile or ONESIE_PROFILE.
-
 Use "onesie profile [command] --help" for more information about a command.
