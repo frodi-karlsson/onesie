@@ -182,21 +182,17 @@ func (p Print) Matches(stored string) bool {
 	return !stale
 }
 
-// SameQuestions reports whether stored was written with this run's questions and policies, whatever
-// else about the run changed.
-func (p Print) SameQuestions(stored string) bool {
+// SameQuestionSet reports whether stored was written with this run's set of questions, which a match
+// on either the questions or the policies shows, whatever else about the run changed.
+func (p Print) SameQuestionSet(stored string) bool {
 	version, sums, ok := parsePrint(stored)
 	if !ok || version != fingerprintVersion {
 		return false
 	}
 
-	for _, part := range p.parts {
-		if (part.name == "questions" || part.name == "policies") && sums[part.name] != part.sum {
-			return false
-		}
-	}
-
-	return true
+	return slices.ContainsFunc(p.parts, func(part partSum) bool {
+		return (part.name == "questions" || part.name == "policies") && sums[part.name] == part.sum
+	})
 }
 
 func delimitedOutput(name string) bool {
