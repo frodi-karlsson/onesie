@@ -358,7 +358,7 @@ func streamRows() []Row {
 		{
 			Name: "unordered", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "unordered", Commands: onRoot()},
-			Help: "Emit records as they complete. Streaming only.",
+			Help: "Emit records as they complete. Streaming only. Match on line in JSON output, or pass --id.",
 		},
 		{
 			Name: "stop_on", HelpTopic: "execution", HelpValue: "VERDICTS",
