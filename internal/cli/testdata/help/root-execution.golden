@@ -10,7 +10,8 @@ Flags:
                                 longer has kept after them, which --prune drops.
       --prune                   Drop the answered ids the input no longer has. Needs
                                 --resume and --id.
-      --unordered               Emit records as they complete. Streaming only.
+      --unordered               Emit records as they complete. Match on line in JSON
+                                output, or pass --id. Streaming only.
       --stop-on VERDICTS        End the run at the first record with one of these
                                 verdicts: error, fail or unsure, comma separated. An
                                 error exits with its own code. Streaming only.
