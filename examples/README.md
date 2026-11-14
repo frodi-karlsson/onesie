@@ -447,7 +447,7 @@ at 0.81 and Sage at 0.977, since Sage answers close to 0 or 1. The file's gate w
 `overrides` Sage carries seven no records over the gate's 0.5 cut, each a false alarm the gate
 would raise. Switching vendors means setting the gate again from the new model's answers, even
 where its AUC holds. The other sets show it too, with AUCs within 0.01 of Jev's: in shell safety
-Gemini carries four records over the `destroys` cut and two over the `secrets` cut.
+Gemini moves four records Jev leaves under the `destroys` cut over it, and two over the `secrets` cut.
 
 The default table stops at a cut of 0.95, which is too low for Sage. On `instructs` it still raises
 3 of 20 false alarms there, so pass `--cuts 0.9,0.95,0.98,0.99` to see the cuts its answers need.
