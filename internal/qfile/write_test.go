@@ -105,6 +105,18 @@ func TestWrite(t *testing.T) {
 				"  no_means: written by a person\n",
 		},
 		{
+			name: "should write only the _means key a question gives",
+			questions: []plan.Question{
+				{
+					ID:           "spam",
+					Shape:        plan.Noul,
+					Instructions: "is this spam",
+					Criteria:     &plan.YesNoCriteria{No: "written by a person"},
+				},
+			},
+			want: "spam:\n  ask: is this spam\n  no_means: written by a person\n",
+		},
+		{
 			name: "should write a structured instruction as a mapping",
 			questions: []plan.Question{
 				{

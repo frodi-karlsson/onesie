@@ -40,7 +40,7 @@ func TestRun(t *testing.T) {
 		t.Parallel()
 
 		code, ended := runStubbed(t, starterDir(t), newStub(t), envOf(nil))
-		if want := "alpha on jev-1.13.0 needs TYPESAFE_API_KEY, since its answers file has records to ask"; code != cli.ExitUsage ||
+		if want := "alpha on jev-1.14.0 needs TYPESAFE_API_KEY, since its answers file has records to ask"; code != cli.ExitUsage ||
 			ended.Failure == nil || ended.Failure.Error() != want {
 			t.Errorf("run = %d, %v, want exit 2 with %q", code, ended.Failure, want)
 		}
@@ -204,12 +204,12 @@ func TestCalibrateArgs(t *testing.T) {
 			t.Fatalf("Sets = %v, %v", sets, err)
 		}
 
-		args := calibrateArgs(sets[0], examples.CompareModel, "examples")
+		args := calibrateArgs(sets[0], examples.PreviousModel, "examples")
 		model, out := slices.Index(args, "-m"), slices.Index(args, "--out")
 
-		if model < 0 || args[model+1] != examples.CompareModel || out < 0 ||
-			args[out+1] != sets[0].Answers("examples", examples.CompareModel) || args[out+1] == sets[0].Answers("examples", examples.Model) {
-			t.Errorf("calibrateArgs = %v, want -m %s writing its own file", args, examples.CompareModel)
+		if model < 0 || args[model+1] != examples.PreviousModel || out < 0 ||
+			args[out+1] != sets[0].Answers("examples", examples.PreviousModel) || args[out+1] == sets[0].Answers("examples", examples.Model) {
+			t.Errorf("calibrateArgs = %v, want -m %s writing its own file", args, examples.PreviousModel)
 		}
 	})
 }

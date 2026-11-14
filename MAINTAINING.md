@@ -138,7 +138,7 @@ and blocks nothing.
 group, paragraph or list item that overlaps a line the diff adds. It reads each block from the work
 tree, so a block counts whole even when only one of its lines changed. It leaves out code, tables,
 headings, directives, blocks of fewer than four words and deleted files. onesie then asks
-`.onesie/questions/history-lesson.yaml` about each block with the pinned model `jev-1.13.0`. A block
+`.onesie/questions/history-lesson.yaml` about each block with the pinned model `jev-1.14.0`. A block
 that fails the file's `assert` fails the job, unless the file's `abstain_if` holds for it. Such a
 block is listed as unsure and does not fail the job. The job summary shows the table and the text of
 each flagged or unsure block. A pull request from a fork gets no key, so the job says it skipped and
@@ -149,7 +149,7 @@ Run the same check locally on what your branch changed, with the key from `.env`
 ```sh
 make build
 git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*.go' '*.md' | go run ./cmd/proseblocks |
-  bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.13.0 --provider typesafe \
+  bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.14.0 --provider typesafe \
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
@@ -163,7 +163,7 @@ To recalibrate, add labelled records, then ask for the answers the answers file 
 
 ```sh
 bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
-    -m jev-1.13.0 --provider typesafe --label history=.history \
+    -m jev-1.14.0 --provider typesafe --label history=.history \
     --out .onesie/data/history-lesson.answers.jsonl --resume' < .onesie/data/history-lesson.jsonl
 ```
 

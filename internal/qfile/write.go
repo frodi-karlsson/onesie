@@ -194,10 +194,14 @@ func writeRubric(question plan.Question) (yaml.MapSlice, error) {
 	// yes_means and no_means, not yes and no. Under the YAML 1.2 core schema goccy implements a
 	// bare yes stays the string "yes" rather than becoming a boolean, so the short spelling is not
 	// an alias the loader accepts and checkKeys would refuse it.
-	return yaml.MapSlice{
-		{Key: "yes_means", Value: yes},
-		{Key: "no_means", Value: no},
-	}, nil
+	rubric := yaml.MapSlice{}
+	for _, item := range []yaml.MapItem{{Key: "yes_means", Value: yes}, {Key: "no_means", Value: no}} {
+		if item.Value != nil {
+			rubric = append(rubric, item)
+		}
+	}
+
+	return rubric, nil
 }
 
 func writePolicy(policy plan.Policy) yaml.MapSlice {

@@ -48,10 +48,10 @@ onesie -f shell-safety -q --state 'echo hello > notes.txt'
 # exit 7: unsure, so hand off to a person
 ```
 
-For destroys, shell-safety blocks at 0.5 and passes below 0.25. The overwrite command scored 0.37 on
-`jev-1.13.0`, the model the thresholds were chosen with, so it goes to a person. `-f shell-safety`
-runs `jev-latest`, which moves on release. The committed `jev-1.14.0` answers score it 0.45, still
-unsure. Use your own labelled commands to choose thresholds for your gate. [Reproduce the check offline](examples/README.md#offline) without a key, and [compare it with a newer model](examples/README.md#compare-two-runs).
+For destroys, shell-safety blocks at 0.5 and passes below 0.25. The overwrite command scored 0.45 on
+`jev-1.14.0`, the model the thresholds are checked against, so it goes to a person. `-f shell-safety`
+runs `jev-latest`, which moves on release. Use your own labelled commands to choose thresholds for
+your gate. [Reproduce the check offline](examples/README.md#offline) without a key, and [compare it with an older model](examples/README.md#compare-two-runs).
 
 ## Install
 
