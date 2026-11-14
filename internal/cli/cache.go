@@ -19,8 +19,6 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/plan"
 )
 
-const flagCache = "cache"
-
 func answersFor(
 	cmd *cobra.Command, settings rootSettings, flags runConfig, built *plan.Plan, known []plan.Question,
 ) (answererFactory, error) {

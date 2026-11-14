@@ -198,7 +198,7 @@ func outputRows() []Row {
 			Help: "One of " + inWords(outputModes().Schema().Enum) + ".",
 		},
 		{
-			Name: "quiet", HelpTopic: "decisions", HelpCommon: map[Command]int{CommandRoot: 15}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
+			Name: "quiet", HelpTopic: "decisions", HelpCommon: map[Command]int{CommandRoot: 15}, Kind: Bool(), Modes: Modes(ModeAsk),
 			Flag: FlagSpec{Long: "quiet", Short: "q", Commands: onRoot()},
 			Help: "Suppress output. Without --assert, judge one answer.",
 		},
@@ -261,7 +261,7 @@ func reportRows() []Row {
 			Help: "Write a one line summary of the run to stderr at exit.",
 		},
 		{
-			Name: "delimiter", HelpTopic: "input", HelpValue: "CHAR", Kind: Text(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
+			Name: "delimiter", HelpTopic: "input", HelpValue: "CHAR", Kind: Text(), Modes: Modes(ModeAsk, ModeStream, ModePrintRequest, ModeCalibrate), Check: delimiterParses,
 			Flag: FlagSpec{Long: "delimiter", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Set the field separator for -i csv: auto, or one character. Defaults to a comma."},
 			}},

@@ -1079,6 +1079,7 @@ func (s *answerStub) response(t *testing.T, body []byte) []byte {
 
 	canned := map[string]string{
 		"noul":   `{"type":"noul","noul":0.93}`,
+		"box":    `{"type":"box","box":{"top":0.25,"bottom":0.82,"left":0.44,"right":0.84},"confidence":0.92}`,
 		"choice": `{"type":"choice","choice":"platform","confidence":0.8,"probabilities":{"billing":0.2,"platform":0.8}}`,
 		"score": `{"type":"score","score":1.6,"confidence":0.7,"probabilities":{"0":0.1,"1":0.2,"2":0.7},` +
 			`"legend":{"0":"calm","1":"curt","2":"rude"}}`,
