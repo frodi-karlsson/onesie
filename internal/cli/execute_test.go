@@ -514,13 +514,13 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse --prune without --resume",
 			args:     []string{"q", "-i", "jsonl", "--out", "{dir}{/}a.jsonl", "--prune"},
 			wantCode: ExitUsage,
-			want:     "onesie: --prune applies to --resume, which was not given\n",
+			want:     "onesie: --prune needs --resume, which was not given\n",
 		},
 		{
 			name:     "should refuse --prune without --id",
 			args:     []string{"q", "-i", "jsonl", "--out", "{dir}{/}a.jsonl", "--resume", "--prune"},
 			wantCode: ExitUsage,
-			want:     "onesie: --prune drops the answered ids the input no longer has, so it needs --id\n",
+			want:     "onesie: --prune needs --id, since it drops the answered ids the input no longer has\n",
 		},
 		{
 			name:     "should refuse --skip-blank on one record",

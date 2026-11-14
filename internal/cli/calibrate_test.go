@@ -1732,7 +1732,7 @@ func TestLiveCalibration(t *testing.T) {
 		name, want string
 		args       []string
 	}{
-		{name: "without --out", want: "--offline reads every answer from --out", args: urgent("--offline")},
+		{name: "without --out", want: "--offline needs --out, the file it reads every answer from", args: urgent("--offline")},
 		{name: "without --resume", want: "--offline needs --resume", args: urgent("--offline", "--out", "x.jsonl")},
 		{name: "with --mock", want: "--offline reads every answer from --out, and --mock", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--mock", "m.json")},
 		{name: "with --print-request", want: "--offline reads answers, and --print-request", args: urgent("--offline", "--out", "x.jsonl", "--resume", "--print-request")},

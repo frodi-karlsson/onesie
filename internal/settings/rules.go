@@ -23,9 +23,9 @@ func Rules() []Rule {
 	// streaming -q reports the streaming message. A second state and the output -q drops are refused
 	// last, so a command line refused for another reason keeps that reason.
 	return append(calibrateRules(),
-		noQuestionRule(), listModelsRule(), resumeRule(), pruneRule(), dryRunAndRequestRule(), cacheBesideMockRule(), delimiterRule(),
-		abstainNeedsAssertRule(), quietWithMarkdownRule(),
-		replaceNeedsFileRule(), forSelectsRule(), fileQuestionShapeRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
+		noQuestionRule(), listModelsRule(), needsRule("resume"), resumeRule(), needsRule("prune"), dryRunAndRequestRule(), cacheBesideMockRule(), delimiterRule(),
+		needsRule("abstain_if"), quietWithMarkdownRule(),
+		needsRule("replace"), needsRule("for"), forSelectsRule(), fileQuestionShapeRule(), mergeOutputRule(), mergeKeyWrapsRule(), delimitedOutputRule(), quietWithUsageRule(),
 		usageWritesAnswersRule(), singleRecordRule(), keepRule(), streamStateRule(), quietOnStreamRule(),
 		tableOnStreamRule(), stopOnVerdictNeedsGateRule(), fallbackColumnsRule(), lineFieldRule(),
 		policyBindingRule(), questionsValidRule(), quietNeedsAGateRule(), rawNeedsOneQuestionRule(),
@@ -178,14 +178,6 @@ func hasAssert(v View) bool {
 
 func hasAbstainIf(v View) bool {
 	return len(listOf(v, abstainIfName)) > 0
-}
-
-func abstainFlag(v View) string {
-	if v.Merged.Source(abstainIfName) == SourceFile {
-		return plan.Spelling(plan.OriginFile, "--abstain-if")
-	}
-
-	return "--abstain-if"
 }
 
 func eventGiven(v View, flag string) bool {

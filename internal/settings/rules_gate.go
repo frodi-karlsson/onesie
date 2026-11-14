@@ -2,23 +2,9 @@ package settings
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/frodi-karlsson/onesie/internal/settingrow"
 )
-
-func abstainNeedsAssertRule() Rule {
-	return Rule{
-		ID: "abstain-needs-assert",
-		Check: func(v View) error {
-			if !hasAbstainIf(v) || hasAssert(v) {
-				return nil
-			}
-
-			return fmt.Errorf("%s needs --assert, since without one every record ends answered", abstainFlag(v))
-		},
-	}
-}
 
 func stopOnVerdictNeedsGateRule() Rule {
 	return Rule{

@@ -16,7 +16,7 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 
 	bound := BoundFlag{
 		Long: r.Flag.Long, Short: r.Flag.Short, Help: r.Help, Kind: r.Kind, Default: r.Default,
-		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue,
+		HelpTopic: r.HelpTopic, HelpCommon: maps.Clone(r.HelpCommon), HelpValue: r.HelpValue, Needs: r.Needs,
 	}
 	override := r.Flag.PerCommand[command]
 
@@ -32,6 +32,10 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 		bound.Default = override.Default
 	}
 
+	if override.Needs != nil {
+		bound.Needs = override.Needs
+	}
+
 	if override.NoShort {
 		bound.Short = ""
 	}
@@ -42,7 +46,7 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 }
 
 // Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
-// not a question file.
+// not a question file. Needs lists the settings its flag is refused without.
 type Row struct {
 	Name       Name
 	Scope      Scope
@@ -56,6 +60,7 @@ type Row struct {
 	Default    any
 	Shapes     []Shape
 	Modes      ModeSet
+	Needs      []Need
 	Help       string
 	HelpTopic  string
 	HelpCommon map[Command]int
@@ -74,6 +79,14 @@ type BoundFlag struct {
 	Kind        Kind
 	Default     any
 	Member      ProfileMember
+	Needs       []Need
+}
+
+// Need is a setting a flag is refused without, and the reason that ends the refusal, as in
+// "--resume needs --out, the file it picks up from".
+type Need struct {
+	Name   Name
+	Reason string
 }
 
 // Name is a setting's canonical name, as notices and rules spell it.
@@ -101,13 +114,15 @@ type FlagSpec struct {
 }
 
 // CommandFlag overrides a row's flag on one command, where the flag means something narrower. Member
-// names the profile member the flag writes on a command that writes a profile.
+// names the profile member the flag writes on a command that writes a profile, and Needs replaces
+// the row's needs.
 type CommandFlag struct {
 	Help    string
 	Kind    Kind
 	Default any
 	NoShort bool
 	Member  ProfileMember
+	Needs   []Need
 }
 
 // Command names a command whose flags come from the rows.

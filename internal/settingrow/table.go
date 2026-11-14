@@ -94,6 +94,7 @@ func questionRows() []Row {
 		},
 		{
 			Name: "for", HelpTopic: "asking", HelpValue: "ID", Kind: NonEmptyText(), Modes: shaping(),
+			Needs: []Need{{Name: "file", Reason: "the file it selects a question from"}},
 			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
 					Help: "Select a question from -f by ID, so the --pick, --rate, --desc and --sep after it apply " +
@@ -178,6 +179,7 @@ func policyRows() []Row {
 			Name: "abstain_if", HelpTopic: "decisions", HelpValue: "EXPR", Kind: Expr(), Modes: Modes(ModeAsk, ModeStream, ModePrintQuestions),
 			FileKey:  "abstain_if",
 			FileHelp: "An abstain expression, as --abstain-if takes it.",
+			Needs:    []Need{{Name: "assert", Reason: "since without one every record ends answered"}},
 			Flag:     FlagSpec{Long: "abstain-if", Repeat: true, Commands: onRoot()},
 			Help: "Turn a no into an unsure when this condition holds. Repeatable, combined with and. Needs " +
 				"--assert and replaces the -f file's abstain_if.",
@@ -211,6 +213,7 @@ func outputRows() []Row {
 		},
 		{
 			Name: "resume", HelpTopic: "execution", HelpCommon: map[Command]int{CommandCalibrate: 14}, Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
+			Needs: []Need{{Name: "out", Reason: "the file it picks up from"}},
 			Flag: FlagSpec{Long: "resume", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Skip the ids the --out file already answers. Needs --id."},
 			}},
@@ -221,8 +224,16 @@ func outputRows() []Row {
 		},
 		{
 			Name: "prune", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeCalibrate),
+			Needs: []Need{
+				{Name: "resume", Reason: "which was not given"},
+				{Name: "id", Reason: "since it drops the answered ids the input no longer has"},
+			},
 			Flag: FlagSpec{Long: "prune", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "Drop the answered ids the input no longer has. Needs --resume."},
+				// Calibrate resumes by id whatever --prune says, so only the root run needs it here.
+				CommandCalibrate: {
+					Help:  "Drop the answered ids the input no longer has. Needs --resume.",
+					Needs: []Need{{Name: "resume", Reason: "which was not given"}},
+				},
 			}},
 			Help: "Drop the answered ids the input no longer has. Needs --resume and --id.",
 		},
@@ -393,8 +404,9 @@ func choiceRows() []Row {
 		},
 		{
 			Name: "replace", HelpTopic: "asking", Kind: Bool(), Modes: shaping(),
-			Flag: FlagSpec{Long: "replace", Commands: onRuns()},
-			Help: "Let --ask override an id from -f.",
+			Needs: []Need{{Name: "file", Reason: "which was not given"}},
+			Flag:  FlagSpec{Long: "replace", Commands: onRuns()},
+			Help:  "Let --ask override an id from -f.",
 		},
 		{
 			Name: "provider", HelpTopic: "connections", HelpValue: "PROVIDER", Kind: NonEmptyText(), Modes: choosing(),
@@ -614,6 +626,10 @@ func calibrateRows() []Row {
 		},
 		{
 			Name: "offline", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 11}, Kind: Bool(), Modes: Modes(ModeCalibrate),
+			Needs: []Need{
+				{Name: "out", Reason: "the file it reads every answer from"},
+				{Name: "resume", Reason: "since it reads the answers --out already holds"},
+			},
 			Flag: FlagSpec{Long: "offline", Commands: onCalibrate()},
 			Help: "Read every answer from the --out file and ask nothing, needing no key. Needs --out and --resume.",
 		},
