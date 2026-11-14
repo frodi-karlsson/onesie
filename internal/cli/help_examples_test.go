@@ -35,6 +35,9 @@ func TestHelpExamples(t *testing.T) {
 			case "enrich":
 				stdin = records
 				env["ONESIE_MOCK"] = writeMock(t, "{\"answer\":0.9}\n{\"answer\":0.1}\n")
+			case "keep":
+				stdin = "The food was cold\nGreat service\n"
+				env["ONESIE_MOCK"] = writeMock(t, "{\"answer\":0.9}\n{\"answer\":0.1}\n")
 			case "question-export":
 			case "connection":
 				args[2] = "help-example"
@@ -77,6 +80,10 @@ func TestHelpExamples(t *testing.T) {
 					if record["text"] == nil || record["urgent"] == nil || record["answers"] == nil {
 						t.Fatal(line)
 					}
+				}
+			case "keep":
+				if out != "The food was cold\n" {
+					t.Fatal(out)
 				}
 			case "question-export":
 				if !strings.Contains(out, "urgent:") || !strings.Contains(out, "threshold: 0.5") {

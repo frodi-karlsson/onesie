@@ -22,7 +22,8 @@ How they work together:
   decisions and errors. A request error remains in the output even when a fallback
   supplies a decision. --out writes answers to a file instead of stdout. See Execution
   for resume and pruning. --usage adds API usage to JSON output. --stats writes a one
-  line run summary to stderr at exit.
+  line run summary to stderr at exit. --keep prints the input records it keeps instead
+  of the answers, which then go to --out or nowhere. See Decisions.
 
 More help:
   onesie help asking

@@ -13,12 +13,16 @@ Flags:
       --abstain-if EXPR         Turn a no into an unsure when this condition holds.
                                 Repeatable, combined with and. Needs --assert and
                                 replaces the -f file's abstain_if.
+      --keep VERDICTS           Print each input record as read when its verdict is one
+                                of these: pass, fail, unsure or error, comma separated.
+                                The answers go to --out or nowhere. Streaming only.
 
 How they work together:
   --threshold adds a boolean decision to a yes or no probability. A false decision alone
   does not change the exit code. Without --assert, quiet mode judges one question on one
   record. Yes or no uses the threshold, defaulting to 0.5. Pick and rate need both
-  --min-confidence and --fallback. Quiet mode refuses streams.
+  --min-confidence and --fallback. Quiet mode refuses streams, where --keep judges the
+  same way.
 
   --min-confidence applies only to pick and rate, needs --fallback and takes a value
   between 0 and 1. Confidence is about 1 when p sits on one answer. Yes or no fallback
@@ -48,10 +52,24 @@ How they work together:
   its confidence, as in mug.confidence >= 0.6.
 
   Streams print every fail and unsure too. --stop-on=fail prints the first fail before
-  stopping, and --stop-on=unsure the first unsure. Both need --assert, and unsure also
-  needs --abstain-if. Earlier errors still affect the aggregate exit code. See Asking
-  for question setting scope. Use onesie help calibrate to choose cuts from labelled
-  evidence. The export example uses an illustrative cut.
+  stopping, and --stop-on=unsure the first unsure. --stop-on=fail needs --assert or
+  --keep, and --stop-on=unsure needs --assert and --abstain-if. Earlier errors still
+  affect the aggregate exit code. See Asking for question setting scope. Use onesie help
+  calibrate to choose cuts from labelled evidence. The export example uses an
+  illustrative cut.
+
+  --keep prints each input record as read when its verdict is one it names, and nothing
+  else on stdout. A JSONL or lines record prints as its line. A CSV or TSV stream prints
+  its header, then each kept row written again with the input separator, so quoting may
+  differ. The answers go to --out, which holds what the same run writes without --keep,
+  or nowhere. With --assert a record keeps the gate's verdict, and --keep unsure needs
+  --abstain-if. Without --assert, --keep judges one question as quiet mode does. A
+  stream under --keep exits 0 whatever it kept, or 6 when a record ended in an error. An
+  error prints only under --keep error, and stderr names up to five causes, then counts
+  the rest.
+
+  Keep the lines that match:
+    onesie 'is this a complaint' -i lines --keep pass < reviews.txt
 
   Inspect a policy without asking the model:
     onesie --ask 'urgent=is this urgent' --threshold 0.5 --print-questions

@@ -20,6 +20,7 @@ var (
 	ListModels     = Key[bool]{name: "list_models"}
 	Unordered      = Key[bool]{name: "unordered"}
 	StopOn         = Key[string]{name: "stop_on"}
+	Keep           = Key[string]{name: "keep"}
 	NoDedup        = Key[bool]{name: "no_dedup"}
 	MergeInput     = Key[bool]{name: "merge"}
 	MergeKey       = Key[string]{name: "merge_key"}
@@ -84,6 +85,8 @@ func Derived[T any](v View, k Key[T]) T {
 		derive = autoOutput
 	case CacheTTL.Name():
 		derive = aliasLifetime
+	case SkipBlank.Name():
+		derive = keptBlank
 	}
 	if derive != nil {
 		if value, derives := derive(v); derives {

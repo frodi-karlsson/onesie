@@ -497,6 +497,25 @@ ONESIE_MOCK=danger.json ./gate.sh   # takes the blocked branch
 tail -f tickets.jsonl | onesie 'is this urgent' -i jsonl --map .body --id .id -o json
 ```
 
+**Keep the records that match.** `--keep pass` prints each input record whose verdict is pass,
+exactly as it was read, so the output is a smaller copy of the input. Without `--assert` the one
+question passes at 0.5, or at its `--threshold`. A record with an error prints only under
+`--keep error`, and its cause goes to stderr.
+
+```sh
+onesie 'is this urgent' -i jsonl --map .body --assert 'answer.value >= 0.8' --keep pass \
+    < tickets.jsonl > urgent.jsonl
+```
+
+`--out` keeps the answers beside the kept records. A starter set's gate sorts each comment, so a
+second run with `--cache` asks nothing again and keeps the comments that need a person:
+
+```sh
+onesie -f moderation -i jsonl --map .body --cache --out answers.jsonl --keep pass \
+    < comments.jsonl > publish.jsonl
+onesie -f moderation -i jsonl --map .body --cache --keep unsure < comments.jsonl > review.jsonl
+```
+
 **Triage a spreadsheet.** The same rows come back with a column per question.
 
 ```sh
@@ -507,7 +526,9 @@ A spreadsheet export separated by semicolons reads with `--delimiter auto`, and 
 semicolons back, merged or not.
 
 **Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
-`--resume` skips every id the file already answers and asks the rest, errors included.
+`--resume` skips every id the file already answers and asks the rest, errors included. `--keep`
+refuses `--resume`, since the skipped records would be missing from its output, so filter the file
+with `jq` instead.
 
 ```sh
 onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \

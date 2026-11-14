@@ -94,3 +94,17 @@
 {"args":["calibrate","--ask","urgent=is this urgent","-i","jsonl","--map",".body","--label","urgent=.is_urgent","--print-request","--stats"],"error":"onesie: --stats does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["calibrate","--ask","urgent=is this urgent","-i","jsonl","--map",".body","--label","urgent=.is_urgent","--print-request","--usage"],"error":"onesie: --usage does not apply to --print-request, which writes the request bodies and sends none\n"}
 {"args":["calibrate","--ask","urgent=is this urgent","-i","jsonl","--map",".body","--label","urgent=.is_urgent","--print-request","-o","json"],"error":"onesie: -o does not apply to --print-request, which writes the request bodies and sends none\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","-q"],"error":"onesie: -q suppresses output, which leaves --keep nothing to print\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","--out","OUT","--resume"],"error":"onesie: --keep prints only the records a run asks, and --resume skips the answered ones. Pass --cache instead, which asks the answered records again for free and prints the whole kept output\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","-o","json"],"error":"onesie: --keep prints the input records, which leaves -o json nothing to write. Pass --out FILE to write the answers there\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","--merge"],"error":"onesie: --keep prints the input records, which leaves --merge nothing to write. Pass --out FILE to write the answers there\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","--merge-key","x"],"error":"onesie: --keep prints the input records, which leaves --merge-key nothing to write. Pass --out FILE to write the answers there\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","--usage"],"error":"onesie: --keep prints the input records, which leaves --usage nothing to write. Pass --out FILE to write the answers there\n"}
+{"args":["is this urgent","-i","jsonl","--keep","unsure"],"error":"onesie: --keep unsure needs --assert, since without one no record can be unsure\n"}
+{"args":["is this urgent","-i","jsonl","--keep","unsure","--assert","answer.value > 0.5"],"error":"onesie: --keep unsure needs --abstain-if, since without one no record is unsure\n"}
+{"args":["--ask","a=one","--ask","b=two","-i","jsonl","--keep","pass"],"error":"onesie: --keep needs a single question, or --assert to gate several. 'a', 'b' were asked\n"}
+{"args":["is this urgent","--keep","pass"],"error":"onesie: --keep applies to streaming input. -i text reads one record\n"}
+{"args":["-i","request","--keep","pass"],"error":"onesie: --keep does not apply to -i request, which sends each body as written and prints each raw response\n"}
+{"args":["is this urgent","-i","jsonl","--keep","pass","--print-request"],"error":"onesie: --keep does not apply to --print-request, which writes the request bodies and sends none. Rehearse the whole command with --mock, or see the questions with --print-questions\n"}
+{"args":["is this urgent","--keep","pass","--print-questions"],"error":"onesie: --keep does not apply to --print-questions, which reads no input and writes the questions as a question file\n"}
+{"args":["--list-models","--keep","pass"],"error":"onesie: --keep does not apply to --list-models, which only lists the models a provider serves\n"}

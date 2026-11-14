@@ -79,7 +79,7 @@ func quietOnStreamRule() Rule {
 		ID: "quiet-reads-one-record",
 		Check: func(v View) error {
 			if inputModeOf(v).Streaming() && Get(v.Merged, Quiet) {
-				return fmt.Errorf("-q reads one record. Drop -i %s or use -o values and filter the stream", inputName(v))
+				return fmt.Errorf("-q reads one record. Drop -i %s, or pass --keep to print the records that pass", inputName(v))
 			}
 
 			return nil
@@ -91,30 +91,52 @@ func quietNeedsAGateRule() Rule {
 	return Rule{
 		ID: "quiet-needs-one-question",
 		Check: func(v View) error {
-			// Beside an assertion -q only silences the output, since the assertion is the gate.
-			if v.Plan == nil || !Get(v.Merged, Quiet) || hasAssert(v) {
+			// Beside an assertion -q only silences the output and --keep reads its verdicts, since the
+			// assertion is the gate.
+			judge := judgeAlone(v)
+			if v.Plan == nil || judge == "" || hasAssert(v) {
 				return nil
 			}
 
 			if len(v.Plan.Questions) != 1 {
-				return fmt.Errorf("-q needs a single question, or --assert to gate several. %s were asked",
-					quotedIDs(v.Plan.Questions))
+				return fmt.Errorf("%s needs a single question, or --assert to gate several. %s were asked",
+					judge, quotedIDs(v.Plan.Questions))
 			}
 
 			only := v.Plan.Questions[0]
 			if only.Shape == plan.Box {
 				return fmt.Errorf(
-					"-q on %s needs %s. A box has no policy that could fail it",
-					only.Mention(), plan.Spelling(only.Origin, "--assert"))
+					"%s on %s needs %s. A box has no policy that could fail it",
+					judge, only.Mention(), plan.Spelling(only.Origin, "--assert"))
 			}
 
 			if only.Shape != plan.Noul && only.Policy.MinConfidence == nil {
 				return fmt.Errorf(
-					"-q on %s needs %s and %s, or --assert. Without one the exit code is always 0",
-					only.Mention(), plan.Spelling(only.Origin, "--min-confidence"), plan.Spelling(only.Origin, "--fallback"))
+					"%s on %s needs %s and %s, or --assert. Without one %s",
+					judge, only.Mention(), plan.Spelling(only.Origin, "--min-confidence"),
+					plan.Spelling(only.Origin, "--fallback"), unjudged(judge))
 			}
 
 			return nil
 		},
 	}
+}
+
+func judgeAlone(v View) string {
+	switch {
+	case Get(v.Merged, Quiet):
+		return "-q"
+	case Get(v.Merged, Keep) != "":
+		return "--keep"
+	default:
+		return ""
+	}
+}
+
+func unjudged(judge string) string {
+	if judge == "--keep" {
+		return "every record passes"
+	}
+
+	return "the exit code is always 0"
 }

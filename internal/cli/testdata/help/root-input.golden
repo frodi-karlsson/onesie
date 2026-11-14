@@ -34,12 +34,14 @@ How they work together:
 
   --id runs one record at a time as input is read. Its result must be a string or
   number. Keep it cheap, such as a field lookup. version lists max-id-bytes.
-  --skip-blank drops blank lines without emitting a result. In the JSON modes a stream
-  record carries line, its input line number, with the header as line 1 in CSV and TSV.
-  A merged record carries none, since it is the input record. -o csv, tsv and raw carry
-  no line, so match their records to the input with --id. The default field separator is
-  ','. --delimiter auto needs CSV input, detects its separator and uses it for CSV
-  output. An explicit delimiter takes one character. TSV uses tabs.
+  --skip-blank drops blank lines without emitting a result. --keep drops them too unless
+  --skip-blank is given, so --skip-blank=false keeps an error per blank line. In the
+  JSON modes a stream record carries line, its input line number, with the header as
+  line 1 in CSV and TSV. A merged record carries none, since it is the input record. -o
+  csv, tsv and raw carry no line, so match their records to the input with --id. The
+  default field separator is ','. --delimiter auto needs CSV input, detects its
+  separator and uses it for CSV output. An explicit delimiter takes one character. TSV
+  uses tabs.
 
   --image NAME=PATH adds a PNG or JPEG under NAME. For one record, stdin is read beside
   an image only through --state -. Text can also join it through --state. Images cannot

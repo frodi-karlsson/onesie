@@ -2,6 +2,7 @@ package settings_test
 
 import (
 	"cmp"
+	"fmt"
 	"maps"
 	"slices"
 	"strconv"
@@ -386,7 +387,7 @@ func TestValidate(t *testing.T) {
 			name:       "should report a streaming -q before -o table",
 			positional: "is this urgent",
 			set:        values{"quiet": true, "output": "table", "input": "jsonl"},
-			wantExact:  "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+			wantExact:  "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
 		},
 		{
 			name:       "should report --resume without --out before --prune",
@@ -412,7 +413,7 @@ func TestValidate(t *testing.T) {
 			name:      "should report a streaming -q before the plan rules",
 			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
 			set:       values{"quiet": true, "input": "jsonl"},
-			wantExact: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+			wantExact: "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
 		},
 		{
 			name:       "should refuse -q with --merge",
@@ -1031,6 +1032,88 @@ func TestValidate(t *testing.T) {
 		}
 	})
 
+	t.Run("should refuse each setting --keep leaves nothing to do, and keep the rest", func(t *testing.T) {
+		t.Parallel()
+
+		one := []argv.Event{{Name: "ask", Value: "a=one"}}
+		two := []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}}
+		kept := func(set values, typed ...settingrow.Name) run {
+			merged := values{"keep": "pass", "input": "jsonl"}
+			maps.Copy(merged, set)
+
+			return run{planned: true, events: one, set: merged, typed: append([]settingrow.Name{"keep", "input"}, typed...)}
+		}
+		without := "--keep prints the input records, which leaves %s nothing to write. Pass --out FILE to write the answers there"
+
+		for _, tc := range []struct {
+			name  string
+			given run
+			want  string
+		}{
+			{name: "should refuse -q", given: kept(values{"quiet": true}), want: "-q suppresses output, which leaves --keep nothing to print"},
+			{
+				name: "should refuse --resume and name --cache", given: kept(values{"resume": true, "out": "a.jsonl"}, "resume", "out"),
+				want: "--keep prints only the records a run asks, and --resume skips the answered ones. " +
+					"Pass --cache instead, which asks the answered records again for free and prints the whole kept output",
+			},
+			{name: "should refuse -o json without --out", given: kept(values{"output": "json"}, "output"), want: fmt.Sprintf(without, "-o json")},
+			{name: "should refuse -o csv without --out", given: kept(values{"output": "csv"}, "output"), want: fmt.Sprintf(without, "-o csv")},
+			{name: "should refuse --merge without --out", given: kept(values{"merge": true}, "merge"), want: fmt.Sprintf(without, "--merge")},
+			{name: "should refuse --merge-key without --out", given: kept(values{"merge_key": "x"}, "merge_key"), want: fmt.Sprintf(without, "--merge-key")},
+			{name: "should refuse --usage without --out", given: kept(values{"usage": true}, "usage"), want: fmt.Sprintf(without, "--usage")},
+			{name: "should keep -o auto without --out", given: kept(values{"output": "auto"}, "output")},
+			{name: "should keep -o csv, --merge and --usage beside --out", given: kept(values{"output": "json", "merge": true, "usage": true, "out": "a.jsonl"}, "output", "merge", "usage", "out")},
+			{name: "should keep --stop-on=fail without --assert", given: kept(values{"stop_on": "fail"}, "stop_on")},
+			{
+				name: "should refuse --stop-on=unsure without --assert", given: kept(values{"stop_on": "unsure"}, "stop_on"),
+				want: "--stop-on=unsure needs --assert, since without one no record can be unsure",
+			},
+			{
+				name: "should refuse --keep unsure without --assert", given: kept(values{"keep": "pass,unsure"}),
+				want: "--keep unsure needs --assert, since without one no record can be unsure",
+			},
+			{
+				name: "should refuse --keep unsure without --abstain-if", given: kept(values{"keep": "unsure", "assert": []string{"a.value > 0.5"}}),
+				want: "--keep unsure needs --abstain-if, since without one no record is unsure",
+			},
+			{name: "should keep --keep unsure beside --assert and --abstain-if", given: kept(values{"keep": "unsure", "assert": []string{"a.value > 0.5"}, "abstain_if": []string{"a.value > 0.2"}})},
+			{
+				name: "should refuse several questions without --assert", given: run{planned: true, events: two, set: values{"keep": "pass", "input": "jsonl"}},
+				want: "--keep needs a single question, or --assert to gate several. 'a', 'b' were asked",
+			},
+			{
+				name: "should refuse a pick without --min-confidence", given: run{planned: true, events: []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "pick", Value: "x,y"}}, set: values{"keep": "pass", "input": "jsonl"}},
+				want: "--keep on 'a' needs --min-confidence and --fallback, or --assert. Without one every record passes",
+			},
+			{
+				name: "should refuse one record", given: run{planned: true, events: one, set: values{"keep": "pass", "input": "text"}, typed: []settingrow.Name{"keep"}},
+				want: "--keep applies to streaming input. -i text reads one record",
+			},
+			{
+				name: "should refuse -i request", given: run{set: values{"keep": "pass", "input": "request"}, typed: []settingrow.Name{"keep", "input"}},
+				want: "--keep does not apply to -i request, which sends each body as written and prints each raw response",
+			},
+			{
+				name: "should refuse --print-request", given: kept(values{"print_request": true}, "print_request"),
+				want: "--keep does not apply to --print-request, which writes the request bodies and sends none. " +
+					"Rehearse the whole command with --mock, or see the questions with --print-questions",
+			},
+			{
+				name: "should refuse --print-questions", given: run{set: values{"keep": "pass", "print_questions": true}, typed: []settingrow.Name{"keep", "print_questions"}},
+				want: "--keep does not apply to --print-questions, which reads no input and writes the questions as a question file",
+			},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				_, _, err := settings.Validate(tc.given.view(t), settings.Rules())
+				if tc.want == "" && err != nil || tc.want != "" && (err == nil || err.Error() != tc.want) {
+					t.Errorf("Validate error = %v, want %q", err, tc.want)
+				}
+			})
+		}
+	})
+
 	t.Run("should refuse and pass under each rule", func(t *testing.T) {
 		t.Parallel()
 
@@ -1422,7 +1505,13 @@ func ruleCases() []ruleCase {
 			rule:    "quiet-reads-one-record",
 			refused: run{set: values{"quiet": true, "input": "jsonl"}},
 			passed:  run{set: values{"quiet": true}},
-			wantErr: "-q reads one record. Drop -i jsonl or use -o values and filter the stream",
+			wantErr: "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
+		},
+		{
+			rule:    "keep-prints-the-records",
+			refused: run{set: values{"keep": "pass", "input": "jsonl", "output": "json"}, typed: []settingrow.Name{"output"}},
+			passed:  run{set: values{"keep": "pass", "input": "jsonl", "output": "json", "out": "a.jsonl"}, typed: []settingrow.Name{"output"}},
+			wantErr: "--keep prints the input records, which leaves -o json nothing to write. Pass --out FILE to write the answers there",
 		},
 		{
 			rule:    "table-reads-one-record",
@@ -1434,7 +1523,7 @@ func ruleCases() []ruleCase {
 			rule:    "stop-on-verdict-needs-gate",
 			refused: run{set: values{"stop_on": "fail"}},
 			passed:  run{set: values{"stop_on": "fail", "assert": []string{"answer.value > 0.5"}}},
-			wantErr: "--stop-on=fail needs --assert, since without one no record can fail",
+			wantErr: "--stop-on=fail needs --assert or --keep, since without one no record can fail",
 		},
 		{
 			rule: "columns-unique",
