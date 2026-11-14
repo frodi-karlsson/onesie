@@ -169,7 +169,7 @@ func TestKeeper(t *testing.T) {
 		})
 	}
 
-	t.Run("should name and count each error written after a refused key, but not the key's own record", func(t *testing.T) {
+	t.Run("should name and count each error written after a refused key, but not the record that refused the key", func(t *testing.T) {
 		t.Parallel()
 
 		mock := strings.Repeat("{\"error\":500}\n", 2) + "{\"error\":401}\n" + strings.Repeat("{\"error\":500}\n", 37)
