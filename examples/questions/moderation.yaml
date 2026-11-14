@@ -8,9 +8,9 @@ hostile:
 spam:
   ask: is this text spam or advertising
 tone:
-  ask: how hostile is the tone of this text
+  ask: how hostile is the writer toward other people
   rate:
-  - civil: polite or neutral, with no hostility
-  - curt: short, impatient or negative, without insulting anyone
-  - rude: insults, mocks or dismisses someone
-  - abusive: threatens someone, wishes them harm, or attacks a group for who they are
+  - civil: polite or neutral toward others. Firm disagreement, frustration at oneself or at things, and urgent notices are civil
+  - curt: short, impatient or negative toward others, without insulting anyone
+  - rude: insults, mocks or dismisses another person
+  - abusive: threatens another person, wishes them harm, or attacks a group for who they are

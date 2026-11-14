@@ -16,19 +16,20 @@ import (
 	"github.com/goccy/go-yaml"
 )
 
-// Model is the pinned model the committed answers files the README gates were made with, and that
-// the offline check reads them as. CompareModel, GeminiModel and SageModel each answer every set
-// too, so --compare has a newer Jev and two other vendors to set beside the pinned run.
+// Model is the pinned model the committed answers files the README gates are checked against, and
+// that the offline check reads them as. PreviousModel, an older Jev, GeminiModel and SageModel each
+// answer every set too, so --compare has another Jev and two other vendors to set beside the pinned
+// run.
 const (
-	Model        = "jev-1.13.0"
-	CompareModel = "jev-1.14.0"
-	GeminiModel  = "google/gemini-decision-1"
-	SageModel    = "levanto-sage-2"
+	Model         = "jev-1.14.0"
+	PreviousModel = "jev-1.13.0"
+	GeminiModel   = "google/gemini-decision-1"
+	SageModel     = "levanto-sage-2"
 )
 
 // Models lists the models each set has a committed answers file for, the pinned one first.
 func Models() []string {
-	return []string{Model, CompareModel, GeminiModel, SageModel}
+	return []string{Model, PreviousModel, GeminiModel, SageModel}
 }
 
 // Provider names the provider a model is asked through.

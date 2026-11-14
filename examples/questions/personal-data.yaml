@@ -5,7 +5,10 @@ name_contact:
   ask: does this text give a person's name together with a way to contact them
 email_phone:
   ask: does this text contain an email address or phone number that belongs to a person
+  no_means: every address and number in it is shared by a team or role, such as support@ or hr@, even when a named person is meant to read it
 home_address:
   ask: does this text contain a home address
 credential:
   ask: does this text contain a password, access token or API key
+  yes_means: it holds a secret value written out in full, such as a password, a token, an API key or a private key block, even one that looks like a test or example value
+  no_means: it holds no secret value. A value cut short with ... or left as <your-key>, the name of a variable that holds a key, a public key and where a password is kept are not one

@@ -28,15 +28,18 @@ brew install golangci-lint
 ```
 
 The starter sets' answers come from the pinned model `examples.Model`, in `examples/data/SET.answers.jsonl`,
-and from `examples.CompareModel`, `examples.GeminiModel` and `examples.SageModel`, each in
+and from `examples.PreviousModel`, `examples.GeminiModel` and `examples.SageModel`, each in
 `SET.MODEL.answers.jsonl` with the model named without its vendor. Regenerating a file needs the
 key of its provider, `TYPESAFE_API_KEY`, `AI_GATEWAY_API_KEY` or `LEVANTO_API_KEY`, and a complete
 file needs none. Gemini and Sage do not pin a version, so a regenerated file can answer
 differently. After regenerating one, check the numbers
 [Compare vendors](examples/README.md#compare-vendors) quotes and update the date it gives. To move
-the pin to the compare model, rename each `SET.MODEL.answers.jsonl` and its `.onesie` sidecar over
-`SET.answers.jsonl`, set `examples.Model` to it and pick a new `CompareModel`. Then run
-`make examples-answers` and update the model the READMEs and the history lesson name.
+the pin to a newer Jev, delete the `PreviousModel` files, then rename each `SET.answers.jsonl` and
+its `.onesie` sidecar to `SET.MODEL.answers.jsonl`, named after the old pin. Then set `examples.PreviousModel` to the old pin
+and `examples.Model` to the new one, and run `make examples-answers`, which asks the new pin for
+every set. Check each set's requirements on its answers. Reword a question that breaks one rather
+than moving a cut. Then update the model the READMEs, the History lessons workflow and the history
+lesson answers name.
 
 The help of every command is pinned in `internal/cli/testdata/help`. After a help change made on
 purpose, rewrite those files with `go test ./internal/cli -run TestNewRootCmd -update-help` and
@@ -138,7 +141,7 @@ and blocks nothing.
 group, paragraph or list item that overlaps a line the diff adds. It reads each block from the work
 tree, so a block counts whole even when only one of its lines changed. It leaves out code, tables,
 headings, directives, blocks of fewer than four words and deleted files. onesie then asks
-`.onesie/questions/history-lesson.yaml` about each block with the pinned model `jev-1.13.0`. A block
+`.onesie/questions/history-lesson.yaml` about each block with the pinned model `jev-1.14.0`. A block
 that fails the file's `assert` fails the job, unless the file's `abstain_if` holds for it. Such a
 block is listed as unsure and does not fail the job. The job summary shows the table and the text of
 each flagged or unsure block. A pull request from a fork gets no key, so the job says it skipped and
@@ -149,7 +152,7 @@ Run the same check locally on what your branch changed, with the key from `.env`
 ```sh
 make build
 git diff -U0 --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ main -- '*.go' '*.md' | go run ./cmd/proseblocks |
-  bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.13.0 --provider typesafe \
+  bash -c 'set -a; . ./.env; set +a; exec bin/onesie -f history-lesson -m jev-1.14.0 --provider typesafe \
     -i jsonl --map .text --id .id --cache -o markdown'
 ```
 
@@ -163,7 +166,7 @@ To recalibrate, add labelled records, then ask for the answers the answers file 
 
 ```sh
 bash -c 'set -a; . ./.env; set +a; exec bin/onesie calibrate -f history-lesson -i jsonl --map .text --id .id \
-    -m jev-1.13.0 --provider typesafe --label history=.history \
+    -m jev-1.14.0 --provider typesafe --label history=.history \
     --out .onesie/data/history-lesson.answers.jsonl --resume' < .onesie/data/history-lesson.jsonl
 ```
 

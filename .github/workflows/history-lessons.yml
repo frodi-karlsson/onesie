@@ -87,7 +87,7 @@ jobs:
 
           report="$RUNNER_TEMP/report.md"
           status=0
-          "$RUNNER_TEMP/bin/onesie" -f history-lesson -m jev-1.13.0 --provider typesafe \
+          "$RUNNER_TEMP/bin/onesie" -f history-lesson -m jev-1.14.0 --provider typesafe \
             -i jsonl --map .text --id .id --cache -o markdown < "$blocks" > "$report" || status=$?
 
           show_blocks() {

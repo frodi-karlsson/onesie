@@ -129,7 +129,7 @@ func TestReadme(t *testing.T) {
 		blocks := codeBlocks(readmeSection(t, "Compare two runs", "examples", "README.md"))
 
 		out, errOut, code := runCompareOnCommitted(t, "shell-safety.jsonl", readmeCommand(t, blocks[0].lines))
-		if code != cli.ExitOK || !strings.Contains(errOut, "differs from examples/data/shell-safety.answers.jsonl in the model") {
+		if code != cli.ExitOK || !strings.Contains(errOut, "differs from examples/data/shell-safety.jev-1.13.0.answers.jsonl in the model") {
 			t.Fatalf("exit code = %d, want %d naming the model\nstderr:\n%s", code, cli.ExitOK, errOut)
 		}
 
