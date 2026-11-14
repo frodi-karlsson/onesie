@@ -17,16 +17,13 @@ import (
 // suggest it belongs to a run.
 const AnnotationAsksNothing = "onesie-asks-nothing"
 
-// Register adds command's rows to set, or to persistent where marked. A group row records through
-// recorder, and every other row fills its *string, *bool, *int or *[]string entry in targets.
+// Register adds command's rows to set. A group row records through recorder, and every other row
+// fills its *string, *bool, *int or *[]string entry in targets.
 func Register(
-	set, persistent *pflag.FlagSet, rows []settingrow.Row, recorder *argv.Recorder, command settingrow.Command, targets map[settingrow.Name]any,
+	set *pflag.FlagSet, rows []settingrow.Row, recorder *argv.Recorder, command settingrow.Command, targets map[settingrow.Name]any,
 ) *Given {
 	given := &Given{
-		counts: map[settingrow.Name]int{}, values: map[settingrow.Name][]string{}, spellings: map[settingrow.Name]settingrow.BoundFlag{}, sets: []*pflag.FlagSet{set},
-	}
-	if persistent != nil {
-		given.sets = append(given.sets, persistent)
+		counts: map[settingrow.Name]int{}, values: map[settingrow.Name][]string{}, spellings: map[settingrow.Name]settingrow.BoundFlag{}, set: set,
 	}
 
 	for _, row := range rows {
@@ -35,16 +32,7 @@ func Register(
 			continue
 		}
 
-		into := set
-		if bound.Persistent {
-			into = persistent
-		}
-
-		if into == nil {
-			panic(fmt.Sprintf("settings: %s on %s is persistent, and no persistent flag set was given", row.Name, command))
-		}
-
-		flag := addFlag(into, row, bound, recorder, targets[row.Name], command)
+		flag := addFlag(set, row, bound, recorder, targets[row.Name], command)
 
 		if row.Flag.NoOptDefVal != "" {
 			flag.NoOptDefVal = row.Flag.NoOptDefVal
@@ -126,21 +114,12 @@ type Given struct {
 	counts    map[settingrow.Name]int
 	values    map[settingrow.Name][]string
 	spellings map[settingrow.Name]settingrow.BoundFlag
-	sets      []*pflag.FlagSet
+	set       *pflag.FlagSet
 	parent    *Given
 }
 
-// Inherit adds set, the persistent flags of a parent command, to the sets the flags are looked up in.
-func (g *Given) Inherit(set *pflag.FlagSet) {
-	if g == nil {
-		return
-	}
-
-	g.sets = append(g.sets, set)
-}
-
-// Within makes the flags parent counts, the persistent flags of a parent command among them, count
-// and spell here too, for each row this Given does not register itself.
+// Within makes the flags parent counts count and spell here too, for each row this Given does not
+// register itself, such as a root flag a subcommand shares.
 func (g *Given) Within(parent *Given) {
 	if g == nil {
 		return
@@ -246,23 +225,11 @@ func (g *Given) spelledInCluster(shorthands, short string, spelled []string) ([]
 }
 
 func (g *Given) byName(name string) *pflag.Flag {
-	for _, set := range g.sets {
-		if flag := set.Lookup(name); flag != nil {
-			return flag
-		}
-	}
-
-	return nil
+	return g.set.Lookup(name)
 }
 
 func (g *Given) byShorthand(letter string) *pflag.Flag {
-	for _, set := range g.sets {
-		if flag := set.ShorthandLookup(letter); flag != nil {
-			return flag
-		}
-	}
-
-	return nil
+	return g.set.ShorthandLookup(letter)
 }
 
 func (*Given) takesValue(flag *pflag.Flag) bool {

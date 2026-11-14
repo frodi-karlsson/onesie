@@ -31,6 +31,18 @@ func addFlagCompletions(root, calibrate *cobra.Command, settings rootSettings) e
 		}
 	}
 
+	// profile create and profile update take a separate --provider, the provider the profile stores.
+	for _, path := range [][]string{{"profile", "create"}, {"profile", "update"}} {
+		cmd, _, err := root.Find(path)
+		if err != nil {
+			return err
+		}
+
+		if err := cmd.RegisterFlagCompletionFunc(flagProvider, shared[flagProvider]); err != nil {
+			return err
+		}
+	}
+
 	for command, cmd := range map[settingrow.Command]*cobra.Command{settingrow.CommandRoot: root, settingrow.CommandCalibrate: calibrate} {
 		if err := addLocalCompletions(cmd, command, files); err != nil {
 			return err

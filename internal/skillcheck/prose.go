@@ -535,7 +535,7 @@ func parseHelp(text string) helpPage {
 		}
 
 		switch section {
-		case "Flags:", "Global Flags:":
+		case "Flags:":
 			if match := helpFlag.FindStringSubmatch(line); match != nil {
 				page.longTakesValue[match[2]] = match[3] != ""
 

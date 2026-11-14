@@ -520,7 +520,7 @@ func TestRead(t *testing.T) {
 			},
 		},
 		{
-			name: "should read --profile on calibrate from root's persistent flags",
+			name: "should read --profile on calibrate from the root flag it shares",
 			reading: reading{
 				command: settingrow.CommandCalibrate, args: []string{"--profile", "work"},
 				profile: map[string]string{"provider": "typesafe", "model": "p"},
@@ -715,8 +715,7 @@ func (r reading) sources(t *testing.T) settings.Sources {
 	registered := register(command)
 	if command == settingrow.CommandCalibrate {
 		root := register(settingrow.CommandRoot)
-		registered.persistent = root.persistent
-		registered.given.Inherit(root.persistent)
+		registered.share(root, "profile", "provider")
 	}
 
 	registered.parse(t, r.args...)

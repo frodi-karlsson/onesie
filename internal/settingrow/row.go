@@ -36,7 +36,6 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 		bound.Short = ""
 	}
 
-	bound.Persistent = override.Persistent
 	bound.Member = override.Member
 
 	return bound, true
@@ -74,7 +73,6 @@ type BoundFlag struct {
 	HelpValue   string
 	Kind        Kind
 	Default     any
-	Persistent  bool
 	Member      ProfileMember
 }
 
@@ -105,12 +103,11 @@ type FlagSpec struct {
 // CommandFlag overrides a row's flag on one command, where the flag means something narrower. Member
 // names the profile member the flag writes on a command that writes a profile.
 type CommandFlag struct {
-	Help       string
-	Kind       Kind
-	Default    any
-	Persistent bool
-	NoShort    bool
-	Member     ProfileMember
+	Help    string
+	Kind    Kind
+	Default any
+	NoShort bool
+	Member  ProfileMember
 }
 
 // Command names a command whose flags come from the rows.

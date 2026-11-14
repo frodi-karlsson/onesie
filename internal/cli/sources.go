@@ -75,12 +75,12 @@ func withoutChoice(rows []settingrow.Row) []settingrow.Row {
 }
 
 func loadedFor(settings rootSettings, flags runConfig) (loadedRun, error) {
-	if !setting.Get(flags.merged, setting.PrintQuestions) {
+	if !setting.Get(flags.merged, setting.PrintQuestions) && !flags.comparing() {
 		return settings.holder.loaded()
 	}
 
-	// --print-questions prints no provider, model or key, so it loads no profile and converts no
-	// credentials.json. A provider choice still names the default it runs without.
+	// --print-questions prints no provider, model or key, and --compare asks nothing, so neither loads
+	// a profile or converts credentials.json. A provider choice still names the default it runs without.
 	chosen, err := settings.holder.chosen()
 	if err != nil || chosen.Provider == "" {
 		return loadedRun{chosen: chosen}, err

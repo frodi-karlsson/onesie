@@ -94,6 +94,20 @@ func TestCompareCalibration(t *testing.T) {
 		}
 	})
 
+	t.Run("should load no profile, so a missing one in ONESIE_PROFILE goes unread", func(t *testing.T) {
+		t.Parallel()
+
+		dir := t.TempDir()
+		a, b := answered(t, dir, "a.jsonl", march), answered(t, dir, "b.jsonl", november)
+		args := comparing("--compare", a, "--compare", b)
+
+		want, _, _ := runMocked(t, t.Context(), args, labelled, nil, nil)
+		out, errOut, code := runMocked(t, t.Context(), args, labelled, map[string]string{"ONESIE_PROFILE": "missing"}, nil)
+		if code != ExitOK || out != want {
+			t.Errorf("exit %d, want 0 and the report a run without ONESIE_PROFILE prints\nstderr:\n%s", code, errOut)
+		}
+	})
+
 	t.Run("should write the comparison as one json object under -o json", func(t *testing.T) {
 		t.Parallel()
 
@@ -499,10 +513,11 @@ func TestCompareCalibration(t *testing.T) {
 	})
 
 	refusals := []struct {
-		name  string
-		files func(t *testing.T, dir string) []string
-		extra []string
-		want  string
+		name   string
+		files  func(t *testing.T, dir string) []string
+		before []string
+		extra  []string
+		want   string
 	}{
 		{
 			name: "should refuse a file that does not exist",
@@ -545,13 +560,19 @@ func TestCompareCalibration(t *testing.T) {
 			extra: []string{"--out", "c.jsonl"},
 			want:  "--compare reads saved answers and asks nothing, so --out does not apply. Drop it",
 		},
+		{
+			name:   "should refuse --profile before the subcommand without looking the profile up",
+			files:  func(t *testing.T, dir string) []string { return []string{"a.jsonl", "b.jsonl"} },
+			before: []string{"--profile", "missing"},
+			want:   "--compare reads saved answers and asks nothing, so --profile does not apply. Drop it",
+		},
 	}
 
 	for _, tc := range refusals {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			args := comparing(tc.extra...)
+			args := append(append([]string{}, tc.before...), comparing(tc.extra...)...)
 			for _, file := range tc.files(t, t.TempDir()) {
 				args = append(args, "--compare", file)
 			}

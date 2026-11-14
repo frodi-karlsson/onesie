@@ -392,7 +392,6 @@ func choiceRows() []Row {
 			Env:     []EnvSpec{{Name: "ONESIE_PROVIDER", Order: 7, Help: providerEnvHelp}},
 			Profile: []ProfileMember{{Key: "provider"}},
 			Flag: FlagSpec{Long: "provider", Commands: onProfileWriters(CommandRoot), PerCommand: map[Command]CommandFlag{
-				CommandRoot: {Persistent: true},
 				CommandProfileCreate: {
 					Help: "The profile's provider: " + providers.Names() + ". Required.", Kind: Text(), Member: ProfileMember{Key: "provider"},
 				},
@@ -403,10 +402,8 @@ func choiceRows() []Row {
 		},
 		{
 			Name: "profile", HelpTopic: "connections", HelpValue: "NAME", Kind: NonEmptyText(), Modes: choosing(),
-			Env: []EnvSpec{{Name: "ONESIE_PROFILE", Order: 6, Help: profileEnvHelp}},
-			Flag: FlagSpec{Long: "profile", Commands: onRoot(), PerCommand: map[Command]CommandFlag{
-				CommandRoot: {Persistent: true},
-			}},
+			Env:  []EnvSpec{{Name: "ONESIE_PROFILE", Order: 6, Help: profileEnvHelp}},
+			Flag: FlagSpec{Long: "profile", Commands: onRoot()},
 			Help: "The profile a run uses, from profiles.json in the config dir. Overrides ONESIE_PROFILE and " +
 				"ONESIE_PROVIDER. Otherwise the default profile runs, which onesie profile use sets.",
 		},
