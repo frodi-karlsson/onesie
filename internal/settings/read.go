@@ -183,11 +183,11 @@ func flagValue(row settingrow.Row, bound settingrow.BoundFlag, flag *pflag.Flag,
 }
 
 func boundOn(row settingrow.Row, command settingrow.Command) (settingrow.BoundFlag, bool) {
-	if bound, registered := row.FlagOn(command); registered || command == settingrow.CommandRoot {
+	if bound, registered := row.FlagOn(command); registered || command == settingrow.CommandRoot || !choosesSource(row.Name) {
 		return bound, registered
 	}
 
-	// A root flag that command shares reads as root binds it. A flag command lacks is not in its set.
+	// A subcommand that reads the choice shares the root flags that make it.
 	return row.FlagOn(settingrow.CommandRoot)
 }
 

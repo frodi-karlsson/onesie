@@ -57,10 +57,8 @@ Flags:
   -h, --help                help for calibrate
       --label stringArray   [ID=]EXPR
       --offline             read every answer from the file
-      --require stringArray   a requirement
-
-Global Flags:
       --provider string   typesafe
+      --require stringArray   a requirement
 `
 	profileHelp = `Usage:
   onesie profile [command]
@@ -70,17 +68,12 @@ Available Commands:
 
 Flags:
   -h, --help   help for profile
-
-Global Flags:
-      --provider string   typesafe
 `
 	profileCreateHelp = `Usage:
   onesie profile create [flags]
 
 Flags:
       --file   store the key in the profiles file
-
-Global Flags:
       --provider string   typesafe
 `
 )

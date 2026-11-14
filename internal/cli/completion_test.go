@@ -38,6 +38,14 @@ func TestAddFlagCompletions(t *testing.T) {
 		}{name: "should offer the stored profiles to profile " + sub, args: []string{"profile", sub, ""}, want: []string{"home", "work"}})
 	}
 
+	for _, sub := range []string{"create", "update"} {
+		tests = append(tests, struct {
+			name string
+			args []string
+			want []string
+		}{name: "should offer every provider for profile " + sub + " --provider", args: []string{"profile", sub, "x", "--provider", ""}, want: []string{"typesafe", "vercel"}})
+	}
+
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
