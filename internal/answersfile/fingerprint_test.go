@@ -166,7 +166,7 @@ func TestFingerprint(t *testing.T) {
 		})
 	}
 
-	t.Run("should leave the sum alone for the provider's own base URL", func(t *testing.T) {
+	t.Run("should leave the sum alone for the provider's default base URL", func(t *testing.T) {
 		t.Parallel()
 
 		got, err := Fingerprint(questions, wired, inputs)
@@ -197,7 +197,7 @@ func TestStaleReason(t *testing.T) {
 		wantChanged []string
 		wantStale   bool
 	}{
-		{name: "should accept the run's own fingerprint", stored: current.String(), found: true},
+		{name: "should accept the run's fingerprint", stored: current.String(), found: true},
 		{name: "should refuse a file with no fingerprint", want: NoFingerprint, wantStale: true},
 		{
 			name: "should refuse a fingerprint onesie did not write", stored: "not a fingerprint", found: true,
@@ -218,7 +218,7 @@ func TestStaleReason(t *testing.T) {
 			want:   ForeignFingerprint, wantStale: true,
 		},
 		{
-			name: "should accept the run's own fingerprint written in uppercase hex", found: true,
+			name: "should accept the run's fingerprint written in uppercase hex", found: true,
 			stored: tagged("questions=" + strings.Repeat("AB", 8) + ",model=" + strings.Repeat("CD", 8)),
 		},
 		{
@@ -250,11 +250,12 @@ func TestStaleReason(t *testing.T) {
 	}
 }
 
-func TestPrint_Matches(t *testing.T) {
+func TestPrint_SameQuestionSet(t *testing.T) {
 	t.Parallel()
 
+	questions, policies, model := strings.Repeat("ab", 8), strings.Repeat("ef", 8), strings.Repeat("cd", 8)
 	current := Print{
-		parts: []partSum{{name: "questions", sum: strings.Repeat("ab", 8)}, {name: "model", sum: strings.Repeat("cd", 8)}},
+		parts: []partSum{{name: "questions", sum: questions}, {name: "policies", sum: policies}, {name: "model", sum: model}},
 	}
 
 	tests := []struct {
@@ -262,16 +263,36 @@ func TestPrint_Matches(t *testing.T) {
 		stored string
 		want   bool
 	}{
-		{name: "should match the run's own fingerprint", stored: current.String(), want: true},
-		{name: "should not match a run whose model changed", stored: tagged("questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8))},
+		{name: "should hold for the run's fingerprint", stored: current.String(), want: true},
+		{
+			name:   "should hold when only the model changed",
+			stored: tagged("questions=" + questions + ",policies=" + policies + ",model=" + strings.Repeat("00", 8)),
+			want:   true,
+		},
+		{
+			name:   "should hold when only the questions changed",
+			stored: tagged("questions=" + strings.Repeat("00", 8) + ",policies=" + policies + ",model=" + model),
+			want:   true,
+		},
+		{
+			name:   "should hold when only the policies changed",
+			stored: tagged("questions=" + questions + ",policies=" + strings.Repeat("00", 8) + ",model=" + model),
+			want:   true,
+		},
+		{
+			name:   "should not hold when the questions and the policies changed",
+			stored: tagged("questions=" + strings.Repeat("00", 8) + ",policies=" + strings.Repeat("00", 8) + ",model=" + model),
+		},
+		{name: "should not hold for an older version", stored: "v4:questions=" + questions + ",policies=" + policies},
+		{name: "should not hold for a sidecar it cannot read", stored: "nonsense"},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := current.Matches(tc.stored); got != tc.want {
-				t.Errorf("Matches(%q) = %v, want %v", tc.stored, got, tc.want)
+			if got := current.SameQuestionSet(tc.stored); got != tc.want {
+				t.Errorf("SameQuestionSet(%q) = %v, want %v", tc.stored, got, tc.want)
 			}
 		})
 	}

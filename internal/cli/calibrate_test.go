@@ -3421,6 +3421,7 @@ func TestAskedPlan(t *testing.T) {
 		first                  []string
 		firstStdin             string
 		second                 []string
+		secondExtra            []string
 		offline                bool
 		wantCode               int
 		wantAsked              []string
@@ -3490,6 +3491,17 @@ func TestAskedPlan(t *testing.T) {
 			stderr:     []string{"onesie: reading 4 records from "},
 		},
 		{
+			name:        "should name only the model when a file written with every label is read with one under another model",
+			first:       all,
+			firstStdin:  threeStdin,
+			second:      one,
+			secondExtra: []string{"-m", "jev-other"},
+			offline:     true,
+			wantCode:    ExitUsage,
+			stderr:      []string{"does not match this run, since the model changed since it was written"},
+			noStderr:    []string{"the questions"},
+		},
+		{
 			name:       "should refuse a file written with one label under --offline with every label",
 			first:      one,
 			firstStdin: threeStdin,
@@ -3520,9 +3532,9 @@ func TestAskedPlan(t *testing.T) {
 				t.Fatalf("first run exit %d, stderr:\n%s", code, errOut)
 			}
 
-			var extra []string
+			extra := tc.secondExtra
 			if tc.offline {
-				extra = []string{"--offline"}
+				extra = append(extra, "--offline")
 			}
 
 			stub := newCalibrateStub(t)
