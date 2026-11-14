@@ -175,13 +175,6 @@ func (p Print) String() string {
 	return fmt.Sprintf("v%d:%s", fingerprintVersion, strings.Join(written, ","))
 }
 
-// Matches reports whether stored is this run's fingerprint.
-func (p Print) Matches(stored string) bool {
-	_, _, stale := staleReason(stored, true, p)
-
-	return !stale
-}
-
 // SameQuestionSet reports whether stored was written with this run's set of questions, which a match
 // on either the questions or the policies shows, whatever else about the run changed.
 func (p Print) SameQuestionSet(stored string) bool {

@@ -250,33 +250,6 @@ func TestStaleReason(t *testing.T) {
 	}
 }
 
-func TestPrint_Matches(t *testing.T) {
-	t.Parallel()
-
-	current := Print{
-		parts: []partSum{{name: "questions", sum: strings.Repeat("ab", 8)}, {name: "model", sum: strings.Repeat("cd", 8)}},
-	}
-
-	tests := []struct {
-		name   string
-		stored string
-		want   bool
-	}{
-		{name: "should match the run's fingerprint", stored: current.String(), want: true},
-		{name: "should not match a run whose model changed", stored: tagged("questions=" + strings.Repeat("ab", 8) + ",model=" + strings.Repeat("00", 8))},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			if got := current.Matches(tc.stored); got != tc.want {
-				t.Errorf("Matches(%q) = %v, want %v", tc.stored, got, tc.want)
-			}
-		})
-	}
-}
-
 func TestPrint_SameQuestionSet(t *testing.T) {
 	t.Parallel()
 
