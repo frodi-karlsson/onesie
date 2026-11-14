@@ -10,5 +10,5 @@ home_address:
   ask: does this text contain a home address
 credential:
   ask: does this text contain a password, access token or API key
-  yes_means: it holds a secret value someone could use to sign in, such as a password, a token, an API key or a private key block
-  no_means: it holds no usable secret. A placeholder such as sk-..., the name of a variable that holds a key, a public key and where a password is kept are not one
+  yes_means: it holds a secret value written out in full, such as a password, a token, an API key or a private key block, even one that looks like a test or example value
+  no_means: it holds no secret value. A value cut short with ... or left as <your-key>, the name of a variable that holds a key, a public key and where a password is kept are not one

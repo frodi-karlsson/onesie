@@ -215,18 +215,18 @@ assert: name_contact.value < 0.15 and email_phone.value < 0.4 and home_address.v
 abstain_if: name_contact.value < 0.5 and email_phone.value < 0.7 and home_address.value < 0.94 and credential.value < 0.38
 ```
 
-Text passes only when each question sits below its pass cut. `name_contact` at 0.15 sits 0.15 below
-a shipping label at 0.30, the lowest labelled yes. `email_phone` at 0.4, `home_address` at 0.45
-and `credential` at 0.2 sit 0.48, 0.53 and 0.14 below theirs. Text is blocked when `name_contact`
-reaches 0.5, `email_phone` 0.7, `home_address` 0.94 or `credential` 0.38. They sit 0.30, 0.25, 0.06
-and 0.32 above the highest labelled no.
+Text passes only when each question sits below its pass cut. `name_contact` at 0.15 sits 0.09 below
+a shipping label at 0.24, the lowest labelled yes. `email_phone` at 0.4, `home_address` at 0.45
+and `credential` at 0.2 sit 0.49, 0.53 and 0.74 below theirs. Text is blocked when `name_contact`
+reaches 0.5, `email_phone` 0.7, `home_address` 0.94 or `credential` 0.38. They sit 0.31, 0.18, 0.04
+and 0.31 above the highest labelled no.
 
-The `home_address` block cut has little margin. `221B Baker Street`, a museum, scored 0.88 and the
+The `home_address` block cut has little margin. `221B Baker Street`, a museum, scored 0.90 and the
 lowest labelled home address 0.98. The model cannot tell a real address from a famous or fictional
 one, so such an address may be blocked or go to a person, which this set accepts.
 
-On the sample, 14 texts passed and all were clean. 18 texts with personal data were blocked, and
-the other 1 went to a person. 3 clean texts went to a person: a museum address, a landmark address
+On the sample, 14 texts passed and all were clean. All 19 texts with personal data were
+blocked. 3 clean texts went to a person: a museum address, a landmark address
 and an SSH public key. A public support address and a `noreply` address both passed, since the
 email question asks for an address that belongs to a person. `hr@example.com` with a named recipient
 scored 0.11 on `email_phone`, since a shared inbox belongs to a role and not a person.
@@ -250,13 +250,14 @@ home_address, yes/no: labelled 36, 3 yes, 33 no, 0 errors. AUC 1.00, interval 0.
 credential, yes/no: labelled 36, 8 yes, 28 no, 0 errors. AUC 1.00, interval 0.84-1.00
   cut   flagged  catches         false alarms   right when flagged
   0.20        8  8/8 99% 68-99%  0/28 1% 1-12%  8/8 99% 68-99%
-  0.38        7  7/8 88% 53-98%  0/28 1% 1-12%  7/7 99% 65-99%
+  0.38        8  8/8 99% 68-99%  0/28 1% 1-12%  8/8 99% 68-99%
 ```
 
-Where the model disagreed: a test API key, `OPENAI_API_KEY=sk-test-` and a run of zeros, scored
-only 0.34 on `credential`, while a fake password or private key scored far higher. It passes no
-gate, but it goes to a person rather than being blocked. A shipping label with a name and a street
-address scored 0.30 on `name_contact`, though the address question caught it at 0.98.
+Where the model disagreed: an SSH public key scored 0.52 on `email_phone`, since its comment
+`dev@laptop` reads like an address. A shipping label with a name and a street address scored 0.24
+on `name_contact`, though the address question caught it at 0.98. The credential question counts a
+value written out in full as a secret, even a test one, and a value cut short, such as `sk-...`,
+as a placeholder.
 
 ## moderation
 
@@ -445,9 +446,8 @@ The cuts tell the other half. At the same 10 percent false alarm budget, Jev cut
 at 0.81 and Sage at 0.977, since Sage answers close to 0 or 1. The file's gate was set on Jev, so on
 `overrides` Sage carries seven no records over the gate's 0.5 cut, each a false alarm the gate
 would raise. Switching vendors means setting the gate again from the new model's answers, even
-where its AUC holds. The other sets show it too, with AUCs within 0.01 of Jev's: Gemini carries two
-records over the `credential` cut in personal data, and four over the `destroys` cut in shell
-safety.
+where its AUC holds. The other sets show it too, with AUCs within 0.01 of Jev's: in shell safety
+Gemini carries four records over the `destroys` cut and two over the `secrets` cut.
 
 The default table stops at a cut of 0.95, which is too low for Sage. On `instructs` it still raises
 3 of 20 false alarms there, so pass `--cuts 0.9,0.95,0.98,0.99` to see the cuts its answers need.
