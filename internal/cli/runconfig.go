@@ -3,7 +3,6 @@ package cli
 import (
 	"errors"
 	"fmt"
-	"io"
 	"time"
 	"unicode/utf8"
 
@@ -56,7 +55,6 @@ type runConfig struct {
 
 	calibrate *calibrateFlags
 	stdoutTTY bool
-	stdout    io.Writer
 }
 
 func (c runConfig) withMerged(merged *setting.Merged) runConfig {

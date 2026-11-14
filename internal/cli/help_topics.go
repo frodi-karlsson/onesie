@@ -128,10 +128,11 @@ func helpDecisions() string {
 		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut.\n\n" +
 		"--keep prints each input record as read when its verdict is one it names, and nothing else on stdout. " +
 		"A JSONL or lines record prints as its line. A CSV or TSV stream prints its header, then each kept row written again with the input separator, so quoting may differ. " +
-		"The answers go to --out, which holds what the same run writes without --keep, or nowhere. " +
+		"The answers go to --out or nowhere. --keep turns --skip-blank on, so the file holds what the same run writes with --skip-blank, and a --resume of it needs --skip-blank too. " +
+		"--keep refuses --resume, so finish a file with --resume alone, then pass it as --mock FILE beside --keep to replay its answers. " +
 		"With --assert a record keeps the gate's verdict, and --keep unsure needs --abstain-if. Without --assert, --keep judges one question as quiet mode does. " +
 		"A stream under --keep exits 0 whatever it kept, or 6 when a record ended in an error. " +
-		"An error prints only under --keep error, and stderr names up to five causes, then counts the rest."
+		"An error prints only under --keep error. stderr names each of the first five causes as its record is written, and counts the rest when the stream ends."
 }
 
 func helpOutput(command settingrow.Command) string {

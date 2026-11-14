@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/csv"
 	"fmt"
 	"io"
 	"strings"
@@ -9,35 +8,44 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/engine"
 	"github.com/frodi-karlsson/onesie/internal/input"
 	"github.com/frodi-karlsson/onesie/internal/output"
-	"github.com/frodi-karlsson/onesie/internal/wording"
 )
 
 type keeper struct {
 	out      io.Writer
-	errOut   io.Writer
 	verdicts verdictSet
 	mode     input.Mode
 	header   func() []string
 	comma    func() rune
+	causes   *causeList
 	seen     []string
 	headed   bool
-	table    *csv.Writer
-	causes   []string
-	more     int
+	rows     *output.FieldWriter
 }
 
-func (k *keeper) write(l line, verdict output.Verdict) error {
+func newKeeper(out, errOut io.Writer, verdicts, stops verdictSet, mode input.Mode, source *naming) *keeper {
+	kept := &keeper{out: out, verdicts: verdicts, mode: mode, header: source.header, comma: source.comma}
+
+	// Under --stop-on=error onesie reports the one error that reaches the keeper, so it names none.
+	if !stops.has(output.Error) {
+		kept.causes = &causeList{w: errOut}
+	}
+
+	return kept
+}
+
+func (k *keeper) write(l line) error {
 	if k.seen == nil {
 		k.seen = l.input.Header
 	}
 
 	printable := k.printable(l.input)
-	if verdict == output.Error {
-		// A kept error with no text to print is named whatever the cap, so it is never lost.
-		k.note(l, k.verdicts.has(output.Error) && !printable)
+	kept := k.verdicts.has(l.verdict)
+
+	if err := k.name(l, kept && !printable); err != nil {
+		return err
 	}
 
-	if !k.verdicts.has(verdict) || !printable {
+	if !kept || !printable {
 		return nil
 	}
 
@@ -79,19 +87,22 @@ func rowOf(rec input.Record) []string {
 	return row
 }
 
-func (k *keeper) note(l line, always bool) {
-	if len(k.causes) >= maxCauses && !always {
-		k.more++
-
-		return
+func (k *keeper) name(l line, unprinted bool) error {
+	// The record that aborts the run is named by the error onesie reports for it, and so is every
+	// record that failed the same way before the abort reached them.
+	if l.verdict != output.Error || l.aborts || k.causes == nil {
+		return nil
 	}
 
-	message := l.record.Failure.Message
-	if prefix := fmt.Sprintf("line %d: ", l.input.Line); l.input.Line > 0 && !strings.HasPrefix(message, prefix) {
-		message = prefix + message
+	name := fmt.Sprintf("line %d", l.input.Line)
+	message := strings.TrimPrefix(l.record.Failure.Message, name+": ")
+
+	// A kept error with no text to print is named whatever the cap, so it is never lost.
+	if unprinted {
+		return k.causes.always(name, message)
 	}
 
-	k.causes = append(k.causes, message)
+	return k.causes.name(name, message)
 }
 
 func (k *keeper) writeHeader() error {
@@ -114,67 +125,28 @@ func (k *keeper) writeHeader() error {
 }
 
 func (k *keeper) writeRow(fields []string) error {
-	// A tsv field holds no tab or line break, since the reader splits on them, so it needs no quoting.
-	if k.mode == input.TSV {
-		_, err := io.WriteString(k.out, strings.Join(fields, "\t")+"\n")
-
-		return err
-	}
-
-	if k.table == nil {
-		k.table = csv.NewWriter(k.out)
-		if comma := k.comma(); comma != 0 {
-			k.table.Comma = comma
+	if k.rows == nil {
+		mode := output.CSV
+		if k.mode == input.TSV {
+			mode = output.TSV
 		}
+
+		k.rows = output.NewFieldWriter(k.out, mode, k.comma())
 	}
 
-	if err := k.table.Write(fields); err != nil {
-		return err
-	}
-
-	// Flushed per row, so a reader such as head sees each kept row as it is decided.
-	k.table.Flush()
-
-	return k.table.Error()
+	return k.rows.WriteRow(fields)
 }
 
-func (k *keeper) finish(result engine.Result, reported bool) error {
+func (k *keeper) finish(result engine.Result) error {
 	if k.mode.Delimited() && !result.Broken {
 		if err := k.writeHeader(); err != nil && !engine.BrokenPipe(err) {
 			return err
 		}
 	}
 
-	// The record that ended the run is already named by the error onesie reports for it.
-	if result.Aborted && reported {
-		k.drop(text(result.Cause))
-	}
-
-	for _, message := range k.causes {
-		if err := output.Notice(k.errOut, message); err != nil {
-			return err
-		}
-	}
-
-	if k.more == 0 {
+	if k.causes == nil {
 		return nil
 	}
 
-	return output.Notice(k.errOut, "and "+wording.Plural(k.more, "more error", "more errors"))
-}
-
-func (k *keeper) drop(message string) {
-	if k.more > 0 {
-		k.more--
-
-		return
-	}
-
-	for i := len(k.causes) - 1; i >= 0; i-- {
-		if strings.HasSuffix(k.causes[i], message) {
-			k.causes = append(k.causes[:i], k.causes[i+1:]...)
-
-			return
-		}
-	}
+	return k.causes.finish()
 }

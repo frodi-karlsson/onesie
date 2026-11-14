@@ -79,7 +79,7 @@ func quietOnStreamRule() Rule {
 		ID: "quiet-reads-one-record",
 		Check: func(v View) error {
 			if inputModeOf(v).Streaming() && Get(v.Merged, Quiet) {
-				return fmt.Errorf("-q reads one record. Drop -i %s, or pass --keep to print the records that pass", inputName(v))
+				return fmt.Errorf("-q reads one record. Drop -i %s, or pass --keep pass in place of -q to print the records that pass", inputName(v))
 			}
 
 			return nil

@@ -106,6 +106,7 @@ func run(
 	cmd *cobra.Command,
 	settings rootSettings,
 	ready staged,
+	stdout io.Writer,
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -135,7 +136,7 @@ func run(
 			inv.abstain.Source(), inv.loaded, settings.schemaURL)
 	}
 
-	return runPlan(cmd, settings, flags, inv, out, resume)
+	return runPlan(cmd, settings, flags, inv, stdout, out, resume)
 }
 
 func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
@@ -167,6 +168,7 @@ func runPlan(
 	settings rootSettings,
 	flags runConfig,
 	inv *invocation,
+	stdout io.Writer,
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -212,7 +214,7 @@ func runPlan(
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(cmd, streamInputs{
 				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
-				resume: resume, answerers: answers,
+				resume: resume, answerers: answers, stdout: stdout,
 			})
 		})
 	}
@@ -604,7 +606,7 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func stopping(stops verdictSet, verdictOf func(line) output.Verdict) func(line) bool {
+func stopping(stops verdictSet) func(line) bool {
 	if !stops.judges() {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
@@ -614,22 +616,22 @@ func stopping(stops verdictSet, verdictOf func(line) output.Verdict) func(line) 
 	return func(l line) bool {
 		// An error stops the run through the engine's StopOnError, which also gives it the error's
 		// exit code.
-		verdict := verdictOf(l)
-
-		return verdict != output.Error && stops.has(verdict)
+		return l.verdict != output.Error && stops.has(l.verdict)
 	}
 }
 
 type line struct {
-	record output.Record
-	raw    string
-	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
-	header []string
-	fields map[string]any
-	slot   int
-	halted bool
-	call   *sharedCall
-	input  input.Record
+	record  output.Record
+	raw     string
+	state   any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
+	header  []string
+	fields  map[string]any
+	slot    int
+	halted  bool
+	call    *sharedCall
+	input   input.Record
+	verdict output.Verdict
+	aborts  bool
 }
 
 func streamResult(result engine.Result, judged output.Tally, keeping bool) error {

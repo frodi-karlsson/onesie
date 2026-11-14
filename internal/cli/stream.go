@@ -53,6 +53,7 @@ type streamInputs struct {
 	answers    *answersfile.File
 	resume     answersfile.Resume
 	answerers  answererFactory
+	stdout     io.Writer
 }
 
 func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
@@ -105,10 +106,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 	}
 
 	if !kept.empty() {
-		run.keeper = &keeper{
-			out: in.flags.stdout, errOut: cmd.ErrOrStderr(), verdicts: kept, mode: in.flags.inputMode,
-			header: run.source.header, comma: run.source.comma,
-		}
+		run.keeper = newKeeper(in.stdout, cmd.ErrOrStderr(), kept, stops, in.flags.inputMode, run.source)
 
 		// Without a gate --keep judges the one question as -q does, apart from the record the file gets.
 		if inv.gate == nil {
@@ -124,7 +122,7 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		})
 	}
 
-	run.stop = watched(stopping(stops, run.verdictOf), &run.stopped)
+	run.stop = watched(stopping(stops), &run.stopped)
 
 	return run, nil
 }
@@ -160,19 +158,17 @@ type streamRun struct {
 	alone         decider
 }
 
-func (r *streamRun) verdictOf(l line) output.Verdict {
-	verdict := l.record.Verdict()
-	if verdict == output.Answered && r.alone != nil {
-		return r.alone(l.record)
-	}
-
-	return verdict
-}
-
 func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error) {
 	l, err := r.lineFor(ctx, rec)
 	l.slot = rec.slot
 	l.input = rec.Record
+
+	// A line that failed carries no answers to judge, and one cut short by a stop or an interrupt is
+	// never written.
+	l.verdict = output.Error
+	if err == nil {
+		l.verdict = r.verdictOf(l.record)
+	}
 
 	// A merged record is the input record, so it names itself, and gains nothing.
 	if !merging(r.flags) {
@@ -180,6 +176,15 @@ func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error)
 	}
 
 	return l, err
+}
+
+func (r *streamRun) verdictOf(record output.Record) output.Verdict {
+	verdict := record.Verdict()
+	if verdict == output.Answered && r.alone != nil {
+		return r.alone(record)
+	}
+
+	return verdict
 }
 
 func (r *streamRun) lineFor(ctx context.Context, rec namedRecord) (line, error) {
@@ -296,6 +301,7 @@ func (r *streamRun) ask(ctx context.Context, rec namedRecord, sent any, assets o
 		// answer.value < 0.5 would hold for a request that never happened.
 		failed := rowLine(record, rec)
 		failed.halted = halting(err)
+		failed.aborts = aborting(err)
 		failed.call = call
 
 		return failed, err
@@ -323,8 +329,8 @@ func (r *streamRun) write(l line) error {
 
 	// Tallied here rather than where the gate is asked, so a record still in flight when a stop
 	// ends the run neither counts in --stats nor outranks the verdict that stopped it.
-	if verdict := l.record.Verdict(); verdict != output.Error {
-		r.stats.judged(verdict)
+	if l.verdict != output.Error {
+		r.stats.judged(l.verdict)
 	}
 
 	if setting.Get(r.flags.merged, setting.Usage) {
@@ -339,7 +345,7 @@ func (r *streamRun) write(l line) error {
 		return nil
 	}
 
-	return r.keeper.write(l, r.verdictOf(l))
+	return r.keeper.write(l)
 }
 
 func (r *streamRun) writeAnswers(l line) error {
@@ -409,7 +415,7 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.
 	outcome := streamResult(result, r.stats.verdicts(), r.keeper != nil)
 	if r.keeper != nil {
-		if causesErr := r.keeper.finish(result, worthReporting(outcome)); causesErr != nil && outcome == nil {
+		if causesErr := r.keeper.finish(result); causesErr != nil && outcome == nil {
 			return causesErr
 		}
 	}

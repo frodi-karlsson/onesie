@@ -527,13 +527,18 @@ semicolons back, merged or not.
 
 **Run a big batch you can resume.** `--map` sends only the body, `--id` names each answer, and
 `--resume` skips every id the file already answers and asks the rest, errors included. `--keep`
-refuses `--resume`, since the skipped records would be missing from its output, so filter the file
-with `jq` instead.
+refuses `--resume`, since the skipped records would be missing from its output. So finish the file
+first, then pass it to `--mock`, which replays its answers and asks nothing. An error replays as an
+error, and another `--threshold` sorts the same answers again. `--mock` reads only a file `-o json`
+wrote without `--merge`.
 
 ```sh
 onesie 'is this urgent' -i jsonl -j 8 --map '.body' --id '.id' \
     --out answers.jsonl --resume < tickets.jsonl
-jq -c 'select(.answer.value > 0.8)' answers.jsonl
+onesie 'is this urgent' -i jsonl --map '.body' --id '.id' --mock answers.jsonl --keep pass \
+    < tickets.jsonl > urgent.jsonl
+onesie 'is this urgent' -i jsonl --map '.body' --id '.id' --mock answers.jsonl --keep pass \
+    --threshold 0.8 < tickets.jsonl > very-urgent.jsonl
 ```
 
 **Comment on a pull request.** The output starts with the gate result as a GitHub alert, followed

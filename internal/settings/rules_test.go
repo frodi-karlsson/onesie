@@ -387,7 +387,7 @@ func TestValidate(t *testing.T) {
 			name:       "should report a streaming -q before -o table",
 			positional: "is this urgent",
 			set:        values{"quiet": true, "output": "table", "input": "jsonl"},
-			wantExact:  "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
+			wantExact:  "-q reads one record. Drop -i jsonl, or pass --keep pass in place of -q to print the records that pass",
 		},
 		{
 			name:       "should report --resume without --out before --prune",
@@ -413,7 +413,7 @@ func TestValidate(t *testing.T) {
 			name:      "should report a streaming -q before the plan rules",
 			events:    []argv.Event{{Name: "ask", Value: "a=one"}, {Name: "ask", Value: "b=two"}},
 			set:       values{"quiet": true, "input": "jsonl"},
-			wantExact: "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
+			wantExact: "-q reads one record. Drop -i jsonl, or pass --keep pass in place of -q to print the records that pass",
 		},
 		{
 			name:       "should refuse -q with --merge",
@@ -1044,6 +1044,8 @@ func TestValidate(t *testing.T) {
 			return run{planned: true, events: one, set: merged, typed: append([]settingrow.Name{"keep", "input"}, typed...)}
 		}
 		without := "--keep prints the input records, which leaves %s nothing to write. Pass --out FILE to write the answers there"
+		unreplayable := "--keep prints only the records a run asks, and --resume skips the answered ones. " +
+			"Drop --resume to ask every record again, or pass --cache, which asks the answered ones again for free when every run passed it"
 
 		for _, tc := range []struct {
 			name  string
@@ -1052,9 +1054,18 @@ func TestValidate(t *testing.T) {
 		}{
 			{name: "should refuse -q", given: kept(values{"quiet": true}), want: "-q suppresses output, which leaves --keep nothing to print"},
 			{
-				name: "should refuse --resume and name --cache", given: kept(values{"resume": true, "out": "a.jsonl"}, "resume", "out"),
+				name: "should refuse --resume and name the --mock replay", given: kept(values{"resume": true, "out": "a.jsonl"}, "resume", "out"),
 				want: "--keep prints only the records a run asks, and --resume skips the answered ones. " +
-					"Pass --cache instead, which asks the answered records again for free and prints the whole kept output",
+					"Finish the --out file with --resume and no --keep, then pass it as --mock FILE beside --keep, " +
+					"which replays its answers for free. --cache does the same when every run passed it",
+			},
+			{
+				name:  "should refuse --resume of a merged file and name only --cache",
+				given: kept(values{"resume": true, "out": "a.jsonl", "merge": true}, "resume", "out", "merge"), want: unreplayable,
+			},
+			{
+				name:  "should refuse --resume of a csv file and name only --cache",
+				given: kept(values{"resume": true, "out": "a.csv", "output": "csv"}, "resume", "out", "output"), want: unreplayable,
 			},
 			{name: "should refuse -o json without --out", given: kept(values{"output": "json"}, "output"), want: fmt.Sprintf(without, "-o json")},
 			{name: "should refuse -o csv without --out", given: kept(values{"output": "csv"}, "output"), want: fmt.Sprintf(without, "-o csv")},
@@ -1505,7 +1516,7 @@ func ruleCases() []ruleCase {
 			rule:    "quiet-reads-one-record",
 			refused: run{set: values{"quiet": true, "input": "jsonl"}},
 			passed:  run{set: values{"quiet": true}},
-			wantErr: "-q reads one record. Drop -i jsonl, or pass --keep to print the records that pass",
+			wantErr: "-q reads one record. Drop -i jsonl, or pass --keep pass in place of -q to print the records that pass",
 		},
 		{
 			rule:    "keep-prints-the-records",

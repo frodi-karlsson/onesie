@@ -50,7 +50,7 @@ Answers sit at the top level keyed by question id. `--merge` folds them under an
 
 ### On live input, keep each line by its verdict, since a stream's exit code arrives only at the end.
 
-A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: `--keep fail,error` prints each input line whose verdict is fail or error as soon as it is decided, and nothing else. Keep `error` too, as the good example does, since an error is not an all clear. To act on the answers rather than the input, drop `--keep`: under `--assert` every line carries a `verdict` of `pass`, `fail`, `unsure` or `error`, at the top or under `--merge` inside `.answers`, and `jq --unbuffered` passes each match on at once.
+A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: `--keep fail,error` prints each input line whose verdict is fail or error as soon as it is decided, and nothing else. Each of the first five errors names its cause on stderr as it comes, too. Keep `error` too, as the good example does, since an error is not an all clear. To act on the answers rather than the input, drop `--keep`: under `--assert` every line carries a `verdict` of `pass`, `fail`, `unsure` or `error`, at the top or under `--merge` inside `.answers`, and `jq --unbuffered` passes each match on at once.
 
 **Bad:**
 

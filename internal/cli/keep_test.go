@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -69,6 +70,13 @@ func TestKeeper(t *testing.T) {
 			stdin: "id,text\n", mock: "{\"answer\":0.1}\n", wantOut: "id,text\n",
 		},
 		{
+			name:  "should quote a kept row of one empty field, so a csv reader reads it back",
+			args:  []string{"is this urgent", "-i", "csv", "--map", ".t", "--keep", "pass,error"},
+			stdin: "t\nfirst\n\"\"\nlast\n", mock: "{\"answer\":0.9}\n", wantCode: ExitRecords,
+			wantOut: "t\nfirst\n\"\"\nlast\n",
+			wantErr: "onesie: line 3: --map: empty string, an empty state is a request the model cannot answer\n",
+		},
+		{
 			name:  "should print tsv rows with tabs and no quoting",
 			args:  []string{"is this urgent", "-i", "tsv", "--map", ".text", "--keep", "pass"},
 			stdin: "id\ttext\n1\t\"q\"\n2\tb\n", mock: "{\"answer\":0.9}\n{\"answer\":0.1}\n", wantOut: "id\ttext\n1\t\"q\"\n",
@@ -115,6 +123,17 @@ func TestKeeper(t *testing.T) {
 				"onesie: line 5: 503 status code, no body\nonesie: and 2 more errors\n",
 		},
 		{
+			name:  "should leave every record a refused key failed to the one error onesie reports",
+			args:  []string{"is this urgent", "-i", "lines", "--keep", "pass", "-j", "16", "--retries", "0"},
+			stdin: strings.Repeat("x\n", 40), mock: "{\"error\":401}\n", wantCode: ExitAuth,
+			wantErr: "onesie: 401 status code, no body\n",
+		},
+		{
+			name:  "should count a fail in --stats without --assert",
+			args:  []string{"is this urgent", "-i", "lines", "--keep", "pass", "--stats"},
+			stdin: "a\nb\n", mock: "{\"answer\":0.9}\n{\"answer\":0.2}\n", wantOut: "a\n", wantErrHas: ", 1 fail, ",
+		},
+		{
 			name:  "should name a kept error it has no text to print",
 			args:  []string{"is this urgent", "-i", "lines", "--keep", "error"},
 			stdin: strings.Repeat("x", 8<<20+1) + "\nok\n", mock: "{\"answer\":0.9}\n", wantCode: ExitRecords,
@@ -138,12 +157,68 @@ func TestKeeper(t *testing.T) {
 				out = sortedLines(out)
 			}
 
-			if code != tc.wantCode || out != tc.wantOut || errOut != tc.wantErr {
+			stderrOK := errOut == tc.wantErr
+			if tc.wantErrHas != "" {
+				stderrOK = strings.Contains(errOut, tc.wantErrHas)
+			}
+
+			if code != tc.wantCode || out != tc.wantOut || !stderrOK {
 				t.Errorf("exit %d, stdout %q, stderr %q\nwant exit %d, stdout %q, stderr %q",
 					code, out, errOut, tc.wantCode, tc.wantOut, tc.wantErr)
 			}
 		})
 	}
+
+	t.Run("should name and count each error written after a refused key, but not the key's own record", func(t *testing.T) {
+		t.Parallel()
+
+		mock := strings.Repeat("{\"error\":500}\n", 2) + "{\"error\":401}\n" + strings.Repeat("{\"error\":500}\n", 37)
+		answers := filepath.Join(t.TempDir(), "answers.jsonl")
+		env := map[string]string{"ONESIE_MOCK": writeMock(t, mock)}
+
+		_, errOut, code := runMocked(t, t.Context(), []string{
+			"is this urgent", "-i", "lines", "--keep", "pass", "-j", "16", "--retries", "0", "--out", answers,
+		}, strings.Repeat("x\n", 40), env, nil)
+
+		notices := strings.Split(strings.TrimSuffix(errOut, "\n"), "\n")
+		last := notices[len(notices)-1]
+
+		named := 0
+		for _, notice := range notices[:len(notices)-1] {
+			var more int
+			if _, err := fmt.Sscanf(notice, "onesie: and %d more", &more); err == nil {
+				named += more
+
+				continue
+			}
+
+			named++
+		}
+
+		written := strings.Count(readText(t, answers), "\"status\":500")
+		if code != ExitAuth || last != "onesie: 401 status code, no body" || strings.Contains(errOut, "line 3:") || named != written {
+			t.Errorf("exit %d, stderr %q, with %d errors named or counted and %d written, "+
+				"want exit 3, each written error named or counted once, then the 401 alone", code, errOut, named, written)
+		}
+	})
+
+	t.Run("should print the whole kept output again from --cache and ask nothing", func(t *testing.T) {
+		t.Parallel()
+
+		stub := newAnswerStub(t)
+		env := cacheEnv(t)
+		args := []string{"is this urgent", "-i", "lines", "--cache", "--keep", "pass", "--base-url", stub.url}
+
+		for run := range 2 {
+			if out, errOut, code := runCached(t, env, args, "a\nb\n"); code != ExitOK || out != "a\nb\n" {
+				t.Fatalf("run %d exit %d, stdout %q, stderr %q, want exit 0 and both lines", run+1, code, out, errOut)
+			}
+		}
+
+		if asked := stub.requests.Load(); asked != 2 {
+			t.Errorf("%d requests over two runs, want 2, the first run's", asked)
+		}
+	})
 
 	t.Run("should write to --out what the same run writes without --keep", func(t *testing.T) {
 		t.Parallel()

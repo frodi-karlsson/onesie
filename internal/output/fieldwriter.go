@@ -9,22 +9,25 @@ import (
 	"github.com/frodi-karlsson/onesie/internal/delimiter"
 )
 
-func newFieldWriter(w io.Writer, mode Mode, comma rune) *fieldWriter {
+// NewFieldWriter writes csv or tsv rows to w, with comma as the csv separator when it is not zero.
+func NewFieldWriter(w io.Writer, mode Mode, comma rune) *FieldWriter {
 	destination := checkedFieldSink{writer: w}
 	rows := csv.NewWriter(destination)
 	if comma != 0 {
 		rows.Comma = comma
 	}
-	return &fieldWriter{destination: destination, rows: rows, mode: mode}
+	return &FieldWriter{destination: destination, rows: rows, mode: mode}
 }
 
-type fieldWriter struct {
+// FieldWriter encodes one delimited row at a time, so a row a reader would skip, such as one empty field, reads back.
+type FieldWriter struct {
 	destination checkedFieldSink
 	rows        *csv.Writer
 	mode        Mode
 }
 
-func (w *fieldWriter) WriteRow(fields []string) error {
+// WriteRow writes one row and flushes it.
+func (w *FieldWriter) WriteRow(fields []string) error {
 	if len(fields) == 0 {
 		return errors.New("a delimited row requires at least one field")
 	}

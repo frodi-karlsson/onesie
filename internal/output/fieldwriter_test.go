@@ -38,7 +38,7 @@ func TestNewFieldWriter(t *testing.T) {
 				t.Parallel()
 
 				var buf bytes.Buffer
-				writer := newFieldWriter(&buf, tc.mode, tc.comma)
+				writer := NewFieldWriter(&buf, tc.mode, tc.comma)
 				for _, row := range tc.rows {
 					if err := writer.WriteRow(row); err != nil {
 						t.Fatal(err)
@@ -89,7 +89,7 @@ func TestNewFieldWriter(t *testing.T) {
 				t.Parallel()
 
 				var buf bytes.Buffer
-				if err := newFieldWriter(&buf, tc.mode, tc.comma).WriteRow(tc.row); err == nil {
+				if err := NewFieldWriter(&buf, tc.mode, tc.comma).WriteRow(tc.row); err == nil {
 					t.Fatal("expected error")
 				}
 				if buf.Len() != 0 {
@@ -110,7 +110,7 @@ func TestNewFieldWriter(t *testing.T) {
 				t.Run("should propagate destination errors "+mode.String()+strings.Join(row, ""), func(t *testing.T) {
 					t.Parallel()
 
-					err := newFieldWriter(fieldFailureWriter{err: failure}, mode, 0).WriteRow(row)
+					err := NewFieldWriter(fieldFailureWriter{err: failure}, mode, 0).WriteRow(row)
 					if !errors.Is(err, failure) {
 						t.Fatalf("got %v", err)
 					}
@@ -121,7 +121,7 @@ func TestNewFieldWriter(t *testing.T) {
 	t.Run("should detect a short write", func(t *testing.T) {
 		t.Parallel()
 
-		err := newFieldWriter(fieldFailureWriter{}, CSV, 0).WriteRow([]string{"x"})
+		err := NewFieldWriter(fieldFailureWriter{}, CSV, 0).WriteRow([]string{"x"})
 		if !errors.Is(err, io.ErrShortWrite) {
 			t.Fatalf("got %v", err)
 		}
@@ -130,7 +130,7 @@ func TestNewFieldWriter(t *testing.T) {
 		t.Parallel()
 
 		destination := &fieldShortStringWriter{}
-		err := newFieldWriter(destination, CSV, 0).WriteRow([]string{strings.Repeat("x", 8192)})
+		err := NewFieldWriter(destination, CSV, 0).WriteRow([]string{strings.Repeat("x", 8192)})
 		if !errors.Is(err, io.ErrShortWrite) {
 			t.Fatalf("got %v, want short write", err)
 		}

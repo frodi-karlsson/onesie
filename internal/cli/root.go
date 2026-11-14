@@ -222,7 +222,7 @@ func runRoot(
 	}
 
 	// Held before --out takes stdout over, since --keep prints the records there.
-	ready.config.stdout = cmd.OutOrStdout()
+	stdout := cmd.OutOrStdout()
 
 	out, resume, err := openOut(settings, ready.config, false)
 
@@ -235,12 +235,12 @@ func runRoot(
 	}
 
 	if out == nil {
-		return run(cmd, settings, ready, nil, resume)
+		return run(cmd, settings, ready, stdout, nil, resume)
 	}
 
 	cmd.SetOut(out)
 
-	runErr := run(cmd, settings, ready, out, resume)
+	runErr := run(cmd, settings, ready, stdout, out, resume)
 
 	return settings.laterFailures.keepFirst(runErr, out.Finish(runErr))
 }
