@@ -78,10 +78,11 @@ func helpInput(command settingrow.Command) string {
 	separator := "--delimiter auto needs CSV input, detects its separator and uses it for CSV output. "
 	images := "For one record, stdin is read beside an image only through --state -. Text can also join it through --state. Images cannot be mixed with request input. "
 	lineImage := "Under lines input the line itself is the path. "
+	keptBlank := "--keep drops them too unless --skip-blank is given, so --skip-blank=false keeps an error per blank line. "
 	numbering := "In the JSON modes a stream record carries line, its input line number, with the header as line 1 in CSV and TSV. " +
 		"A merged record carries none, since it is the input record. -o csv, tsv and raw carry no line, so match their records to the input with --id. "
 	if command == settingrow.CommandCalibrate {
-		numbering = ""
+		numbering, keptBlank = "", ""
 		intro = "Calibration requires JSONL, CSV or TSV records on stdin. "
 		original = "Labels are selected from the original record."
 		separator = "--delimiter auto detects the separator of CSV input. "
@@ -92,7 +93,7 @@ func helpInput(command settingrow.Command) string {
 		"--map runs a jq expression on each original record and sends its result as the state. Map only the text a person would read. " +
 		"Object keys come out sorted. The result may nest max-map-depth levels deep and encode to max-line-bytes, as version lists. " + original + "\n\n" +
 		"--id runs one record at a time as input is read. Its result must be a string or number. Keep it cheap, such as a field lookup. " +
-		"version lists max-id-bytes. --skip-blank drops blank lines without emitting a result. " + numbering +
+		"version lists max-id-bytes. --skip-blank drops blank lines without emitting a result. " + keptBlank + numbering +
 		"The default field separator is " + strconv.QuoteRune(delimiter.DefaultComma) + ". " + separator +
 		"An explicit delimiter takes one character. TSV uses tabs.\n\n" +
 		"--image NAME=PATH adds a PNG or JPEG under NAME. " + images + "Streams read stdin and add the fixed image to every record. " +
@@ -103,7 +104,7 @@ func helpInput(command settingrow.Command) string {
 func helpDecisions() string {
 	return "--threshold adds a boolean decision to a yes or no probability. A false decision alone does not change the exit code. " +
 		"Without --assert, quiet mode judges one question on one record. Yes or no uses the threshold, defaulting to " + strconv.FormatFloat(quietDefaultThreshold, 'f', -1, 64) + ". " +
-		"Pick and rate need both --min-confidence and --fallback. Quiet mode refuses streams.\n\n" +
+		"Pick and rate need both --min-confidence and --fallback. Quiet mode refuses streams, where --keep judges the same way.\n\n" +
 		"--min-confidence applies only to pick and rate, needs --fallback and takes a value between 0 and 1. " +
 		"Confidence is about 1 when p sits on one answer. Yes or no fallback values must be boolean spellings. " +
 		"Pick and rate can fall back to a review destination outside their options. JSON retains the model answer in answer.value when available, " +
@@ -122,9 +123,15 @@ func helpDecisions() string {
 		"There are no arithmetic operators, so weight answers with jq. " +
 		"A box has no value, so gate it on its edges or its confidence, as in mug.confidence >= 0.6.\n\n" +
 		"Streams print every fail and unsure too. --stop-on=fail prints the first fail before stopping, and --stop-on=unsure the first unsure. " +
-		"Both need --assert, and unsure also needs --abstain-if. " +
+		"--stop-on=fail needs --assert or --keep, and --stop-on=unsure needs --assert and --abstain-if. " +
 		"Earlier errors still affect the aggregate exit code. See Asking for question setting scope. " +
-		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut."
+		"Use onesie help calibrate to choose cuts from labelled evidence. The export example uses an illustrative cut.\n\n" +
+		"--keep prints each input record as read when its verdict is one it names, and nothing else on stdout. " +
+		"A JSONL or lines record prints as its line. A CSV or TSV stream prints its header, then each kept row written again with the input separator, so quoting may differ. " +
+		"The answers go to --out, which holds what the same run writes without --keep, or nowhere. " +
+		"With --assert a record keeps the gate's verdict, and --keep unsure needs --abstain-if. Without --assert, --keep judges one question as quiet mode does. " +
+		"A stream under --keep exits 0 whatever it kept, or 6 when a record ended in an error. " +
+		"An error prints only under --keep error, and stderr names up to five causes, then counts the rest."
 }
 
 func helpOutput(command settingrow.Command) string {
@@ -140,7 +147,8 @@ func helpOutput(command settingrow.Command) string {
 		"--merge keeps the input fields and places answer metadata under answers by default. --merge-key selects another location and implies --merge. " +
 		"JSON preserves model values, decisions and errors. A request error remains in the output even when a fallback supplies a decision. " +
 		"--out writes answers to a file instead of stdout. See Execution for resume and pruning. " +
-		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit."
+		"--usage adds API usage to JSON output. --stats writes a one line run summary to stderr at exit. " +
+		"--keep prints the input records it keeps instead of the answers, which then go to --out or nowhere. See Decisions."
 }
 
 func helpConnections() string {
@@ -279,6 +287,7 @@ func helpExamples(command settingrow.Command) []helpExample {
 		{id: "ask", title: "Get a yes or no probability", places: []string{"overview"}, args: []string{"is this urgent"}, stdin: "The server is down"},
 		{id: "pick", title: "Choose a team", places: []string{"overview"}, args: []string{"which team owns this", "--pick", "billing,support", "--state", "Please refund the duplicate charge"}},
 		{id: "enrich", title: "Label records while keeping their fields", places: []string{"overview"}, args: []string{"is this urgent", "-i", "jsonl", "--map", ".text", "--merge"}, inputFile: "tickets.jsonl"},
+		{id: "keep", title: "Keep the lines that match", places: []string{"overview", "decisions"}, args: []string{"is this a complaint", "-i", "lines", "--keep", "pass"}, inputFile: "reviews.txt"},
 		{id: "question-export", title: "Inspect a policy without asking the model", places: []string{"decisions"}, args: []string{"--ask", "urgent=is this urgent", "--threshold", "0.5", "--print-questions"}},
 		{id: "connection", title: "Create a connection", places: []string{"footer", "connections"}, args: []string{"profile", "create", "NAME", "--provider", "typesafe"}},
 	}

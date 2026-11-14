@@ -29,6 +29,7 @@ func singleRecordRefusal(v View) error {
 	}{
 		{"--unordered", Get(v.Merged, Unordered)},
 		{"--stop-on", Get(v.Merged, StopOn) != ""},
+		{"--keep", Get(v.Merged, Keep) != ""},
 		{"--skip-blank", Get(v.Merged, SkipBlank)},
 		{"--no-dedup", Get(v.Merged, NoDedup)},
 		{"--id", typed(v, ID.Name())},

@@ -26,7 +26,7 @@ For a flag this skill does not cover, run `onesie help all` or `onesie help cali
 
 ### Read the error before you read any answer.
 
-A record with an error still prints a line, carrying the error rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits an error as if it had passed. The error sits at `.error`, but under `--merge` it sits at `.answers.error`, or under the `--merge-key` name, since the input's own fields stay at the top. In `-o csv` and `-o tsv` it is the `error` column, empty on a row that answered.
+A record with an error still prints a line, carrying the error rather than answers. A missing field reads as null in `jq`, and null sorts below every number, so a threshold check with `<` silently admits an error as if it had passed. The error sits at `.error`, but under `--merge` it sits at `.answers.error`, or under the `--merge-key` name, since the input's own fields stay at the top. In `-o csv` and `-o tsv` it is the `error` column, empty on a row that answered. `--keep` does the filtering without `jq`: it prints only the input records whose verdict it names, and a record with an error only under `--keep error`, with its cause on stderr.
 
 **Bad:**
 
@@ -42,15 +42,15 @@ onesie --ask urgent='is this urgent' -i jsonl < in.jsonl | jq -c 'select(.error 
 
 ### Match output line N to input line N, unless the exit code says the run stopped early.
 
-Output keeps input order under any `-j`, so line N answers record N. A record with an error still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on=error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on=fail` at the first fail, exit 1, or 6 when an earlier record had an error, `--stop-on=unsure` at the first unsure, exit 7, or 1 when an earlier record had a fail, or 6 when one had an error, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput.
+Output keeps input order under any `-j`, so line N answers record N. A record with an error still gets its line, and so does a blank line in jsonl or lines unless `--skip-blank` drops it. A blank line in csv or tsv is skipped with no output line. Under `-i lines` each `-o json` or `-o values` line carries `line`, its input line number from 1, which counts the blank lines `--skip-blank` drops, so match on it under `--unordered` or `--skip-blank`. Under `--merge` it sits inside the answers object, as in `.answers.line`. Some stops leave only a prefix of the input: an auth failure, exit 3, `--stop-on=error` with the failing record's code, or 6 for a line onesie could not read, `--stop-on=fail` at the first fail, exit 1, or 6 when an earlier record had an error, `--stop-on=unsure` at the first unsure, exit 7, or 1 when an earlier record had a fail, or 6 when one had an error, an interrupt, exit 130, a csv row over the length limit or an input column that clashes with an output column, exit 2, and a consumer that closes the pipe, such as `head`, which exits 0. A csv or tsv header that is not valid exits 2 before any line. `--unordered` drops the ordering for throughput. Under `--keep` stdout holds only the kept records, so write the answers to `--out` to match them.
 
 ### Under --merge read answers from .answers, and rename it with --merge-key if the record has one.
 
 Answers sit at the top level keyed by question id. `--merge` folds them under an `answers` key instead, and `--merge-key` renames that key, which matters when the record already has one called `answers`. A record that is not an object merges as `{"state":RECORD,"answers":ANSWERS}`, so `--merge-key state` exits 2 on it. Folding only means something in a structured output, so `-o table`, `-o raw` and `-o markdown` are refused under `--merge`.
 
-### On live input, filter each line on its answer, since a stream's exit code arrives only at the end.
+### On live input, keep each line by its verdict, since a stream's exit code arrives only at the end.
 
-A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: under `--assert` every line carries a `verdict` of `pass`, `fail`, `unsure` or `error`, at the top or under `--merge` inside `.answers`. Pass `jq --unbuffered` so each match leaves jq at once rather than when a buffer fills. A record with an error carries the verdict `error` beside its `error` object, so a filter on `.answers.verdict == "fail"` alone skips it. Route it too, as the good example does, since an error is not an all clear.
+A stream exits once its input ends, with 1 when any assertion was false, and `tail -f` never ends. So nothing chained after it with `&&` or `||` runs, and `-q` is refused on a stream with exit 2 anyway. Act on each line as it arrives instead: `--keep fail,error` prints each input line whose verdict is fail or error as soon as it is decided, and nothing else. Keep `error` too, as the good example does, since an error is not an all clear. To act on the answers rather than the input, drop `--keep`: under `--assert` every line carries a `verdict` of `pass`, `fail`, `unsure` or `error`, at the top or under `--merge` inside `.answers`, and `jq --unbuffered` passes each match on at once.
 
 **Bad:**
 
@@ -62,8 +62,8 @@ tail -f app.log | onesie 'does this line report a failure a person must act on' 
 
 ```sh
 tail -f app.log | onesie 'does this line report a failure a person must act on' \
-    -i lines --merge -o json --assert 'answer.value < 0.8' \
-  | jq -c --unbuffered 'select(.answers.verdict == "fail" or .answers.verdict == "error")'
+    -i lines --assert 'answer.value < 0.8' --keep fail,error \
+  | while read -r line; do page_on_call "$line"; done
 ```
 
 ### Freeze a run with --print-request and replay it with -i request.

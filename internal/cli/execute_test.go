@@ -406,7 +406,7 @@ func TestRootExecute(t *testing.T) {
 			name:     "should refuse -q on a stream",
 			args:     []string{"-q", "-i", "jsonl", "is it urgent"},
 			wantCode: ExitUsage,
-			want:     "onesie: -q reads one record. Drop -i jsonl or use -o values and filter the stream\n",
+			want:     "onesie: -q reads one record. Drop -i jsonl, or pass --keep to print the records that pass\n",
 		},
 		{
 			name:     "should report a missing question ahead of the flag rules",

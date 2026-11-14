@@ -814,7 +814,7 @@ func TestNewRootCmd(t *testing.T) {
 			args:     []string{"is this urgent", "-i", "lines", "--stop-on=error,fail"},
 			stdin:    "a\n",
 			wantCode: cli.ExitUsage,
-			contains: []string{"onesie: --stop-on=fail needs --assert, since without one no record can fail\n"},
+			contains: []string{"onesie: --stop-on=fail needs --assert or --keep, since without one no record can fail\n"},
 		},
 		{
 			name:     "should refuse --stop-on=unsure without --assert",

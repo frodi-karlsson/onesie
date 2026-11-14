@@ -33,6 +33,7 @@ var refusedReasons = map[string]string{
 	"merge-key":       "calibrate prints a report, not the records",
 	"quiet":           "calibrate prints a report, and its exit code judges nothing",
 	"stop-on":         "calibrate scores every record it can and judges no assertion",
+	"keep":            "calibrate prints a report, not the records",
 	"unordered":       "calibrate prints its report once every record is answered",
 	"print-questions": "a question file carries no labels",
 	flagState:         "calibrate reads each state from its input through --map",

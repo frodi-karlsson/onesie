@@ -85,7 +85,14 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		return nil, err
 	}
 
+	kept := keptOf(in.flags)
+
+	// Under --keep the answers go to --out or nowhere, and stdout carries the kept records.
 	out := cmd.OutOrStdout()
+	if !kept.empty() && in.answers == nil {
+		out = io.Discard
+	}
+
 	run := &streamRun{
 		flags: in.flags, built: inv.plan, mapper: inv.mapper, images: inv.images, gate: inv.gate,
 		abstain: inv.abstain, provider: chosen.provider, asker: asker, model: chosen.modelFor(inv.plan.Model), questions: plan.WireAll(inv.plan.Questions), stats: in.stats,
@@ -97,6 +104,18 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		stops:         stops,
 	}
 
+	if !kept.empty() {
+		run.keeper = &keeper{
+			out: in.flags.stdout, errOut: cmd.ErrOrStderr(), verdicts: kept, mode: in.flags.inputMode,
+			header: run.source.header, comma: run.source.comma,
+		}
+
+		// Without a gate --keep judges the one question as -q does, apart from the record the file gets.
+		if inv.gate == nil {
+			run.alone = quietly(inv.plan.Questions[0])
+		}
+	}
+
 	if !setting.Get(in.flags.merged, setting.NoDedup) {
 		run.shared = newDedup(in.settings.dedupLimit, func() error {
 			return output.Notice(cmd.ErrOrStderr(), fmt.Sprintf(
@@ -105,14 +124,14 @@ func newStreamRun(cmd *cobra.Command, in streamInputs) (*streamRun, error) {
 		})
 	}
 
-	run.stop = watched(stopping(stops), &run.stopped)
+	run.stop = watched(stopping(stops, run.verdictOf), &run.stopped)
 
 	return run, nil
 }
 
 type streamRun struct {
 	flags         runConfig
-	stops         stopSet
+	stops         verdictSet
 	built         *plan.Plan
 	mapper        *jq.Expr
 	images        *imaging
@@ -137,11 +156,23 @@ type streamRun struct {
 	stop          func(line) bool
 	stopped       atomic.Bool
 	halted        bool
+	keeper        *keeper
+	alone         decider
+}
+
+func (r *streamRun) verdictOf(l line) output.Verdict {
+	verdict := l.record.Verdict()
+	if verdict == output.Answered && r.alone != nil {
+		return r.alone(l.record)
+	}
+
+	return verdict
 }
 
 func (r *streamRun) evaluate(ctx context.Context, rec namedRecord) (line, error) {
 	l, err := r.lineFor(ctx, rec)
 	l.slot = rec.slot
+	l.input = rec.Record
 
 	// A merged record is the input record, so it names itself, and gains nothing.
 	if !merging(r.flags) {
@@ -300,6 +331,18 @@ func (r *streamRun) write(l line) error {
 		billOnce(&l)
 	}
 
+	if err := r.writeAnswers(l); err != nil {
+		return err
+	}
+
+	if r.keeper == nil {
+		return nil
+	}
+
+	return r.keeper.write(l, r.verdictOf(l))
+}
+
+func (r *streamRun) writeAnswers(l line) error {
 	if r.book == nil {
 		return r.writeLine(l)
 	}
@@ -364,7 +407,13 @@ func (r *streamRun) finish(ctx context.Context, result engine.Result, err error)
 	}
 
 	// The records' own outcome wins, since a note that failed to print is the smaller loss.
-	outcome := streamResult(result, r.stats.verdicts())
+	outcome := streamResult(result, r.stats.verdicts(), r.keeper != nil)
+	if r.keeper != nil {
+		if causesErr := r.keeper.finish(result, worthReporting(outcome)); causesErr != nil && outcome == nil {
+			return causesErr
+		}
+	}
+
 	if outcome == nil {
 		return r.shared.noticeError()
 	}

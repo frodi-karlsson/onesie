@@ -435,7 +435,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 
 	// A resume by position skips one record per stored line, and --skip-blank changes which record
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.SkipBlank = setting.Get(flags.merged, setting.SkipBlank) && !resumesByID(flags) && !delimitedInput(inputs.Input)
+	inputs.SkipBlank = skipsBlank(flags) && !resumesByID(flags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 	inputs.Delimiter = flags.parsedDelimiter
 
@@ -462,6 +462,10 @@ func endpointOf(chosen resolution) (baseURL, account string) {
 	default:
 		return "", ""
 	}
+}
+
+func skipsBlank(flags runConfig) bool {
+	return setting.Derived(setting.NewView(flags.merged, nil, setting.Facts{}), setting.SkipBlank)
 }
 
 func resumesByID(flags runConfig) bool {
@@ -600,7 +604,7 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func stopping(stops stopSet) func(line) bool {
+func stopping(stops verdictSet, verdictOf func(line) output.Verdict) func(line) bool {
 	if !stops.judges() {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
@@ -610,7 +614,7 @@ func stopping(stops stopSet) func(line) bool {
 	return func(l line) bool {
 		// An error stops the run through the engine's StopOnError, which also gives it the error's
 		// exit code.
-		verdict := l.record.Verdict()
+		verdict := verdictOf(l)
 
 		return verdict != output.Error && stops.has(verdict)
 	}
@@ -625,9 +629,10 @@ type line struct {
 	slot   int
 	halted bool
 	call   *sharedCall
+	input  input.Record
 }
 
-func streamResult(result engine.Result, judged output.Tally) error {
+func streamResult(result engine.Result, judged output.Tally, keeping bool) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -646,6 +651,11 @@ func streamResult(result engine.Result, judged output.Tally) error {
 
 	if result.Failed > 0 {
 		return &recordsError{}
+	}
+
+	// --keep has already sorted the records by verdict, so a fail or an unsure is no outcome of the run.
+	if keeping {
+		return nil
 	}
 
 	// After the errors and before the successful return. A stream carrying both exits 6, since a
@@ -1202,6 +1212,7 @@ type runFlags struct {
 	maxRetryAfter int
 	unordered     bool
 	stopOn        string
+	keep          string
 	skipBlank     bool
 	noDedup       bool
 	merge         bool

@@ -28,10 +28,10 @@ func records(
 	book *answersfile.Ledger,
 	resume answersfile.Resume,
 	outputMode output.Mode,
-	stops stopSet,
+	stops verdictSet,
 ) *naming {
 	stream := input.NewStream(settings.stdin, inputMode, input.StreamOptions{
-		SkipBlank: setting.Get(flags.merged, setting.SkipBlank), Delimiter: flags.parsedDelimiter,
+		SkipBlank: skipsBlank(flags), Delimiter: flags.parsedDelimiter,
 	})
 
 	// A context of its own, since the read ahead goroutine outlives an engine that stops early, and
@@ -77,7 +77,7 @@ type resumed struct {
 	left            int
 	stored          []answersfile.Stored
 	skips           answersfile.Tally
-	stops           stopSet
+	stops           verdictSet
 	halted          bool
 	table           string
 	stoppedBy       *output.Failure
@@ -178,9 +178,10 @@ type naming struct {
 	input    input.Mode
 	appended *appendedCSV
 	seen     map[[sha256.Size]byte]int
-	stops    stopSet
+	stops    verdictSet
 	halted   bool
 	misread  atomic.Pointer[[]string]
+	ended    atomic.Pointer[[]string]
 	otherID  atomic.Bool
 }
 
@@ -191,6 +192,8 @@ func (n *naming) Next() (namedRecord, bool, error) {
 			if err == nil && n.book != nil {
 				n.book.End()
 			}
+
+			n.endHeader()
 
 			return namedRecord{Record: rec}, ok, err
 		}
@@ -270,6 +273,26 @@ func (n *naming) idHint() string {
 	}
 
 	return "every record's --id was null. " + delimiterHint(n.input, n.stream.Comma(), *header)
+}
+
+func (n *naming) endHeader() {
+	if !n.input.Delimited() {
+		return
+	}
+
+	// At the end of the input, on the goroutine that owns the stream, so the header of an input with
+	// no rows is known too.
+	if header, err := n.stream.ReadHeader(); err == nil {
+		n.ended.Store(&header.Names)
+	}
+}
+
+func (n *naming) header() []string {
+	if names := n.ended.Load(); names != nil {
+		return *names
+	}
+
+	return nil
 }
 
 func (n *naming) comma() rune {
