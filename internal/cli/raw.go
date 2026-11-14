@@ -62,7 +62,7 @@ func streamRaw(
 	}
 
 	// A request body carries no assertion, so no record can have failed one.
-	return streamResult(result, output.Tally{})
+	return streamResult(result, output.Tally{}, false)
 }
 
 func newRawRun(cmd *cobra.Command, settings rootSettings, flags runConfig, stats *collector) (*rawRun, error) {

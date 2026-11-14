@@ -27,11 +27,12 @@ const (
 		"profile then needs --allow-http too."
 )
 
-// The verdicts --stop-on takes, named as onesie writes them.
+// The verdicts --stop-on and --keep take, named as onesie writes them.
 const (
-	StopOnError  = "error"
-	StopOnFail   = "fail"
-	StopOnUnsure = "unsure"
+	VerdictPass   = "pass"
+	VerdictError  = "error"
+	VerdictFail   = "fail"
+	VerdictUnsure = "unsure"
 )
 
 // Table returns every setting, grouped by topic with the mode switches first.
@@ -361,11 +362,19 @@ func streamRows() []Row {
 		},
 		{
 			Name: "stop_on", HelpTopic: "execution", HelpValue: "VERDICTS",
-			Kind:  EnumList([]string{StopOnError, StopOnFail, StopOnUnsure}),
+			Kind:  EnumList([]string{VerdictError, VerdictFail, VerdictUnsure}),
 			Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag:  FlagSpec{Long: "stop-on", Commands: onRoot()},
 			Help: "End the run at the first record with one of these verdicts: error, fail or unsure, comma " +
 				"separated. An error exits with its own code. Streaming only.",
+		},
+		{
+			Name: "keep", HelpTopic: "decisions", HelpValue: "VERDICTS",
+			Kind:  EnumList([]string{VerdictPass, VerdictFail, VerdictUnsure, VerdictError}),
+			Modes: Modes(ModeStream),
+			Flag:  FlagSpec{Long: "keep", Commands: onRoot()},
+			Help: "Print each input record as read when its verdict is one of these: pass, fail, unsure or error, " +
+				"comma separated. The answers go to --out or nowhere. Streaming only.",
 		},
 		{
 			Name: "no_dedup", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream),

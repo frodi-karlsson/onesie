@@ -106,6 +106,7 @@ func run(
 	cmd *cobra.Command,
 	settings rootSettings,
 	ready staged,
+	stdout io.Writer,
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -135,7 +136,7 @@ func run(
 			inv.abstain.Source(), inv.loaded, settings.schemaURL)
 	}
 
-	return runPlan(cmd, settings, flags, inv, out, resume)
+	return runPlan(cmd, settings, flags, inv, stdout, out, resume)
 }
 
 func runListModels(cmd *cobra.Command, settings rootSettings, flags runConfig, out *answersfile.File) error {
@@ -167,6 +168,7 @@ func runPlan(
 	settings rootSettings,
 	flags runConfig,
 	inv *invocation,
+	stdout io.Writer,
 	out *answersfile.File,
 	resume answersfile.Resume,
 ) error {
@@ -212,7 +214,7 @@ func runPlan(
 		return withStats(cmd, settings.now, flags, func(stats *collector) error {
 			return stream(cmd, streamInputs{
 				settings: settings, flags: flags, inv: inv, outputMode: outputMode, stats: stats, answers: out,
-				resume: resume, answerers: answers,
+				resume: resume, answerers: answers, stdout: stdout,
 			})
 		})
 	}
@@ -435,7 +437,7 @@ func runInputs(settings rootSettings, flags runConfig, inputs answersfile.Finger
 
 	// A resume by position skips one record per stored line, and --skip-blank changes which record
 	// a line stands for everywhere but csv and tsv, which skip a blank line either way.
-	inputs.SkipBlank = setting.Get(flags.merged, setting.SkipBlank) && !resumesByID(flags) && !delimitedInput(inputs.Input)
+	inputs.SkipBlank = skipsBlank(flags) && !resumesByID(flags) && !delimitedInput(inputs.Input)
 	inputs.Mock = flags.mockPath != ""
 	inputs.Delimiter = flags.parsedDelimiter
 
@@ -462,6 +464,10 @@ func endpointOf(chosen resolution) (baseURL, account string) {
 	default:
 		return "", ""
 	}
+}
+
+func skipsBlank(flags runConfig) bool {
+	return setting.Derived(setting.NewView(flags.merged, nil, setting.Facts{}), setting.SkipBlank)
 }
 
 func resumesByID(flags runConfig) bool {
@@ -600,7 +606,7 @@ func compact(raw string) []byte {
 	return flat.Bytes()
 }
 
-func stopping(stops stopSet) func(line) bool {
+func stopping(stops verdictSet) func(line) bool {
 	if !stops.judges() {
 		// Nil rather than a predicate that always says no, so the engine asks nothing of a run
 		// that did not pass the flag.
@@ -610,24 +616,25 @@ func stopping(stops stopSet) func(line) bool {
 	return func(l line) bool {
 		// An error stops the run through the engine's StopOnError, which also gives it the error's
 		// exit code.
-		verdict := l.record.Verdict()
-
-		return verdict != output.Error && stops.has(verdict)
+		return l.verdict != output.Error && stops.has(l.verdict)
 	}
 }
 
 type line struct {
-	record output.Record
-	raw    string
-	state  any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
-	header []string
-	fields map[string]any
-	slot   int
-	halted bool
-	call   *sharedCall
+	record  output.Record
+	raw     string
+	state   any // The record as read, before --map, so --merge keeps a text line's type and a JSON line's digits.
+	header  []string
+	fields  map[string]any
+	slot    int
+	halted  bool
+	call    *sharedCall
+	input   input.Record
+	verdict output.Verdict
+	aborts  bool
 }
 
-func streamResult(result engine.Result, judged output.Tally) error {
+func streamResult(result engine.Result, judged output.Tally, keeping bool) error {
 	if result.Broken {
 		// The consumer stopped reading, which is its right. Nothing is reported and the run
 		// succeeded.
@@ -646,6 +653,11 @@ func streamResult(result engine.Result, judged output.Tally) error {
 
 	if result.Failed > 0 {
 		return &recordsError{}
+	}
+
+	// --keep has already sorted the records by verdict, so a fail or an unsure is no outcome of the run.
+	if keeping {
+		return nil
 	}
 
 	// After the errors and before the successful return. A stream carrying both exits 6, since a
@@ -1202,6 +1214,7 @@ type runFlags struct {
 	maxRetryAfter int
 	unordered     bool
 	stopOn        string
+	keep          string
 	skipBlank     bool
 	noDedup       bool
 	merge         bool

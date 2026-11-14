@@ -87,7 +87,7 @@ func TestRegister(t *testing.T) {
 		}},
 		{name: "should refuse an empty and a blank value on exactly the pinned flags of each command", run: func(t *testing.T) {
 			runs := []string{"base-url", "file", "for", "id", "image-field", "input", "map", "mock", "model", "out", "output"}
-			root := sorted(append(slices.Clone(runs), "merge-key", "profile", "provider", "stop-on"))
+			root := sorted(append(slices.Clone(runs), "keep", "merge-key", "profile", "provider", "stop-on"))
 			calibrate := sorted(append(slices.Clone(runs), "compare", "label"))
 
 			for _, pin := range []struct {

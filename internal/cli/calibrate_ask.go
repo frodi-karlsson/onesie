@@ -27,7 +27,6 @@ import (
 )
 
 const (
-	maxCauses = 5
 	// costScale keeps ten decimal places of a summed cost, below any price a provider quotes per request.
 	costScale = 1e10
 )
@@ -592,32 +591,17 @@ type recordCase struct {
 }
 
 func writeCauses(w io.Writer, set labelledSet, outcomes []output.Record) error {
-	listed, more := 0, 0
+	causes := &causeList{w: w}
 
 	for i, rec := range set.records {
-		failure := outcomes[i].Failure
-		if failure == nil {
-			continue
-		}
-
-		if listed == maxCauses {
-			more++
-
-			continue
-		}
-
-		listed++
-
-		if err := output.Notice(w, rec.name()+": "+failure.Message); err != nil {
-			return err
+		if failure := outcomes[i].Failure; failure != nil {
+			if err := causes.name(rec.name(), failure.Message); err != nil {
+				return err
+			}
 		}
 	}
 
-	if more == 0 {
-		return nil
-	}
-
-	return output.Notice(w, "and "+wording.Plural(more, "more error", "more errors"))
+	return causes.finish()
 }
 
 func writeReport(w io.Writer, format string, report calibrate.Report) error {

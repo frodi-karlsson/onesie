@@ -3,6 +3,7 @@ package settings_test
 import (
 	"testing"
 
+	"github.com/frodi-karlsson/onesie/internal/settingrow"
 	"github.com/frodi-karlsson/onesie/internal/settings"
 )
 
@@ -115,6 +116,32 @@ func TestDerived(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("should skip blank lines under --keep unless --skip-blank is given", func(t *testing.T) {
+		t.Parallel()
+
+		for _, tc := range []struct {
+			name  string
+			set   values
+			typed []settingrow.Name
+			want  bool
+		}{
+			{name: "should skip them under --keep", set: values{"keep": "pass"}, want: true},
+			{
+				name: "should keep them under --keep --skip-blank=false", set: values{"keep": "pass", "skip_blank": false},
+				typed: []settingrow.Name{"skip_blank"},
+			},
+			{name: "should keep them without --keep"},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				if got := settings.Derived(run{set: tc.set, typed: tc.typed}.view(t), settings.SkipBlank); got != tc.want {
+					t.Errorf("Derived(skip_blank) = %v, want %v", got, tc.want)
+				}
+			})
+		}
+	})
 
 	t.Run("should return the merged value of a row that derives nothing", func(t *testing.T) {
 		t.Parallel()

@@ -21,3 +21,11 @@ func aliasLifetime(v View) (any, bool) {
 	}
 	return NoAliasTTL, true
 }
+
+func keptBlank(v View) (any, bool) {
+	// A blank line is not a record --keep could print, so it is dropped unless --skip-blank is given.
+	if v.Merged.Source(SkipBlank.Name()) != SourceDefault || Get(v.Merged, Keep) == "" {
+		return nil, false
+	}
+	return true, true
+}

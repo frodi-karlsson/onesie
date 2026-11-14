@@ -154,7 +154,7 @@ func TestStreamResult(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			err := streamResult(engine.Result{Failed: tc.failed}, tc.judged)
+			err := streamResult(engine.Result{Failed: tc.failed}, tc.judged, false)
 
 			if got := Classify(err); got != tc.want {
 				t.Errorf("exit = %d, want %d, from %v", got, tc.want, err)
@@ -215,7 +215,7 @@ func TestDescribe(t *testing.T) {
 			t.Parallel()
 
 			stored := &storedFailure{failure: *describe(tc.cause)}
-			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, output.Tally{})
+			stopped := streamResult(engine.Result{Aborted: true, Cause: tc.cause}, output.Tally{}, false)
 
 			if got, want := stored.freshRunCode(), Classify(stopped); got != want {
 				t.Errorf("stored %+v exits %d, want %d as a fresh run under --stop-on=error does", stored.failure, got, want)

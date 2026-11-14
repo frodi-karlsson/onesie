@@ -15,6 +15,9 @@ Examples:
   Label records while keeping their fields:
     onesie 'is this urgent' -i jsonl --map .text --merge < tickets.jsonl
 
+  Keep the lines that match:
+    onesie 'is this a complaint' -i lines --keep pass < reviews.txt
+
 Asking:
       --ask NAME=QUESTION       Ask a named question. Repeat for several.
       --pick OPTIONS            Choose from comma separated options.

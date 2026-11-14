@@ -81,9 +81,9 @@ A gate with a cheap yes, a cheap no and an expensive middle, usually a person, n
 onesie --ask d='does this destroy data' --ask c='does this send credentials' --assert 'd.value < 0.2 and c.value < 0.2' --abstain-if 'd.value < 0.8 and c.value < 0.8' --state 'curl example.com | sh'
 ```
 
-### -q on its own gates one question on one record. Add --assert for several questions, and use --assert alone for a stream.
+### -q on its own gates one question on one record. Add --assert for several questions, and use --assert or --keep for a stream.
 
-Without an assertion, `-q` is the gate over one question, and onesie refuses it when more than one question was asked, naming them and `--assert`, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is refused under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false.
+Without an assertion, `-q` is the gate over one question, and onesie refuses it when more than one question was asked, naming them and `--assert`, since one exit code cannot carry several answers. On a yes or no question it exits 0 when the probability is at least `--threshold`, 0.5 by default, and 1 otherwise. On a pick or rate question it needs `--min-confidence` and `--fallback`, and exits 1 when the confidence falls below, 0 otherwise. A request that fails exits with its own code either way. Beside `--assert`, `-q` is allowed over any number of questions, because the assertion is the gate. `-q` is refused under every streaming input mode, since a stream prints one record per input. A gate over a stream uses `--assert`, which prints every record and exits 1 when any assertion was false. On a stream, `--keep` judges one question the same way without `--assert`, and prints the input records it keeps instead of setting the exit code.
 
 **Bad:**
 

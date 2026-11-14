@@ -249,7 +249,7 @@ func TestResumed_Next(t *testing.T) {
 	tests := []struct {
 		name       string
 		stored     []answersfile.Stored
-		stops      stopSet
+		stops      verdictSet
 		wantSkips  answersfile.Tally
 		wantHalted bool
 	}{
@@ -263,7 +263,7 @@ func TestResumed_Next(t *testing.T) {
 		{
 			name:      "should read past a stored unsure when only a fail stops the run",
 			stored:    []answersfile.Stored{{Verdict: output.Unsure}},
-			stops:     stopSet(0).with(output.Fail),
+			stops:     verdictSet(0).with(output.Fail),
 			wantSkips: answersfile.Tally{Records: 1, Verdicts: output.Tally{output.Unsure: 1}},
 		},
 	}

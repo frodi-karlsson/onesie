@@ -109,6 +109,7 @@ for each profile, which also removes its key from the OS keychain. Then remove:
 
 `--ask` names several questions in one request. `--rate` chooses a level on an ordered scale.
 `-f` loads saved questions, and `onesie questions` lists the four calibrated starter sets.
+`--keep pass` prints only the input records that pass, so a stream filters as `grep` does.
 [Worked recipes](examples/README.md#recipes) cover streams, resumable batches, pull request
 comments, ranking and local servers. [Mock answers](examples/README.md#testing-a-gate) exercise a
 script without calling a model.

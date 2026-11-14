@@ -19,12 +19,12 @@ var ErrColumnTaken = errors.New("an input column has the name of an output colum
 
 // NewDelimited builds a writer for the csv and tsv modes.
 func NewDelimited(w io.Writer, mode Mode, opts DelimitedOptions) *Delimited {
-	return &Delimited{rows: newFieldWriter(w, mode, opts.Comma), mode: mode, opts: opts}
+	return &Delimited{rows: NewFieldWriter(w, mode, opts.Comma), mode: mode, opts: opts}
 }
 
 // Delimited writes records as rows under one header row. It is stateful, so one run uses one.
 type Delimited struct {
-	rows    *fieldWriter
+	rows    *FieldWriter
 	mode    Mode
 	opts    DelimitedOptions
 	started bool

@@ -135,7 +135,7 @@ func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 	if mode == settingrow.ModePrintRequest {
 		return []settingrow.Name{
 			"mock", "print_questions", "output", "quiet", "assert", "abstain_if",
-			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on", "stats",
+			"threshold", "min_confidence", "fallback", "cache", "usage", "merge", "stop_on", "keep", "stats",
 		}
 	}
 
@@ -143,7 +143,7 @@ func refusalOrder(mode settingrow.Mode) []settingrow.Name {
 		"ask", "file", "for", "replace", "pick", "rate", "box", "desc", "sep", "threshold",
 		"min_confidence", "fallback", "state", "input", "image", "image_field", "map", "id",
 		"output", "quiet", "assert", "abstain_if", "usage", "merge", "jobs", "model", "unordered",
-		"stop_on", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
+		"stop_on", "keep", "skip_blank", "print_request", "print_questions", "stats", "mock", "cache",
 	}
 }
 
@@ -167,15 +167,15 @@ func appendModeRefusal(rules []refusal, row settingrow.Row, mode settingrow.Mode
 }
 
 func stopsOnGate(v View) bool {
-	return StopsOn(v.Merged, settingrow.StopOnFail) || StopsOn(v.Merged, settingrow.StopOnUnsure)
+	return StopsOn(v.Merged, settingrow.VerdictFail) || StopsOn(v.Merged, settingrow.VerdictUnsure)
 }
 
 func gateStopSpelled(v View) string {
-	if StopsOn(v.Merged, settingrow.StopOnFail) {
-		return "--stop-on=" + settingrow.StopOnFail
+	if StopsOn(v.Merged, settingrow.VerdictFail) {
+		return "--stop-on=" + settingrow.VerdictFail
 	}
 
-	return "--stop-on=" + settingrow.StopOnUnsure
+	return "--stop-on=" + settingrow.VerdictUnsure
 }
 
 func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingrow.Mode) (func(View) bool, func(View) string) {
@@ -185,7 +185,7 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 	}
 
 	switch row.Name {
-	case File.Name(), Output.Name(), StopOn.Name():
+	case File.Name(), Output.Name(), StopOn.Name(), Keep.Name():
 		return func(v View) bool { return Get(v.Merged, Key[string]{name: row.Name}) != "" }, name
 	case Replace.Name(), Quiet.Name(), Usage.Name(), Unordered.Name(),
 		SkipBlank.Name(), PrintRequest.Name(), PrintQuestions.Name(), Stats.Name():
@@ -211,7 +211,7 @@ func modeException(row settingrow.Row, bound settingrow.BoundFlag, mode settingr
 
 func judging(setting settingrow.Name) bool {
 	switch setting {
-	case assertName, abstainIfName, "threshold", "min_confidence", "fallback":
+	case assertName, abstainIfName, "threshold", "min_confidence", "fallback", "keep":
 		return true
 	default:
 		return false
