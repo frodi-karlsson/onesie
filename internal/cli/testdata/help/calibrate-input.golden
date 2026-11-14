@@ -10,9 +10,9 @@ Flags:
       --delimiter CHAR          Set the field separator for -i csv: auto, or one
                                 character. Defaults to a comma.
       --image NAME=PATH         Put a PNG or JPEG in every record's state under NAME.
-                                Repeatable. Experimental on TypeSafe's side.
+                                Experimental on TypeSafe's side. Repeatable.
       --image-field NAME        Read a PNG or JPEG per record from the path this state
-                                key holds. Repeatable. Experimental on TypeSafe's side.
+                                key holds. Experimental on TypeSafe's side. Repeatable.
       --skip-blank              Drop blank lines.
 
 How they work together:

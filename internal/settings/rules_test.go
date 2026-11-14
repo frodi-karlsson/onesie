@@ -1298,9 +1298,13 @@ func TestRules(t *testing.T) {
 				t.Helper()
 
 				for _, row := range settingrow.Table() {
-					needs := len(row.Needs) > 0
+					refused := func(needs []settingrow.Need) bool {
+						return slices.ContainsFunc(needs, func(need settingrow.Need) bool { return !need.HelpOnly })
+					}
+
+					needs := refused(row.Needs)
 					for _, override := range row.Flag.PerCommand {
-						needs = needs || len(override.Needs) > 0
+						needs = needs || refused(override.Needs)
 					}
 
 					id := settings.NeedsRuleID(row.Name)

@@ -18,6 +18,10 @@ func needsRule(name settingrow.Name) Rule {
 			}
 
 			for _, need := range bound.Needs {
+				if need.HelpOnly {
+					continue
+				}
+
 				if needed, neededBound := flagRow(need.Name, v.Facts.Command); !settingGiven(v, needed, neededBound) {
 					return fmt.Errorf("%s needs %s, %s", needingSpelled(v, row, bound), spelling(neededBound), need.Reason)
 				}

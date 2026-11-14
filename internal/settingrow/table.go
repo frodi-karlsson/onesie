@@ -90,7 +90,7 @@ func questionRows() []Row {
 		{
 			Name: "ask", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 1, CommandCalibrate: 1}, HelpValue: "NAME=QUESTION", Kind: Text(), Modes: shaping(),
 			Flag: FlagSpec{Long: "ask", Group: true, Repeat: true, Commands: onRuns()},
-			Help: "Ask a named question. Repeat for several.",
+			Help: "Ask a named question.",
 		},
 		{
 			Name: "for", HelpTopic: "asking", HelpValue: "ID", Kind: NonEmptyText(), Modes: shaping(),
@@ -98,17 +98,17 @@ func questionRows() []Row {
 			Flag: FlagSpec{Long: "for", Group: true, Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {
 					Help: "Select a question from -f by ID, so the --pick, --rate, --desc and --sep after it apply " +
-						"to that question. Repeatable.",
+						"to that question.",
 				},
 			}},
 			Help: "Select a question from -f by ID, so the question flags after it apply to that question, " +
-				"each with a notice. Repeatable.",
+				"each with a notice.",
 		},
 		{
 			Name: "pick", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 2, CommandCalibrate: 2}, HelpValue: "OPTIONS", Scope: ScopeQuestion, Kind: Options(), Modes: shaping(), Shapes: []Shape{Pick},
 			FileKey:  "pick",
 			FileHelp: "The options, as a sequence of names or a mapping of name to description.",
-			Flag:     FlagSpec{Long: "pick", Group: true, Commands: onRuns()},
+			Flag:     FlagSpec{Long: "pick", Group: true, Repeat: true, Commands: onRuns()},
 			Help:     "Choose from comma separated options.",
 		},
 		{
@@ -116,19 +116,19 @@ func questionRows() []Row {
 			FileKey: "rate",
 			FileHelp: "The levels from lowest to highest, as names, one key mappings of name to description, or " +
 				"a mapping of name to description.",
-			Flag: FlagSpec{Long: "rate", Group: true, Commands: onRuns()},
+			Flag: FlagSpec{Long: "rate", Group: true, Repeat: true, Commands: onRuns()},
 			Help: "Rate against levels from lowest to highest.",
 		},
 		{
 			Name: "desc", HelpTopic: "asking", HelpCommon: map[Command]int{CommandRoot: 4}, HelpValue: "KEY=TEXT", Scope: ScopeQuestion, Kind: Text(), Modes: shaping(),
 			Shapes: []Shape{Noul, Pick, Rate},
-			Flag:   FlagSpec{Long: "desc", Group: true, Commands: onRuns()},
+			Flag:   FlagSpec{Long: "desc", Group: true, Repeat: true, Commands: onRuns()},
 			Help:   "Describe an option, level, yes or no.",
 		},
 		{
 			Name: "sep", HelpTopic: "asking", Scope: ScopeQuestion, HelpValue: "SEP", Kind: Separator(), Modes: shaping(),
 			Shapes: []Shape{Pick, Rate},
-			Flag:   FlagSpec{Long: "sep", Group: true, Commands: onRuns()},
+			Flag:   FlagSpec{Long: "sep", Group: true, Repeat: true, Commands: onRuns()},
 			Help:   "Set the separator for the --pick and --rate that follow it.",
 		},
 		{
@@ -157,8 +157,10 @@ func policyRows() []Row {
 			Shapes:   []Shape{Pick, Rate},
 			FileKey:  "min_confidence",
 			FileHelp: "The confidence a pick or rate answer must reach, between 0 and 1, or the fallback stands in.",
-			Flag:     FlagSpec{Long: "min-confidence", Group: true, Commands: onRoot()},
-			Help:     "The confidence a pick or rate answer must reach. Needs --fallback. Confidence is about 1 when p sits on one answer.",
+			// A question's policy refuses a confidence with no fallback, so no needs rule does.
+			Needs: []Need{{Name: "fallback", HelpOnly: true}},
+			Flag:  FlagSpec{Long: "min-confidence", Group: true, Commands: onRoot()},
+			Help:  "The confidence a pick or rate answer must reach. Confidence is about 1 when p sits on one answer.",
 		},
 		{
 			Name: "fallback", HelpTopic: "decisions", HelpValue: "VALUE", Scope: ScopeQuestion, Kind: Fallback(), Modes: policing(),
@@ -181,8 +183,8 @@ func policyRows() []Row {
 			FileHelp: "An abstain expression, as --abstain-if takes it.",
 			Needs:    []Need{{Name: "assert", Reason: "since without one every record ends answered"}},
 			Flag:     FlagSpec{Long: "abstain-if", Repeat: true, Commands: onRoot()},
-			Help: "Turn a no into an unsure when this condition holds. Repeatable, combined with and. Needs " +
-				"--assert and replaces the -f file's abstain_if.",
+			Help: "Turn a no into an unsure when this condition holds. Several combine with and, and they " +
+				"replace the -f file's abstain_if.",
 		},
 	}
 }
@@ -215,9 +217,13 @@ func outputRows() []Row {
 			Name: "resume", HelpTopic: "execution", HelpCommon: map[Command]int{CommandCalibrate: 14}, Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModeCalibrate),
 			Needs: []Need{{Name: "out", Reason: "the file it picks up from"}},
 			Flag: FlagSpec{Long: "resume", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "Skip the ids the --out file already answers. Needs --id."},
+				// Calibrate refuses a resume with no --id in a rule of its own, which leaves a dry run to the
+				// resume rule.
+				CommandCalibrate: {Help: "Skip the ids the --out file already answers.", Needs: []Need{
+					{Name: "out", Reason: "the file it picks up from"}, {Name: "id", HelpOnly: true},
+				}},
 			}},
-			Help: "Carry on after the last complete line in the --out file. Streaming only. Under --id it " +
+			Help: "Carry on after the last complete line in the --out file. Under --id it " +
 				"skips the ids the file answers, so a record whose content changed but whose id did not keeps " +
 				"its old answer. It then rewrites the file in input order, with the answered ids the input no " +
 				"longer has kept after them, which --prune drops.",
@@ -230,12 +236,9 @@ func outputRows() []Row {
 			},
 			Flag: FlagSpec{Long: "prune", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				// Calibrate resumes by id whatever --prune says, so only the root run needs it here.
-				CommandCalibrate: {
-					Help:  "Drop the answered ids the input no longer has. Needs --resume.",
-					Needs: []Need{{Name: "resume", Reason: "which was not given"}},
-				},
+				CommandCalibrate: {Needs: []Need{{Name: "resume", Reason: "which was not given"}}},
 			}},
-			Help: "Drop the answered ids the input no longer has. Needs --resume and --id.",
+			Help: "Drop the answered ids the input no longer has.",
 		},
 		{
 			Name: "merge", HelpTopic: "output", HelpCommon: map[Command]int{CommandRoot: 12}, Kind: Bool(), Modes: Modes(ModeAsk, ModeStream),
@@ -317,10 +320,10 @@ func inputRows() []Row {
 		{
 			Name: "image", HelpTopic: "input", HelpValue: "NAME=PATH", Kind: Text(), Modes: recordReading(),
 			Flag: FlagSpec{Long: "image", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
-				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. Repeatable. " +
+				CommandCalibrate: {Help: "Put a PNG or JPEG in every record's state under NAME. " +
 					experimental},
 			}},
-			Help: "Put a PNG or JPEG in the state under NAME. Repeatable. For one record stdin is read beside it " +
+			Help: "Put a PNG or JPEG in the state under NAME. For one record stdin is read beside it " +
 				"only through --state -, so text joins it from --state or --state -. A stream reads " +
 				"its records from stdin and adds the image to each. " + experimental,
 		},
@@ -328,9 +331,9 @@ func inputRows() []Row {
 			Name: "image_field", HelpTopic: "input", HelpValue: "NAME", Kind: NonEmptyText(), Modes: Modes(ModeStream, ModePrintRequest, ModeCalibrate),
 			Flag: FlagSpec{Long: "image-field", Repeat: true, Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Read a PNG or JPEG per record from the path this state key holds. " +
-					"Repeatable. " + experimental},
+					experimental},
 			}},
-			Help: "Read a PNG or JPEG per record from the path this state key holds. Streaming only, repeatable. " +
+			Help: "Read a PNG or JPEG per record from the path this state key holds. " +
 				"Under -i lines the line is the path. " + experimental,
 		},
 		{
@@ -347,7 +350,7 @@ func inputRows() []Row {
 				CommandCalibrate: {Help: "Name each record with the string or number this jq expression returns."},
 			}},
 			Help: "Name each record on every output line with the string or number this jq expression returns. " +
-				"Streaming only. It runs one record at a time as the input is read, so keep it cheap, such as a " +
+				"It runs one record at a time as the input is read, so keep it cheap, such as a " +
 				"field lookup. onesie version lists the cap on its length.",
 		},
 	}, streamRows()...)
@@ -364,12 +367,12 @@ func streamRows() []Row {
 			Flag: FlagSpec{Long: "skip-blank", Commands: onRuns(), PerCommand: map[Command]CommandFlag{
 				CommandCalibrate: {Help: "Drop blank lines."},
 			}},
-			Help: "Drop blank lines with no output line. Streaming only.",
+			Help: "Drop blank lines with no output line.",
 		},
 		{
 			Name: "unordered", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag: FlagSpec{Long: "unordered", Commands: onRoot()},
-			Help: "Emit records as they complete. Match on line in JSON output, or pass --id. Streaming only.",
+			Help: "Emit records as they complete. Match on line in JSON output, or pass --id.",
 		},
 		{
 			Name: "stop_on", HelpTopic: "execution", HelpValue: "VERDICTS",
@@ -377,7 +380,7 @@ func streamRows() []Row {
 			Modes: Modes(ModeStream, ModeRequest, ModePrintRequest),
 			Flag:  FlagSpec{Long: "stop-on", Commands: onRoot()},
 			Help: "End the run at the first record with one of these verdicts: error, fail or unsure, comma " +
-				"separated. An error exits with its own code. Streaming only.",
+				"separated. An error exits with its own code.",
 		},
 		{
 			Name: "keep", HelpTopic: "decisions", HelpValue: "VERDICTS",
@@ -385,12 +388,12 @@ func streamRows() []Row {
 			Modes: Modes(ModeStream),
 			Flag:  FlagSpec{Long: "keep", Commands: onRoot()},
 			Help: "Print each input record as read when its verdict is one of these: pass, fail, unsure or error, " +
-				"comma separated. The answers go to --out or nowhere. Streaming only.",
+				"comma separated. The answers go to --out or nowhere.",
 		},
 		{
 			Name: "no_dedup", HelpTopic: "execution", Kind: Bool(), Modes: Modes(ModeStream),
 			Flag: FlagSpec{Long: "no-dedup", Commands: onRoot()},
-			Help: "Ask every record even when its request repeats an earlier one. Streaming only.",
+			Help: "Ask every record even when its request repeats an earlier one.",
 		},
 	}
 }
@@ -622,7 +625,7 @@ func calibrateRows() []Row {
 			Name: "require", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 10}, HelpValue: "CONDITION", Kind: Text(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "require", Repeat: true, Commands: onCalibrate()},
 			Help: "A requirement the report must meet, as [lower|upper](ID.MEASURE) OP NUMBER [at CUT], or " +
-				"calibrate exits 1. Repeatable.",
+				"calibrate exits 1.",
 		},
 		{
 			Name: "offline", HelpTopic: "evaluation", HelpCommon: map[Command]int{CommandCalibrate: 11}, Kind: Bool(), Modes: Modes(ModeCalibrate),
@@ -631,12 +634,12 @@ func calibrateRows() []Row {
 				{Name: "resume", Reason: "since it reads the answers --out already holds"},
 			},
 			Flag: FlagSpec{Long: "offline", Commands: onCalibrate()},
-			Help: "Read every answer from the --out file and ask nothing, needing no key. Needs --out and --resume.",
+			Help: "Read every answer from the --out file and ask nothing, needing no key.",
 		},
 		{
 			Name: "compare", HelpTopic: "evaluation", HelpValue: "FILE", Kind: NonEmptyText(), Modes: Modes(ModeCalibrate),
 			Flag: FlagSpec{Long: "compare", Repeat: true, Commands: onCalibrate()},
-			Help: "Score this saved answers file, asking nothing. Repeat, the first being the baseline.",
+			Help: "Score this saved answers file, asking nothing. The first is the baseline.",
 		},
 		{
 			Name: "false_alarms", HelpTopic: "evaluation", HelpValue: "BUDGETS", Kind: Text(), Modes: Modes(ModeCalibrate),
@@ -669,7 +672,11 @@ func profileRows() []Row {
 		{
 			Name: "to_file", Kind: Bool(), Modes: Modes(ModeProfile),
 			Flag: FlagSpec{Long: "file", Commands: onProfileWriters(), PerCommand: map[Command]CommandFlag{
-				CommandProfileUpdate: {Help: "Store the new key in profiles.json, not the OS keychain. Needs --key."},
+				// profile update refuses --file with no --key where it reads the key, so no needs rule does.
+				CommandProfileUpdate: {
+					Help:  "Store the new key in profiles.json, not the OS keychain.",
+					Needs: []Need{{Name: "key", HelpOnly: true}},
+				},
 			}},
 			Help: "Store the key in profiles.json, not the OS keychain.",
 		},

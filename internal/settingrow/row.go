@@ -5,6 +5,7 @@ package settingrow
 import (
 	"maps"
 	"slices"
+	"strings"
 )
 
 // FlagOn returns the row's flag as command registers it, with the command's overrides applied, and
@@ -41,8 +42,65 @@ func (r Row) FlagOn(command Command) (BoundFlag, bool) {
 	}
 
 	bound.Member = override.Member
+	bound.Help = joinPhrases(bound.Help, r.phrases(command, bound.Needs))
 
 	return bound, true
+}
+
+func (r Row) phrases(command Command, needs []Need) []string {
+	var phrases []string
+
+	if r.Flag.Repeat {
+		phrases = append(phrases, "Repeatable.")
+	}
+
+	// Calibrate always reads a stream, so only the root run has a mode the flag is refused in.
+	if command == CommandRoot && r.Modes.Has(ModeStream) && !r.Modes.Has(ModeAsk) {
+		phrases = append(phrases, "Streaming only.")
+	}
+
+	if len(needs) > 0 {
+		spelled := make([]string, 0, len(needs))
+		for _, need := range needs {
+			spelled = append(spelled, spellingOn(need.Name, command))
+		}
+
+		phrases = append(phrases, "Needs "+andList(spelled)+".")
+	}
+
+	return phrases
+}
+
+func joinPhrases(help string, phrases []string) string {
+	if len(phrases) == 0 {
+		return help
+	}
+
+	return strings.TrimSpace(help + " " + strings.Join(phrases, " "))
+}
+
+func spellingOn(name Name, command Command) string {
+	for _, row := range Table() {
+		if row.Name != name {
+			continue
+		}
+
+		if row.Flag.Short != "" && !row.Flag.PerCommand[command].NoShort {
+			return "-" + row.Flag.Short
+		}
+
+		return "--" + row.Flag.Long
+	}
+
+	return string(name)
+}
+
+func andList(items []string) string {
+	if len(items) < 2 {
+		return strings.Join(items, "")
+	}
+
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }
 
 // Row is one setting and every way to give it. InBody marks a FileKey that a request body holds,
@@ -83,10 +141,11 @@ type BoundFlag struct {
 }
 
 // Need is a setting a flag is refused without, and the reason that ends the refusal, as in
-// "--resume needs --out, the file it picks up from".
+// "--resume needs --out, the file it picks up from". HelpOnly marks a need another rule refuses.
 type Need struct {
-	Name   Name
-	Reason string
+	Name     Name
+	Reason   string
+	HelpOnly bool
 }
 
 // Name is a setting's canonical name, as notices and rules spell it.

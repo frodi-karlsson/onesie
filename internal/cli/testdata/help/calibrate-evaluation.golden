@@ -4,7 +4,7 @@ Flags:
       --label [ID=]EXPR         Read the right answer for question ID with this jq
                                 expression, run on the record, not on the mapped state.
                                 A question with none is skipped. With one question ID=
-                                may be left out.
+                                may be left out. Repeatable.
       --cuts CUTS               Comma separated cuts between 0 and 1. See Evaluation for
                                 defaults.
       --require CONDITION       A requirement the report must meet, as
@@ -12,8 +12,8 @@ Flags:
                                 calibrate exits 1. Repeatable.
       --offline                 Read every answer from the --out file and ask nothing,
                                 needing no key. Needs --out and --resume.
-      --compare FILE            Score this saved answers file, asking nothing. Repeat,
-                                the first being the baseline.
+      --compare FILE            Score this saved answers file, asking nothing. The first
+                                is the baseline. Repeatable.
       --false-alarms BUDGETS    Comma separated false alarm budgets for --compare, which
                                 shows the catches at each. Default: 0.1.
 
